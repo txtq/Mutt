@@ -5,12 +5,41 @@ import sqlite3
 from contextlib import contextmanager
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# On Railway, an attached volume announces itself; otherwise keep data next to the code.
-VOLUME_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
-DATA_DIR = os.path.abspath(os.environ.get('MUTT_DATA_DIR') or VOLUME_DIR or os.path.join(ROOT, 'data'))
-ON_RAILWAY = bool(os.environ.get('RAILWAY_ENVIRONMENT_ID') or os.environ.get('RAILWAY_ENVIRONMENT_NAME'))
-# Railway containers start fresh on every deploy, so data only survives on a volume.
-PERSISTENT = not ON_RAILWAY or bool(VOLUME_DIR and DATA_DIR.startswith(os.path.abspath(VOLUME_DIR)))
+IN_CONTAINER = os.environ.get('MUTT_IN_CONTAINER') == '1'  # set by the Dockerfile
+
+
+def _mount_points():
+    try:
+        with open('/proc/self/mounts') as f:
+            return {line.split()[1].replace('\\040', ' ') for line in f if len(line.split()) > 1}
+    except OSError:
+        return set()
+
+
+def on_mounted_disk(path):
+    """True when `path` lives on a separately mounted disk, i.e. a host's volume."""
+    mounts = _mount_points()
+    path = os.path.abspath(path)
+    while path != os.path.dirname(path):
+        if path in mounts or os.path.ismount(path):
+            return True
+        path = os.path.dirname(path)
+    return False
+
+
+def _data_dir():
+    chosen = os.environ.get('MUTT_DATA_DIR') or os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
+    if chosen:
+        return chosen
+    # Hosts like Northflank or Fly just mount a volume; /data is the conventional spot.
+    if IN_CONTAINER and on_mounted_disk('/data'):
+        return '/data'
+    return os.path.join(ROOT, 'data')
+
+
+DATA_DIR = os.path.abspath(_data_dir())
+# A container starts fresh on every deploy, so its data only survives on a mounted volume.
+PERSISTENT = not IN_CONTAINER or on_mounted_disk(DATA_DIR)
 FILES_DIR = os.path.join(DATA_DIR, 'files')
 DB_PATH = os.path.join(DATA_DIR, 'mutt.db')
 PUBLIC_DIR = os.path.join(ROOT, 'public')

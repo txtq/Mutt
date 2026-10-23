@@ -5,7 +5,9 @@ import os
 import re
 import urllib.parse
 
-TRUST_PROXY = os.environ.get('MUTT_TRUST_PROXY', '').lower() in ('1', 'true', 'yes', 'on')
+_ON_RAILWAY = bool(os.environ.get('RAILWAY_ENVIRONMENT_ID') or os.environ.get('RAILWAY_ENVIRONMENT_NAME'))
+# Behind a hosting proxy (Railway always is), trust its forwarded IP and HTTPS headers.
+TRUST_PROXY = os.environ.get('MUTT_TRUST_PROXY', '1' if _ON_RAILWAY else '').lower() in ('1', 'true', 'yes', 'on')
 CHUNK = 256 * 1024
 
 

@@ -43,6 +43,10 @@ def main():
     args = parser.parse_args()
 
     db.init()
+    if not db.PERSISTENT:
+        print('WARNING: no Railway volume is attached, so every upload, drawer and account will be '
+              'erased on the next deploy. Attach a volume to this service (any mount path, e.g. /data).',
+              flush=True)
     with make_server(args.host, args.port, application,
                      server_class=ThreadingWSGIServer, handler_class=Handler) as httpd:
         shown = 'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host

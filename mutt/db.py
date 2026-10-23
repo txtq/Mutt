@@ -5,7 +5,12 @@ import sqlite3
 from contextlib import contextmanager
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.abspath(os.environ.get('MUTT_DATA_DIR', os.path.join(ROOT, 'data')))
+# On Railway, an attached volume announces itself; otherwise keep data next to the code.
+VOLUME_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
+DATA_DIR = os.path.abspath(os.environ.get('MUTT_DATA_DIR') or VOLUME_DIR or os.path.join(ROOT, 'data'))
+ON_RAILWAY = bool(os.environ.get('RAILWAY_ENVIRONMENT_ID') or os.environ.get('RAILWAY_ENVIRONMENT_NAME'))
+# Railway containers start fresh on every deploy, so data only survives on a volume.
+PERSISTENT = not ON_RAILWAY or bool(VOLUME_DIR and DATA_DIR.startswith(os.path.abspath(VOLUME_DIR)))
 FILES_DIR = os.path.join(DATA_DIR, 'files')
 DB_PATH = os.path.join(DATA_DIR, 'mutt.db')
 PUBLIC_DIR = os.path.join(ROOT, 'public')

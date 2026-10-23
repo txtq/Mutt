@@ -5,11 +5,11 @@ COPY server.py ./
 COPY mutt ./mutt
 COPY public ./public
 
+# Data goes to MUTT_DATA_DIR if set, else to a Railway volume if one is
+# attached, else to /app/data (lost when the container is replaced).
 ENV HOST=0.0.0.0 \
     PORT=8080 \
-    MUTT_DATA_DIR=/data \
     PYTHONUNBUFFERED=1
 
-VOLUME ["/data"]
 EXPOSE 8080
 CMD ["python", "server.py"]

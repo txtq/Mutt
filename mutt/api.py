@@ -204,6 +204,14 @@ def target_drawer(req, drawer_id):
     return own_drawer(req, drawer_id)['id']
 
 
+# ---------------------------------------------------------------- health
+
+@route('GET', r'/api/health', auth=False)
+def health(req):
+    req.db.execute('SELECT 1').fetchone()
+    return json_response({'ok': True, 'persistentStorage': db.PERSISTENT})
+
+
 # ---------------------------------------------------------------- accounts
 
 @route('GET', r'/api/me', auth=False)

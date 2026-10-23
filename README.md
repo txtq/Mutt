@@ -38,23 +38,36 @@ per user) and `secret.key`. Back up that folder to back up Mutt.
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `PORT` / `HOST` | `8080` / `127.0.0.1` | Where to listen. Use `HOST=0.0.0.0` to let other devices on your network in. |
-| `MUTT_DATA_DIR` | `./data` | Where the database and files go. |
+| `MUTT_DATA_DIR` | `./data`, or the Railway volume | Where the database and files go. |
 | `MUTT_ALLOW_SIGNUPS` | `1` | Set to `0` to stop new accounts (existing ones keep working). |
 | `MUTT_MAX_UPLOAD_MB` | `512` | Largest single file. |
-| `MUTT_TRUST_PROXY` | off | Set to `1` behind HTTPS hosting (Render, Railway, Fly, nginx) so cookies are marked Secure and client IPs are read correctly. |
+| `MUTT_TRUST_PROXY` | off (on for Railway) | Set to `1` behind other HTTPS hosting (Render, Fly, nginx) so cookies are marked Secure and client IPs are read correctly. |
 | `MUTT_SECRET` | from `data/secret.key` | Extra secret mixed into PIN hashes. Set it if your data folder isn't private. |
 
-## Put it online
+## Put it online (Railway)
 
-Any host that runs a Docker image **and gives you a persistent disk** works
-(Railway, Fly.io, Render with a disk, a small VPS). Mount the disk at `/data`.
+Mutt is set up for [Railway](https://railway.com): `railway.json` tells it to
+build the `Dockerfile` and check `/api/health` before switching to a new deploy.
+
+1. In Railway: **New Project → Deploy from GitHub repo →** pick this repo.
+2. On the service: **right-click → Attach Volume** (or **+ Create → Volume**),
+   mount path `/data`. Without a volume, everything is erased on each deploy.
+3. **Settings → Networking → Generate Domain** for a public address.
+4. Open `https://<your-domain>/api/health`: `"persistentStorage": true` means
+   the volume is in use.
+
+Mutt finds the volume by itself (`RAILWAY_VOLUME_MOUNT_PATH`) and trusts
+Railway's HTTPS proxy automatically. Every push to the deployed branch
+redeploys; your data stays on the volume.
+
+Any other Docker host works too. Give it a persistent disk and point Mutt at it:
 
 ```bash
 docker build -t mutt .
-docker run -p 8080:8080 -v mutt-data:/data mutt
+docker run -p 8080:8080 -e MUTT_DATA_DIR=/data -v mutt-data:/data mutt
 ```
 
-On a host with HTTPS in front, also set `MUTT_TRUST_PROXY=1`. Once your
+Behind HTTPS on other hosts, also set `MUTT_TRUST_PROXY=1`. Once your
 friends have accounts, set `MUTT_ALLOW_SIGNUPS=0` if you want to keep it closed.
 
 ## About 4-digit PINs

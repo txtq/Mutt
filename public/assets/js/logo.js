@@ -1,23 +1,8 @@
-// The Mutt wordmark. Five designs to choose from (Settings → Logo), each
-// with a small pixel mutt. On load the letters flick through a run of
-// typefaces, decoding left to right, before landing on the logo.
+// The Mutt wordmark. Five designs to choose from (Settings → Logo). On load
+// the letters flick through a run of typefaces, decoding left to right,
+// before landing on the logo.
 
-import { blink, renderIcon } from './pixel.js';
 import { h, reducedMotion, wait } from './util.js';
-
-// A small dog, drawn on the same 9×9 grid as the drawer critters.
-export const MUTT_DOG = {
-  px: '001111100'
-    + '011111110'
-    + '111111111'
-    + '112111211'
-    + '101111101'
-    + '101121101'
-    + '001313100'
-    + '000111000'
-    + '000000000',
-  c: '#9A6240',
-};
 
 export const LOGOS = [
   { value: 'wonk', label: 'Wonky' },
@@ -47,11 +32,10 @@ const current = () => document.documentElement.dataset.logo || DEFAULT_LOGO;
 // variant: a fixed design (for previews), or follow the viewer's setting.
 export function logo({ big = false, href = '/', variant = null } = {}) {
   const word = h('span', { class: 'logo-word', 'aria-hidden': 'true' }, [...'mutt'].map((ch) => h('span', { class: 'logo-l' }, ch)));
-  const dog = renderIcon(MUTT_DOG, { size: big ? 36 : 18, className: 'logo-dog' });
   const el = h(href ? 'a' : 'div', {
     class: `logo${big ? ' logo-big' : ''}`, href, 'aria-label': 'Mutt',
     dataset: { variant: variant || current(), ...(variant ? {} : { follow: '' }) },
-  }, word, dog);
+  }, word);
   el.addEventListener('pointerenter', () => glitch(el, { quick: true }));
   return el;
 }
@@ -119,5 +103,4 @@ export async function glitch(el, { quick = false } = {}) {
   })));
   el.classList.remove('is-glitching');
   word.style.width = '';
-  blink(el.querySelector('.logo-dog'));
 }

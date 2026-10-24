@@ -165,11 +165,8 @@ body.no-chrome .topbar { display: none; }
 .logo-big { font-size: 76px; }
 .logo-word { display: inline-flex; align-items: baseline; white-space: nowrap; }
 .logo-l { display: inline-block; }
-.logo-dog { flex-shrink: 0; width: 0.62em; height: 0.62em; transition: transform 0.6s var(--ease), opacity 0.3s; }
-.logo:hover .logo-dog { transform: translateY(-2px); }
 
-/* Wonky: soft, wobbly italic serif; the dog sits on the last t */
-.logo[data-variant="wonk"] { padding: 0.32em 0.2em 0 0; }
+/* Wonky: soft, wobbly italic serif */
 .logo[data-variant="wonk"] .logo-word {
   font-family: "Fraunces", Georgia, serif;
   font-style: italic;
@@ -177,16 +174,12 @@ body.no-chrome .topbar { display: none; }
   font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
   letter-spacing: -0.02em;
 }
-.logo[data-variant="wonk"] .logo-dog { position: absolute; top: 0; right: 0.02em; }
 
-/* Editorial: an upright display serif; the dog is the full stop */
+/* Editorial: an upright display serif */
 .logo[data-variant="editorial"] .logo-word { font-family: "Instrument Serif", Georgia, serif; font-size: 1.12em; letter-spacing: -0.015em; }
 .logo[data-variant="editorial"] .logo-l:first-child { text-transform: uppercase; }
-.logo[data-variant="editorial"] { align-items: baseline; }
-.logo[data-variant="editorial"] .logo-dog { width: 0.36em; height: 0.36em; margin-left: 0.05em; align-self: flex-end; margin-bottom: 0.12em; }
 
-/* Stamp: pixel capitals in a thin outlined stamp; the dog peeks over */
-.logo[data-variant="stamp"] { padding-top: 0.3em; }
+/* Stamp: pixel capitals in a thin outlined stamp */
 .logo[data-variant="stamp"] .logo-word {
   font-family: "Silkscreen", ui-monospace, monospace;
   font-weight: 400;
@@ -198,22 +191,16 @@ body.no-chrome .topbar { display: none; }
   border-radius: 0.5em;
 }
 .logo-big[data-variant="stamp"] .logo-word { border-width: 3px; }
-.logo[data-variant="stamp"] .logo-dog { position: absolute; top: -0.02em; right: 0.5em; width: 0.5em; height: 0.5em; }
 
-/* Wide: a heavy gallery grotesque; the dog leads */
-.logo[data-variant="wide"] { gap: 0.14em; }
+/* Wide: a heavy gallery grotesque */
 .logo[data-variant="wide"] .logo-word { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.05em; }
-.logo[data-variant="wide"] .logo-dog { order: -1; width: 0.7em; height: 0.7em; }
 
-/* Mono: whimsical geometric unicase; the dog sits on top, in the middle */
-.logo[data-variant="mono"] { padding-top: 0.5em; }
+/* Mono: whimsical geometric unicase */
 .logo[data-variant="mono"] .logo-word { font-family: "Major Mono Display", ui-monospace, monospace; font-size: 0.86em; letter-spacing: -0.04em; }
-.logo[data-variant="mono"] .logo-dog { position: absolute; top: 0; left: 50%; margin-left: -0.25em; width: 0.5em; height: 0.5em; }
 
 /* The intro: letters flick through faces, then land */
 .logo.is-glitching .logo-word { overflow: visible; animation: logo-scan 0.9s steps(1, end) both; }
 .logo.is-glitching .logo-l { transform: translateX(var(--gx, 0)); }
-.logo.is-glitching .logo-dog { opacity: 0; }
 .logo-l.is-inv { background: var(--ink); color: var(--bg); }
 .logo-l.is-landed { animation: logo-land 0.42s var(--ease) both; }
 @keyframes logo-scan {

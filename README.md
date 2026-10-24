@@ -2,8 +2,7 @@
 
 A personal place to keep things and connect them, like Are.na with only
 what's needed. On load the wordmark flicks through two dozen typefaces
-before settling on one of five logos (pick yours in Settings), each with a
-small pixel mutt.
+before settling on one of five logos (pick yours in Settings).
 
 - **Accounts**: a username and a 4-digit code.
 - **Filing cabinet**: your drawers, one per row with a strip of what's inside.

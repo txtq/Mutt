@@ -101,6 +101,13 @@ CREATE TABLE IF NOT EXISTS connections (
   PRIMARY KEY (block_id, drawer_id)
 );
 
+CREATE TABLE IF NOT EXISTS unlocks (
+  session_hash  TEXT NOT NULL,
+  owner_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at    REAL NOT NULL,
+  PRIMARY KEY (session_hash, owner_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_drawers_user ON drawers(user_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_blocks_user ON blocks(user_id, created_at);
@@ -123,8 +130,16 @@ def init():
     try:
         conn.execute('PRAGMA journal_mode = WAL')
         conn.executescript(SCHEMA)
+        migrate(conn)
     finally:
         conn.close()
+
+
+def migrate(conn):
+    """Bring databases made by older versions up to date."""
+    user_columns = {row[1] for row in conn.execute('PRAGMA table_info(users)')}
+    if 'prefs' not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN prefs TEXT NOT NULL DEFAULT '{}'")
 
 
 @contextmanager

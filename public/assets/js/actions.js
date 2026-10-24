@@ -9,10 +9,10 @@ import { bus, h, plural } from './util.js';
 // ---------------------------------------------------------------- connect picker
 
 export async function openConnect(anchor, block, { align = 'start' } = {}) {
-  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Search or name a new drawer', 'aria-label': 'Find a drawer' });
-  const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, 'Loading drawers…'));
+  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a drawer', 'aria-label': 'Find a drawer' });
+  const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
-    h('div', { class: 'cx-head' }, h('span', null, 'Connect'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this block')),
+    h('div', { class: 'cx-head' }, h('span', null, 'Connect'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
     input, list), { width: 320, align, className: 'pop-cx' });
   requestAnimationFrame(() => input.focus());
 
@@ -41,9 +41,9 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
     const exact = drawers.some((d) => d.title.toLowerCase() === q);
     if (q && !exact) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
-        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New drawer “${input.value.trim()}”`)));
+        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
     }
-    if (!rows.length) rows.push(h('div', { class: 'cx-note' }, 'No drawers yet. Type a name to make one.'));
+    if (!rows.length) rows.push(h('div', { class: 'cx-note' }, 'Type a name to make one'));
     list.replaceChildren(...rows);
     pop.place();
   };
@@ -74,7 +74,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
       drawers.unshift(drawer);
       input.value = '';
       await toggle(drawer);
-      toast(`Made “${drawer.title}”`);
+      
     } catch (err) {
       toast(err.message);
     }
@@ -115,10 +115,10 @@ export async function removeFromDrawer(block, drawerId, drawerTitle) {
 
 export async function deleteBlock(block) {
   const ok = await confirmDialog({
-    title: 'Delete this block?',
+    title: 'Delete this file?',
     message: block.connectionCount > 1
-      ? `It will disappear from all ${plural(block.connectionCount, 'drawer')} it’s in. This can’t be undone.`
-      : 'It will be gone everywhere, including its file. This can’t be undone.',
+      ? `It leaves all ${plural(block.connectionCount, 'drawer')} it’s in. This can’t be undone.`
+      : 'This can’t be undone.',
     confirm: 'Delete',
     danger: true,
   });
@@ -126,7 +126,7 @@ export async function deleteBlock(block) {
   try {
     await api.del(`/api/blocks/${block.id}`);
     bus.emit('block:deleted', { id: block.id });
-    toast('Block deleted');
+    toast('Deleted');
     return true;
   } catch (err) {
     toast(err.message);
@@ -143,6 +143,6 @@ export function blockMenu(anchor, block, { drawer, open } = {}) {
     block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
     '-',
     drawer && { label: `Remove from ${drawer.title}`, run: () => removeFromDrawer(block, drawer.id, drawer.title) },
-    { label: 'Delete block', danger: true, run: () => deleteBlock(block) },
+    { label: 'Delete', danger: true, run: () => deleteBlock(block) },
   ], { align: 'end' });
 }

@@ -1,21 +1,24 @@
 // The first box in every grid: type, paste a link, or drop/choose files.
 
+import { renderIcon } from './pixel.js';
+import { critterFor } from './theme.js';
 import { h } from './util.js';
 
-export function entryCell({ onText, onFiles, placeholder = 'Type here, paste a link, or drop files' } = {}) {
-  const textarea = h('textarea', { placeholder, rows: 1, 'aria-label': 'Add a block', spellcheck: 'true' });
+export function entryCell({ onText, onFiles } = {}) {
+  const textarea = h('textarea', { placeholder: 'Type, paste or drop', rows: 1, 'aria-label': 'Add a file', spellcheck: 'true' });
   const picker = h('input', { type: 'file', multiple: true, hidden: true });
   const add = h('button', { type: 'button', class: 'entry-add' }, 'Add');
   const box = h('div', { class: 'entry' },
     textarea,
     h('div', { class: 'entry-foot' },
-      h('span', { class: 'entry-files' },
-        'or ', h('button', { type: 'button', class: 'link', onclick: () => picker.click() }, 'choose files')),
-      h('span', { class: 'entry-hint' }, '↵ add · ⇧↵ new line'),
+      h('button', { type: 'button', class: 'entry-files link', onclick: () => picker.click() }, 'Upload'),
       add),
-    h('div', { class: 'entry-drop' }, h('span', null, 'Drop to add')),
+    h('div', { class: 'entry-drop' }, h('span', null, 'Drop')),
     picker);
-  const cell = h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, box)));
+  // Only seen in colorful mode: someone peeking over the edge.
+  const peek = h('span', { class: 'entry-peek', 'aria-hidden': 'true' },
+    renderIcon(critterFor(`entry-${Math.random()}`), { size: 27 }));
+  const cell = h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, peek, h('div', { class: 'cell-fill' }, box)));
 
   const sync = () => box.classList.toggle('has-text', textarea.value.trim().length > 0);
   const submit = () => {
@@ -69,27 +72,4 @@ export function entryCell({ onText, onFiles, placeholder = 'Type here, paste a l
     textarea.focus();
   };
   return cell;
-}
-
-// The home page's version: name a new drawer.
-export function newDrawerCell({ onCreate }) {
-  const input = h('input', { type: 'text', placeholder: 'New drawer', maxlength: '80', 'aria-label': 'Name a new drawer' });
-  const box = h('form', { class: 'entry entry-drawer' },
-    h('div', { class: 'entry-drawer-top' }, h('span', { class: 'entry-plus', 'aria-hidden': 'true' }, '+')),
-    input,
-    h('div', { class: 'entry-foot' }, h('span', { class: 'entry-hint is-on' }, 'Name it, then ↵')));
-  box.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = input.value.trim();
-    if (!title) { input.focus(); return; }
-    input.disabled = true;
-    try {
-      await onCreate(title);
-      input.value = '';
-    } finally {
-      input.disabled = false;
-    }
-  });
-  box.addEventListener('click', (e) => { if (e.target === box) input.focus(); });
-  return h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, box)));
 }

@@ -24,8 +24,7 @@ const notFound = {
   create: () => ({
     el: h('div', { class: 'page page-missing' },
       h('h1', { class: 'page-title' }, 'Nothing here.'),
-      h('p', { class: 'page-meta' }, 'That drawer or page doesn’t exist, or it isn’t yours.'),
-      h('a', { class: 'btn', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Back to drawers')),
+      h('a', { class: 'btn', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Filing cabinet')),
     title: 'Not found',
   }),
 };

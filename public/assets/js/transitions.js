@@ -2,7 +2,7 @@
 //
 // Any element with data-vt="…" that is on screen before and after a change
 // morphs into its counterpart: drawer card → drawer header, block → viewer,
-// grid → bundle covers.
+// drawer row → grid.
 
 import { EASE, inViewport, reducedMotion } from './util.js';
 

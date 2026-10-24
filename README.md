@@ -1,24 +1,25 @@
 # Mutt
 
-A personal place to keep things and connect them. Like Are.na, trimmed to
-what's needed: drawers, blocks, connections, and bundles that sort everything
-by kind automatically.
+A personal place to keep things and connect them, like Are.na with only
+what's needed.
 
-- **Accounts**: a username and a 4-digit PIN. Anyone with the link can make
-  an account (you can turn that off).
-- **Drawers**: Mutt's channels. Each one gets a pixel critter you can redraw.
-- **Blocks**: text (light Markdown), links (title and preview pulled in;
-  YouTube and Vimeo play inline), images, video, audio, PDFs (first-page
-  preview), documents, code, archives: any file.
-- **The grid**: four wide, newest first. The first box always adds: type,
-  paste a link, paste an image, drop files, or choose files. Drag blocks to
-  reorder a drawer.
-- **Connections**: one block can live in many drawers ("Connect →").
-- **Bundles**: a Grid ⇄ Bundles switch on every drawer (and on Everything)
-  sorts blocks into boards by kind: Images, Videos, Audio, PDFs, Text, Links,
-  Documents, Code, Archives, Other. The filter chips do the same inline. The
-  **Bundles** page does it across everything, can narrow by file type (PNG,
-  JPG…), and can save any bundle as a real drawer.
+- **Accounts**: a username and a 4-digit code.
+- **Filing cabinet**: your drawers, one per row with a strip of what's inside.
+  Each drawer has a pixel critter you can redraw.
+- **Files**: text (light Markdown), links (title and preview pulled in;
+  YouTube and Vimeo play inline), images, video, audio, PDFs, documents,
+  code, archives. The first box in every drawer adds: type, paste, drop or
+  upload. Drag files to rearrange a drawer.
+- **Connections**: one file can live in many drawers ("Connect →").
+- **Everything**: every file you've added, sortable by New, Old, Color,
+  Vibes, Format, A–Z and Size. Color and Vibes use each picture's colours,
+  measured in the browser and saved with the file.
+- **Users**: everyone on this Mutt and their critters. Type someone's code to
+  look inside their drawers (view only). Wrong codes count toward the same
+  lockout as signing in; changing your code locks everyone out again.
+- **Settings**: font (nine presets or upload your own woff2/woff/ttf/otf),
+  size, accent colour, paper tint, corners, spacing, captions, motion, and
+  colorful mode (critters everywhere, candy colours, dotted paper).
 
 ## Run it
 
@@ -82,7 +83,7 @@ keep it closed.
 
 ## About 4-digit PINs
 
-A 4-digit PIN only has 10,000 options, so Mutt slows guessing down hard:
+A 4-digit code only has 10,000 options, so Mutt slows guessing down hard:
 
 - Each PIN is hashed with scrypt plus a server-side secret.
 - After 5 wrong PINs an account locks for 30 seconds, then the lock doubles

@@ -1,6 +1,50 @@
-// Toasts, dialogs, popovers, menus and the PIN field.
+// Toasts, dialogs, popovers, menus, sliding pills and the PIN field.
 
+import { PALETTE } from './pixel.js';
 import { h, reducedMotion } from './util.js';
+
+// ---------------------------------------------------------------- sliding-pill control
+
+export function segmented(options, active, onPick, { className = '', label } = {}) {
+  const ind = h('span', { class: 'seg-ind', 'aria-hidden': 'true' });
+  const el = h('div', { class: `seg ${className}`, role: 'tablist', 'aria-label': label }, ind);
+  const buttons = new Map();
+  let current = active;
+  const place = () => {
+    const btn = buttons.get(current);
+    if (!btn || !btn.offsetWidth) { ind.style.opacity = '0'; return; }
+    const index = [...buttons.keys()].indexOf(current);
+    ind.style.setProperty('--seg-color', PALETTE[index % PALETTE.length]);
+    ind.style.opacity = '1';
+    ind.style.width = `${btn.offsetWidth}px`;
+    ind.style.transform = `translateX(${btn.offsetLeft}px)`;
+  };
+  const set = (value, animate = true) => {
+    current = value;
+    for (const [v, b] of buttons) b.setAttribute('aria-selected', v === value);
+    el.classList.toggle('is-instant', !animate);
+    requestAnimationFrame(place);
+  };
+  const render = (opts, value) => {
+    for (const b of buttons.values()) b.remove();
+    buttons.clear();
+    for (const o of opts) {
+      const b = h('button', { type: 'button', role: 'tab', class: 'seg-btn', onclick: () => onPick(o.value) },
+        h('span', null, o.label), o.count != null ? h('span', { class: 'seg-n' }, o.count) : null);
+      if (o.style) Object.assign(b.style, o.style);
+      buttons.set(o.value, b);
+      el.append(b);
+    }
+    set(value, false);
+  };
+  // Re-measure when it first appears on the page or fonts change its size.
+  new ResizeObserver(() => {
+    el.classList.add('is-instant');
+    place();
+  }).observe(el);
+  render(options, active);
+  return { el, set, render };
+}
 
 function exit(el, className = 'is-leaving', fallback = 320) {
   return new Promise((resolve) => {
@@ -15,12 +59,14 @@ function exit(el, className = 'is-leaving', fallback = 320) {
 // ---------------------------------------------------------------- toasts
 
 let toastHost;
+let toastCount = 0;
 export function toast(message, { action, duration = 3600 } = {}) {
   if (!toastHost) {
     toastHost = h('div', { class: 'toasts', 'aria-live': 'polite' });
     document.body.append(toastHost);
   }
-  const el = h('div', { class: 'toast' }, h('span', null, message));
+  const el = h('div', { class: 'toast', style: { '--toast-color': PALETTE[toastCount++ % PALETTE.length] } },
+    h('span', null, message));
   let timer;
   const close = () => { clearTimeout(timer); exit(el); };
   if (action) {

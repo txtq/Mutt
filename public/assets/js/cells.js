@@ -2,6 +2,7 @@
 
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown, plain } from './md.js';
+import { tintFor } from './theme.js';
 import { fmtBytes, fmtDuration, h } from './util.js';
 
 function img(src, block, className) {
@@ -60,7 +61,12 @@ export function blockFace(block) {
 
 const BADGE = { video: true, audio: true, link: true, pdf: true };
 
-export function renderCell(block, { actions = true } = {}) {
+// A full-width label between groups (Vibes and Format sorting).
+export function renderDivider(item) {
+  return h('div', { class: 'grid-divider', dataset: { key: item.id } }, h('span', null, item.label));
+}
+
+export function renderCell(block, { actions = block.mine !== false } = {}) {
   const box = h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, blockFace(block)));
   if (BADGE[block.kind] && (block.thumb || block.kind === 'video')) {
     const label = block.kind === 'video' && block.duration ? fmtDuration(block.duration)
@@ -72,9 +78,12 @@ export function renderCell(block, { actions = true } = {}) {
       h('button', { type: 'button', class: 'pill', dataset: { act: 'connect' } }, 'Connect'),
       h('button', { type: 'button', class: 'pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••')));
   }
-  const cell = h('article', { class: 'cell', dataset: { id: block.id, kind: block.kind }, tabindex: '0' },
-    box,
-    h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, displayTitle(block))));
+  const cell = h('article', {
+    class: 'cell', dataset: { id: block.id, kind: block.kind }, tabindex: '0',
+    style: { '--cell-tint': tintFor(block.id) },
+  },
+  box,
+  h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, displayTitle(block))));
   if (block.kind === 'video' && block.file) attachHoverPlay(cell, block);
   return cell;
 }
@@ -144,7 +153,7 @@ export function updatePending(cell, item) {
   }
 }
 
-// Tiny square previews used inside drawer cards and bundle covers.
+// Tiny square previews used in drawer rows.
 export function miniFace(block) {
   const src = imageSrc(block);
   if (src) {

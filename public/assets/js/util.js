@@ -33,7 +33,20 @@ export const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 export const EASE_IN = 'cubic-bezier(0.55, 0, 1, 0.45)';
 
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
-export const reducedMotion = () => motionQuery.matches;
+// The system setting, or Motion: Off in Mutt's own settings.
+export const reducedMotion = () => motionQuery.matches || document.documentElement.dataset.motion === 'off';
+
+// Small seeded random numbers, so the same name always gets the same critters.
+export function seeded(text) {
+  let seed = 2166136261;
+  for (let i = 0; i < text.length; i++) seed = Math.imul(seed ^ text.charCodeAt(i), 16777619);
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export function fmtBytes(n) {
   if (n == null) return '';

@@ -3,6 +3,7 @@
 
 import { api, sendFile } from './api.js';
 import { guessKind } from './kinds.js';
+import { ensureLooks } from './look.js';
 import { makeThumb } from './thumbs.js';
 import { bus, h, plural, uid } from './util.js';
 
@@ -107,6 +108,7 @@ async function run(item) {
     item.status = 'done';
     item.block = block;
     bus.emit('upload:done', item);
+    ensureLooks([block], (b) => bus.emit('block:changed', b));
     setTimeout(() => dismiss(item.key), 4000);
   } catch (err) {
     item.status = 'failed';

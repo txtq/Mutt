@@ -1,28 +1,28 @@
-// The bar along the top, and account settings.
+// The bar along the top, and account actions.
 
 import { api, session } from './api.js';
-import { segmented } from './collection.js';
 import { nav } from './nav.js';
 import { renderIcon } from './pixel.js';
-import { openDialog, openMenu, pinField, toast } from './ui.js';
+import { forgetPrefs, parade } from './theme.js';
+import { openDialog, openMenu, pinField, segmented, toast } from './ui.js';
 import { h, wait } from './util.js';
 
 const SECTIONS = [
-  { value: '/', label: 'Drawers' },
-  { value: '/bundles', label: 'Bundles' },
+  { value: '/', label: 'Filing cabinet' },
   { value: '/all', label: 'Everything' },
+  { value: '/users', label: 'Users' },
 ];
 
 function sectionFor(path) {
-  if (path.startsWith('/bundles')) return '/bundles';
   if (path === '/all') return '/all';
+  if (path === '/users' || path.startsWith('/u/')) return '/users';
   if (path === '/' || path.startsWith('/d/')) return '/';
   return null;
 }
 
 export function createTopbar() {
   const crumbs = h('nav', { class: 'crumbs', 'aria-label': 'You are here' });
-  const sections = segmented(SECTIONS, '/', (path) => nav.go(path), { className: 'sections' });
+  const sections = segmented(SECTIONS, '/', (path) => nav.go(path), { className: 'sections', label: 'Sections' });
   const search = h('input', { class: 'search', type: 'search', placeholder: 'Search', 'aria-label': 'Search', autocomplete: 'off' });
   const searchForm = h('form', { class: 'search-form', role: 'search' }, search, h('kbd', { class: 'search-kbd' }, '/'));
   searchForm.addEventListener('submit', (e) => {
@@ -33,19 +33,20 @@ export function createTopbar() {
   });
   const me = h('button', { type: 'button', class: 'me' });
   me.addEventListener('click', () => openMenu(me, [
-    { label: 'Drawers', run: () => nav.go('/') },
-    { label: 'Bundles', run: () => nav.go('/bundles') },
+    { label: 'Filing cabinet', run: () => nav.go('/') },
     { label: 'Everything', run: () => nav.go('/all') },
+    { label: 'Users', run: () => nav.go('/users') },
     '-',
-    { label: 'Change PIN…', run: changePin },
+    { label: 'Settings', run: () => nav.go('/settings') },
     { label: 'Sign out', run: signOut },
-    '-',
-    { label: 'Delete account…', danger: true, run: deleteAccount },
   ], { align: 'end', className: 'pop-me' }));
 
+  const crowd = h('span', { class: 'topbar-crowd' });
   const bar = h('header', { class: 'topbar' },
     h('div', { class: 'topbar-in' },
-      h('a', { class: 'wordmark', href: '/', 'aria-label': 'Mutt, home' }, 'Mutt'),
+      h('a', { class: 'wordmark', href: '/', 'aria-label': 'Mutt, home' },
+        [...'Mutt'].map((ch, i) => h('span', { style: { '--i': i } }, ch))),
+      crowd,
       crumbs,
       h('div', { class: 'topbar-spacer' }),
       sections.el,
@@ -58,11 +59,18 @@ export function createTopbar() {
     if (next !== scrolled) { scrolled = next; bar.classList.toggle('is-scrolled', next); }
   }, { passive: true });
 
+  let crowdFor = null;
   return {
     el: bar,
     search,
     update(inst, url) {
-      me.textContent = session.user ? session.user.username : '';
+      const name = session.user?.username || '';
+      me.textContent = name;
+      // Colorful mode's little parade, the same critters every time for you.
+      if (name && crowdFor !== name) {
+        crowdFor = name;
+        crowd.replaceChildren(parade(name, 5, 18));
+      }
       sections.set(sectionFor(url.pathname), true);
       if (url.pathname === '/search') search.value = url.searchParams.get('q') || '';
       const items = typeof inst.crumbs === 'function' ? inst.crumbs() : inst.crumbs || [];
@@ -74,9 +82,10 @@ export function createTopbar() {
 
 // ---------------------------------------------------------------- account
 
-async function signOut() {
+export async function signOut() {
   try { await api.post('/api/auth/logout'); } catch { /* signed out either way */ }
   session.user = null;
+  forgetPrefs();
   nav.go('/login', { replace: true });
 }
 
@@ -117,26 +126,27 @@ function pinSteps({ title, steps, onDone }) {
   return dialog;
 }
 
-function changePin() {
+export function changePin() {
   pinSteps({
-    title: 'Change PIN',
-    steps: [{ label: 'Your current PIN' }, { label: 'A new 4-digit PIN', restart: true }, { label: 'The new PIN again' }],
+    title: 'Change code',
+    steps: [{ label: 'Current code' }, { label: 'New code', restart: true }, { label: 'Again' }],
     onDone: async ([current, next, again]) => {
       if (next !== again) return 'Those didn’t match.';
       await api.post('/api/me/pin', { current, next });
-      toast('PIN changed. Other devices were signed out.');
+      toast('Code changed');
       return null;
     },
   });
 }
 
-function deleteAccount() {
+export function deleteAccount() {
   pinSteps({
-    title: 'Delete your account?',
-    steps: [{ label: 'This removes every drawer, block and file for good. Enter your PIN to confirm.' }],
+    title: 'Delete account?',
+    steps: [{ label: 'Everything you’ve stored goes for good. Enter your code.' }],
     onDone: async ([pin]) => {
       await api.post('/api/me/delete', { pin });
       session.user = null;
+      forgetPrefs();
       setTimeout(() => nav.go('/login', { replace: true }), 450);
       return null;
     },

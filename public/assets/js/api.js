@@ -1,6 +1,6 @@
 // Talking to the Mutt server.
 
-export const session = { user: null, signups: true };
+export const session = { user: null, signups: true, prefs: {}, stats: null };
 
 export class ApiError extends Error {
   constructor(status, message, data = {}) {

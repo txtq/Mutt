@@ -1,71 +1,104 @@
-// Your drawers.
+// Filing cabinet: your drawers, one per row, with a peek at what's inside.
 
 import { api, session } from '../api.js';
 import { miniFace } from '../cells.js';
-import { newDrawerCell } from '../entry.js';
 import { nav } from '../nav.js';
 import { blink, generateIcon, renderIcon } from '../pixel.js';
+import { critterFor } from '../theme.js';
 import { toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
-import { fmtDate, h, plural, timeAgo } from '../util.js';
+import { h, plural, timeAgo } from '../util.js';
 
-export function drawerCard(drawer, { assemble = false } = {}) {
-  const icon = renderIcon(drawer.icon, { size: 45, assemble, className: 'card-icon' });
+export function drawerRow(drawer, { href = `/d/${drawer.id}`, locked = false, onOpen, drops = true } = {}) {
+  const icon = renderIcon(drawer.icon, { size: 45, className: 'drow-icon' });
   icon.dataset.vt = `d-${drawer.id}-icon`;
-  const peek = h('div', { class: 'card-peek', 'aria-hidden': 'true' },
-    (drawer.previews || []).map((block, j) => {
+  const strip = h('div', { class: 'drow-strip', 'aria-hidden': 'true' });
+  if (locked) {
+    for (let j = 0; j < Math.min(drawer.count || 0, 7); j++) strip.append(h('div', { class: 'drow-tile is-locked', style: { '--j': j } }));
+  } else {
+    (drawer.previews || []).forEach((block, j) => {
       const face = miniFace(block);
       face.dataset.vt = `b-${block.id}`;
-      return h('div', { class: 'peek', style: { '--j': j } }, face);
-    }));
-  const card = h('a', { class: 'card', href: `/d/${drawer.id}` },
-    h('div', { class: 'card-top' }, icon),
-    peek,
-    h('div', { class: 'card-foot' },
-      h('div', { class: 'card-title', dataset: { vt: `d-${drawer.id}-title` } }, drawer.title),
-      h('div', { class: 'card-meta' }, `${plural(drawer.count || 0, 'block')} · ${timeAgo(drawer.updatedAt)}`)));
+      strip.append(h('div', { class: 'drow-tile', style: { '--j': j } }, face));
+    });
+  }
+  const row = h('a', { class: `drow${locked ? ' is-locked' : ''}`, href, style: { '--critter': drawer.icon.c } },
+    h('div', { class: 'drow-info' },
+      icon,
+      h('div', { class: 'drow-text' },
+        h('div', { class: 'drow-title', dataset: { vt: `d-${drawer.id}-title` } }, drawer.title),
+        h('div', { class: 'drow-meta' }, `${plural(drawer.count || 0, 'file')} · ${timeAgo(drawer.updatedAt)}`))),
+    strip);
 
-  card.addEventListener('pointerenter', () => blink(icon));
-  card.addEventListener('click', (e) => {
+  row.addEventListener('pointerenter', () => blink(icon));
+  row.addEventListener('click', (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey) return;
     e.preventDefault();
-    nav.go(`/d/${drawer.id}`);
+    if (onOpen) onOpen(drawer);
+    else nav.go(href);
   });
 
-  // Drop files straight onto a drawer.
-  let depth = 0;
-  const isFiles = (e) => e.dataTransfer?.types?.includes('Files');
-  card.addEventListener('dragenter', (e) => { if (!isFiles(e)) return; depth++; card.classList.add('is-over'); blink(icon); });
-  card.addEventListener('dragleave', (e) => { if (!isFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) card.classList.remove('is-over'); });
-  card.addEventListener('dragover', (e) => {
-    if (!isFiles(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
-  });
-  card.addEventListener('drop', (e) => {
-    if (!isFiles(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    depth = 0;
-    card.classList.remove('is-over');
-    document.dispatchEvent(new CustomEvent('mutt:dropped'));
-    const files = [...e.dataTransfer.files];
-    if (!files.length) return;
-    addFiles(files, { drawerId: drawer.id });
-    toast(`Adding ${plural(files.length, 'file')} to ${drawer.title}`);
-  });
+  if (drops) {
+    // Drop files straight onto a drawer.
+    let depth = 0;
+    const isFiles = (e) => e.dataTransfer?.types?.includes('Files');
+    row.addEventListener('dragenter', (e) => { if (!isFiles(e)) return; depth++; row.classList.add('is-over'); blink(icon); });
+    row.addEventListener('dragleave', (e) => { if (!isFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) row.classList.remove('is-over'); });
+    row.addEventListener('dragover', (e) => {
+      if (!isFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    row.addEventListener('drop', (e) => {
+      if (!isFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      depth = 0;
+      row.classList.remove('is-over');
+      document.dispatchEvent(new CustomEvent('mutt:dropped'));
+      const files = [...e.dataTransfer.files];
+      if (!files.length) return;
+      addFiles(files, { drawerId: drawer.id });
+      toast(`Adding ${plural(files.length, 'file')} to ${drawer.title}`);
+    });
+  }
+  return row;
+}
 
-  return h('div', { class: 'cell cell-card' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, card)));
+function newDrawerRow(onCreate) {
+  const input = h('input', { type: 'text', placeholder: 'New drawer', maxlength: '80', 'aria-label': 'New drawer name' });
+  const form = h('form', { class: 'drow drow-new' },
+    h('div', { class: 'drow-info' }, h('span', { class: 'drow-plus', 'aria-hidden': 'true' }, '+'), input));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = input.value.trim();
+    if (!title) { input.focus(); return; }
+    input.disabled = true;
+    try {
+      await onCreate(title);
+      input.value = '';
+    } finally {
+      input.disabled = false;
+    }
+  });
+  form.addEventListener('click', (e) => { if (e.target === form) input.focus(); });
+  return form;
+}
+
+export function countLine(stats) {
+  return h('p', { class: 'page-meta' },
+    h('span', { class: 'file-count' }, plural(stats.files, 'file')), ` · ${plural(stats.drawers, 'drawer')}`);
 }
 
 export const homeView = {
   load: () => api.get('/api/drawers'),
 
   create(params, data) {
-    const { drawers, totalBlocks } = data;
-    const entry = newDrawerCell({
-      onCreate: async (title) => {
+    const { drawers } = data;
+    session.stats = data.stats;
+    const list = h('div', { class: 'drows' },
+      newDrawerRow(async (title) => {
         try {
           const { drawer } = await api.post('/api/drawers', { title, icon: generateIcon() });
           nav.go(`/d/${drawer.id}`);
@@ -73,27 +106,22 @@ export const homeView = {
           toast(err.message);
           throw err;
         }
-      },
-    });
-    const grid = h('div', { class: 'grid' }, entry, drawers.map((d) => drawerCard(d)));
-    [...grid.children].forEach((el, i) => { el.style.setProperty('--i', Math.min(i, 16)); el.classList.add('reveal'); });
-    if (!drawers.length) {
-      grid.append(h('div', { class: 'grid-empty grid-empty-side' },
-        h('p', null, 'Drawers hold anything: images, notes, links, PDFs, video, sound, files.'),
-        h('p', null, 'Name your first one to start.')));
-    }
+      }),
+      drawers.map((d) => drawerRow(d)));
+    [...list.children].forEach((el, i) => { el.style.setProperty('--i', Math.min(i, 14)); el.classList.add('reveal'); });
 
-    const since = session.user?.createdAt ? ` · since ${fmtDate(session.user.createdAt)}` : '';
     const el = h('div', { class: 'page' },
       h('header', { class: 'page-head' },
-        h('h1', { class: 'page-title' }, session.user.username),
-        h('p', { class: 'page-meta' }, `${plural(drawers.length, 'drawer')} · ${plural(totalBlocks, 'block')}${since}`)),
-      grid);
+        h('div', { class: 'page-title-row' },
+          renderIcon(critterFor(session.user.username), { size: 36, className: 'mascot' }),
+          h('h1', { class: 'page-title' }, session.user.username)),
+        countLine(data.stats)),
+      list);
 
     return {
       el,
-      title: 'Drawers',
-      dropTarget: () => ({ label: 'Drop onto a drawer to add to it' }),
+      title: 'Filing cabinet',
+      dropTarget: () => ({ label: 'Drop onto a drawer' }),
     };
   },
 };

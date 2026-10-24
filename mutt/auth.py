@@ -117,6 +117,44 @@ def _token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def session_key(token):
+    """Stable, non-secret id for a session (what unlocks are tied to)."""
+    return _token_hash(token or '')
+
+
+def try_pin(conn, user, pin, ip):
+    """Check a PIN against an account with the shared lockout rules.
+
+    Returns None on success, else (status, message, extra) for an HttpError.
+    Used for signing in and for unlocking someone's drawers, so guessing a
+    code through either door counts toward the same lock.
+    """
+    now = time.time()
+    if user['locked_until'] > now:
+        wait = int(user['locked_until'] - now) + 1
+        return 429, f'Too many wrong codes. Try again in {format_wait(wait)}.', {'retryAfter': wait}
+    if not check_pin(pin, user['pin_salt'], user['pin_hash']):
+        failed = user['failed'] + 1
+        lock = lock_seconds(failed)
+        conn.execute('UPDATE users SET failed = ?, locked_until = ? WHERE id = ?',
+                     (failed, now + lock if lock else 0, user['id']))
+        login_failures_by_ip.hit(ip)
+        if lock:
+            return 429, f'Too many wrong codes. Try again in {format_wait(lock)}.', {'retryAfter': lock}
+        left = FREE_ATTEMPTS - failed
+        return 401, "That code isn't right.", {'attemptsLeft': left if left <= 2 else None}
+    conn.execute('UPDATE users SET failed = 0, locked_until = 0 WHERE id = ?', (user['id'],))
+    return None
+
+
+def format_wait(seconds):
+    if seconds < 90:
+        return f'{seconds} seconds'
+    if seconds < 5400:
+        return f'{round(seconds / 60)} minutes'
+    return 'an hour'
+
+
 def create_session(conn, user_id):
     token = secrets.token_urlsafe(32)
     now = time.time()
@@ -159,6 +197,7 @@ def end_other_sessions(conn, user_id, keep_token):
 
 def prune_sessions(conn):
     conn.execute('DELETE FROM sessions WHERE expires_at < ?', (time.time(),))
+    conn.execute('DELETE FROM unlocks WHERE expires_at < ?', (time.time(),))
 
 
 def cookie_header(req, token, max_age=SESSION_TTL):

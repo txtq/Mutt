@@ -230,11 +230,11 @@ function textStage(block) {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); restore(); }
     });
-    wrap.replaceChildren(area, h('div', { class: 'vw-text-actions' }, h('span', { class: 'vw-hint' }, '⌘↵ to save'), cancel, save));
+    wrap.replaceChildren(area, h('div', { class: 'vw-text-actions' }, cancel, save));
     autosize(area);
     area.focus();
   });
-  wrap.append(edit);
+  if (block.mine !== false) wrap.append(edit);
   return wrap;
 }
 
@@ -288,6 +288,26 @@ function renderSide() {
     block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
     block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null);
 
+  const count = connections?.length ?? block.connectionCount ?? 0;
+
+  // Someone else's file, seen through a drawer you unlocked: look, don't touch.
+  if (block.mine === false) {
+    const owner = block.owner;
+    state.side.replaceChildren(
+      h('h2', { class: 'vw-title vw-title-static' }, displayTitle(block) || 'Untitled'),
+      block.description ? h('p', { class: 'vw-desc vw-desc-static' }, block.description) : null,
+      h('a', { class: 'vw-owner', href: `/u/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/u/${owner}`); } }, `@${owner}`),
+      actions,
+      metaRows(block),
+      connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', null, plural(count, 'drawer'))) : null,
+      connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => h('li', null,
+        h('a', {
+          href: `/u/${owner}/d/${d.id}`, class: 'vw-conn',
+          onclick: (e) => { e.preventDefault(); hooks.go(`/u/${owner}/d/${d.id}`); },
+        }, renderIcon(d.icon, { size: 18 }), h('span', null, d.title))))) : null);
+    return;
+  }
+
   const connectBtn = h('button', { type: 'button', class: 'btn btn-dark btn-sm' }, 'Connect →');
   connectBtn.addEventListener('click', () => openConnect(connectBtn, state.block, { align: 'end' }));
 
@@ -301,16 +321,15 @@ function renderSide() {
           type: 'button', class: 'vw-conn-x', 'aria-label': `Remove from ${d.title}`, title: `Remove from ${d.title}`,
           onclick: () => removeFromDrawer(state.block, d.id, d.title),
         }, '×'))))
-      : h('div', { class: 'vw-conn-note' }, 'Not in any drawer yet.');
+      : null;
 
-  const count = connections?.length ?? block.connectionCount ?? 0;
   state.side.replaceChildren(
     editable(block, 'title', { placeholder: 'Untitled', className: 'vw-title' }),
-    editable(block, 'description', { placeholder: 'Add a description…', className: 'vw-desc' }),
+    editable(block, 'description', { placeholder: 'Note', className: 'vw-desc' }),
     actions,
     metaRows(block),
     h('section', { class: 'vw-conn-head' },
-      h('span', null, count ? `In ${plural(count, 'drawer')}` : 'Connections'),
+      h('span', null, count ? plural(count, 'drawer') : 'Drawers'),
       connectBtn),
     list,
     h('div', { class: 'vw-danger' },
@@ -320,7 +339,7 @@ function renderSide() {
       h('button', {
         type: 'button', class: 'link is-danger',
         onclick: async () => { if (await deleteBlock(state.block)) hooks.close(); },
-      }, 'Delete block')));
+      }, 'Delete')));
 }
 
 function applyUpdate(block, { keepSide = false } = {}) {

@@ -1,4 +1,4 @@
-"""HTTP API: accounts, drawers, blocks, connections, bundles, files."""
+"""HTTP API: accounts, settings, users, drawers, files (blocks), connections."""
 import json
 import os
 import random
@@ -14,12 +14,33 @@ from .web import HttpError, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '512')) * 1024 * 1024)
 MAX_THUMB = 8 * 1024 * 1024
+MAX_FONT = 5 * 1024 * 1024
+UNLOCK_TTL = 12 * 60 * 60
 ALLOW_SIGNUPS = os.environ.get('MUTT_ALLOW_SIGNUPS', '1').lower() not in ('0', 'false', 'no', 'off')
 
 ICON_SIZE = 9
 ICON_RE = re.compile(r'^[0-3]{81}$')
 COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
 PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240']
+
+PREF_CHOICES = {
+    'font': {'geist', 'inter', 'instrument', 'grotesk', 'plex', 'fraunces', 'newsreader', 'mono', 'pixel', 'custom'},
+    'size': {'s', 'm', 'l'},
+    'corners': {'square', 'soft', 'round'},
+    'density': {'tight', 'normal', 'airy'},
+    'captions': {'show', 'hover', 'hide'},
+    'motion': {'fluid', 'calm', 'off'},
+    'paper': {'white', 'warm', 'cool', 'blush', 'mint'},
+}
+FONT_TYPES = {
+    b'wOF2': ('woff2', 'font/woff2'),
+    b'wOFF': ('woff', 'font/woff'),
+    b'\x00\x01\x00\x00': ('ttf', 'font/ttf'),
+    b'true': ('ttf', 'font/ttf'),
+    b'OTTO': ('otf', 'font/otf'),
+}
+FONT_MIME = {ext: mime for ext, mime in FONT_TYPES.values()}
 
 
 def now():
@@ -32,14 +53,6 @@ def ms(t):
 
 def new_id():
     return secrets.token_urlsafe(9)
-
-
-def fmt_wait(seconds):
-    if seconds < 90:
-        return f'{seconds} seconds'
-    if seconds < 5400:
-        return f'{round(seconds / 60)} minutes'
-    return 'an hour'
 
 
 def text_field(body, key, limit, label, strip=True):
@@ -62,6 +75,13 @@ def user_json(row):
     return {'username': row['username'], 'createdAt': ms(row['created_at'])}
 
 
+def user_prefs(row):
+    try:
+        return json.loads(row['prefs'] or '{}')
+    except (IndexError, KeyError, ValueError):
+        return {}
+
+
 def drawer_json(row, count=None, previews=None):
     data = {
         'id': row['id'],
@@ -78,7 +98,7 @@ def drawer_json(row, count=None, previews=None):
     return data
 
 
-def block_json(row):
+def block_json(row, mine=True, owner=None):
     keys = row.keys()
     file_url = None
     if row['file_key']:
@@ -102,7 +122,10 @@ def block_json(row):
         'meta': json.loads(row['meta'] or '{}'),
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
+        'mine': mine,
     }
+    if owner:
+        data['owner'] = owner
     if 'conn_count' in keys:
         data['connectionCount'] = row['conn_count']
     return data
@@ -139,6 +162,21 @@ def clean_icon(value):
     return {'px': value['px'], 'c': value['c'].upper()}
 
 
+def clean_look(value):
+    """A file's colour summary, measured in the browser, used for sorting."""
+    if not isinstance(value, dict) or not COLOR_RE.match(str(value.get('hex', ''))):
+        raise HttpError(400, 'Could not read that colour.')
+
+    def number(key, high):
+        n = value.get(key)
+        if isinstance(n, bool) or not isinstance(n, (int, float)) or not 0 <= n <= high:
+            raise HttpError(400, 'Could not read that colour.')
+        return round(float(n), 3)
+
+    return {'hex': value['hex'].upper(), 'h': number('h', 360), 's': number('s', 1),
+            'l': number('l', 1), 'c': number('c', 1)}
+
+
 # ---------------------------------------------------------------- lookups
 
 def own_drawer(req, drawer_id):
@@ -153,8 +191,31 @@ def own_block(req, block_id):
     row = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.id = ? AND b.user_id = ?',
                          (block_id, req.user['id'])).fetchone()
     if not row:
-        raise HttpError(404, 'That block does not exist.')
+        raise HttpError(404, 'That file does not exist.')
     return row
+
+
+def is_unlocked(req, owner_id):
+    if owner_id == req.user['id']:
+        return True
+    return bool(req.db.execute(
+        'SELECT 1 FROM unlocks WHERE session_hash = ? AND owner_id = ? AND expires_at > ?',
+        (auth.session_key(req.session_token), owner_id, now())).fetchone())
+
+
+def readable_block(req, block_id):
+    """Your own file, or a file in the drawers of someone you've unlocked."""
+    row = req.db.execute(
+        f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
+        'WHERE b.id = ?', (block_id,)).fetchone()
+    if not row:
+        raise HttpError(404, 'That file does not exist.')
+    if row['user_id'] == req.user['id']:
+        return row, True
+    in_drawer = req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone()
+    if in_drawer and is_unlocked(req, row['user_id']):
+        return row, False
+    raise HttpError(404, 'That file does not exist.')
 
 
 def reload_block(req, block_id):
@@ -204,6 +265,12 @@ def target_drawer(req, drawer_id):
     return own_drawer(req, drawer_id)['id']
 
 
+def user_stats(conn, user_id):
+    files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ?', (user_id,)).fetchone()[0]
+    drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ?', (user_id,)).fetchone()[0]
+    return {'files': files, 'drawers': drawers}
+
+
 # ---------------------------------------------------------------- health
 
 @route('GET', r'/api/health', auth=False)
@@ -218,7 +285,8 @@ def health(req):
 def me(req):
     if not req.user:
         raise HttpError(401, 'Please sign in.', signups=ALLOW_SIGNUPS)
-    return json_response({'user': user_json(req.user)})
+    return json_response({'user': user_json(req.user), 'prefs': user_prefs(req.user),
+                          'stats': user_stats(req.db, req.user['id'])})
 
 
 @route('GET', r'/api/auth/available', auth=False)
@@ -245,7 +313,7 @@ def signup(req):
         raise HttpError(400, problem)
     pin = str(body.get('pin') or '')
     if not auth.PIN_RE.match(pin):
-        raise HttpError(400, 'Your PIN needs to be 4 digits.')
+        raise HttpError(400, 'Your code needs to be 4 digits.')
     pin_hash, salt = auth.new_pin_hash(pin)
     try:
         with db.transaction(req.db):
@@ -257,53 +325,64 @@ def signup(req):
         raise HttpError(409, 'That username is taken.')
     auth.signups_by_ip.hit(ip)
     user = req.db.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
-    return json_response({'user': user_json(user)}, headers=[auth.cookie_header(req, token)])
+    return json_response({'user': user_json(user), 'prefs': {}, 'stats': {'files': 0, 'drawers': 0}},
+                         headers=[auth.cookie_header(req, token)])
+
+
+def pin_gate(req, user, pin, wrong_status=401):
+    """Raise unless `pin` opens `user`'s account (counting toward its lockout).
+
+    Unlocking someone else's drawers passes 403 for a wrong code, because a
+    401 means *your* session has ended and would sign you out.
+    """
+    ip = req.client_ip
+    wait = auth.login_failures_by_ip.retry_after(ip)
+    if wait:
+        raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
+    if not auth.PIN_RE.match(pin):
+        raise HttpError(400, 'Codes are 4 digits.')
+    failure = auth.try_pin(req.db, user, pin, ip)
+    if failure:
+        status, message, extra = failure
+        raise HttpError(wrong_status if status == 401 else status, message, **extra)
 
 
 @route('POST', r'/api/auth/login', auth=False)
 def login(req):
-    ip = req.client_ip
-    wait = auth.login_failures_by_ip.retry_after(ip)
-    if wait:
-        raise HttpError(429, f'Too many tries. Wait {fmt_wait(wait)} and try again.', retryAfter=wait)
     body = req.json()
     username = auth.normalize_username(body.get('username'))
     pin = str(body.get('pin') or '')
-    if not auth.PIN_RE.match(pin):
-        raise HttpError(400, 'Your PIN is 4 digits.')
     user = req.db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
     if not user:
+        wait = auth.login_failures_by_ip.retry_after(req.client_ip)
+        if wait:
+            raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
         auth.burn_time(pin)
-        auth.login_failures_by_ip.hit(ip)
-        raise HttpError(401, "That username and PIN don't match.")
-    stamp = now()
-    if user['locked_until'] > stamp:
-        wait = int(user['locked_until'] - stamp) + 1
-        raise HttpError(429, f'Too many wrong PINs. Try again in {fmt_wait(wait)}.', retryAfter=wait)
-    if not auth.check_pin(pin, user['pin_salt'], user['pin_hash']):
-        failed = user['failed'] + 1
-        lock = auth.lock_seconds(failed)
-        req.db.execute('UPDATE users SET failed = ?, locked_until = ? WHERE id = ?',
-                       (failed, stamp + lock if lock else 0, user['id']))
-        auth.login_failures_by_ip.hit(ip)
-        if lock:
-            raise HttpError(429, f'Too many wrong PINs. Try again in {fmt_wait(lock)}.', retryAfter=lock)
-        left = auth.FREE_ATTEMPTS - failed
-        raise HttpError(401, "That username and PIN don't match.", attemptsLeft=left if left <= 2 else None)
-    req.db.execute('UPDATE users SET failed = 0, locked_until = 0 WHERE id = ?', (user['id'],))
+        auth.login_failures_by_ip.hit(req.client_ip)
+        raise HttpError(401, "That username and code don't match.")
+    try:
+        pin_gate(req, user, pin)
+    except HttpError as err:
+        if err.status == 401:
+            err.message = "That username and code don't match."
+        raise
     token = auth.create_session(req.db, user['id'])
     if random.random() < 0.05:
         auth.prune_sessions(req.db)
-    return json_response({'user': user_json(user)}, headers=[auth.cookie_header(req, token)])
+    return json_response({'user': user_json(user), 'prefs': user_prefs(user),
+                          'stats': user_stats(req.db, user['id'])},
+                         headers=[auth.cookie_header(req, token)])
 
 
 @route('POST', r'/api/auth/logout', auth=False)
 def logout(req):
+    if req.session_token:
+        req.db.execute('DELETE FROM unlocks WHERE session_hash = ?', (auth.session_key(req.session_token),))
     auth.end_session(req.db, req.session_token)
     return json_response({'ok': True}, headers=[auth.clear_cookie_header(req)])
 
 
-def require_pin(req, pin, label='PIN'):
+def require_pin(req, pin, label='code'):
     if not auth.PIN_RE.match(pin or '') or not auth.check_pin(pin, req.user['pin_salt'], req.user['pin_hash']):
         auth.login_failures_by_ip.hit(req.client_ip)
         raise HttpError(403, f'That {label} is not right.')
@@ -314,13 +393,15 @@ def change_pin(req):
     body = req.json()
     if auth.login_failures_by_ip.retry_after(req.client_ip):
         raise HttpError(429, 'Too many tries. Wait a few minutes.')
-    require_pin(req, str(body.get('current') or ''), 'current PIN')
+    require_pin(req, str(body.get('current') or ''), 'current code')
     new_pin = str(body.get('next') or '')
     if not auth.PIN_RE.match(new_pin):
-        raise HttpError(400, 'Your new PIN needs to be 4 digits.')
+        raise HttpError(400, 'Your new code needs to be 4 digits.')
     pin_hash, salt = auth.new_pin_hash(new_pin)
     req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?', (pin_hash, salt, req.user['id']))
     auth.end_other_sessions(req.db, req.user['id'], req.session_token)
+    # Anyone who unlocked your drawers with the old code loses access.
+    req.db.execute('DELETE FROM unlocks WHERE owner_id = ?', (req.user['id'],))
     return json_response({'ok': True})
 
 
@@ -336,24 +417,165 @@ def delete_account(req):
     return json_response({'ok': True}, headers=[auth.clear_cookie_header(req)])
 
 
-# ---------------------------------------------------------------- drawers
+# ---------------------------------------------------------------- look & feel
 
-def drawer_previews(req, drawer_id, limit=3):
+def save_prefs(req, prefs):
+    req.db.execute('UPDATE users SET prefs = ? WHERE id = ?', (json.dumps(prefs), req.user['id']))
+    return prefs
+
+
+@route('POST', r'/api/me/prefs')
+def update_prefs(req):
+    body = req.json()
+    prefs = user_prefs(req.user)
+    for key, allowed in PREF_CHOICES.items():
+        if key in body:
+            if body[key] not in allowed:
+                raise HttpError(400, 'That setting could not be saved.')
+            prefs[key] = body[key]
+    if 'accent' in body:
+        if not COLOR_RE.match(str(body['accent'])):
+            raise HttpError(400, 'That colour could not be saved.')
+        prefs['accent'] = body['accent'].upper()
+    if 'colorful' in body:
+        prefs['colorful'] = bool(body['colorful'])
+    if prefs.get('font') == 'custom' and not prefs.get('fontFile'):
+        prefs['font'] = 'geist'
+    return json_response({'prefs': save_prefs(req, prefs)})
+
+
+@route('POST', r'/api/me/font')
+def upload_font(req):
+    data = req.read_bytes(MAX_FONT)
+    found = FONT_TYPES.get(data[:4])
+    if not found:
+        raise HttpError(400, "That doesn't look like a font file (woff2, woff, ttf or otf).")
+    ext, _ = found
+    key = f'font_{secrets.token_hex(8)}.{ext}'
+    with open(os.path.join(db.user_files_dir(req.user['id']), key), 'wb') as f:
+        f.write(data)
+    prefs = user_prefs(req.user)
+    remove_block_files(req.user['id'], prefs.get('fontFile'))
+    name = re.sub(r'[^\w .-]', '', os.path.splitext(req.arg('name') or 'Your font')[0])[:60] or 'Your font'
+    prefs.update({'font': 'custom', 'fontFile': key, 'fontName': name})
+    return json_response({'prefs': save_prefs(req, prefs)})
+
+
+@route('DELETE', r'/api/me/font')
+def delete_font(req):
+    prefs = user_prefs(req.user)
+    remove_block_files(req.user['id'], prefs.pop('fontFile', None))
+    prefs.pop('fontName', None)
+    if prefs.get('font') == 'custom':
+        prefs['font'] = 'geist'
+    return json_response({'prefs': save_prefs(req, prefs)})
+
+
+@route('GET', r'/api/me/font')
+def serve_font(req):
+    key = user_prefs(req.user).get('fontFile')
+    if not key:
+        raise HttpError(404, 'No font uploaded.')
+    path = os.path.join(db.user_files_dir(req.user['id']), key)
+    return file_response(req, path, FONT_MIME.get(key.rsplit('.', 1)[-1], 'application/octet-stream'))
+
+
+# ---------------------------------------------------------------- users
+
+def find_user(req, username):
+    row = req.db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+    if not row:
+        raise HttpError(404, 'That person does not exist.')
+    return row
+
+
+def drawer_previews(req, drawer_id, limit=8, owner=None):
     rows = req.db.execute(
         'SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id '
         'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC LIMIT ?', (drawer_id, limit)).fetchall()
-    return [block_json(r) for r in rows]
+    return [block_json(r, mine=owner is None, owner=owner) for r in rows]
 
+
+def drawers_of(req, user_id, with_previews, owner=None):
+    rows = req.db.execute(
+        'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+        'FROM drawers d WHERE d.user_id = ? ORDER BY d.updated_at DESC', (user_id,)).fetchall()
+    return [drawer_json(r, r['n'], drawer_previews(req, r['id'], owner=owner) if with_previews else None)
+            for r in rows]
+
+
+@route('GET', r'/api/users')
+def list_users(req):
+    rows = req.db.execute(
+        'SELECT u.id, u.username, u.created_at, '
+        '(SELECT COUNT(*) FROM blocks b WHERE b.user_id = u.id) AS files, '
+        '(SELECT COUNT(*) FROM drawers d WHERE d.user_id = u.id) AS drawers '
+        'FROM users u ORDER BY u.created_at').fetchall()
+    users = []
+    for row in rows:
+        icons = req.db.execute('SELECT icon FROM drawers WHERE user_id = ? ORDER BY updated_at DESC LIMIT 12',
+                               (row['id'],)).fetchall()
+        users.append({
+            'username': row['username'], 'createdAt': ms(row['created_at']),
+            'files': row['files'], 'drawers': row['drawers'],
+            'critters': [json.loads(i['icon']) for i in icons],
+            'you': row['id'] == req.user['id'],
+            'unlocked': is_unlocked(req, row['id']),
+        })
+    return json_response({'users': users})
+
+
+def user_page(req, owner):
+    open_ = is_unlocked(req, owner['id'])
+    return {
+        'user': {**user_json(owner), **user_stats(req.db, owner['id']), 'you': owner['id'] == req.user['id']},
+        'unlocked': open_,
+        'drawers': drawers_of(req, owner['id'], open_, owner=owner['username']),
+    }
+
+
+@route('GET', r'/api/users/' + USERNAME_PATH)
+def get_user(req, username):
+    return json_response(user_page(req, find_user(req, username)))
+
+
+@route('POST', r'/api/users/' + USERNAME_PATH + r'/unlock')
+def unlock_user(req, username):
+    owner = find_user(req, username)
+    if owner['id'] != req.user['id']:
+        pin_gate(req, owner, str(req.json().get('pin') or ''), wrong_status=403)
+        req.db.execute('INSERT OR REPLACE INTO unlocks (session_hash, owner_id, expires_at) VALUES (?, ?, ?)',
+                       (auth.session_key(req.session_token), owner['id'], now() + UNLOCK_TTL))
+    return json_response(user_page(req, owner))
+
+
+@route('GET', r'/api/users/' + USERNAME_PATH + r'/drawers/(?P<drawer_id>[\w-]+)')
+def get_user_drawer(req, username, drawer_id):
+    owner = find_user(req, username)
+    if not is_unlocked(req, owner['id']):
+        raise HttpError(403, 'Locked.', locked=True)
+    row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND user_id = ?', (drawer_id, owner['id'])).fetchone()
+    if not row:
+        raise HttpError(404, 'That drawer does not exist.')
+    mine = owner['id'] == req.user['id']
+    blocks = req.db.execute(
+        f'SELECT {BLOCK_COLUMNS} FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
+    return json_response({
+        'owner': user_json(owner),
+        'drawer': drawer_json(row, len(blocks)),
+        'blocks': [block_json(b, mine=mine, owner=None if mine else owner['username']) for b in blocks],
+    })
+
+
+# ---------------------------------------------------------------- drawers
 
 @route('GET', r'/api/drawers')
 def list_drawers(req):
-    rows = req.db.execute(
-        'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-        'FROM drawers d WHERE d.user_id = ? ORDER BY d.updated_at DESC', (req.user['id'],)).fetchall()
     lite = req.arg('lite') == '1'
-    drawers = [drawer_json(r, r['n'], None if lite else drawer_previews(req, r['id'])) for r in rows]
-    total = req.db.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ?', (req.user['id'],)).fetchone()[0]
-    return json_response({'drawers': drawers, 'totalBlocks': total})
+    drawers = drawers_of(req, req.user['id'], not lite)
+    stats = user_stats(req.db, req.user['id'])
+    return json_response({'drawers': drawers, 'totalBlocks': stats['files'], 'stats': stats})
 
 
 @route('POST', r'/api/drawers')
@@ -366,7 +588,7 @@ def create_drawer(req):
     icon = clean_icon(body.get('icon')) or default_icon()
     block_ids = body.get('blockIds') or []
     if not isinstance(block_ids, list) or len(block_ids) > 10000:
-        raise HttpError(400, 'Could not add those blocks.')
+        raise HttpError(400, 'Could not add those files.')
     drawer_id = new_id()
     stamp = now()
     with db.transaction(req.db):
@@ -468,7 +690,7 @@ def reorder_drawer(req, drawer_id):
     return json_response({'ok': True})
 
 
-# ---------------------------------------------------------------- blocks
+# ---------------------------------------------------------------- files (blocks)
 
 @route('GET', r'/api/blocks')
 def list_blocks(req):
@@ -576,6 +798,7 @@ def upload_thumb(req, block_id):
     duration = int_arg(req.arg('d'), 0, 10 ** 7)
     pages = int_arg(req.arg('pages'), 1, 100000)
     meta = json.loads(row['meta'] or '{}')
+    meta.pop('look', None)  # the picture changed, so its colours need measuring again
     if pages:
         meta['pages'] = int(pages)
     req.db.execute('UPDATE blocks SET width = COALESCE(?, width), height = COALESCE(?, height), '
@@ -587,8 +810,9 @@ def upload_thumb(req, block_id):
 
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)')
 def get_block(req, block_id):
-    row = own_block(req, block_id)
-    return json_response({'block': block_json(row), 'connections': block_connections(req, block_id)})
+    row, mine = readable_block(req, block_id)
+    owner = None if mine else row['owner_name']
+    return json_response({'block': block_json(row, mine, owner), 'connections': block_connections(req, block_id)})
 
 
 @route('PATCH', r'/api/blocks/(?P<block_id>[\w-]+)')
@@ -605,13 +829,17 @@ def update_block(req, block_id):
     content = text_field(body, 'content', 200_000, 'Text', strip=False)
     if content is not None and row['kind'] == 'text':
         if not content.strip():
-            raise HttpError(400, 'A text block needs some text.')
+            raise HttpError(400, 'A text file needs some text.')
         updates['content'] = content.strip('\n')
     for key, high in (('width', 100000), ('height', 100000), ('duration', 10 ** 7)):
         if key in body:
             value = int_arg(body[key], 0, high)
             if value is not None:
                 updates[key] = value
+    if 'look' in body:
+        meta = json.loads(row['meta'] or '{}')
+        meta['look'] = clean_look(body['look'])
+        req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
     if updates:
         updates['updated_at'] = now()
         assignments = ', '.join(f'{k} = ?' for k in updates)
@@ -653,23 +881,7 @@ def remove_connection(req, block_id, drawer_id):
     })
 
 
-# ---------------------------------------------------------------- bundles & search
-
-@route('GET', r'/api/bundles')
-def bundles(req):
-    counts = dict(req.db.execute('SELECT kind, COUNT(*) FROM blocks WHERE user_id = ? GROUP BY kind',
-                                 (req.user['id'],)).fetchall())
-    result = []
-    for kind in kinds.KINDS:
-        if not counts.get(kind):
-            continue
-        covers = req.db.execute(
-            'SELECT * FROM blocks WHERE user_id = ? AND kind = ? '
-            'ORDER BY CASE WHEN thumb_key IS NOT NULL OR kind = \'image\' THEN 0 ELSE 1 END, created_at DESC '
-            'LIMIT 3', (req.user['id'], kind)).fetchall()
-        result.append({'kind': kind, 'count': counts[kind], 'covers': [block_json(c) for c in covers]})
-    return json_response({'bundles': result, 'total': sum(counts.values())})
-
+# ---------------------------------------------------------------- search
 
 @route('GET', r'/api/search')
 def search(req):
@@ -693,17 +905,17 @@ def search(req):
     })
 
 
-# ---------------------------------------------------------------- files
+# ---------------------------------------------------------------- stored files
 
 FILE_CSP = "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"
 
 
 @route('GET', r'/f/(?P<block_id>[\w-]+)(?:/[^/]*)?')
 def serve_file(req, block_id):
-    row = own_block(req, block_id)
+    row, _ = readable_block(req, block_id)
     if not row['file_key']:
-        raise HttpError(404, 'This block has no file.')
-    path = os.path.join(db.user_files_dir(req.user['id']), row['file_key'])
+        raise HttpError(404, 'This file has nothing to download.')
+    path = os.path.join(db.user_files_dir(row['user_id']), row['file_key'])
     content_type, inline, sandbox = kinds.serving(row['kind'], row['mime'] or '', row['ext'] or '')
     disposition = 'attachment' if req.arg('dl') == '1' or not inline else 'inline'
     headers = [('Content-Security-Policy', FILE_CSP)] if sandbox else []
@@ -713,10 +925,10 @@ def serve_file(req, block_id):
 
 @route('GET', r'/t/(?P<block_id>[\w-]+)')
 def serve_thumb(req, block_id):
-    row = own_block(req, block_id)
+    row, _ = readable_block(req, block_id)
     if not row['thumb_key']:
         raise HttpError(404, 'No preview yet.')
-    path = os.path.join(db.user_files_dir(req.user['id']), row['thumb_key'])
+    path = os.path.join(db.user_files_dir(row['user_id']), row['thumb_key'])
     ext = row['thumb_key'].rsplit('.', 1)[-1]
     return file_response(req, path, kinds.THUMB_TYPES.get(ext, 'application/octet-stream'),
                          headers=[('Content-Security-Policy', FILE_CSP)])

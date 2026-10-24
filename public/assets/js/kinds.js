@@ -1,4 +1,4 @@
-// Block kinds — what bundles sort by.
+// File kinds (images, video, text…), used for labels and format sorting.
 
 export const KINDS = ['image', 'video', 'audio', 'pdf', 'text', 'link', 'doc', 'code', 'archive', 'other'];
 

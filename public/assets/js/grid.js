@@ -1,6 +1,6 @@
 // The four-wide block grid: keyed cells, gliding reflow, drag to reorder.
 
-import { renderCell, renderPending, updatePending } from './cells.js';
+import { renderCell, renderDivider, renderPending, updatePending } from './cells.js';
 import { glide, measure } from './transitions.js';
 import { EASE, EASE_IN, h, inViewport, reducedMotion } from './util.js';
 
@@ -13,6 +13,7 @@ export class Grid {
     if (entry) this.el.append(entry);
     this.cells = new Map();
     this.sortable = sortable;
+    this.renderOpts = {};
     this.onOpen = onOpen;
     this.onAction = onAction;
     this.onReorder = onReorder;
@@ -26,6 +27,8 @@ export class Grid {
       if (cell && e.target === cell && e.key === 'Enter') this.onOpen?.(cell.dataset.id, cell);
     });
     this.el.addEventListener('pointerdown', (e) => this.pointerDown(e));
+    // The browser's own drag-and-drop would cancel ours halfway (pointercancel).
+    this.el.addEventListener('dragstart', (e) => { if (this.sortable && !e.target.closest?.('.cell-entry')) e.preventDefault(); });
   }
 
   handleClick(e) {
@@ -47,6 +50,15 @@ export class Grid {
     if (cell.dataset.id) this.onOpen?.(cell.dataset.id, cell);
   }
 
+  get sortable() {
+    return this._sortable;
+  }
+
+  set sortable(value) {
+    this._sortable = !!value;
+    this.el.classList.toggle('is-sortable', this._sortable);
+  }
+
   keys() {
     return [...this.el.querySelectorAll(':scope > .cell[data-id]')].map((el) => el.dataset.id);
   }
@@ -55,20 +67,21 @@ export class Grid {
     return this.cells.get(id);
   }
 
+  // items are files, or { divider, id, label } section labels.
   // animate: 'reveal' (staggered entrance), 'flip' (glide to new places), or false.
-  set(blocks, { animate = 'reveal' } = {}) {
+  set(items, { animate = 'reveal' } = {}) {
     const flip = animate === 'flip' && !reducedMotion();
     const before = flip ? measure(nearby(this.cells.values())) : null;
     const gridBox = this.el.getBoundingClientRect();
     const next = new Map();
     const ordered = [];
-    for (const block of blocks) {
-      let el = this.cells.get(block.id);
+    for (const item of items) {
+      let el = this.cells.get(item.id);
       if (!el) {
-        el = renderCell(block);
+        el = item.divider ? renderDivider(item) : renderCell(item, this.renderOpts);
         el.classList.add('is-new');
       }
-      next.set(block.id, el);
+      next.set(item.id, el);
       ordered.push(el);
     }
     for (const [key, el] of this.cells) {
@@ -213,6 +226,8 @@ export class Grid {
     if (!cell || e.target.closest('button, a, input, textarea, [contenteditable]')) return;
     const start = { x: e.clientX, y: e.clientY };
     const touch = e.pointerType !== 'mouse';
+    // No text selection or native image drag while pressing on a file; clicks still open it.
+    if (!touch) e.preventDefault();
     let started = false;
     let timer = null;
     const move = (ev) => {
@@ -221,7 +236,13 @@ export class Grid {
       if (touch) { if (dist > 10) cleanup(); return; }
       if (dist > 6) { started = true; this.dragStart(cell, ev, start); }
     };
-    const up = () => { cleanup(); if (started) this.dragEnd(); };
+    // Settle on wherever the pointer is let go, even if no move event reached there.
+    const up = (ev) => {
+      cleanup();
+      if (!started) return;
+      if (ev.type === 'pointerup') this.dragMove(ev);
+      this.dragEnd();
+    };
     const cleanup = () => {
       clearTimeout(timer);
       removeEventListener('pointermove', move);

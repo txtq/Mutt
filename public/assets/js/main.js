@@ -8,18 +8,25 @@ import { createTopbar } from './topbar.js';
 import { closeTopLayer } from './ui.js';
 import { h, isEditable } from './util.js';
 import { viewerOpen } from './viewer.js';
-import { bundleView, bundlesView, everythingView } from './views/bundles.js';
+import { bootPrefs, setPrefs } from './theme.js';
 import { drawerView } from './views/drawer.js';
+import { everythingView } from './views/everything.js';
 import { homeView } from './views/home.js';
 import { loginView } from './views/login.js';
 import { searchView } from './views/search.js';
+import { settingsView } from './views/settings.js';
+import { userDrawerView, userView, usersView } from './views/users.js';
+
+bootPrefs();
 
 route(/^\/login$/, loginView);
 route(/^\/$/, homeView);
 route(/^\/d\/([\w-]+)$/, drawerView);
-route(/^\/bundles$/, bundlesView);
-route(/^\/bundles\/(\w+)$/, bundleView);
 route(/^\/all$/, everythingView);
+route(/^\/users$/, usersView);
+route(/^\/u\/([a-z0-9_.-]+)$/, userView);
+route(/^\/u\/([a-z0-9_.-]+)\/d\/([\w-]+)$/, userDrawerView);
+route(/^\/settings$/, settingsView);
 route(/^\/search$/, searchView);
 
 const topbar = createTopbar();
@@ -112,8 +119,10 @@ whenSignedOut(() => {
 
 async function boot() {
   try {
-    const { user } = await api.get('/api/me');
-    session.user = user;
+    const me = await api.get('/api/me');
+    session.user = me.user;
+    session.stats = me.stats;
+    setPrefs(me.prefs);
   } catch (err) {
     session.user = null;
     if (err.data && 'signups' in err.data) session.signups = err.data.signups;

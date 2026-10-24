@@ -5,3 +5,6 @@ export const nav = {
   openBlock: (id) => {},
   current: () => new URL(location.href),
 };
+
+// Community drawers live under Community, wherever you reach them from.
+export const drawerHref = (drawer) => (drawer.community ? `/c/${drawer.id}` : `/d/${drawer.id}`);

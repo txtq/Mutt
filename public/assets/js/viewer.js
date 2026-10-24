@@ -4,6 +4,7 @@ import { deleteBlock, openConnect, openSave, removeFromDrawer, toggleShare } fro
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
+import { drawerHref } from './nav.js';
 import { renderIcon } from './pixel.js';
 import { transition } from './transitions.js';
 import { toast } from './ui.js';
@@ -297,6 +298,9 @@ function saveButton(block) {
   return h('div', { class: 'vw-save' }, btn);
 }
 
+// replaceChildren would print a skipped (null) piece as the word “null”.
+const fill = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null && k !== false));
+
 function renderSide() {
   const { block, connections, drawer } = state;
   const actions = h('div', { class: 'vw-actions' },
@@ -314,19 +318,20 @@ function renderSide() {
   // Someone else's file, seen through a drawer you unlocked: look, don't touch.
   if (block.mine === false) {
     const owner = block.owner;
-    state.side.replaceChildren(
+    fill(state.side,
       h('h2', { class: 'vw-title vw-title-static' }, displayTitle(block) || 'Untitled'),
       block.description ? h('p', { class: 'vw-desc vw-desc-static' }, block.description) : null,
       h('a', { class: 'vw-owner', href: `/u/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/u/${owner}`); } }, `@${owner}`),
       actions,
-      block.sharedAt ? saveButton(block) : null,
+      block.sharedAt || block.community ? saveButton(block) : null,
       metaRows(block),
       connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', null, plural(count, 'drawer'))) : null,
-      connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => h('li', null,
-        h('a', {
-          href: `/u/${owner}/d/${d.id}`, class: 'vw-conn',
-          onclick: (e) => { e.preventDefault(); hooks.go(`/u/${owner}/d/${d.id}`); },
-        }, renderIcon(d.icon, { size: 18 }), h('span', null, d.title))))) : null);
+      connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => {
+        const href = d.community ? drawerHref(d) : `/u/${owner}/d/${d.id}`;
+        return h('li', null, h('a', {
+          href, class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(href); },
+        }, renderIcon(d.icon, { size: 18 }), h('span', null, d.title)));
+      })) : null);
     return;
   }
 
@@ -337,7 +342,7 @@ function renderSide() {
     ? h('div', { class: 'vw-conn-note' }, '…')
     : connections.length
       ? h('ul', { class: 'vw-conns' }, connections.map((d) => h('li', null,
-        h('a', { href: `/d/${d.id}`, class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(`/d/${d.id}`); } },
+        h('a', { href: drawerHref(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(drawerHref(d)); } },
           renderIcon(d.icon, { size: 18 }), h('span', null, d.title)),
         h('button', {
           type: 'button', class: 'vw-conn-x', 'aria-label': `Remove from ${d.title}`, title: `Remove from ${d.title}`,
@@ -345,7 +350,7 @@ function renderSide() {
         }, '×'))))
       : null;
 
-  state.side.replaceChildren(
+  fill(state.side,
     editable(block, 'title', { placeholder: 'Untitled', className: 'vw-title' }),
     editable(block, 'description', { placeholder: 'Note', className: 'vw-desc' }),
     actions,

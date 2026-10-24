@@ -144,6 +144,9 @@ def migrate(conn):
     if 'shared_at' not in block_columns:
         conn.execute('ALTER TABLE blocks ADD COLUMN shared_at REAL')  # set when shared with the community
     conn.execute('CREATE INDEX IF NOT EXISTS idx_blocks_shared ON blocks(shared_at)')
+    drawer_columns = {row[1] for row in conn.execute('PRAGMA table_info(drawers)')}
+    if 'community' not in drawer_columns:
+        conn.execute('ALTER TABLE drawers ADD COLUMN community INTEGER NOT NULL DEFAULT 0')  # anyone can add
 
 
 @contextmanager

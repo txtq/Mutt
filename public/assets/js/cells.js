@@ -66,7 +66,8 @@ export function renderDivider(item) {
   return h('div', { class: 'grid-divider', dataset: { key: item.id } }, h('span', null, item.label));
 }
 
-export function renderCell(block, { actions = block.mine !== false } = {}) {
+// moderate: you made this community drawer, so you can take other people's files out.
+export function renderCell(block, { actions = block.mine !== false, moderate = false } = {}) {
   const box = h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, blockFace(block)));
   if (BADGE[block.kind] && (block.thumb || block.kind === 'video')) {
     const label = block.kind === 'video' && block.duration ? fmtDuration(block.duration)
@@ -74,10 +75,11 @@ export function renderCell(block, { actions = block.mine !== false } = {}) {
     box.append(h('span', { class: 'cell-badge' }, label));
   }
   if (block.sharedAt && block.mine !== false) box.append(h('span', { class: 'cell-shared', title: 'Shared to Community' }));
-  if (block.mine === false && block.sharedAt) {
+  if (block.mine === false && (block.sharedAt || block.community)) {
     // Someone else's shared file: the one thing to do is keep a copy.
     box.append(h('div', { class: 'cell-actions' },
-      h('button', { type: 'button', class: `pill${block.saved ? ' is-saved' : ''}`, dataset: { act: 'save' } }, block.saved ? 'Saved ✓' : 'Save')));
+      h('button', { type: 'button', class: `pill${block.saved ? ' is-saved' : ''}`, dataset: { act: 'save' } }, block.saved ? 'Saved ✓' : 'Save'),
+      moderate ? h('button', { type: 'button', class: 'pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••') : null));
   } else if (actions) {
     box.append(h('div', { class: 'cell-actions' },
       h('button', { type: 'button', class: 'pill', dataset: { act: 'connect' } }, 'Connect'),

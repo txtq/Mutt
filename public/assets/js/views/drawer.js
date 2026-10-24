@@ -1,4 +1,5 @@
 // A drawer: its critter, name and note, then the grid (drag to rearrange).
+// Community drawers use the same page: anyone can add, only the maker edits.
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
@@ -12,10 +13,15 @@ export const drawerView = {
 
   create([id], data) {
     let drawer = data.drawer;
+    // Your own drawers come back without `mine`; community ones say whose they are.
+    const editable = drawer.mine !== false;
+    const community = !!drawer.community;
 
     const icon = renderIcon(drawer.icon, { size: 54, assemble: true, className: 'head-icon-svg' });
     icon.dataset.vt = `d-${id}-icon`;
-    const iconBtn = h('button', { type: 'button', class: 'head-icon', title: 'Change critter', onclick: () => editIcon() }, icon);
+    const iconBtn = editable
+      ? h('button', { type: 'button', class: 'head-icon', title: 'Change critter', onclick: () => editIcon() }, icon)
+      : h('div', { class: 'head-icon' }, icon);
     iconBtn.addEventListener('pointerenter', () => blink(icon));
 
     const title = h('textarea', { class: 'head-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Drawer name', spellcheck: 'false' });
@@ -25,7 +31,10 @@ export const drawerView = {
     const moreBtn = h('button', { type: 'button', class: 'pill pill-dots head-more', 'aria-label': 'Drawer options' }, '•••');
 
     const setMeta = (count) => {
-      meta.textContent = `${plural(count, 'file')} · ${timeAgo(drawer.updatedAt)}`;
+      const parts = [plural(count, 'file')];
+      if (community) parts.push(editable ? 'community' : `@${drawer.owner}`);
+      parts.push(timeAgo(drawer.updatedAt));
+      meta.textContent = parts.join(' · ');
     };
     setMeta(drawer.count);
 
@@ -44,6 +53,13 @@ export const drawerView = {
         input.value = drawer[field];
       }
     };
+    if (!editable) {
+      title.readOnly = true;
+      desc.readOnly = true;
+      title.classList.add('head-title-static');
+      desc.classList.add('head-desc-static');
+      if (!drawer.description) desc.hidden = true;
+    }
     for (const [field, input] of [['title', title], ['description', desc]]) {
       autosize(input);
       input.addEventListener('blur', () => save(field, input));
@@ -102,9 +118,27 @@ export const drawerView = {
       }
     }
 
+    async function setCommunity(on) {
+      if (!on && !(await confirmDialog({
+        title: 'Make it private?',
+        message: 'Files other people added will leave the drawer.',
+        confirm: 'Make private',
+      }))) return;
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { community: on }));
+        toast(on ? 'Anyone can add to it now' : 'Private again');
+        nav.go(on ? `/c/${id}` : `/d/${id}`, { replace: true });
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
       { label: 'Draw critter…', run: editIcon },
       { label: 'New critter', run: () => setIcon(generateIcon()) },
+      community
+        ? { label: 'Make private', run: () => setCommunity(false) }
+        : { label: 'Make community drawer', run: () => setCommunity(true) },
       '-',
       { label: 'Delete drawer…', danger: true, run: remove },
     ], { align: 'end' }));
@@ -113,7 +147,8 @@ export const drawerView = {
       blocks: data.blocks,
       drawer,
       entry: true,
-      sortable: true,
+      sortable: editable,
+      moderate: editable && community,
       onChange: (blocks) => {
         drawer.updatedAt = Date.now();
         setMeta(blocks.length);
@@ -125,14 +160,14 @@ export const drawerView = {
       h('header', { class: 'head' },
         iconBtn,
         h('div', { class: 'head-text' }, title, desc, meta),
-        moreBtn),
+        editable ? moreBtn : null),
       collection.el);
 
     const inst = {
       el,
       title: drawer.title,
       drawer,
-      crumbs: () => [{ label: inst.drawer.title, icon: inst.drawer.icon }],
+      crumbs: () => [...(community ? [{ label: 'Community', href: '/community/drawers' }] : []), { label: inst.drawer.title, icon: inst.drawer.icon }],
       list: () => collection.list(),
       dropTarget: () => collection.dropTarget(),
       pasteText: (text) => collection.pasteText(text),
@@ -140,4 +175,9 @@ export const drawerView = {
     };
     return inst;
   },
+};
+
+export const communityDrawerView = {
+  load: ([id]) => api.get(`/api/community/drawers/${id}`),
+  create: (params, data, url) => drawerView.create(params, data, url),
 };

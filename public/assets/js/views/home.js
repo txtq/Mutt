@@ -2,14 +2,14 @@
 
 import { api, session } from '../api.js';
 import { miniFace } from '../cells.js';
-import { nav } from '../nav.js';
+import { drawerHref, nav } from '../nav.js';
 import { blink, generateIcon, renderIcon } from '../pixel.js';
 import { critterFor } from '../theme.js';
 import { toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
 import { h, plural, timeAgo } from '../util.js';
 
-export function drawerRow(drawer, { href = `/d/${drawer.id}`, locked = false, onOpen, drops = true } = {}) {
+export function drawerRow(drawer, { href = drawerHref(drawer), locked = false, onOpen, drops = true } = {}) {
   const icon = renderIcon(drawer.icon, { size: 45, className: 'drow-icon' });
   icon.dataset.vt = `d-${drawer.id}-icon`;
   const strip = h('div', { class: 'drow-strip', 'aria-hidden': 'true' });
@@ -27,7 +27,10 @@ export function drawerRow(drawer, { href = `/d/${drawer.id}`, locked = false, on
       icon,
       h('div', { class: 'drow-text' },
         h('div', { class: 'drow-title', dataset: { vt: `d-${drawer.id}-title` } }, drawer.title),
-        h('div', { class: 'drow-meta' }, `${plural(drawer.count || 0, 'file')} · ${timeAgo(drawer.updatedAt)}`))),
+        h('div', { class: 'drow-meta' },
+          plural(drawer.count || 0, 'file'),
+          drawer.community ? h('span', { class: 'drow-tag' }, drawer.owner && !drawer.mine ? `@${drawer.owner}` : 'community') : null,
+          ` · ${timeAgo(drawer.updatedAt)}`))),
     strip);
 
   row.addEventListener('pointerenter', () => blink(icon));
@@ -66,8 +69,8 @@ export function drawerRow(drawer, { href = `/d/${drawer.id}`, locked = false, on
   return row;
 }
 
-function newDrawerRow(onCreate) {
-  const input = h('input', { type: 'text', placeholder: 'New drawer', maxlength: '80', 'aria-label': 'New drawer name' });
+export function newDrawerRow(onCreate, { placeholder = 'New drawer' } = {}) {
+  const input = h('input', { type: 'text', placeholder, maxlength: '80', 'aria-label': placeholder });
   const form = h('form', { class: 'drow drow-new' },
     h('div', { class: 'drow-info' }, h('span', { class: 'drow-plus', 'aria-hidden': 'true' }, '+'), input));
   form.addEventListener('submit', async (e) => {
@@ -101,7 +104,7 @@ export const homeView = {
       newDrawerRow(async (title) => {
         try {
           const { drawer } = await api.post('/api/drawers', { title, icon: generateIcon() });
-          nav.go(`/d/${drawer.id}`);
+          nav.go(drawerHref(drawer));
         } catch (err) {
           toast(err.message);
           throw err;

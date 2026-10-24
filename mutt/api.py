@@ -32,6 +32,7 @@ PREF_CHOICES = {
     'captions': {'show', 'hover', 'hide'},
     'motion': {'fluid', 'calm', 'off'},
     'paper': {'white', 'warm', 'cool', 'blush', 'mint'},
+    'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
 }
 FONT_TYPES = {
     b'wOF2': ('woff2', 'font/woff2'),
@@ -90,6 +91,7 @@ def drawer_json(row, count=None, previews=None):
         'icon': json.loads(row['icon']),
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
+        'community': bool(row['community']) if 'community' in row.keys() else False,
     }
     if count is not None:
         data['count'] = count
@@ -204,6 +206,20 @@ def is_unlocked(req, owner_id):
         (auth.session_key(req.session_token), owner_id, now())).fetchone())
 
 
+def writable_drawer(req, drawer_id):
+    row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND (user_id = ? OR community = 1)',
+                         (drawer_id, req.user['id'])).fetchone()
+    if not row:
+        raise HttpError(404, 'That drawer does not exist.')
+    return row
+
+
+def in_community_drawer(req, block_id):
+    return bool(req.db.execute(
+        'SELECT 1 FROM connections c JOIN drawers d ON d.id = c.drawer_id '
+        'WHERE c.block_id = ? AND d.community = 1 LIMIT 1', (block_id,)).fetchone())
+
+
 def readable_block(req, block_id):
     """Your own file, a shared one, or one in the drawers of someone you've unlocked."""
     row = req.db.execute(
@@ -213,7 +229,7 @@ def readable_block(req, block_id):
         raise HttpError(404, 'That file does not exist.')
     if row['user_id'] == req.user['id']:
         return row, True
-    if row['shared_at']:
+    if row['shared_at'] or in_community_drawer(req, block_id):
         return row, False
     in_drawer = req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone()
     if in_drawer and is_unlocked(req, row['user_id']):
@@ -265,7 +281,7 @@ def insert_block(req, **fields):
 def target_drawer(req, drawer_id):
     if not drawer_id:
         return None
-    return own_drawer(req, drawer_id)['id']
+    return writable_drawer(req, drawer_id)['id']
 
 
 def saved_from_ids(req):
@@ -525,9 +541,27 @@ def find_user(req, username):
 
 def drawer_previews(req, drawer_id, limit=8, owner=None):
     rows = req.db.execute(
-        'SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'SELECT b.*, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'JOIN users u ON u.id = b.user_id '
         'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC LIMIT ?', (drawer_id, limit)).fetchall()
-    return [block_json(r, mine=owner is None, owner=owner) for r in rows]
+    me_id = req.user['id']
+    return [block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
+            for r in rows]
+
+
+def blocks_in_drawer(req, drawer_id, community=False):
+    rows = req.db.execute(
+        f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'JOIN users u ON u.id = b.user_id '
+        'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
+    me_id = req.user['id']
+    blocks = []
+    for r in rows:
+        b = block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
+        if community and not b['mine']:
+            b['community'] = True
+        blocks.append(b)
+    return mark_saved(req, blocks)
 
 
 def drawers_of(req, user_id, with_previews, owner=None):
@@ -611,6 +645,12 @@ def get_user_drawer(req, username, drawer_id):
 def list_drawers(req):
     lite = req.arg('lite') == '1'
     drawers = drawers_of(req, req.user['id'], not lite)
+    if req.arg('community') == '1':
+        others = req.db.execute(
+            'SELECT d.*, u.username AS owner_name, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+            'FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 AND d.user_id != ? '
+            'ORDER BY d.updated_at DESC', (req.user['id'],)).fetchall()
+        drawers += [{**drawer_json(r, r['n']), 'owner': r['owner_name']} for r in others]
     stats = user_stats(req.db, req.user['id'])
     return json_response({'drawers': drawers, 'totalBlocks': stats['files'], 'stats': stats})
 
@@ -630,9 +670,9 @@ def create_drawer(req):
     stamp = now()
     with db.transaction(req.db):
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp))
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp, 1 if body.get('community') else 0))
         position = 0
         for block_id in block_ids:
             owned = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND user_id = ?',
@@ -647,11 +687,11 @@ def create_drawer(req):
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def get_drawer(req, drawer_id):
-    row = own_drawer(req, drawer_id)
-    blocks = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS} FROM connections c JOIN blocks b ON b.id = c.block_id '
-        'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
-    return json_response({'drawer': drawer_json(row, len(blocks)), 'blocks': [block_json(b) for b in blocks]})
+    row = writable_drawer(req, drawer_id)
+    if row['community']:
+        return community_drawer(req, drawer_id)  # says whose it is
+    blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
+    return json_response({'drawer': drawer_json(row, len(blocks)), 'blocks': blocks})
 
 
 @route('PATCH', r'/api/drawers/(?P<drawer_id>[\w-]+)')
@@ -670,6 +710,12 @@ def update_drawer(req, drawer_id):
     icon = clean_icon(body.get('icon'))
     if icon:
         updates['icon'] = json.dumps(icon)
+    if 'community' in body:
+        updates['community'] = 1 if body['community'] else 0
+        if not body['community']:
+            # Back to private: other people's files leave with them.
+            req.db.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id IN '
+                           '(SELECT id FROM blocks WHERE user_id != ?)', (drawer_id, req.user['id']))
     if updates:
         updates['updated_at'] = now()
         assignments = ', '.join(f'{k} = ?' for k in updates)
@@ -681,19 +727,19 @@ def update_drawer(req, drawer_id):
 
 ORPHANS_SQL = (
     'SELECT b.id, b.file_key, b.thumb_key FROM connections c JOIN blocks b ON b.id = c.block_id '
-    'WHERE c.drawer_id = ? AND (SELECT COUNT(*) FROM connections c2 WHERE c2.block_id = b.id) = 1')
+    'WHERE c.drawer_id = ? AND b.user_id = ? AND (SELECT COUNT(*) FROM connections c2 WHERE c2.block_id = b.id) = 1')
 
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/orphans')
 def drawer_orphans(req, drawer_id):
     own_drawer(req, drawer_id)
-    return json_response({'count': len(req.db.execute(ORPHANS_SQL, (drawer_id,)).fetchall())})
+    return json_response({'count': len(req.db.execute(ORPHANS_SQL, (drawer_id, req.user['id'])).fetchall())})
 
 
 @route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def delete_drawer(req, drawer_id):
     own_drawer(req, drawer_id)
-    orphans = req.db.execute(ORPHANS_SQL, (drawer_id,)).fetchall() if req.arg('blocks') == 'orphans' else []
+    orphans = req.db.execute(ORPHANS_SQL, (drawer_id, req.user['id'])).fetchall() if req.arg('blocks') == 'orphans' else []
     with db.transaction(req.db):
         for orphan in orphans:
             req.db.execute('DELETE FROM blocks WHERE id = ?', (orphan['id'],))
@@ -860,7 +906,7 @@ def save_block(req, block_id):
     row, mine = readable_block(req, block_id)
     if mine:
         raise HttpError(400, 'That one is already yours.')
-    if not row['shared_at']:
+    if not row['shared_at'] and not in_community_drawer(req, block_id):
         raise HttpError(403, 'Only shared files can be saved.')
     drawer_id = target_drawer(req, req.json().get('drawer'))
     existing = req.db.execute(
@@ -887,7 +933,10 @@ def get_block(req, block_id):
     row, mine = readable_block(req, block_id)
     owner = None if mine else row['owner_name']
     connections = block_connections(req, block_id) if is_unlocked(req, row['user_id']) else []
-    return json_response({'block': mark_saved(req, [block_json(row, mine, owner)])[0], 'connections': connections})
+    block = mark_saved(req, [block_json(row, mine, owner)])[0]
+    if not mine and in_community_drawer(req, block_id):
+        block['community'] = True
+    return json_response({'block': block, 'connections': connections})
 
 
 @route('PATCH', r'/api/blocks/(?P<block_id>[\w-]+)')
@@ -934,7 +983,7 @@ def delete_block(req, block_id):
 def add_connection(req, block_id):
     own_block(req, block_id)
     body = req.json()
-    drawer_id = own_drawer(req, str(body.get('drawer') or ''))['id']
+    drawer_id = writable_drawer(req, str(body.get('drawer') or ''))['id']
     position = body.get('position')
     position = float(position) if isinstance(position, (int, float)) else None
     connect(req.db, block_id, drawer_id, position)
@@ -943,12 +992,18 @@ def add_connection(req, block_id):
 
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)/connections/(?P<drawer_id>[\w-]+)')
 def remove_connection(req, block_id, drawer_id):
-    own_block(req, block_id)
-    own_drawer(req, drawer_id)
+    drawer = writable_drawer(req, drawer_id)
+    block = req.db.execute('SELECT user_id FROM blocks WHERE id = ?', (block_id,)).fetchone()
+    mine = block and block['user_id'] == req.user['id']
+    moderating = block and drawer['community'] and drawer['user_id'] == req.user['id']
+    if not (mine or moderating):
+        raise HttpError(404, 'That file does not exist.')
     found = req.db.execute('SELECT position FROM connections WHERE block_id = ? AND drawer_id = ?',
                            (block_id, drawer_id)).fetchone()
     req.db.execute('DELETE FROM connections WHERE block_id = ? AND drawer_id = ?', (block_id, drawer_id))
     req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
+    if not mine:
+        return json_response({'ok': True, 'position': found['position'] if found else None})
     return json_response({
         'block': reload_block(req, block_id),
         'connections': block_connections(req, block_id),
@@ -967,6 +1022,29 @@ def community(req):
     return json_response({'blocks': mark_saved(req, [
         block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
         for r in rows])})
+
+
+def community_drawer_json(req, row, count, previews=None):
+    return {**drawer_json(row, count, previews), 'owner': row['owner_name'], 'mine': row['user_id'] == req.user['id']}
+
+
+@route('GET', r'/api/community/drawers')
+def community_drawers(req):
+    rows = req.db.execute(
+        'SELECT d.*, u.username AS owner_name, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+        'FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 ORDER BY d.updated_at DESC').fetchall()
+    return json_response({'drawers': [community_drawer_json(req, r, r['n'], drawer_previews(req, r['id'])) for r in rows]})
+
+
+@route('GET', r'/api/community/drawers/(?P<drawer_id>[\w-]+)')
+def community_drawer(req, drawer_id):
+    row = req.db.execute(
+        'SELECT d.*, u.username AS owner_name FROM drawers d JOIN users u ON u.id = d.user_id '
+        'WHERE d.id = ? AND d.community = 1', (drawer_id,)).fetchone()
+    if not row:
+        raise HttpError(404, 'That drawer does not exist.')
+    blocks = blocks_in_drawer(req, drawer_id, community=True)
+    return json_response({'drawer': community_drawer_json(req, row, len(blocks)), 'blocks': blocks})
 
 
 # ---------------------------------------------------------------- search

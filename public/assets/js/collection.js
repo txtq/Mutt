@@ -8,7 +8,7 @@ import { Grid } from './grid.js';
 import { SORTS, arrange, ensureLooks } from './look.js';
 import { nav } from './nav.js';
 import { sparkle } from './theme.js';
-import { toast } from './ui.js';
+import { confirmDialog, openMenu, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor, retry } from './uploads.js';
 import { bus, debounce, uid } from './util.js';
 
@@ -17,7 +17,8 @@ const isUrl = (s) => /^https?:\/\/\S+$/i.test(s.trim());
 export class Collection {
   // sort: 'manual' keeps the given order (drawers); anything else is a SORTS value.
   // share: files added here go straight to the community. keep: which files belong here.
-  constructor({ blocks, drawer = null, entry = false, sortable = false, sort = 'manual', readOnly = false, share = false, keep, empty, onChange } = {}) {
+  // moderate: a community drawer you made, so other people's files can be taken out.
+  constructor({ blocks, drawer = null, entry = false, sortable = false, sort = 'manual', readOnly = false, share = false, moderate = false, keep, empty, onChange } = {}) {
     this.blocks = blocks;
     this.drawer = drawer;
     this.ctx = drawer ? { drawerId: drawer.id } : share ? { share: true } : {};
@@ -39,6 +40,7 @@ export class Collection {
       onReorder: (ids) => this.saveOrder(ids),
       empty,
     });
+    this.grid.renderOpts.moderate = moderate;
     this.el = this.grid.el;
     this.render('reveal');
     if (!readOnly) for (const item of pendingFor(this.ctx)) this.grid.addPending(item);
@@ -185,9 +187,36 @@ export class Collection {
       openSave(btn, block, { onSaved: () => this.grid.update(block) });
       return;
     }
+    if (act === 'more' && block.mine === false) {
+      openMenu(btn, [
+        { label: 'Open', run: () => nav.openBlock(id) },
+        { label: 'Save…', run: () => openSave(btn, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
+        '-',
+        { label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) },
+      ], { align: 'end' });
+      return;
+    }
     if (this.readOnly) return;
     if (act === 'connect') openConnect(btn, block, { align: 'start' });
     if (act === 'more') blockMenu(btn, block, { drawer: this.drawer, open: () => nav.openBlock(id) });
+  }
+
+  // Someone else's file in your community drawer. It stays in their own drawers.
+  async takeOut(block) {
+    const ok = await confirmDialog({
+      title: 'Take it out?',
+      message: `It stays with @${block.owner}.`,
+      confirm: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.del(`/api/blocks/${block.id}/connections/${this.drawer.id}`);
+      this.drop(block.id);
+      toast('Removed');
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   async saveOrder(ids) {

@@ -2,6 +2,7 @@
 
 import { api, sendFile, session } from '../api.js';
 import { ACCENTS, DEFAULTS, FONTS, PAPERS, loadFont, parade, setPrefs, updatePrefs } from '../theme.js';
+import { LOGOS, logo } from '../logo.js';
 import { segmented, toast } from '../ui.js';
 import { h } from '../util.js';
 import { changePin, deleteAccount, signOut } from '../topbar.js';
@@ -91,6 +92,21 @@ function fontPicker() {
   return h('div', null, wrap, h('div', { class: 'font-actions' }, upload, remove, picker));
 }
 
+// Each design shown for real; picking one swaps the logo everywhere.
+function logoPicker() {
+  const wrap = h('div', { class: 'logo-picks' });
+  const paint = () => wrap.querySelectorAll('.logo-pick').forEach((t) => t.setAttribute('aria-pressed', t.dataset.value === current().logo));
+  for (const { value, label } of LOGOS) {
+    const tile = h('button', {
+      type: 'button', class: 'logo-pick', dataset: { value }, 'aria-label': label,
+      onclick: () => { save({ logo: value }); paint(); },
+    }, logo({ href: null, variant: value }), h('span', { class: 'logo-pick-name' }, label));
+    wrap.append(tile);
+  }
+  paint();
+  return wrap;
+}
+
 function colorfulSwitch() {
   const input = h('input', { type: 'checkbox', role: 'switch', checked: !!current().colorful, 'aria-label': 'Colorful mode' });
   input.addEventListener('change', () => save({ colorful: input.checked }));
@@ -109,6 +125,7 @@ export const settingsView = {
         h('h1', { class: 'page-title' }, 'Settings'),
         countLine(data.stats)),
       h('section', { class: 'set-group' },
+        row('Logo', logoPicker()),
         row('Colorful', colorfulSwitch()),
         row('Font', fontPicker()),
         row('Size', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),

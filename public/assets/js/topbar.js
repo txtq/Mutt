@@ -16,7 +16,7 @@ const SECTIONS = [
 
 function sectionFor(path) {
   if (path === '/all') return '/all';
-  if (path.startsWith('/community') || path === '/users' || path.startsWith('/u/')) return '/community';
+  if (path.startsWith('/community') || path.startsWith('/c/') || path === '/users' || path.startsWith('/u/')) return '/community';
   if (path === '/' || path.startsWith('/d/')) return '/';
   return null;
 }
@@ -67,7 +67,7 @@ export function createTopbar() {
     search,
     update(inst, url) {
       const name = session.user?.username || '';
-      me.textContent = name;
+      me.textContent = name ? `@${name}` : '';
       // Colorful mode's little parade, the same critters every time for you.
       if (name && crowdFor !== name) {
         crowdFor = name;

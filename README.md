@@ -1,7 +1,9 @@
 # Mutt
 
 A personal place to keep things and connect them, like Are.na with only
-what's needed. The wordmark glitches in on load, with a pixel mutt on top.
+what's needed. On load the wordmark flicks through two dozen typefaces
+before settling on one of five logos (pick yours in Settings), each with a
+small pixel mutt.
 
 - **Accounts**: a username and a 4-digit code.
 - **Filing cabinet**: your drawers, one per row with a strip of what's inside.
@@ -18,11 +20,15 @@ what's needed. The wordmark glitches in on load, with a pixel mutt on top.
   file's viewer or ••• menu) is visible to everyone signed in; the drawers it
   sits in stay private. **Save** someone's shared file to keep your own
   copy in Everything or a drawer (it records who it came from and survives
-  the original being unshared or deleted). **People** lists everyone with their critters and what
+  the original being unshared or deleted). **Drawers** are community
+  drawers: anyone can add to them, the person who made one can rename it,
+  rearrange it and take other people's files out (they stay with their
+  owner). Any drawer can be switched to a community drawer and back from its
+  ••• menu. **People** lists everyone with their critters and what
   they've shared; type someone's code to look inside their drawers (view
   only). Wrong codes count toward the same lockout as signing in; changing
   your code locks everyone out again.
-- **Settings**: font (nine presets or upload your own woff2/woff/ttf/otf),
+- **Settings**: logo, font (nine presets or upload your own woff2/woff/ttf/otf),
   size, accent colour, paper tint, corners, spacing, captions, motion, and
   colorful mode (critters everywhere, candy colours, dotted paper).
 

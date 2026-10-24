@@ -152,50 +152,78 @@ body.no-chrome .topbar { display: none; }
   align-items: center;
   gap: 18px;
 }
+/* The wordmark: five designs (Settings → Logo), set by data-variant. */
 .logo {
   position: relative;
   display: inline-flex;
-  align-items: flex-end;
+  align-items: center;
   flex-shrink: 0;
-  padding: 6px 12px 0 0;
   color: var(--ink);
+  font-size: 28px;
   line-height: 1;
 }
-.logo-word { display: inline-flex; align-items: baseline; font-size: 27px; white-space: nowrap; }
-.logo-big .logo-word { font-size: 68px; }
-.logo-big { padding: 22px 30px 0 0; }
-.logo-l { display: inline-block; transition: transform 0.5s var(--ease); }
-/* Cut-paper collage: each letter sits a little differently */
-.logo-l:nth-child(1):not(.is-g) { transform: rotate(-4deg) translateY(1px); }
-.logo-l:nth-child(2):not(.is-g) { transform: translateY(-0.06em) rotate(2deg); }
-.logo-l:nth-child(3):not(.is-g) { transform: rotate(5deg) translateY(0.02em); }
-.logo-l:nth-child(4):not(.is-g) { transform: rotate(-2deg) translateY(-0.03em); }
-.logo:hover .logo-l:nth-child(odd):not(.is-g) { transform: rotate(0deg); }
-/* The settled collage */
-.lf-fraunces { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.06em; letter-spacing: -0.03em; }
-.lf-pixel { font-family: "Pixelify Sans", ui-monospace, monospace; font-weight: 600; font-size: 0.9em; margin-left: 0.02em; }
-.lf-serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 1.16em; margin-left: 0.03em; }
-.lf-geist { font-family: "Geist", system-ui, sans-serif; font-weight: 600; font-size: 0.98em; letter-spacing: -0.05em; }
-/* Blocky faces it glitches through */
-.lf-silk { font-family: "Silkscreen", ui-monospace, monospace; font-weight: 700; font-size: 0.8em; }
-.lf-rubik { font-family: "Rubik Mono One", ui-monospace, monospace; font-size: 0.74em; }
-.lf-space { font-family: "Space Mono", ui-monospace, monospace; font-weight: 700; font-size: 0.88em; }
-.logo-l.is-g {
-  transform: translate(var(--gx, 0), var(--gy, 0));
-  text-shadow: 2px 0 rgba(255, 92, 57, 0.8), -2px 0 rgba(47, 107, 255, 0.8);
-}
-.logo.is-glitching .logo-word { animation: logo-slice 0.18s steps(3) infinite; }
-@keyframes logo-slice {
-  0% { clip-path: inset(0 0 0 0); }
-  33% { clip-path: inset(12% 0 44% 0); }
-  66% { clip-path: inset(48% 0 6% 0); }
-  100% { clip-path: inset(0 0 0 0); }
-}
-.logo-dog { position: absolute; top: -6px; right: -4px; transition: transform 0.6s var(--ease); }
-.logo-big .logo-dog { top: -14px; right: -6px; }
-.logo.is-glitching .logo-dog { animation: dog-flicker 0.2s steps(2) infinite; }
-@keyframes dog-flicker { 50% { transform: translateX(2px); opacity: 0.55; } }
+.logo-big { font-size: 76px; }
+.logo-word { display: inline-flex; align-items: baseline; white-space: nowrap; }
+.logo-l { display: inline-block; }
+.logo-dog { flex-shrink: 0; width: 0.62em; height: 0.62em; transition: transform 0.6s var(--ease), opacity 0.3s; }
 .logo:hover .logo-dog { transform: translateY(-2px); }
+
+/* Wonky: soft, wobbly italic serif; the dog sits on the last t */
+.logo[data-variant="wonk"] { padding: 0.32em 0.2em 0 0; }
+.logo[data-variant="wonk"] .logo-word {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  letter-spacing: -0.02em;
+}
+.logo[data-variant="wonk"] .logo-dog { position: absolute; top: 0; right: 0.02em; }
+
+/* Editorial: an upright display serif; the dog is the full stop */
+.logo[data-variant="editorial"] .logo-word { font-family: "Instrument Serif", Georgia, serif; font-size: 1.12em; letter-spacing: -0.015em; }
+.logo[data-variant="editorial"] .logo-l:first-child { text-transform: uppercase; }
+.logo[data-variant="editorial"] { align-items: baseline; }
+.logo[data-variant="editorial"] .logo-dog { width: 0.36em; height: 0.36em; margin-left: 0.05em; align-self: flex-end; margin-bottom: 0.12em; }
+
+/* Stamp: pixel capitals in a thin outlined stamp; the dog peeks over */
+.logo[data-variant="stamp"] { padding-top: 0.3em; }
+.logo[data-variant="stamp"] .logo-word {
+  font-family: "Silkscreen", ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 0.56em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.42em 0.62em 0.36em 0.7em;
+  border: 1.5px solid currentColor;
+  border-radius: 0.5em;
+}
+.logo-big[data-variant="stamp"] .logo-word { border-width: 3px; }
+.logo[data-variant="stamp"] .logo-dog { position: absolute; top: -0.02em; right: 0.5em; width: 0.5em; height: 0.5em; }
+
+/* Wide: a heavy gallery grotesque; the dog leads */
+.logo[data-variant="wide"] { gap: 0.14em; }
+.logo[data-variant="wide"] .logo-word { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.05em; }
+.logo[data-variant="wide"] .logo-dog { order: -1; width: 0.7em; height: 0.7em; }
+
+/* Mono: whimsical geometric unicase; the dog sits on top, in the middle */
+.logo[data-variant="mono"] { padding-top: 0.5em; }
+.logo[data-variant="mono"] .logo-word { font-family: "Major Mono Display", ui-monospace, monospace; font-size: 0.86em; letter-spacing: -0.04em; }
+.logo[data-variant="mono"] .logo-dog { position: absolute; top: 0; left: 50%; margin-left: -0.25em; width: 0.5em; height: 0.5em; }
+
+/* The intro: letters flick through faces, then land */
+.logo.is-glitching .logo-word { overflow: visible; animation: logo-scan 0.9s steps(1, end) both; }
+.logo.is-glitching .logo-l { transform: translateX(var(--gx, 0)); }
+.logo.is-glitching .logo-dog { opacity: 0; }
+.logo-l.is-inv { background: var(--ink); color: var(--bg); }
+.logo-l.is-landed { animation: logo-land 0.42s var(--ease) both; }
+@keyframes logo-scan {
+  0%, 100% { clip-path: none; }
+  14% { clip-path: inset(0 0 58% 0); }
+  18% { clip-path: none; }
+  52% { clip-path: inset(46% 0 0 0); transform: translateX(1px); }
+  56% { clip-path: none; transform: none; }
+}
+@keyframes logo-land { from { opacity: 0.35; filter: blur(1.5px); } }
 .crumbs { display: flex; align-items: center; min-width: 0; gap: 0; color: var(--ink-3); }
 .crumb { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; animation: crumb-in 0.6s var(--ease) both; }
 .crumb span { overflow: hidden; text-overflow: ellipsis; max-width: 32ch; }
@@ -1350,6 +1378,14 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in 0.5s var(--
 .drow-text { min-width: 0; }
 .drow-title { font-size: calc(16px * var(--t)); font-weight: 500; letter-spacing: -0.015em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drow-meta { margin-top: 4px; font: 400 11.5px/1.3 var(--mono); color: var(--ink-3); }
+.drow-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px 2px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--critter, var(--accent)) 14%, var(--bg));
+  color: color-mix(in srgb, var(--critter, var(--accent)) 70%, var(--ink));
+}
 .drow-strip {
   display: flex;
   gap: 10px;
@@ -1503,6 +1539,26 @@ html.colorful .pill.is-saved { border-color: #14B86A; color: #14B86A; }
 .font-tile[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .font-aa { font-size: 26px; line-height: 1; }
 .font-name { font-size: 11.5px; color: var(--ink-3); }
+.logo-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
+.logo-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 108px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: min(var(--r-ui), 14px);
+  color: var(--ink);
+  text-align: left;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.logo-pick .logo { font-size: 32px; }
+.logo-pick:hover { border-color: var(--ink-4); }
+.logo-pick[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.logo-pick-name { font-size: 11.5px; color: var(--ink-3); }
+.cx-owner { font: 400 11px/1 var(--mono); color: var(--ink-4); }
 .font-actions { display: flex; align-items: center; gap: 14px; margin-top: 12px; font-size: 13px; }
 .switch { display: inline-flex; align-items: center; gap: 16px; cursor: pointer; }
 .switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -1547,10 +1603,6 @@ html.colorful body {
   background-image: radial-gradient(circle at 1px 1px, rgba(166, 107, 255, 0.13) 1px, transparent 1.6px);
   background-size: 22px 22px;
 }
-html.colorful .logo-l:nth-child(1) { color: #FF5C39; }
-html.colorful .logo-l:nth-child(2) { color: #2F6BFF; }
-html.colorful .logo-l:nth-child(3) { color: #14B86A; }
-html.colorful .logo-l:nth-child(4) { color: #FF6FB0; }
 html.colorful .topbar-crowd { display: inline-flex; }
 html.colorful .parade { display: inline-flex; gap: 4px; }
 html.colorful .parade svg { animation: wander 2.6s ease-in-out infinite alternate; animation-delay: calc(var(--i, 0) * -0.45s); }
@@ -1600,8 +1652,8 @@ html.colorful .file-count { color: #FF5C39; }
 html.colorful .btn:not(.btn-dark):not(.btn-danger):hover { border-color: #A66BFF; }
 
 @media (max-width: 720px) {
-  .logo-word { font-size: 23px; }
-  .logo-big .logo-word { font-size: 54px; }
+  .logo { font-size: 24px; }
+  .logo-big { font-size: 58px; }
   .drow { grid-template-columns: 1fr; gap: 12px; padding: 14px 0; }
   .drow-strip { height: 84px; }
   .drow-tile { flex-basis: 84px; height: 84px; }

@@ -2,12 +2,15 @@
 
 import { api } from './api.js';
 import { displayTitle } from './kinds.js';
-import { nav } from './nav.js';
+import { drawerHref, nav } from './nav.js';
 import { generateIcon, renderIcon } from './pixel.js';
 import { confirmDialog, openMenu, openPopover, toast } from './ui.js';
 import { bus, h, plural } from './util.js';
 
 // ---------------------------------------------------------------- connect picker
+
+// Other people's community drawers show up in the pickers too.
+const owned = (d) => (d.owner ? h('span', { class: 'cx-owner' }, ` @${d.owner}`) : null);
 
 export async function openConnect(anchor, block, { align = 'start' } = {}) {
   const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a drawer', 'aria-label': 'Find a drawer' });
@@ -20,7 +23,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
   let drawers = [];
   let connected = new Set();
   try {
-    const [all, detail] = await Promise.all([api.get('/api/drawers?lite=1'), api.get(`/api/blocks/${block.id}`)]);
+    const [all, detail] = await Promise.all([api.get('/api/drawers?lite=1&community=1'), api.get(`/api/blocks/${block.id}`)]);
     drawers = all.drawers;
     connected = new Set(detail.connections.map((d) => d.id));
   } catch (err) {
@@ -36,7 +39,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
       type: 'button', class: `cx-row${connected.has(d.id) ? ' is-on' : ''}`, onclick: () => toggle(d),
     },
     renderIcon(d.icon, { size: 18 }),
-    h('span', { class: 'cx-title' }, d.title),
+    h('span', { class: 'cx-title' }, d.title, owned(d)),
     h('span', { class: 'cx-count' }, d.count ?? ''),
     h('span', { class: 'cx-check', 'aria-hidden': 'true' })));
     const exact = drawers.some((d) => d.title.toLowerCase() === q);
@@ -107,7 +110,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
 
   let drawers = [];
   try {
-    ({ drawers } = await api.get('/api/drawers?lite=1'));
+    ({ drawers } = await api.get('/api/drawers?lite=1&community=1'));
   } catch (err) {
     list.replaceChildren(h('div', { class: 'cx-note' }, err.message));
     return pop;
@@ -120,7 +123,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
       block.saved = true;
       onSaved?.(res.block);
       toast(drawer ? `Saved to ${drawer.title}` : 'Saved to Everything', {
-        action: { label: 'Open', run: () => nav.go(drawer ? `/d/${drawer.id}` : '/all') },
+        action: { label: 'Open', run: () => nav.go(drawer ? drawerHref(drawer) : '/all') },
       });
     } catch (err) {
       toast(err.message);
@@ -145,7 +148,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     }
     for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(d) },
-        renderIcon(d.icon, { size: 18 }), h('span', { class: 'cx-title' }, d.title), h('span', { class: 'cx-count' }, d.count ?? '')));
+        renderIcon(d.icon, { size: 18 }), h('span', { class: 'cx-title' }, d.title, owned(d)), h('span', { class: 'cx-count' }, d.count ?? '')));
     }
     if (q && !drawers.some((d) => d.title.toLowerCase() === q)) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },

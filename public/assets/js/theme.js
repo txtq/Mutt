@@ -2,6 +2,7 @@
 // Saved with your account and cached locally so pages open already dressed.
 
 import { api, session } from './api.js';
+import { DEFAULT_LOGO, followLogo } from './logo.js';
 import { PALETTE, generateIcon, renderIcon } from './pixel.js';
 import { EASE, debounce, h, reducedMotion, seeded } from './util.js';
 
@@ -22,7 +23,7 @@ export const ACCENTS = ['#111111', ...PALETTE];
 
 export const DEFAULTS = {
   font: 'geist', size: 'm', corners: 'square', density: 'normal', captions: 'show',
-  motion: 'fluid', paper: 'white', accent: '#111111', colorful: false,
+  motion: 'fluid', paper: 'white', accent: '#111111', colorful: false, logo: DEFAULT_LOGO,
 };
 
 const CACHE = 'mutt.prefs';
@@ -88,6 +89,8 @@ export function applyPrefs(raw = {}) {
   root.dataset.captions = p.captions;
   root.dataset.motion = p.motion;
   root.classList.toggle('colorful', !!p.colorful);
+  root.dataset.logo = p.logo;
+  followLogo(p.logo);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', paper);
   return p;
 }

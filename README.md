@@ -16,7 +16,9 @@ what's needed. The wordmark glitches in on load, with a pixel mutt on top.
   measured in the browser and saved with the file.
 - **Community**: a shared feed. Anything you add there (or share from a
   file's viewer or ••• menu) is visible to everyone signed in; the drawers it
-  sits in stay private. **People** lists everyone with their critters and what
+  sits in stay private. **Save** someone's shared file to keep your own
+  copy in Everything or a drawer (it records who it came from and survives
+  the original being unshared or deleted). **People** lists everyone with their critters and what
   they've shared; type someone's code to look inside their drawers (view
   only). Wrong codes count toward the same lockout as signing in; changing
   your code locks everyone out again.

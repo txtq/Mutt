@@ -1459,6 +1459,9 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in 0.5s var(--
 html.colorful .cell-shared { background: #14B86A; }
 .section-gap { margin-top: 56px; }
 .btn-share.is-on { border-color: var(--accent); }
+.pill.is-saved { border-color: var(--accent); color: var(--accent); }
+.vw-save { margin-top: 10px; }
+html.colorful .pill.is-saved { border-color: #14B86A; color: #14B86A; }
 
 /* ------------------------------------------------------------------ settings */
 

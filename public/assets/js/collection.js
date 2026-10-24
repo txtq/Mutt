@@ -1,7 +1,7 @@
 // A set of files shown in the grid, kept in sync with uploads, edits made
 // elsewhere, and (in Everything) the chosen sort.
 
-import { blockMenu, openConnect } from './actions.js';
+import { blockMenu, openConnect, openSave } from './actions.js';
 import { api } from './api.js';
 import { entryCell } from './entry.js';
 import { Grid } from './grid.js';
@@ -54,6 +54,11 @@ export class Collection {
       bus.on('upload:fail', (item) => this.mine(item) && this.grid.updatePending(item)),
       bus.on('upload:done', (item) => this.mine(item) && this.arrived(item.key, item.block)),
     ];
+    // Saving someone's file (from the viewer) flips its pill here too.
+    this.off.push(bus.on('block:saved', ({ id }) => {
+      const block = this.blocks.find((b) => b.id === id);
+      if (block) { block.saved = true; this.grid.update(block); }
+    }));
     this.measureLooks();
   }
 
@@ -175,7 +180,12 @@ export class Collection {
   action(act, id, btn) {
     if (act === 'retry') { retry(id); return; }
     const block = this.blocks.find((b) => b.id === id);
-    if (!block || this.readOnly) return;
+    if (!block) return;
+    if (act === 'save') {
+      openSave(btn, block, { onSaved: () => this.grid.update(block) });
+      return;
+    }
+    if (this.readOnly) return;
     if (act === 'connect') openConnect(btn, block, { align: 'start' });
     if (act === 'more') blockMenu(btn, block, { drawer: this.drawer, open: () => nav.openBlock(id) });
   }

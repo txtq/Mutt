@@ -74,7 +74,11 @@ export function renderCell(block, { actions = block.mine !== false } = {}) {
     box.append(h('span', { class: 'cell-badge' }, label));
   }
   if (block.sharedAt && block.mine !== false) box.append(h('span', { class: 'cell-shared', title: 'Shared to Community' }));
-  if (actions) {
+  if (block.mine === false && block.sharedAt) {
+    // Someone else's shared file: the one thing to do is keep a copy.
+    box.append(h('div', { class: 'cell-actions' },
+      h('button', { type: 'button', class: `pill${block.saved ? ' is-saved' : ''}`, dataset: { act: 'save' } }, block.saved ? 'Saved ✓' : 'Save')));
+  } else if (actions) {
     box.append(h('div', { class: 'cell-actions' },
       h('button', { type: 'button', class: 'pill', dataset: { act: 'connect' } }, 'Connect'),
       h('button', { type: 'button', class: 'pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••')));

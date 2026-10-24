@@ -2,6 +2,7 @@
 
 import { api } from './api.js';
 import { displayTitle } from './kinds.js';
+import { nav } from './nav.js';
 import { generateIcon, renderIcon } from './pixel.js';
 import { confirmDialog, openMenu, openPopover, toast } from './ui.js';
 import { bus, h, plural } from './util.js';
@@ -88,6 +89,80 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
     const match = drawers.find((d) => d.title.toLowerCase() === q) || drawers.find((d) => d.title.toLowerCase().includes(q));
     if (q && match) toggle(match);
     else if (q) create(input.value.trim());
+  });
+  render();
+  return pop;
+}
+
+// ---------------------------------------------------------------- saving someone's shared file
+
+// Pick where a copy of someone else's shared file goes: a drawer, or just Everything.
+export async function openSave(anchor, block, { align = 'start', onSaved } = {}) {
+  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a drawer', 'aria-label': 'Find a drawer' });
+  const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
+  const pop = openPopover(anchor, h('div', { class: 'cx' },
+    h('div', { class: 'cx-head' }, h('span', null, 'Save to'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
+    input, list), { width: 320, align, className: 'pop-cx' });
+  requestAnimationFrame(() => input.focus());
+
+  let drawers = [];
+  try {
+    ({ drawers } = await api.get('/api/drawers?lite=1'));
+  } catch (err) {
+    list.replaceChildren(h('div', { class: 'cx-note' }, err.message));
+    return pop;
+  }
+
+  const save = async (drawer) => {
+    pop.close();
+    try {
+      const res = await api.post(`/api/blocks/${block.id}/save`, { drawer: drawer?.id });
+      block.saved = true;
+      onSaved?.(res.block);
+      toast(drawer ? `Saved to ${drawer.title}` : 'Saved to Everything', {
+        action: { label: 'Open', run: () => nav.go(drawer ? `/d/${drawer.id}` : '/all') },
+      });
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+
+  const create = async (title) => {
+    try {
+      const { drawer } = await api.post('/api/drawers', { title, icon: generateIcon() });
+      save(drawer);
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+
+  const render = () => {
+    const q = input.value.trim().toLowerCase();
+    const rows = [];
+    if (!q) {
+      rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(null) },
+        h('span', { class: 'cx-plus' }, '∗'), h('span', { class: 'cx-title' }, 'Everything')));
+    }
+    for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
+      rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(d) },
+        renderIcon(d.icon, { size: 18 }), h('span', { class: 'cx-title' }, d.title), h('span', { class: 'cx-count' }, d.count ?? '')));
+    }
+    if (q && !drawers.some((d) => d.title.toLowerCase() === q)) {
+      rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
+        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
+    }
+    list.replaceChildren(...rows);
+    pop.place();
+  };
+  input.addEventListener('input', render);
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const q = input.value.trim().toLowerCase();
+    if (!q) { save(null); return; }
+    const match = drawers.find((d) => d.title.toLowerCase() === q) || drawers.find((d) => d.title.toLowerCase().includes(q));
+    if (match) save(match);
+    else create(input.value.trim());
   });
   render();
   return pop;

@@ -268,6 +268,37 @@ def target_drawer(req, drawer_id):
     return own_drawer(req, drawer_id)['id']
 
 
+def saved_from_ids(req):
+    return {r[0] for r in req.db.execute(
+        "SELECT json_extract(meta, '$.savedFrom.id') FROM blocks "
+        "WHERE user_id = ? AND json_extract(meta, '$.savedFrom.id') IS NOT NULL", (req.user['id'],))}
+
+
+def mark_saved(req, blocks):
+    saved = saved_from_ids(req)
+    for b in blocks:
+        if not b['mine']:
+            b['saved'] = b['id'] in saved
+    return blocks
+
+
+def link_file(from_user, to_user, key):
+    """Give `to_user` their own name for a stored file without copying the bytes."""
+    if not key:
+        return None
+    src = os.path.join(db.user_files_dir(from_user), key)
+    ext = key.rsplit('.', 1)[-1] if '.' in key else ''
+    new_key = ('t_' if key.startswith('t_') else '') + secrets.token_hex(12) + (f'.{ext}' if ext else '')
+    dst = os.path.join(db.user_files_dir(to_user), new_key)
+    try:
+        os.link(src, dst)
+    except FileNotFoundError:
+        return None
+    except OSError:
+        shutil.copyfile(src, dst)
+    return new_key
+
+
 def user_stats(conn, user_id):
     files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ?', (user_id,)).fetchone()[0]
     drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ?', (user_id,)).fetchone()[0]
@@ -534,9 +565,9 @@ def user_page(req, owner):
         'user': {**user_json(owner), **user_stats(req.db, owner['id']), 'you': owner['id'] == req.user['id']},
         'unlocked': open_,
         'drawers': drawers_of(req, owner['id'], open_, owner=owner['username']),
-        'shared': [block_json(r, mine=owner['id'] == req.user['id'], owner=owner['username']) for r in req.db.execute(
+        'shared': mark_saved(req, [block_json(r, mine=owner['id'] == req.user['id'], owner=owner['username']) for r in req.db.execute(
             f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.shared_at IS NOT NULL '
-            'ORDER BY b.shared_at DESC LIMIT 60', (owner['id'],))],
+            'ORDER BY b.shared_at DESC LIMIT 60', (owner['id'],))]),
     }
 
 
@@ -824,12 +855,39 @@ def share_block(req, block_id):
     return json_response({'block': reload_block(req, block_id)})
 
 
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/save')
+def save_block(req, block_id):
+    row, mine = readable_block(req, block_id)
+    if mine:
+        raise HttpError(400, 'That one is already yours.')
+    if not row['shared_at']:
+        raise HttpError(403, 'Only shared files can be saved.')
+    drawer_id = target_drawer(req, req.json().get('drawer'))
+    existing = req.db.execute(
+        "SELECT id FROM blocks WHERE user_id = ? AND json_extract(meta, '$.savedFrom.id') = ?",
+        (req.user['id'], block_id)).fetchone()
+    if existing:
+        copy_id = existing['id']
+    else:
+        meta = json.loads(row['meta'] or '{}')
+        meta['savedFrom'] = {'id': row['id'], 'username': row['owner_name']}
+        copy_id = insert_block(
+            req, kind=row['kind'], title=row['title'], description=row['description'], content=row['content'],
+            file_key=link_file(row['user_id'], req.user['id'], row['file_key']), file_name=row['file_name'],
+            mime=row['mime'], ext=row['ext'], size=row['size'],
+            thumb_key=link_file(row['user_id'], req.user['id'], row['thumb_key']),
+            width=row['width'], height=row['height'], duration=row['duration'], meta=meta)
+    if drawer_id:
+        connect(req.db, copy_id, drawer_id)
+    return json_response({'block': reload_block(req, copy_id), 'already': bool(existing)}, status=201)
+
+
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)')
 def get_block(req, block_id):
     row, mine = readable_block(req, block_id)
     owner = None if mine else row['owner_name']
     connections = block_connections(req, block_id) if is_unlocked(req, row['user_id']) else []
-    return json_response({'block': block_json(row, mine, owner), 'connections': connections})
+    return json_response({'block': mark_saved(req, [block_json(row, mine, owner)])[0], 'connections': connections})
 
 
 @route('PATCH', r'/api/blocks/(?P<block_id>[\w-]+)')
@@ -906,9 +964,9 @@ def community(req):
         f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
         'WHERE b.shared_at IS NOT NULL ORDER BY b.shared_at DESC LIMIT 600').fetchall()
     me_id = req.user['id']
-    return json_response({'blocks': [
+    return json_response({'blocks': mark_saved(req, [
         block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
-        for r in rows]})
+        for r in rows])})
 
 
 # ---------------------------------------------------------------- search

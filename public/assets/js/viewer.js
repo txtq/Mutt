@@ -1,6 +1,6 @@
 // Full-screen block view: the block on the left, its details on the right.
 
-import { deleteBlock, openConnect, removeFromDrawer, toggleShare } from './actions.js';
+import { deleteBlock, openConnect, openSave, removeFromDrawer, toggleShare } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
@@ -275,9 +275,26 @@ function metaRows(block) {
   if (block.fileName) rows.push(['File', block.fileName]);
   rows.push(['Added', fullDate(block.createdAt)]);
   if (block.updatedAt - block.createdAt > 60000) rows.push(['Edited', fullDate(block.updatedAt)]);
+  const from = block.meta?.savedFrom;
+  if (from && block.mine !== false) {
+    rows.push(['From', h('a', { href: `/u/${from.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/u/${from.username}`); } }, `@${from.username}`)]);
+  }
   const source = block.kind === 'link' ? block.content : block.meta?.source;
   if (source) rows.push(['Source', h('a', { href: source, target: '_blank', rel: 'noopener noreferrer' }, block.meta?.domain || source)]);
   return h('dl', { class: 'vw-meta' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+}
+
+function saveButton(block) {
+  const btn = h('button', { type: 'button', class: 'btn btn-dark btn-save' }, block.saved ? 'Saved ✓' : 'Save →');
+  btn.addEventListener('click', () => openSave(btn, state.block, {
+    align: 'end',
+    onSaved: () => {
+      state.block = { ...state.block, saved: true };
+      bus.emit('block:saved', state.block);
+      renderSide();
+    },
+  }));
+  return h('div', { class: 'vw-save' }, btn);
 }
 
 function renderSide() {
@@ -302,6 +319,7 @@ function renderSide() {
       block.description ? h('p', { class: 'vw-desc vw-desc-static' }, block.description) : null,
       h('a', { class: 'vw-owner', href: `/u/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/u/${owner}`); } }, `@${owner}`),
       actions,
+      block.sharedAt ? saveButton(block) : null,
       metaRows(block),
       connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', null, plural(count, 'drawer'))) : null,
       connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => h('li', null,

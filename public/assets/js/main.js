@@ -15,7 +15,8 @@ import { homeView } from './views/home.js';
 import { loginView } from './views/login.js';
 import { searchView } from './views/search.js';
 import { settingsView } from './views/settings.js';
-import { userDrawerView, userView, usersView } from './views/users.js';
+import { communityView, peopleView } from './views/community.js';
+import { userDrawerView, userView } from './views/users.js';
 
 bootPrefs();
 
@@ -23,7 +24,9 @@ route(/^\/login$/, loginView);
 route(/^\/$/, homeView);
 route(/^\/d\/([\w-]+)$/, drawerView);
 route(/^\/all$/, everythingView);
-route(/^\/users$/, usersView);
+route(/^\/community$/, communityView);
+route(/^\/community\/people$/, peopleView);
+route(/^\/users$/, peopleView);
 route(/^\/u\/([a-z0-9_.-]+)$/, userView);
 route(/^\/u\/([a-z0-9_.-]+)\/d\/([\w-]+)$/, userDrawerView);
 route(/^\/settings$/, settingsView);

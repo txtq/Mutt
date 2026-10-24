@@ -140,6 +140,10 @@ def migrate(conn):
     user_columns = {row[1] for row in conn.execute('PRAGMA table_info(users)')}
     if 'prefs' not in user_columns:
         conn.execute("ALTER TABLE users ADD COLUMN prefs TEXT NOT NULL DEFAULT '{}'")
+    block_columns = {row[1] for row in conn.execute('PRAGMA table_info(blocks)')}
+    if 'shared_at' not in block_columns:
+        conn.execute('ALTER TABLE blocks ADD COLUMN shared_at REAL')  # set when shared with the community
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_blocks_shared ON blocks(shared_at)')
 
 
 @contextmanager

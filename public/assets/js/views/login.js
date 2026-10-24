@@ -1,6 +1,7 @@
 // Sign in / make an account: a username, then a 4-digit PIN.
 
 import { api, session } from '../api.js';
+import { glitch, logo } from '../logo.js';
 import { nav } from '../nav.js';
 import { setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
@@ -34,8 +35,7 @@ export const loginView = {
       h('div', { class: 'login-field login-pin' }, pinLabel, pin.el),
       msg);
 
-    const mark = h('h1', { class: 'login-mark', 'aria-label': 'Mutt' },
-      [...'Mutt'].map((ch, i) => h('span', { style: { '--i': i }, 'aria-hidden': 'true' }, ch)));
+    const mark = h('h1', { class: 'login-mark' }, logo({ big: true, href: null }));
     const el = h('div', { class: 'login' }, h('div', { class: 'login-box' }, mark, form, switchRow));
 
     function say(text, tone = '') {
@@ -148,7 +148,7 @@ export const loginView = {
       el,
       title: mode === 'signin' ? 'Sign in' : 'Make an account',
       chrome: false,
-      mounted: () => nameInput.focus(),
+      mounted: () => { nameInput.focus(); glitch(mark.firstElementChild); },
     };
   },
 };

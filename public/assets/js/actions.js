@@ -134,10 +134,23 @@ export async function deleteBlock(block) {
   }
 }
 
+export async function toggleShare(block) {
+  try {
+    const { block: saved } = await api.post(`/api/blocks/${block.id}/share`, { shared: !block.sharedAt });
+    bus.emit('block:changed', saved);
+    toast(saved.sharedAt ? 'Shared to Community' : 'No longer shared');
+    return saved;
+  } catch (err) {
+    toast(err.message);
+    return null;
+  }
+}
+
 export function blockMenu(anchor, block, { drawer, open } = {}) {
   openMenu(anchor, [
     open && { label: 'Open', run: open },
     { label: 'Connect…', run: () => openConnect(anchor, block, { align: 'end' }) },
+    { label: block.sharedAt ? 'Stop sharing' : 'Share to Community', run: () => toggleShare(block) },
     block.file && { label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
     block.kind === 'link' && { label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
     block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },

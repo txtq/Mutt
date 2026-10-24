@@ -16,10 +16,12 @@ const isUrl = (s) => /^https?:\/\/\S+$/i.test(s.trim());
 
 export class Collection {
   // sort: 'manual' keeps the given order (drawers); anything else is a SORTS value.
-  constructor({ blocks, drawer = null, entry = false, sortable = false, sort = 'manual', readOnly = false, empty, onChange } = {}) {
+  // share: files added here go straight to the community. keep: which files belong here.
+  constructor({ blocks, drawer = null, entry = false, sortable = false, sort = 'manual', readOnly = false, share = false, keep, empty, onChange } = {}) {
     this.blocks = blocks;
     this.drawer = drawer;
-    this.ctx = drawer ? { drawerId: drawer.id } : {};
+    this.ctx = drawer ? { drawerId: drawer.id } : share ? { share: true } : {};
+    this.keep = keep || (() => true);
     this.sort = sort;
     this.readOnly = readOnly;
     this.onChange = onChange;
@@ -42,7 +44,7 @@ export class Collection {
     if (!readOnly) for (const item of pendingFor(this.ctx)) this.grid.addPending(item);
 
     this.resort = debounce(() => this.render('flip'), 300);
-    this.off = readOnly ? [] : [
+    this.off = readOnly && !share ? [] : [
       bus.on('block:changed', (b) => this.patch(b)),
       bus.on('block:deleted', ({ id }) => this.drop(id)),
       bus.on('block:connected', (e) => this.connected(e)),
@@ -96,7 +98,7 @@ export class Collection {
     const item = { key: `up-${uid()}`, text, link: isUrl(text), name: isUrl(text) ? text.trim() : '', status: 'uploading', progress: 0.6 };
     this.grid.addPending(item);
     try {
-      const { block } = await api.post('/api/blocks', { content: text, drawer: this.drawer?.id });
+      const { block } = await api.post('/api/blocks', { content: text, drawer: this.drawer?.id, share: !!this.ctx.share });
       this.arrived(item.key, block);
     } catch (err) {
       this.grid.resolve(item.key, null, { keep: false });
@@ -125,8 +127,18 @@ export class Collection {
 
   patch(block) {
     const i = this.blocks.findIndex((b) => b.id === block.id);
-    if (i < 0) return;
-    this.blocks[i] = { ...this.blocks[i], ...block };
+    if (i < 0) {
+      // e.g. a file just shared, seen from the community feed
+      if (this.ctx.share && this.keep(block)) {
+        this.blocks.unshift(block);
+        this.render('flip');
+        this.onChange?.(this.blocks);
+      }
+      return;
+    }
+    const next = { ...this.blocks[i], ...block };
+    if (!this.keep(next)) { this.drop(block.id); return; }
+    this.blocks[i] = next;
     this.grid.update(this.blocks[i]);
   }
 
@@ -181,7 +193,7 @@ export class Collection {
   dropTarget() {
     if (this.readOnly) return null;
     return {
-      label: this.drawer ? `Drop into ${this.drawer.title}` : 'Drop to add',
+      label: this.drawer ? `Drop into ${this.drawer.title}` : this.ctx.share ? 'Drop to share' : 'Drop to add',
       drop: (files) => this.addFiles(files),
     };
   }

@@ -73,6 +73,7 @@ export function renderCell(block, { actions = block.mine !== false } = {}) {
       : block.kind === 'link' ? block.meta?.domain || 'Link' : KIND_ONE[block.kind];
     box.append(h('span', { class: 'cell-badge' }, label));
   }
+  if (block.sharedAt && block.mine !== false) box.append(h('span', { class: 'cell-shared', title: 'Shared to Community' }));
   if (actions) {
     box.append(h('div', { class: 'cell-actions' },
       h('button', { type: 'button', class: 'pill', dataset: { act: 'connect' } }, 'Connect'),
@@ -83,7 +84,8 @@ export function renderCell(block, { actions = block.mine !== false } = {}) {
     style: { '--cell-tint': tintFor(block.id) },
   },
   box,
-  h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, displayTitle(block))));
+  h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, displayTitle(block),
+    block.owner ? h('span', { class: 'cell-owner' }, ` @${block.owner}`) : null)));
   if (block.kind === 'video' && block.file) attachHoverPlay(cell, block);
   return cell;
 }

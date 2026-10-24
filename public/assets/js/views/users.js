@@ -1,5 +1,5 @@
-// Users: everyone on this Mutt and their critters. Someone's drawers open
-// (to look, not touch) once you type their code.
+// A person's page, and unlocking their drawers (to look, not touch) with
+// their code. The People grid itself lives in Community.
 
 import { api } from '../api.js';
 import { Collection } from '../collection.js';
@@ -46,7 +46,7 @@ export function unlockDialog(username) {
   });
 }
 
-function userCard(user) {
+export function userCard(user) {
   const critters = h('div', { class: 'ucard-critters' },
     user.critters.length
       ? user.critters.slice(0, 9).map((icon, i) => {
@@ -67,21 +67,6 @@ function userCard(user) {
   return h('div', { class: 'cell cell-card' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, card)));
 }
 
-export const usersView = {
-  load: () => api.get('/api/users'),
-
-  create(params, data) {
-    const grid = h('div', { class: 'grid' }, data.users.map(userCard));
-    [...grid.children].forEach((el, i) => { el.style.setProperty('--i', Math.min(i, 14)); el.classList.add('reveal'); });
-    const el = h('div', { class: 'page' },
-      h('header', { class: 'page-head' },
-        h('h1', { class: 'page-title' }, 'Users'),
-        h('p', { class: 'page-meta' }, plural(data.users.length, 'person', 'people'))),
-      grid);
-    return { el, title: 'Users' };
-  },
-};
-
 export const userView = {
   load: ([username]) => api.get(`/api/users/${encodeURIComponent(username)}`),
 
@@ -98,6 +83,7 @@ export const userView = {
       type: 'button', class: 'btn btn-dark btn-sm',
       onclick: async () => { if (await unlockDialog(username)) nav.go(`/u/${username}`, { replace: true }); },
     }, 'Unlock');
+    const shared = data.shared.length ? new Collection({ blocks: data.shared, readOnly: true }) : null;
     const list = h('div', { class: 'drows' },
       data.drawers.map((d) => drawerRow(d, {
         href: `/u/${username}/d/${d.id}`, locked: !data.unlocked, onOpen: open, drops: false,
@@ -111,11 +97,16 @@ export const userView = {
           h('h1', { class: 'page-title' }, `@${username}`),
           h('p', { class: 'page-meta' }, `${plural(data.user.files, 'file')} · ${plural(data.user.drawers, 'drawer')}`)),
         unlockBtn),
+      shared ? h('h2', { class: 'section-title' }, 'Shared') : null,
+      shared?.el,
+      shared ? h('h2', { class: 'section-title section-gap' }, 'Drawers') : null,
       list);
     return {
       el,
       title: `@${username}`,
-      crumbs: [{ label: 'Users', href: '/users' }, { label: `@${username}` }],
+      crumbs: [{ label: 'Community', href: '/community' }, { label: `@${username}` }],
+      list: () => shared?.list() || [],
+      destroy: () => shared?.destroy(),
     };
   },
 };

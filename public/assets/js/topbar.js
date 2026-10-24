@@ -2,6 +2,7 @@
 
 import { api, session } from './api.js';
 import { nav } from './nav.js';
+import { glitch, logo } from './logo.js';
 import { renderIcon } from './pixel.js';
 import { forgetPrefs, parade } from './theme.js';
 import { openDialog, openMenu, pinField, segmented, toast } from './ui.js';
@@ -10,12 +11,12 @@ import { h, wait } from './util.js';
 const SECTIONS = [
   { value: '/', label: 'Filing cabinet' },
   { value: '/all', label: 'Everything' },
-  { value: '/users', label: 'Users' },
+  { value: '/community', label: 'Community' },
 ];
 
 function sectionFor(path) {
   if (path === '/all') return '/all';
-  if (path === '/users' || path.startsWith('/u/')) return '/users';
+  if (path.startsWith('/community') || path === '/users' || path.startsWith('/u/')) return '/community';
   if (path === '/' || path.startsWith('/d/')) return '/';
   return null;
 }
@@ -35,17 +36,17 @@ export function createTopbar() {
   me.addEventListener('click', () => openMenu(me, [
     { label: 'Filing cabinet', run: () => nav.go('/') },
     { label: 'Everything', run: () => nav.go('/all') },
-    { label: 'Users', run: () => nav.go('/users') },
+    { label: 'Community', run: () => nav.go('/community') },
     '-',
     { label: 'Settings', run: () => nav.go('/settings') },
     { label: 'Sign out', run: signOut },
   ], { align: 'end', className: 'pop-me' }));
 
   const crowd = h('span', { class: 'topbar-crowd' });
+  const mark = logo();
   const bar = h('header', { class: 'topbar' },
     h('div', { class: 'topbar-in' },
-      h('a', { class: 'wordmark', href: '/', 'aria-label': 'Mutt, home' },
-        [...'Mutt'].map((ch, i) => h('span', { style: { '--i': i } }, ch))),
+      mark,
       crowd,
       crumbs,
       h('div', { class: 'topbar-spacer' }),
@@ -60,6 +61,7 @@ export function createTopbar() {
   }, { passive: true });
 
   let crowdFor = null;
+  let glitched = false;
   return {
     el: bar,
     search,
@@ -70,6 +72,11 @@ export function createTopbar() {
       if (name && crowdFor !== name) {
         crowdFor = name;
         crowd.replaceChildren(parade(name, 5, 18));
+      }
+      // The logo glitches in once per load, the first time the bar is shown.
+      if (name && !glitched) {
+        glitched = true;
+        requestAnimationFrame(() => glitch(mark));
       }
       sections.set(sectionFor(url.pathname), true);
       if (url.pathname === '/search') search.value = url.searchParams.get('q') || '';

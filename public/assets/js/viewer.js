@@ -1,6 +1,6 @@
 // Full-screen block view: the block on the left, its details on the right.
 
-import { deleteBlock, openConnect, removeFromDrawer } from './actions.js';
+import { deleteBlock, openConnect, removeFromDrawer, toggleShare } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
@@ -286,7 +286,11 @@ function renderSide() {
     block.file ? h('a', { class: 'btn', href: `${block.file}?dl=1` }, 'Download') : null,
     block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Original ↗') : null,
     block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
-    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null);
+    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null,
+    block.mine !== false ? h('button', {
+      type: 'button', class: `btn btn-share${block.sharedAt ? ' is-on' : ''}`, 'aria-pressed': String(!!block.sharedAt),
+      onclick: () => toggleShare(state.block),
+    }, block.sharedAt ? 'Shared ✓' : 'Share') : null);
 
   const count = connections?.length ?? block.connectionCount ?? 0;
 
@@ -351,6 +355,11 @@ function applyUpdate(block, { keepSide = false } = {}) {
   if (!keepSide) renderSide();
 }
 
+bus.on('block:changed', (block) => {
+  if (state?.block.id !== block.id || state.block.sharedAt === block.sharedAt) return;
+  state.block = { ...state.block, ...block };
+  renderSide();
+});
 bus.on('block:connected', ({ block, connections }) => {
   if (state?.block.id !== block.id) return;
   state.connections = connections;

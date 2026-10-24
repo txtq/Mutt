@@ -13,6 +13,7 @@ const items = new Map();
 let active = 0;
 
 export function contextKey(ctx) {
+  if (ctx.share) return 'community';
   return ctx.drawerId ? `drawer:${ctx.drawerId}` : 'loose';
 }
 
@@ -83,6 +84,7 @@ async function run(item) {
   const thumbing = makeThumb(item.file, item.kind);
   const params = new URLSearchParams({ name: item.name });
   if (item.ctx.drawerId) params.set('drawer', item.ctx.drawerId);
+  if (item.ctx.share) params.set('share', '1');
   try {
     let { block } = await sendFile(`/api/upload?${params}`, item.file, {
       type: item.file.type,

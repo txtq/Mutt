@@ -1,4 +1,4 @@
-"""HTTP API: accounts, settings, users, drawers, files (blocks), connections."""
+"""HTTP API: accounts, settings, users, community, drawers, files (blocks), connections."""
 import json
 import os
 import random
@@ -123,6 +123,7 @@ def block_json(row, mine=True, owner=None):
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
         'mine': mine,
+        'sharedAt': ms(row['shared_at']) if 'shared_at' in keys else None,
     }
     if owner:
         data['owner'] = owner
@@ -204,7 +205,7 @@ def is_unlocked(req, owner_id):
 
 
 def readable_block(req, block_id):
-    """Your own file, or a file in the drawers of someone you've unlocked."""
+    """Your own file, a shared one, or one in the drawers of someone you've unlocked."""
     row = req.db.execute(
         f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
         'WHERE b.id = ?', (block_id,)).fetchone()
@@ -212,6 +213,8 @@ def readable_block(req, block_id):
         raise HttpError(404, 'That file does not exist.')
     if row['user_id'] == req.user['id']:
         return row, True
+    if row['shared_at']:
+        return row, False
     in_drawer = req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone()
     if in_drawer and is_unlocked(req, row['user_id']):
         return row, False
@@ -531,6 +534,9 @@ def user_page(req, owner):
         'user': {**user_json(owner), **user_stats(req.db, owner['id']), 'you': owner['id'] == req.user['id']},
         'unlocked': open_,
         'drawers': drawers_of(req, owner['id'], open_, owner=owner['username']),
+        'shared': [block_json(r, mine=owner['id'] == req.user['id'], owner=owner['username']) for r in req.db.execute(
+            f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.shared_at IS NOT NULL '
+            'ORDER BY b.shared_at DESC LIMIT 60', (owner['id'],))],
     }
 
 
@@ -723,6 +729,7 @@ def create_block(req):
     content = text_field(body, 'content', 200_000, 'Text', strip=False) or ''
     title = text_field(body, 'title', 200, 'Title') or ''
     drawer_id = target_drawer(req, body.get('drawer'))
+    shared = {'shared_at': now()} if body.get('share') else {}
     stripped = content.strip()
     if not stripped:
         raise HttpError(400, 'Type something first.')
@@ -740,14 +747,14 @@ def create_block(req):
                 f.write(data)
             block_id = insert_block(req, kind='image', title=title or name, file_key=key, file_name=name,
                                     mime=mime, ext=ext, size=len(data),
-                                    meta={'source': stripped, 'domain': info.get('domain')})
+                                    meta={'source': stripped, 'domain': info.get('domain')}, **shared)
         else:
             block_id = insert_block(req, kind='link', title=title or info.get('title') or stripped,
-                                    content=stripped, meta=info)
+                                    content=stripped, meta=info, **shared)
             if preview:
                 save_thumb(req, block_id, *preview)
     else:
-        block_id = insert_block(req, kind='text', title=title, content=content.strip('\n'))
+        block_id = insert_block(req, kind='text', title=title, content=content.strip('\n'), **shared)
 
     if drawer_id:
         connect(req.db, block_id, drawer_id)
@@ -771,8 +778,9 @@ def upload(req):
             head = f.read(8192).decode('utf-8', 'replace').replace('\x00', '')
         meta['excerpt'] = head[:1800]
     title = os.path.splitext(name)[0] if ext else name
+    shared = {'shared_at': now()} if req.arg('share') == '1' else {}
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
-                            mime=mime, ext=ext, size=size, meta=meta)
+                            mime=mime, ext=ext, size=size, meta=meta, **shared)
     if drawer_id:
         connect(req.db, block_id, drawer_id)
     return json_response({'block': reload_block(req, block_id)}, status=201)
@@ -808,11 +816,20 @@ def upload_thumb(req, block_id):
     return json_response({'block': reload_block(req, block_id)})
 
 
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/share')
+def share_block(req, block_id):
+    own_block(req, block_id)
+    shared = bool(req.json().get('shared'))
+    req.db.execute('UPDATE blocks SET shared_at = ? WHERE id = ?', (now() if shared else None, block_id))
+    return json_response({'block': reload_block(req, block_id)})
+
+
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)')
 def get_block(req, block_id):
     row, mine = readable_block(req, block_id)
     owner = None if mine else row['owner_name']
-    return json_response({'block': block_json(row, mine, owner), 'connections': block_connections(req, block_id)})
+    connections = block_connections(req, block_id) if is_unlocked(req, row['user_id']) else []
+    return json_response({'block': block_json(row, mine, owner), 'connections': connections})
 
 
 @route('PATCH', r'/api/blocks/(?P<block_id>[\w-]+)')
@@ -879,6 +896,19 @@ def remove_connection(req, block_id, drawer_id):
         'connections': block_connections(req, block_id),
         'position': found['position'] if found else None,
     })
+
+
+# ---------------------------------------------------------------- community
+
+@route('GET', r'/api/community')
+def community(req):
+    rows = req.db.execute(
+        f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
+        'WHERE b.shared_at IS NOT NULL ORDER BY b.shared_at DESC LIMIT 600').fetchall()
+    me_id = req.user['id']
+    return json_response({'blocks': [
+        block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
+        for r in rows]})
 
 
 # ---------------------------------------------------------------- search

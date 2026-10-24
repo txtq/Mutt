@@ -1,7 +1,7 @@
 # Mutt
 
 A personal place to keep things and connect them, like Are.na with only
-what's needed.
+what's needed. The wordmark glitches in on load, with a pixel mutt on top.
 
 - **Accounts**: a username and a 4-digit code.
 - **Filing cabinet**: your drawers, one per row with a strip of what's inside.
@@ -14,9 +14,12 @@ what's needed.
 - **Everything**: every file you've added, sortable by New, Old, Color,
   Vibes, Format, A–Z and Size. Color and Vibes use each picture's colours,
   measured in the browser and saved with the file.
-- **Users**: everyone on this Mutt and their critters. Type someone's code to
-  look inside their drawers (view only). Wrong codes count toward the same
-  lockout as signing in; changing your code locks everyone out again.
+- **Community**: a shared feed. Anything you add there (or share from a
+  file's viewer or ••• menu) is visible to everyone signed in; the drawers it
+  sits in stay private. **People** lists everyone with their critters and what
+  they've shared; type someone's code to look inside their drawers (view
+  only). Wrong codes count toward the same lockout as signing in; changing
+  your code locks everyone out again.
 - **Settings**: font (nine presets or upload your own woff2/woff/ttf/otf),
   size, accent colour, paper tint, corners, spacing, captions, motion, and
   colorful mode (critters everywhere, candy colours, dotted paper).

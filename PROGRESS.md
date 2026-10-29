@@ -4,35 +4,87 @@ The handoff note between sessions. Read it first; update it after every task
 (or run `/handoff`). Newest entries on top. Lasting preferences also go in
 `CLAUDE.md`.
 
+This is the one shared copy, at `/Users/edan/Mutt/PROGRESS.md`. Sessions in a
+worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
+
 ## Where things stand (2026-10-29)
 
-- The second galaxy redesign is **live**: `galaxy` and `main` are both at 01d78d2, deployed on Northflank and checked in the browser.
-- **New, not committed or deployed yet:** the black hole void, on the worktree branch `claude/black-hole-center-visual-0dae27`. The user hasn't seen it yet.
+- **New login screen is live**: `claude/mutt-login-screen-d7c6db` is merged into `galaxy` and `main` and deployed. It has the "Are you new to Mutt?" question, a low pixel horizon, a warm light from the top right, and is always night.
+- **Critters are gone and planets are more colourful (live)**: `claude/remove-critters-brighten-planets-122880` is merged into `galaxy` and `main` and deployed.
+- **Planets update is live**: `galaxy` and `main` include the planets branch `claude/mutt-planets-interactions-1d7230` (merged at 2894ba6), deployed on Northflank. The new files are served and `/api/health` shows persistent storage. Planets can be moved, turn smoothly, and are each one of eight kinds of world.
+- The database gained `drawers.look`, `drawers.x` and `drawers.y` (added by itself on start). The `classic` site was checked against a copy with them and still works.
 - The project now lives in `/Users/edan/Mutt`.
 - Backup of the pre-galaxy site: branch `classic`, tag `classic-v1`.
 
 ## Next
 
-1. The user reviews the black hole, then commit it, bring it onto `galaxy` and deploy.
-2. Try it on a real phone. In particular, check that typing in the void with the keyboard open doesn't slide the page into the universe. The open box is about 420px tall on a phone.
-3. Recheck the second version at phone width (only desktop dark and light were looked at after the redo). The textures take a moment to build on first load and on each light/dark switch.
-4. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
+- In progress in another session, not merged: the black hole look (`claude/black-hole-center-visual-0dae27`). It touches the galaxy page too, so merge `galaxy` into it before shipping.
+- Done but not committed or merged: the corner map replacing the corner black hole, in the worktree branch `claude/black-hole-go-home-alt-43cebc` (see Done). It touches `views/galaxy.js` (the universe's mini galaxies now use `miniWorlds()` from `planets.js`), so watch for overlap with the black hole look branch. It will also meet the critters change in `planets.js` (`worldColors`, `planetDot`) when it merges `galaxy`.
+- Worktrees made before the 2026-10-29 handoff fix still have the old rule (their own `PROGRESS.md` copy) in their `CLAUDE.md` until they merge `galaxy`.
+
+1. Try it on a real phone. In particular:
+   - hold and drag a planet (only checked with a mouse so far);
+   - check that typing in the void with the keyboard open doesn't slide the page into the universe.
+2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
 
-### 2026-10-29: the void, second version (user feedback)
-- The user didn't like the first version: too realistic and painted, "ribbons of light", and an add box that looked fake. They asked for something artsy and textured, like their second and third pictures (a smoky dust swirl, and a grainy ink print), not the first (Interstellar's Gargantua).
-- `voidart.js` now paints folds of smoky mauve dust with a ragged inner edge, fine film grain laid over at screen resolution, a faint tilted smudge running through it, one thin dotted stray arc, two tiny embers circling in the dark, and the few square sparks. No glowing band or arcs. Light mode is a stippled ink print with a pale middle.
-- The add box is flat and plain like Are.na's: a bordered square to type in, "Goes to" choices as plain underlined text, Upload as a text link, and a flat Add button that fills in once there's text. No glass, gloss or glow.
+### 2026-10-29: critters removed, planets more colourful (deployed)
+- The user asked to get rid of critters. Gone: the pixel creature by each planet's name, the critter editor, "New critter", and the blinking. `pixel.js` is deleted and `PALETTE` moved to `util.js`. Lists of planets (putting a file on a planet, the viewer) show a small colour dot instead (`planetDot()` in `planets.js`).
+- The planet's colour still lives in `drawers.icon.c`, next to the old pixels, because the `classic` site still draws them. **Planet colour…** in the ••• menu changes only the colour. New planets get the server's default icon. Clicking the big planet on its page now opens **Planet type**.
+- Planets were "too dark". Their colours now go through `richer()` in `planets.js` (more saturation, a little lighter, with the planet's own colour greyed less). The shader's shadow side and edge are lighter too. Lava gets a smaller boost so it stays hot.
+- Checked in the browser: desktop dark, phone width in light mode, the colour picker saving, the dots, `?flat=1`, and the merge with the new login screen. Test suites print as before.
+- Note: the in-app browser pane doesn't show planet canvases in screenshots while it's hidden. Copying each canvas into an `<img>` overlay works.
 
-### 2026-10-29: the void becomes a real black hole (first version, since replaced)
-- `voidart.js` paints the black hole on a canvas, in its own layer under the planets: a tall cloud of indigo and plum dust turning slowly, a thin lantern-amber band across it, arcs of bent light over the top and under the bottom, a thin edge line, and about a dozen small square pixel sparks drifting in (the only pixel touch). Light mode draws the same shapes as grainy ink on paper with a pale middle, like the user's third reference picture.
-- It's sized from the screen (the dark is about 13% of the screen's height across), so the whole thing stands most of the screen tall. Stars float in its dust; planets keep clear of an oval round it.
-- Clicking it sweeps it open: the dark widens just enough to hold the add box, and the light is pushed out into a thinner ring. Planets dim but stay visible. It stops moving once you scroll into the universe.
-- The paper sheet is gone. The add box is a spacious dark glass box (pale glass in light mode) like the planet page's add box: a big text area, Upload, a glossy Add that lights up once there's text, the Star/Autosort/Planet/New planet choices, and a drop state for files dragged over it.
-- Other people's galaxies show the same hole with their name in it. The background stars' bend round the void now fades out smoothly instead of covering the whole screen.
-- Checked in the browser in dark, light and phone width: adding a note, making a new planet, Esc to close, dragging a star in (autosorted), someone else's galaxy, and the pause in the universe. Smoke tests pass.
-- Testing tip: another Mutt server on this machine shares `localhost` cookies and signs the preview out, so test on `127.0.0.1` instead.
+### 2026-10-29: a map of your galaxy replaces the corner black hole (not merged)
+- The user didn't like the little black hole in the top-left corner as the way home. They picked a mini map instead.
+- Away from your galaxy (on a planet, or in someone else's galaxy) the corner now shows a round, glossy window onto your own galaxy: your planets as small coloured dots, in the spots you put them, slowly turning round the middle. The planet you're on has a ring round it. Tap it and it zooms to fill the screen and takes you home.
+- It doesn't show in the universe; the user said scrolling back up is enough there.
+- It's 64 px wide (52 px on phones), so the planet page header moved right to make room. The dark window stays dark in light mode.
+- The miniature drawing is shared with the universe's mini galaxies (`miniWorlds()` in `planets.js`), which look the same as before.
+- Checked in the browser: planet page, someone else's galaxy, tapping it home, hidden on your own galaxy and in the universe, light mode, phone width. Test suites read normally.
+
+### 2026-10-29: login screen, "Are you new to Mutt?" (deployed)
+- Login opens on a question, "Are you new to Mutt?", with "Yes, I'm new" (make an account) and "No, log in". Y and N keys work too.
+- After choosing, the username → code steps are as before, with a "Welcome back" / "Make your account" heading and a Vita-style ‹ Back button.
+- Skipping the question: `?new=1` goes straight to making an account. With sign-ups off, it goes straight to log in.
+- If this browser has signed in before, focus starts on "No, log in".
+- A low pixel horizon runs along the bottom, under the usual Vita sky (`nightscene.js`):
+  - hills with pines and autumn trees;
+  - a cottage with a flickering lit window and chimney smoke;
+  - a lamp post, and a little mutt that blinks and wags.
+- The box, fonts, rounded code boxes and soft blur-rise animations are the original Mutt ones.
+- Tried Vita glass bubbles drifting behind the box. The user didn't want them, so they're removed. The trees were also thinned to about half.
+- A warm light glows from just past the top-right corner, like a low sun. The box catches it with a bright line along its top edge (strongest toward the right) and a warm wash from that corner. The buttons and the round Back key have warm top highlights, and the code boxes a faint warm lower edge.
+- Fixed: a blue outline drew round the username field while typing. It came from the site-wide focus outline; the field's blue underline already shows focus.
+- Login is always night, even when the saved mode is light (`holdNight` in `theme.js`). The saved mode comes back after signing in.
+- First try was too Stardew Valley: a pixel moon, pixel stars, fireflies, a pixel-framed box and a pixel font. The user asked to keep only the scene's cottage, trees and so on, and keep Mutt's and the Vita's look elsewhere.
+- Checked in the browser:
+  - making an account, logging in, a wrong code, Back, the Y/N keys;
+  - sign-ups off, `?new=1`;
+  - the saved light mode staying night on login and coming back after;
+  - desktop and phone width.
+- The smoke suite reads the same as before.
+- Note: the in-app browser pane freezes page animations while it's in the background, so screenshots can show an empty box. It's the pane, not the page.
+
+### 2026-10-29: planets you can move, smooth spin, eight kinds of world (deployed)
+- **Glitchy spin fixed.** The old painter moved the surface in whole steps of about 2 screen pixels, every 150–300 ms, with no smoothing. Now one shared WebGL canvas (`planetgl.js`) paints every planet with a smooth turn at full sharpness, about 30 times a second each. Ten planets cost no measurable frame time. Without WebGL the old painter takes over (`?flat=1` forces it).
+- **Kinds of world:**
+  - eight of them: ocean, green, gas giant, lava, ice, desert, moon rock, storm;
+  - each has animated ground and weather, tinted by the planet's colour;
+  - files stay readable on the surface, and some planets have small moons;
+  - a new planet gets a kind picked for it; **Planet type…** in the ••• menu changes it.
+- **Arranging:**
+  - drag your planets; on touch, hold first; Shift+arrows on the keyboard;
+  - the first move saves every planet's spot, so the others never wander later;
+  - others see the arrangement on their next visit, and so do the mini galaxies in the universe;
+  - phones squeeze and stretch it to fit without overlaps;
+  - **Tidy planets** in the account sheet resets it.
+- Checked in the browser (dark, light, phone width, a second user's view). `tests/galaxy.sh` covers looks and layouts.
+
+### 2026-10-29: handoff notes fixed
+- Sessions were reading the notes but bundling the read with a guess at a `public/assets/css/` folder that doesn't exist, so the step showed as failed. `CLAUDE.md` now says where the stylesheets are and to read the notes on their own.
+- Each worktree had its own copy of the notes, so sessions never saw each other's. The notes now live only here, and `CLAUDE.md` and `/handoff` point at this path. The login session's notes were copied in from its worktree.
 
 ### 2026-10-29: deployed
 - Merged the redesign into `main`; the live site updated and its storage check is healthy.
@@ -53,6 +105,6 @@ The handoff note between sessions. Read it first; update it after every task
 
 - PS Vita style, skeuomorphic where it helps and minimal elsewhere. Not cartoony, no AI-style graphics, clean, with light and dark modes.
 - Work and files stay at the centre of the site.
+- Pixel art only as an accent (the login horizon: trees, cottage, mutt), with warm touches. Not "too Stardew": no pixel fonts, pixel frames, pixel moon or stars. Mutt and Vita looks (rounded glass, Red Hat type, fluid motion) come first. Login is always night.
 - Keep a backup of the previous design before big redesigns.
 - Use a PROGRESS.md handoff, updated after each task.
-- The void: a big, tall black hole that's artsy and textured (smoky, grainy dust like the user's second and third reference pictures), not realistic or painted light. Only small pixel touches. The add box is flat and plain like Are.na's, never glassy, glossy or paper-like.

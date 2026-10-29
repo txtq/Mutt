@@ -150,6 +150,12 @@ def migrate(conn):
     if 'visibility' not in drawer_columns:
         # Who can look inside a drawer (a planet): private, pin (anyone with your code), people, public.
         conn.execute("ALTER TABLE drawers ADD COLUMN visibility TEXT NOT NULL DEFAULT 'pin'")
+    if 'look' not in drawer_columns:
+        conn.execute('ALTER TABLE drawers ADD COLUMN look TEXT')  # what kind of world it is; empty = picked for it
+    if 'x' not in drawer_columns:
+        # Where its owner put it in their galaxy, from the void's centre; empty = not placed yet.
+        conn.execute('ALTER TABLE drawers ADD COLUMN x REAL')
+        conn.execute('ALTER TABLE drawers ADD COLUMN y REAL')
     conn.execute('CREATE TABLE IF NOT EXISTS drawer_access ('
                  'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '

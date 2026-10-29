@@ -3,7 +3,7 @@
 import { api } from './api.js';
 import { displayTitle } from './kinds.js';
 import { drawerHref, nav } from './nav.js';
-import { generateIcon, renderIcon } from './pixel.js';
+import { planetDot } from './planets.js';
 import { confirmDialog, openMenu, openPopover, toast } from './ui.js';
 import { bus, h, plural, wait } from './util.js';
 
@@ -38,7 +38,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
     const rows = shown.map((d) => h('button', {
       type: 'button', class: `cx-row${connected.has(d.id) ? ' is-on' : ''}`, onclick: () => toggle(d),
     },
-    renderIcon(d.icon, { size: 18 }),
+    planetDot(d),
     h('span', { class: 'cx-title' }, d.title, owned(d)),
     h('span', { class: 'cx-count' }, d.count ?? ''),
     h('span', { class: 'cx-check', 'aria-hidden': 'true' })));
@@ -74,7 +74,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
 
   async function create(title) {
     try {
-      const { drawer } = await api.post('/api/drawers', { title, icon: generateIcon() });
+      const { drawer } = await api.post('/api/drawers', { title });
       drawers.unshift(drawer);
       input.value = '';
       await toggle(drawer);
@@ -152,7 +152,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
 
   const create = async (title) => {
     try {
-      const { drawer } = await api.post('/api/drawers', { title, icon: generateIcon() });
+      const { drawer } = await api.post('/api/drawers', { title });
       save(drawer);
     } catch (err) {
       toast(err.message);
@@ -168,7 +168,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     }
     for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(d) },
-        renderIcon(d.icon, { size: 18 }), h('span', { class: 'cx-title' }, d.title, owned(d)), h('span', { class: 'cx-count' }, d.count ?? '')));
+        planetDot(d), h('span', { class: 'cx-title' }, d.title, owned(d)), h('span', { class: 'cx-count' }, d.count ?? '')));
     }
     if (q && !drawers.some((d) => d.title.toLowerCase() === q)) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },

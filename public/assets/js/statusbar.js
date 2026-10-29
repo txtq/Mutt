@@ -8,7 +8,7 @@ import { LOGOS, glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { glyph, planetEl } from './planets.js';
 import { DEFAULTS, MODES, SKIES, updatePrefs } from './theme.js';
-import { segmented, toast } from './ui.js';
+import { confirmDialog, segmented, toast } from './ui.js';
 import { bus, debounce, h, plural, reducedMotion } from './util.js';
 import { changePin, deleteAccount, signOut } from './account.js';
 import { renderCell } from './cells.js';
@@ -95,6 +95,22 @@ function autosortSwitch() {
     h('span', { class: 'set-note' }, 'New things find their own planet'));
 }
 
+// Forget where you put your planets; they find their own places again.
+async function tidyPlanets() {
+  const ok = await confirmDialog({
+    title: 'Tidy your planets?',
+    message: 'They leave the spots you put them in and spread out on their own again.',
+    confirm: 'Tidy planets',
+  });
+  if (!ok) return;
+  try {
+    await api.put('/api/galaxy/layout', { reset: true });
+    bus.emit('drawer:changed', null);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
 function settingsBody(close) {
   const stats = { files: 0, drawers: 0, stars: 0, ...session.stats };
   return h('div', { class: 'sheet-in' },
@@ -112,6 +128,7 @@ function settingsBody(close) {
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     h('div', { class: 'sheet-actions' },
+      h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
       h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); changePin(); } }, 'Change code'),
       h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); signOut(); } }, 'Sign out'),
       h('button', { type: 'button', class: 'link is-danger', onclick: () => { close(); deleteAccount(); } }, 'Delete account')));

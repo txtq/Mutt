@@ -47,3 +47,19 @@ echo "stars after: $(curl -s "${A[@]}" $B/api/galaxy | j "[s['content'] for s in
 echo "bo universe: $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], g['open'], g['locked'], g['files'], len(g['worlds'])) for g in d['galaxies']]")"
 echo "mode pref: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/me/prefs -d '{"mode":"light"}' | j "d['prefs'].get('mode')")"
 echo "stats: $(curl -s "${A[@]}" $B/api/me | j "d['stats']")"
+# planet looks
+echo "look set: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$PUB -d '{"look":"lava"}' | j "d['drawer']['look']")"
+echo "look bad: $(curl -s -o /dev/null -w '%{http_code}' "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$PUB -d '{"look":"cheese"}')"
+echo "look auto: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$PIN -d '{"look":null}' | j "d['drawer']['look']")"
+# arranging planets
+L() { curl -s -o /dev/null -w '%{http_code}' "$@" "${J[@]}" -X PUT $B/api/galaxy/layout -d "$LAY"; }
+LAY="{\"planets\":[{\"id\":\"$PUB\",\"x\":-320.44,\"y\":180},{\"id\":\"$PIN\",\"x\":99999,\"y\":-12}]}"; echo "layout save: $(L "${A[@]}")"
+echo "own layout: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['title'], p['x'], p['y'], p['look']) for p in d['planets']]")"
+echo "bo sees layout: $(curl -s "${U[@]}" $B/api/galaxy/alma | j "[(p['title'], p['x'], p['y']) for p in d['planets']]")"
+echo "universe layout: $(curl -s "${U[@]}" $B/api/galaxies | j "[(w['x'], w['y'], w['look']) for g in d['galaxies'] if g['username'] == 'alma' for w in g['worlds']]")"
+LAY="{\"planets\":[{\"id\":\"$PUB\",\"x\":5,\"y\":5}]}"; echo "bo moves alma's: $(L "${U[@]}")"
+LAY="{\"planets\":[{\"id\":\"$PUB\",\"x\":\"far\",\"y\":5}]}"; echo "bad number: $(L "${A[@]}")"
+LAY='{"planets":[]}'; echo "empty list: $(L "${A[@]}")"
+echo "after bad: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['x'], p['y']) for p in d['planets'] if p['x'] is not None]")"
+LAY='{"reset":true}'; echo "reset: $(L "${A[@]}")"
+echo "after reset: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['x'], p['y']) for p in d['planets']]")"

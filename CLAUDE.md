@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Handoff rule
 
-Read `PROGRESS.md` at the start of every session. After finishing each task, update it: what was done, what's next, and any new preferences the user gave. Preferences that should hold for all future work also go in the **User preferences** section below. `/handoff` (`.claude/commands/handoff.md`) does this update on demand.
+The handoff notes are **one shared file: `/Users/edan/Mutt/PROGRESS.md`**, in the main checkout. Most sessions run in a worktree under `.claude/worktrees/`, and the `PROGRESS.md` there is a stale copy from when the worktree was made, which never reaches the other sessions. So:
+- Read `/Users/edan/Mutt/PROGRESS.md` at the start of every session, on its own (the Read tool, not chained with other commands, so one bad path can't fail the read).
+- After finishing each task, update that same file: what was done, what's next (name your branch if it isn't merged), and any new preferences the user gave. Don't edit the worktree's own `PROGRESS.md`, or merging branches will conflict.
+- Preferences that should hold for all future work also go in the **User preferences** section below.
+- The shared file is committed on `galaxy` from the main checkout, along with merges and deploys.
+- `/handoff` (`.claude/commands/handoff.md`) does this update on demand.
 
 ## What Mutt is
 
@@ -52,12 +57,13 @@ The suites are curl scripts that **print** what the API returned; nothing assert
   - `dropTarget()`, `pasteText()`, `mounted()`, `destroy()`
 - `statusbar.js` reads the view instance in `update(inst)`. It also owns the account/settings sheet, search, and the corner "home" void.
 - `views/galaxy.js` is the main page: a sticky galaxy section followed by a scroll "runway". Scroll progress drives the zoom out into the universe stage (`track()`), and `/universe` opens already scrolled out.
-- `planets.js` paints each planet on a small canvas from a texture of its files.
+- `planets.js` builds each planet: its kind (`LOOKS`, with `lookOf()` picking one from the id when the owner hasn't), palette, moons, and a texture of its files. `planetgl.js` paints them: one shared off-screen WebGL2 canvas draws every planet's sphere (ground, weather and light in one shader, branching on the kind) and copies it onto the planet's own canvas, about 30 times a second each. Without WebGL2 (or with `?flat=1`) the older 2D painter takes over.
+- Planet positions: `drawers.x`/`y` are offsets from the void in desktop pixels (empty means "scatter it"), saved by `PUT /api/galaxy/layout`. `scatter()` in `views/galaxy.js` places the saved ones first, then scatters the rest; `movable()` in `drag.js` does the dragging.
 - `sky.js` is the fixed background. Pages can give it a lens (the void bends stars) and a night amount.
 - `fx.js` holds the motion helpers; `drag.js` handles pointer drag onto targets.
 
 **CSS:**
-- `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
+- Stylesheets sit directly in `public/assets/` (there is no `css/` folder). `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
 - Light mode is `html[data-mode="light"]`, set by `theme.js` (Auto/Light/Dark). The universe stays dark in both modes.
 - Don't put `position` in the shared glass rule (`.glass, .sheet, .dialog, .pop, …`). `.pop` and `.tray` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
 
@@ -72,6 +78,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 ## User preferences
 
 - **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, with both light and dark modes.
+- **Pixel touches:** pixel art is welcome as an accent only, like the login's horizon of trees, cottage and mutt, with warm touches. Don't go "too Stardew Valley": no pixel fonts, pixel frames, pixel moon or stars. The Mutt and Vita look (rounded glass, Red Hat type, fluid motion) comes first. The login screen is always night.
 - **The void:** a big black hole that's artsy and textured (smoky, grainy dust, like a print), not realistic or painted light. Pixel art only as small touches. Add boxes are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (dark, light and phone width) before deploying, and keep the `classic` backup intact.

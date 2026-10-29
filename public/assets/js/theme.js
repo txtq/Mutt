@@ -4,8 +4,7 @@
 import { api, session } from './api.js';
 import { DEFAULT_LOGO, followLogo } from './logo.js';
 import { burst } from './fx.js';
-import { PALETTE, generateIcon } from './pixel.js';
-import { debounce, reducedMotion, seeded } from './util.js';
+import { PALETTE, debounce, reducedMotion, seeded } from './util.js';
 
 export const DEFAULTS = {
   size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false, mode: 'dark',
@@ -26,6 +25,7 @@ const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 // Light or dark, once Auto has asked the system.
 export const modeOf = (p = {}) => (p.mode === 'light' || p.mode === 'dark' ? p.mode : darkQuery.matches ? 'dark' : 'light');
 let applied = DEFAULTS;
+let nightHeld = false; // the sign-in page is always night
 darkQuery.addEventListener?.('change', () => { if (applied.mode === 'auto') applyPrefs(applied); });
 
 const CACHE = 'mutt.prefs';
@@ -35,7 +35,7 @@ export function applyPrefs(raw = {}) {
   const p = { ...DEFAULTS, ...raw };
   applied = p;
   const root = document.documentElement;
-  const mode = modeOf(p);
+  const mode = nightHeld ? 'dark' : modeOf(p);
   const sky = SKIES[p.sky] || SKIES.vita;
   root.style.setProperty('--t', SIZES[p.size] || 1);
   root.dataset.motion = p.motion;
@@ -47,6 +47,13 @@ export function applyPrefs(raw = {}) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'light' ? sky.dayTheme : sky.theme);
   document.dispatchEvent(new CustomEvent('mutt:mode', { detail: mode }));
   return p;
+}
+
+// Keep it night whatever the saved mode, until let go.
+export function holdNight(on) {
+  if (nightHeld === on) return;
+  nightHeld = on;
+  applyPrefs(applied);
 }
 
 export function bootPrefs() {
@@ -91,11 +98,6 @@ export function forgetPrefs() {
 }
 
 // ---------------------------------------------------------------- little touches
-
-// The same name always gets the same critter.
-export function critterFor(seed, index = 0) {
-  return generateIcon(seeded(`${seed}:${index}`));
-}
 
 export function tintFor(id) {
   const r = seeded(id)();

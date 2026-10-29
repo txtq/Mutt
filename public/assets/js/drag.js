@@ -149,3 +149,87 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
     el.removeEventListener('contextmenu', menu);
   };
 }
+
+// Moving something itself (a planet round your galaxy) rather than carrying a
+// copy of it. Same feel as picking up a star: a mouse moves it once you've
+// dragged a little, a finger after holding for a moment. `onMove` gets the
+// pointer on every frame; `limits()` says how far the page may scroll.
+export function movable(el, { enabled = () => true, onStart, onMove, onEnd, limits = () => ({ top: 0, bottom: Infinity }) }) {
+  let blockClick = false;
+
+  const down = (e) => {
+    if (e.button !== 0 || e.isPrimary === false || !enabled()) return;
+    const pid = e.pointerId;
+    const touch = e.pointerType !== 'mouse';
+    const start = { x: e.clientX, y: e.clientY };
+    let pos = { ...start };
+    let dragging = false;
+    let armed = !touch;
+    let frame = 0;
+    const hold = touch ? setTimeout(() => {
+      armed = true;
+      navigator.vibrate?.(8);
+      begin();
+    }, HOLD_MS) : 0;
+
+    function begin() {
+      if (dragging) return;
+      dragging = true;
+      blockClick = true;
+      document.body.classList.add('is-carrying');
+      onStart?.(start);
+      frame = requestAnimationFrame(tick);
+    }
+
+    function tick() {
+      frame = requestAnimationFrame(tick);
+      const { top, bottom } = limits();
+      if (pos.y < EDGE && scrollY > top) scrollBy(0, -Math.min(scrollY - top, Math.ceil((EDGE - pos.y) / 5)));
+      else if (pos.y > innerHeight - EDGE && scrollY < bottom) scrollBy(0, Math.min(bottom - scrollY, Math.ceil((pos.y - innerHeight + EDGE) / 5)));
+      onMove?.(pos);
+    }
+
+    const move = (ev) => {
+      if (ev.pointerId !== pid) return;
+      pos = { x: ev.clientX, y: ev.clientY };
+      if (!dragging) {
+        const far = Math.hypot(pos.x - start.x, pos.y - start.y) > 6;
+        if (far && !armed) { cleanup(); return; } // a scroll, not a pick-up
+        if (far && armed) begin();
+      }
+    };
+    const stopTouchScroll = (ev) => { if (dragging) ev.preventDefault(); };
+
+    const up = (ev) => {
+      if (ev.pointerId !== pid) return;
+      const wasDragging = dragging;
+      cleanup();
+      if (wasDragging) onEnd?.(pos, ev.type === 'pointercancel');
+    };
+
+    function cleanup() {
+      clearTimeout(hold);
+      cancelAnimationFrame(frame);
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      removeEventListener('touchmove', stopTouchScroll);
+      document.body.classList.remove('is-carrying');
+      setTimeout(() => { blockClick = false; }, 0);
+    }
+
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+    addEventListener('touchmove', stopTouchScroll, { passive: false });
+  };
+
+  const click = (e) => {
+    if (blockClick) { e.preventDefault(); e.stopImmediatePropagation(); }
+  };
+  const menu = (e) => { if (document.body.classList.contains('is-carrying')) e.preventDefault(); };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('click', click, true);
+  el.addEventListener('contextmenu', menu);
+  el.addEventListener('dragstart', (e) => e.preventDefault());
+}

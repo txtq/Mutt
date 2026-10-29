@@ -5,10 +5,9 @@
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
 import { nav } from '../nav.js';
-import { fillIcon, generateIcon, iconEditor } from '../pixel.js';
-import { VISIBILITY, glyph, planetEl } from '../planets.js';
+import { LOOKS, VISIBILITY, glyph, lookOf, planetEl } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { autosize, bus, h, plural, timeAgo, wait } from '../util.js';
+import { PALETTE, autosize, bus, h, plural, timeAgo, wait } from '../util.js';
 
 const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer.owner}` : '/');
 
@@ -98,8 +97,8 @@ export const planetView = {
     world.classList.add('planet-big');
     if (mine) {
       world.classList.add('is-editable');
-      world.title = 'Change critter';
-      world.addEventListener('click', () => editIcon());
+      world.title = 'Planet type';
+      world.addEventListener('click', () => pickLook());
     }
 
     const title = h('textarea', { class: 'liv-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Planet name', spellcheck: 'false' });
@@ -148,29 +147,64 @@ export const planetView = {
       });
     }
 
-    async function setIcon(next) {
+    // The planet's colour. It's kept with the old pixel icon, which the
+    // classic site still reads, so only the colour changes.
+    async function setColor(c) {
+      if (c.toUpperCase() === drawer.icon?.c) return;
       try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { icon: next }));
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { icon: { ...drawer.icon, c } }));
         inst.drawer = drawer;
         world.update({ ...drawer, previews: world.planet?.previews });
         el.style.setProperty('--pc', drawer.icon?.c || '#2F6BFF');
-        const svg = world.querySelector('.planet-critter svg');
-        if (svg) fillIcon(svg, drawer.icon, true);
         bus.emit('drawer:changed', drawer);
       } catch (err) {
         toast(err.message);
       }
     }
 
-    function editIcon() {
-      const dialog = openDialog({
-        title: 'Critter',
-        className: 'dialog-wide',
-        body: iconEditor(drawer.icon, {
-          onSave: (next) => { dialog.close(); setIcon(next); },
-          onCancel: () => dialog.close(),
-        }),
-      });
+    function pickColor() {
+      const current = drawer.icon?.c || '#2F6BFF';
+      const pick = (c) => { dialog.close(); setColor(c); };
+      const custom = h('input', { type: 'color', class: 'swatch-custom', value: current, title: 'Any colour', 'aria-label': 'Any colour' });
+      custom.addEventListener('change', () => pick(custom.value));
+      const body = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Planet colour' },
+        PALETTE.map((c) => h('button', {
+          type: 'button', class: 'swatch', role: 'radio', style: { '--c': c }, 'aria-label': c,
+          'aria-checked': String(c === current), onclick: () => pick(c),
+        })),
+        custom);
+      const dialog = openDialog({ title: 'Planet colour', body });
+    }
+
+    // What kind of world it is: picked for it, or one you choose.
+    async function setLook(look) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { look }));
+        inst.drawer = drawer;
+        world.update({ ...drawer, previews: world.planet?.previews });
+        bus.emit('drawer:changed', drawer);
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
+    function pickLook() {
+      const previews = world.planet?.previews || [];
+      const auto = LOOKS.find((l) => l.id === lookOf({ id })).label;
+      const choices = [{ id: null, label: 'Auto', note: auto }, ...LOOKS];
+      const grid = h('div', { class: 'look-grid', role: 'radiogroup', 'aria-label': 'Kind of planet' });
+      const dialog = openDialog({ title: 'Planet type', className: 'dialog-wide', body: grid });
+      for (const choice of choices) {
+        const preview = planetEl({ ...drawer, look: choice.id, previews }, { size: 64, href: null, label: false });
+        preview.classList.add('planet-mini');
+        grid.append(h('button', {
+          type: 'button',
+          class: 'look-pick',
+          role: 'radio',
+          'aria-checked': String((drawer.look || null) === choice.id),
+          onclick: () => { dialog.close(); if ((drawer.look || null) !== choice.id) setLook(choice.id); },
+        }, preview, h('span', { class: 'look-name' }, choice.label), choice.note ? h('span', { class: 'look-note' }, choice.note) : null));
+      }
     }
 
     async function remove() {
@@ -268,8 +302,8 @@ export const planetView = {
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
-      { label: 'Draw critter…', run: editIcon },
-      { label: 'New critter', run: () => setIcon(generateIcon()) },
+      { label: 'Planet type…', run: pickLook },
+      { label: 'Planet colour…', run: pickColor },
       '-',
       { label: 'Delete planet…', danger: true, run: remove },
     ], { align: 'end' }));

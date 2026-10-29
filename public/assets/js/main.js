@@ -2,7 +2,6 @@
 
 import { api, session, whenSignedOut } from './api.js';
 import { nav } from './nav.js';
-import { startIdleBlinks } from './pixel.js';
 import { currentView, redirect, route, startRouter } from './router.js';
 import { createSky } from './sky.js';
 import { closeSheets, createStatusbar } from './statusbar.js';
@@ -138,7 +137,6 @@ async function boot() {
     if (err.data && 'signups' in err.data) session.signups = err.data.signups;
   }
   await startRouter({ rootEl: view, topbar: bar });
-  startIdleBlinks();
 }
 
 boot();

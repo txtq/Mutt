@@ -896,7 +896,6 @@ a.planet:hover .planet-body, .planet:focus-visible .planet-body { transform: sca
   pointer-events: none;
 }
 .planet-title { display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; }
-.planet-critter { display: inline-flex; flex-shrink: 0; filter: drop-shadow(0 1px 1px rgba(0, 0, 20, 0.35)); }
 .planet-name {
   min-width: 0;
   overflow: hidden;
@@ -928,6 +927,33 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .planet.is-empty .planet-map { filter: saturate(0.7); }
 
 /* choosing what kind of world a planet is */
+/* A planet's colour as a dot, in lists of planets. */
+.planet-dot {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000));
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+
+/* Planet colour picker. */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 2px; }
+.swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000));
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s var(--ease);
+}
+.swatch:hover { transform: scale(1.08); }
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink); }
+.swatch-custom { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.swatch-custom::-webkit-color-swatch-wrapper { padding: 3px; }
+.swatch-custom::-webkit-color-swatch { border: 0; border-radius: 50%; }
+
 .look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; padding: 4px 0 2px; }
 .look-pick { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px 10px; border-radius: 14px; color: var(--ink); transition: background 0.2s; }
 .look-pick:hover, .look-pick:focus-visible { background: var(--tint-2); }
@@ -940,7 +966,7 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .planet.planet-mini, .liv-world .planet { position: relative; left: auto; top: auto; display: inline-block; vertical-align: top; }
 .planet-mini .planet-label { width: 84px; top: calc(100% + 5px); }
 .planet-mini .planet-name { font-size: 11px; }
-.planet-mini .planet-meta, .planet-mini .planet-critter, .planet-mini .planet-peek, .planet-mini .planet-ring { display: none; }
+.planet-mini .planet-meta, .planet-mini .planet-peek, .planet-mini .planet-ring { display: none; }
 .liv-world .planet-ring { display: none !important; }
 .uvg-name { margin-top: -10px; }
 

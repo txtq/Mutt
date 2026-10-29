@@ -5,10 +5,9 @@
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
 import { nav } from '../nav.js';
-import { fillIcon, generateIcon, iconEditor } from '../pixel.js';
 import { LOOKS, VISIBILITY, glyph, lookOf, planetEl } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { autosize, bus, h, plural, timeAgo, wait } from '../util.js';
+import { PALETTE, autosize, bus, h, plural, timeAgo, wait } from '../util.js';
 
 const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer.owner}` : '/');
 
@@ -98,8 +97,8 @@ export const planetView = {
     world.classList.add('planet-big');
     if (mine) {
       world.classList.add('is-editable');
-      world.title = 'Change critter';
-      world.addEventListener('click', () => editIcon());
+      world.title = 'Planet type';
+      world.addEventListener('click', () => pickLook());
     }
 
     const title = h('textarea', { class: 'liv-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Planet name', spellcheck: 'false' });
@@ -148,29 +147,33 @@ export const planetView = {
       });
     }
 
-    async function setIcon(next) {
+    // The planet's colour. It's kept with the old pixel icon, which the
+    // classic site still reads, so only the colour changes.
+    async function setColor(c) {
+      if (c.toUpperCase() === drawer.icon?.c) return;
       try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { icon: next }));
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { icon: { ...drawer.icon, c } }));
         inst.drawer = drawer;
         world.update({ ...drawer, previews: world.planet?.previews });
         el.style.setProperty('--pc', drawer.icon?.c || '#2F6BFF');
-        const svg = world.querySelector('.planet-critter svg');
-        if (svg) fillIcon(svg, drawer.icon, true);
         bus.emit('drawer:changed', drawer);
       } catch (err) {
         toast(err.message);
       }
     }
 
-    function editIcon() {
-      const dialog = openDialog({
-        title: 'Critter',
-        className: 'dialog-wide',
-        body: iconEditor(drawer.icon, {
-          onSave: (next) => { dialog.close(); setIcon(next); },
-          onCancel: () => dialog.close(),
-        }),
-      });
+    function pickColor() {
+      const current = drawer.icon?.c || '#2F6BFF';
+      const pick = (c) => { dialog.close(); setColor(c); };
+      const custom = h('input', { type: 'color', class: 'swatch-custom', value: current, title: 'Any colour', 'aria-label': 'Any colour' });
+      custom.addEventListener('change', () => pick(custom.value));
+      const body = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Planet colour' },
+        PALETTE.map((c) => h('button', {
+          type: 'button', class: 'swatch', role: 'radio', style: { '--c': c }, 'aria-label': c,
+          'aria-checked': String(c === current), onclick: () => pick(c),
+        })),
+        custom);
+      const dialog = openDialog({ title: 'Planet colour', body });
     }
 
     // What kind of world it is: picked for it, or one you choose.
@@ -300,8 +303,7 @@ export const planetView = {
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
       { label: 'Planet type…', run: pickLook },
-      { label: 'Draw critter…', run: editIcon },
-      { label: 'New critter', run: () => setIcon(generateIcon()) },
+      { label: 'Planet colour…', run: pickColor },
       '-',
       { label: 'Delete planet…', danger: true, run: remove },
     ], { align: 'end' }));

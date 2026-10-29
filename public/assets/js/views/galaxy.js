@@ -10,7 +10,6 @@ import { blackHole } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { generateIcon } from '../pixel.js';
 import { dotWorld, fileFace, glyph, holdPlanets, planetEl, planetSize } from '../planets.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
@@ -596,7 +595,7 @@ class Galaxy {
       await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 900 });
       this.hole.gulp();
       try {
-        const res = await api.post(`/api/blocks/${block.id}/autosort`, { icon: generateIcon() });
+        const res = await api.post(`/api/blocks/${block.id}/autosort`, {});
         this.forgetStar(block.id);
         await this.launch(res.block, res.sortedInto);
         bus.emit('block:connected', { block: res.block, drawerId: res.sortedInto.planet.id });
@@ -633,7 +632,7 @@ class Galaxy {
   async target(dest) {
     if (dest.mode === 'planet') return this.data.planets.find((p) => p.id === dest.planetId) || null;
     if (dest.mode === 'new') {
-      const { drawer } = await api.post('/api/drawers', { title: dest.title, icon: generateIcon() });
+      const { drawer } = await api.post('/api/drawers', { title: dest.title });
       return { ...drawer, count: 0, previews: [], mine: true, isNew: true };
     }
     return null;
@@ -645,7 +644,7 @@ class Galaxy {
     const sort = dest.mode === 'sort';
     const request = (async () => {
       const planet = await this.target(dest);
-      const res = await api.post('/api/blocks', { content: text, autosort: sort, icon: sort ? generateIcon() : undefined, drawer: planet?.id });
+      const res = await api.post('/api/blocks', { content: text, autosort: sort, drawer: planet?.id });
       return { ...res, planet };
     })();
     await spiralInto(chip, center(chip.getBoundingClientRect()), this.hole.center());
@@ -692,7 +691,7 @@ class Galaxy {
       this.layout();
       toast(`New planet: ${planet.title}`);
     }
-    addFiles(files, { galaxy: true, drawerId: planet?.id || null, autosort: sort, icon: sort ? generateIcon() : null });
+    addFiles(files, { galaxy: true, drawerId: planet?.id || null, autosort: sort });
   }
 
   // Into a planet straight from the sky (files dropped on it).

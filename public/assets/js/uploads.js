@@ -86,10 +86,7 @@ async function run(item) {
   const params = new URLSearchParams({ name: item.name });
   if (item.ctx.drawerId) params.set('drawer', item.ctx.drawerId);
   if (item.ctx.share) params.set('share', '1');
-  if (item.ctx.autosort) {
-    params.set('autosort', '1');
-    if (item.ctx.icon) params.set('icon', JSON.stringify(item.ctx.icon));
-  }
+  if (item.ctx.autosort) params.set('autosort', '1');
   try {
     let { block, sortedInto } = await sendFile(`/api/upload?${params}`, item.file, {
       type: item.file.type,

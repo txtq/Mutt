@@ -3,55 +3,57 @@
 import { api, session, whenSignedOut } from './api.js';
 import { nav } from './nav.js';
 import { startIdleBlinks } from './pixel.js';
-import { currentView, route, startRouter } from './router.js';
-import { createTopbar } from './topbar.js';
+import { currentView, redirect, route, startRouter } from './router.js';
+import { createSky } from './sky.js';
+import { closeSheets, createStatusbar } from './statusbar.js';
 import { closeTopLayer } from './ui.js';
 import { h, isEditable } from './util.js';
 import { viewerOpen } from './viewer.js';
 import { bootPrefs, setPrefs } from './theme.js';
-import { communityDrawerView, drawerView } from './views/drawer.js';
-import { everythingView } from './views/everything.js';
-import { homeView } from './views/home.js';
+import { communityView, galaxyView } from './views/galaxy.js';
 import { loginView } from './views/login.js';
-import { searchView } from './views/search.js';
-import { settingsView } from './views/settings.js';
-import { communityDrawersView, communityView, peopleView } from './views/community.js';
-import { userDrawerView, userView } from './views/users.js';
+import { planetView } from './views/planet.js';
 
 bootPrefs();
 
 route(/^\/login$/, loginView);
-route(/^\/$/, homeView);
-route(/^\/d\/([\w-]+)$/, drawerView);
-route(/^\/all$/, everythingView);
+route(/^\/$/, galaxyView);
+route(/^\/g\/([a-z0-9_.-]+)$/, galaxyView);
+route(/^\/p\/([\w-]+)$/, planetView);
 route(/^\/community$/, communityView);
-route(/^\/community\/drawers$/, communityDrawersView);
-route(/^\/community\/people$/, peopleView);
-route(/^\/c\/([\w-]+)$/, communityDrawerView);
-route(/^\/users$/, peopleView);
-route(/^\/u\/([a-z0-9_.-]+)$/, userView);
-route(/^\/u\/([a-z0-9_.-]+)\/d\/([\w-]+)$/, userDrawerView);
-route(/^\/settings$/, settingsView);
-route(/^\/search$/, searchView);
+// Addresses from before the galaxy still lead somewhere sensible.
+redirect(/^\/(?:d|c)\/([\w-]+)$/, ([id]) => `/p/${id}`);
+redirect(/^\/u\/([a-z0-9_.-]+)\/d\/([\w-]+)$/, ([, id]) => `/p/${id}`);
+redirect(/^\/u\/([a-z0-9_.-]+)$/, ([name]) => `/g/${name}`);
+redirect(/^\/(?:all|settings|search|users)$/, () => '/');
+redirect(/^\/community\/.*$/, () => '/community');
 
-const topbar = createTopbar();
+const sky = createSky();
+const bar = createStatusbar();
 const view = h('main', { id: 'view' });
 const dropLabel = h('span', { class: 'dropzone-label' });
 const dropzone = h('div', { class: 'dropzone', 'aria-hidden': 'true' }, dropLabel);
-document.getElementById('app').append(topbar.el, view, dropzone);
+document.getElementById('app').append(sky.el, bar.el, view, dropzone);
 
-// ---------------------------------------------------------------- files dropped anywhere
+// ---------------------------------------------------------------- files dragged in from your computer
 
 const hasFiles = (e) => e.dataTransfer?.types?.includes('Files');
+const target = () => (viewerOpen() ? null : currentView()?.dropTarget?.());
 let dragDepth = 0;
-const hideDrop = () => { dragDepth = 0; dropzone.classList.remove('is-on'); };
+const hideDrop = () => {
+  dragDepth = 0;
+  dropzone.classList.remove('is-on');
+  target()?.leave?.();
+};
 
 addEventListener('dragenter', (e) => {
   if (!hasFiles(e) || !session.user) return;
   dragDepth++;
-  const target = viewerOpen() ? null : currentView()?.dropTarget?.();
-  dropLabel.textContent = target?.label || 'Open a drawer to add files';
-  dropzone.classList.toggle('is-hint', !target?.drop);
+  const t = target();
+  // The galaxy shows where things will land itself; other pages get the big frame.
+  if (t?.overlay === false) return;
+  dropLabel.textContent = t?.label || 'Open a planet to add files';
+  dropzone.classList.toggle('is-hint', !t?.drop);
   dropzone.classList.add('is-on');
 });
 addEventListener('dragleave', (e) => {
@@ -62,29 +64,32 @@ addEventListener('dragleave', (e) => {
 addEventListener('dragover', (e) => {
   if (!hasFiles(e)) return;
   e.preventDefault();
-  const target = viewerOpen() ? null : currentView()?.dropTarget?.();
-  e.dataTransfer.dropEffect = target?.drop ? 'copy' : 'none';
+  const t = target();
+  e.dataTransfer.dropEffect = t?.drop ? 'copy' : 'none';
+  t?.over?.(e);
 });
 addEventListener('drop', (e) => {
   if (!hasFiles(e)) return;
   e.preventDefault();
-  hideDrop();
-  const target = viewerOpen() ? null : currentView()?.dropTarget?.();
+  const t = target();
   const files = [...e.dataTransfer.files];
-  if (target?.drop && files.length) target.drop(files);
+  dragDepth = 0;
+  dropzone.classList.remove('is-on');
+  if (t?.drop && files.length) t.drop(files, e);
+  else t?.leave?.();
 });
 document.addEventListener('mutt:dropped', hideDrop);
 
 // ---------------------------------------------------------------- paste anywhere
 
 addEventListener('paste', (e) => {
-  if (!session.user || isEditable(document.activeElement) || viewerOpen() || document.querySelector('.scrim')) return;
-  const target = currentView()?.dropTarget?.();
-  if (!target?.drop) return;
+  if (!session.user || isEditable(document.activeElement) || viewerOpen() || document.querySelector('.scrim, .sheet.is-open')) return;
+  const t = currentView()?.dropTarget?.();
+  if (!t?.drop) return;
   const files = [...(e.clipboardData?.files || [])];
   if (files.length) {
     e.preventDefault();
-    target.drop(files);
+    t.drop(files);
     return;
   }
   const text = e.clipboardData?.getData('text/plain');
@@ -98,7 +103,7 @@ addEventListener('paste', (e) => {
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    if (closeTopLayer()) { e.preventDefault(); return; }
+    if (closeTopLayer() || closeSheets()) { e.preventDefault(); return; }
     if (isEditable(document.activeElement)) { document.activeElement.blur(); return; }
     if (viewerOpen()) {
       e.preventDefault();
@@ -110,7 +115,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.key === '/' && session.user && !isEditable(document.activeElement) && !e.metaKey && !e.ctrlKey) {
     e.preventDefault();
-    topbar.search.focus();
+    bar.search.focus();
   }
 });
 
@@ -132,7 +137,7 @@ async function boot() {
     session.user = null;
     if (err.data && 'signups' in err.data) session.signups = err.data.signups;
   }
-  await startRouter({ rootEl: view, topbar });
+  await startRouter({ rootEl: view, topbar: bar });
   startIdleBlinks();
 }
 

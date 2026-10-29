@@ -1,4 +1,4 @@
-// Things you can do to a block from anywhere: connect, remove, delete.
+// Things you can do to a file from anywhere: put it on planets, take it off, delete it.
 
 import { api } from './api.js';
 import { displayTitle } from './kinds.js';
@@ -9,14 +9,14 @@ import { bus, h, plural, wait } from './util.js';
 
 // ---------------------------------------------------------------- connect picker
 
-// Other people's community drawers show up in the pickers too.
+// Other people's open planets (anyone can add) show up in the pickers too.
 const owned = (d) => (d.owner ? h('span', { class: 'cx-owner' }, ` @${d.owner}`) : null);
 
 export async function openConnect(anchor, block, { align = 'start' } = {}) {
-  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a drawer', 'aria-label': 'Find a drawer' });
+  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
-    h('div', { class: 'cx-head' }, h('span', null, 'Connect'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
+    h('div', { class: 'cx-head' }, h('span', null, 'Planets'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
     input, list), { width: 320, align, className: 'pop-cx' });
   requestAnimationFrame(() => input.focus());
 
@@ -78,7 +78,6 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
       drawers.unshift(drawer);
       input.value = '';
       await toggle(drawer);
-      
     } catch (err) {
       toast(err.message);
     }
@@ -120,9 +119,9 @@ export async function watchPreview(block) {
 
 // ---------------------------------------------------------------- saving someone's shared file
 
-// Pick where a copy of someone else's shared file goes: a drawer, or just Everything.
+// Pick where a copy of someone else's file goes: one of your planets, or a loose star.
 export async function openSave(anchor, block, { align = 'start', onSaved } = {}) {
-  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a drawer', 'aria-label': 'Find a drawer' });
+  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
     h('div', { class: 'cx-head' }, h('span', null, 'Save to'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
@@ -143,8 +142,8 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
       const res = await api.post(`/api/blocks/${block.id}/save`, { drawer: drawer?.id });
       block.saved = true;
       onSaved?.(res.block);
-      toast(drawer ? `Saved to ${drawer.title}` : 'Saved to Everything', {
-        action: { label: 'Open', run: () => nav.go(drawer ? drawerHref(drawer) : '/all') },
+      toast(drawer ? `Saved to ${drawer.title}` : 'Saved as a star', {
+        action: { label: 'Open', run: () => nav.go(drawer ? drawerHref(drawer) : '/') },
       });
     } catch (err) {
       toast(err.message);
@@ -165,7 +164,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     const rows = [];
     if (!q) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(null) },
-        h('span', { class: 'cx-plus' }, '∗'), h('span', { class: 'cx-title' }, 'Everything')));
+        h('span', { class: 'cx-plus' }, '✦'), h('span', { class: 'cx-title' }, 'Keep as a star')));
     }
     for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(d) },
@@ -198,7 +197,7 @@ export async function removeFromDrawer(block, drawerId, drawerTitle) {
   try {
     const res = await api.del(`/api/blocks/${block.id}/connections/${drawerId}`);
     bus.emit('block:disconnected', { block: res.block, drawerId, connections: res.connections });
-    toast(`Removed from ${drawerTitle || 'drawer'}`, {
+    toast(`Took it off ${drawerTitle || 'the planet'}`, {
       action: {
         label: 'Undo',
         run: async () => {
@@ -216,7 +215,7 @@ export async function deleteBlock(block) {
   const ok = await confirmDialog({
     title: 'Delete this file?',
     message: block.connectionCount > 1
-      ? `It leaves all ${plural(block.connectionCount, 'drawer')} it’s in. This can’t be undone.`
+      ? `It leaves all ${plural(block.connectionCount, 'planet')} it’s on. This can’t be undone.`
       : 'This can’t be undone.',
     confirm: 'Delete',
     danger: true,
@@ -248,13 +247,13 @@ export async function toggleShare(block) {
 export function blockMenu(anchor, block, { drawer, open } = {}) {
   openMenu(anchor, [
     open && { label: 'Open', run: open },
-    { label: 'Connect…', run: () => openConnect(anchor, block, { align: 'end' }) },
-    { label: block.sharedAt ? 'Stop sharing' : 'Share to Community', run: () => toggleShare(block) },
+    { label: 'Move to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
+    block.sharedAt && { label: 'Stop sharing', run: () => toggleShare(block) },
     block.file && { label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
     block.kind === 'link' && { label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
     block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
     '-',
-    drawer && { label: `Remove from ${drawer.title}`, run: () => removeFromDrawer(block, drawer.id, drawer.title) },
+    drawer && { label: `Take off ${drawer.title}`, run: () => removeFromDrawer(block, drawer.id, drawer.title) },
     { label: 'Delete', danger: true, run: () => deleteBlock(block) },
   ], { align: 'end' });
 }

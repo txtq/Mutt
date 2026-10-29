@@ -9,6 +9,7 @@ import { h } from './util.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
 
 const routes = [];
+const redirects = [];
 let current = null;
 let navId = 0;
 let root;
@@ -18,13 +19,19 @@ export function route(pattern, view) {
   routes.push({ pattern, view });
 }
 
+// Old addresses: `to(params)` gives the new one.
+export function redirect(pattern, to) {
+  redirects.push({ pattern, to });
+}
+
 export const currentView = () => current?.inst || null;
 
 const notFound = {
   create: () => ({
     el: h('div', { class: 'page page-missing' },
-      h('h1', { class: 'page-title' }, 'Nothing here.'),
-      h('a', { class: 'btn', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Filing cabinet')),
+      h('h1', { class: 'page-title' }, 'Nothing out here.'),
+      h('p', { class: 'page-meta' }, 'That planet may have been deleted, or kept private.'),
+      h('a', { class: 'vbtn vbtn-blue', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Back to your galaxy')),
     title: 'Not found',
   }),
 };
@@ -39,12 +46,13 @@ function rememberScroll() {
   history.replaceState({ ...(history.state || {}), scroll: scrollY }, '');
 }
 
-export function go(url, { replace = false, viewer = false } = {}) {
+// motion: 'none' when the page has already animated itself away (galaxy swipes).
+export function go(url, { replace = false, viewer = false, motion = 'page' } = {}) {
   const target = new URL(url, location.href);
   const path = target.pathname + target.search;
   if (!replace) rememberScroll();
   history[replace ? 'replaceState' : 'pushState']({ viewer: viewer || (replace && history.state?.viewer) || false }, '', path);
-  return render();
+  return render({ motion });
 }
 
 const progress = {
@@ -71,9 +79,16 @@ async function syncViewer(blockId) {
   }
 }
 
-export async function render({ pop = false } = {}) {
+export async function render({ pop = false, motion = 'page' } = {}) {
   closeAllPopovers();
   const url = new URL(location.href);
+  for (const r of redirects) {
+    const m = r.pattern.exec(url.pathname);
+    if (m) {
+      history.replaceState(history.state, '', r.to(m.slice(1).map(decodeURIComponent)) + url.search);
+      return render({ pop, motion });
+    }
+  }
   if (!session.user && url.pathname !== '/login') {
     const next = url.pathname === '/' ? '' : `?next=${encodeURIComponent(url.pathname + url.search)}`;
     history.replaceState(null, '', `/login${next}`);
@@ -124,11 +139,12 @@ export async function render({ pop = false } = {}) {
     root.replaceChildren(inst.el);
     document.title = inst.title ? `${inst.title} — Mutt` : 'Mutt';
     document.body.classList.toggle('no-chrome', inst.chrome === false);
+    document.body.dataset.page = inst.chrome || 'page';
     chrome.update(inst, url);
     scrollTo(0, pop ? history.state?.scroll || 0 : 0);
   };
   // The very first page just plays its own entrance.
-  if (current) await transition(swap);
+  if (current && motion !== 'none') await transition(swap);
   else swap();
   inst.mounted?.();
   if (id === navId) await syncViewer(blockId);

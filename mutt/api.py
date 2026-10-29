@@ -1,4 +1,4 @@
-"""HTTP API: accounts, settings, users, community, drawers, files (blocks), connections."""
+"""HTTP API: accounts, settings, galaxies, community, drawers (planets), files (blocks), connections."""
 import json
 import os
 import random
@@ -25,6 +25,7 @@ ICON_RE = re.compile(r'^[0-3]{81}$')
 COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
 PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240']
+VISIBILITY = ('private', 'pin', 'people', 'public')
 
 PREF_CHOICES = {
     'font': {'geist', 'inter', 'instrument', 'grotesk', 'plex', 'fraunces', 'newsreader', 'mono', 'pixel', 'custom'},
@@ -35,6 +36,7 @@ PREF_CHOICES = {
     'motion': {'fluid', 'calm', 'off'},
     'paper': {'white', 'warm', 'cool', 'blush', 'mint'},
     'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
+    'sky': {'vita', 'nebula', 'aurora', 'dusk'},
 }
 FONT_TYPES = {
     b'wOF2': ('woff2', 'font/woff2'),
@@ -94,6 +96,7 @@ def drawer_json(row, count=None, previews=None):
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
         'community': bool(row['community']) if 'community' in row.keys() else False,
+        'visibility': row['visibility'] if 'visibility' in row.keys() else 'pin',
     }
     if count is not None:
         data['count'] = count
@@ -208,6 +211,19 @@ def is_unlocked(req, owner_id):
         (auth.session_key(req.session_token), owner_id, now())).fetchone())
 
 
+def drawer_visible(req, row):
+    """Can the signed-in person look inside this drawer (planet)?"""
+    if row['user_id'] == req.user['id'] or row['community']:
+        return True
+    visibility = row['visibility']
+    if visibility == 'public':
+        return True
+    if visibility == 'people':
+        return bool(req.db.execute('SELECT 1 FROM drawer_access WHERE drawer_id = ? AND user_id = ?',
+                                   (row['id'], req.user['id'])).fetchone())
+    return visibility == 'pin' and is_unlocked(req, row['user_id'])
+
+
 def writable_drawer(req, drawer_id):
     row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND (user_id = ? OR community = 1)',
                          (drawer_id, req.user['id'])).fetchone()
@@ -223,7 +239,7 @@ def in_community_drawer(req, block_id):
 
 
 def readable_block(req, block_id):
-    """Your own file, a shared one, or one in the drawers of someone you've unlocked."""
+    """Your own file, a shared one, or one on a planet you're allowed to see."""
     row = req.db.execute(
         f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
         'WHERE b.id = ?', (block_id,)).fetchone()
@@ -233,8 +249,9 @@ def readable_block(req, block_id):
         return row, True
     if row['shared_at'] or in_community_drawer(req, block_id):
         return row, False
-    in_drawer = req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone()
-    if in_drawer and is_unlocked(req, row['user_id']):
+    drawers = req.db.execute('SELECT d.* FROM connections c JOIN drawers d ON d.id = c.drawer_id '
+                             'WHERE c.block_id = ?', (block_id,)).fetchall()
+    if any(drawer_visible(req, d) for d in drawers):
         return row, False
     raise HttpError(404, 'That file does not exist.')
 
@@ -247,7 +264,7 @@ def block_connections(req, block_id):
     rows = req.db.execute(
         'SELECT d.*, c.position FROM connections c JOIN drawers d ON d.id = c.drawer_id '
         'WHERE c.block_id = ? ORDER BY c.connected_at', (block_id,)).fetchall()
-    return [drawer_json(r) for r in rows]
+    return [drawer_json(r) for r in rows if drawer_visible(req, r)]
 
 
 def connect(conn, block_id, drawer_id, position=None):
@@ -489,8 +506,9 @@ def update_prefs(req):
         if not COLOR_RE.match(str(body['accent'])):
             raise HttpError(400, 'That colour could not be saved.')
         prefs['accent'] = body['accent'].upper()
-    if 'colorful' in body:
-        prefs['colorful'] = bool(body['colorful'])
+    for key in ('colorful', 'autosort'):
+        if key in body:
+            prefs[key] = bool(body[key])
     if prefs.get('font') == 'custom' and not prefs.get('fontFile'):
         prefs['font'] = 'geist'
     return json_response({'prefs': save_prefs(req, prefs)})
@@ -641,6 +659,93 @@ def get_user_drawer(req, username, drawer_id):
     })
 
 
+# ---------------------------------------------------------------- galaxies
+
+def planet_people(req, drawer_id):
+    return [r[0] for r in req.db.execute(
+        'SELECT u.username FROM drawer_access a JOIN users u ON u.id = a.user_id '
+        'WHERE a.drawer_id = ? ORDER BY u.username', (drawer_id,))]
+
+
+def planet_json(req, row, count, previews=None, locked=False):
+    data = drawer_json(row, count, previews)
+    data['mine'] = row['user_id'] == req.user['id']
+    if data['mine'] and row['visibility'] == 'people':
+        data['people'] = planet_people(req, row['id'])
+    if locked:
+        data['locked'] = True
+        data['description'] = ''
+    return data
+
+
+def galaxy_of(req, owner):
+    """Someone's planets as you're allowed to see them, plus your own loose stars."""
+    mine = owner['id'] == req.user['id']
+    rows = req.db.execute(
+        'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+        'FROM drawers d WHERE d.user_id = ? ORDER BY d.created_at', (owner['id'],)).fetchall()
+    planets = []
+    for r in rows:
+        if mine or drawer_visible(req, r):
+            planets.append(planet_json(req, r, r['n'], drawer_previews(req, r['id'], limit=12)))
+        elif r['visibility'] == 'pin':
+            planets.append(planet_json(req, r, r['n'], locked=True))
+        # Private planets, and people-only ones you're not on, stay out of sight.
+    data = {
+        'user': {**user_json(owner), 'you': mine},
+        'planets': planets,
+        'unlocked': is_unlocked(req, owner['id']),
+    }
+    if mine:
+        stars = req.db.execute(
+            f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND NOT EXISTS '
+            '(SELECT 1 FROM connections c WHERE c.block_id = b.id) ORDER BY b.created_at DESC LIMIT 3000',
+            (owner['id'],)).fetchall()
+        data['stars'] = [block_json(r) for r in stars]
+        data['stats'] = user_stats(req.db, owner['id'])
+    return data
+
+
+@route('GET', r'/api/galaxy')
+def my_galaxy(req):
+    return json_response(galaxy_of(req, req.user))
+
+
+@route('GET', r'/api/galaxy/' + USERNAME_PATH)
+def get_galaxy(req, username):
+    return json_response(galaxy_of(req, find_user(req, username)))
+
+
+@route('POST', r'/api/galaxy/' + USERNAME_PATH + r'/unlock')
+def unlock_galaxy(req, username):
+    owner = find_user(req, username)
+    if owner['id'] != req.user['id']:
+        pin_gate(req, owner, str(req.json().get('pin') or ''), wrong_status=403)
+        req.db.execute('INSERT OR REPLACE INTO unlocks (session_hash, owner_id, expires_at) VALUES (?, ?, ?)',
+                       (auth.session_key(req.session_token), owner['id'], now() + UNLOCK_TTL))
+    return json_response(galaxy_of(req, owner))
+
+
+@route('GET', r'/api/galaxies')
+def list_galaxies(req):
+    """Everyone with something you could look at: you first, then A to Z."""
+    users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
+    out = []
+    for user in users:
+        mine = user['id'] == req.user['id']
+        rows = req.db.execute('SELECT * FROM drawers WHERE user_id = ? ORDER BY created_at', (user['id'],)).fetchall()
+        seen = [r for r in rows if mine or r['visibility'] == 'pin' or drawer_visible(req, r)]
+        if not seen and not mine:
+            continue
+        entry = {'username': user['username'], 'you': mine, 'planets': len(seen),
+                 'critters': [json.loads(r['icon']) for r in seen[:5]]}
+        if mine:
+            out.insert(0, entry)
+        else:
+            out.append(entry)
+    return json_response({'galaxies': out})
+
+
 # ---------------------------------------------------------------- drawers
 
 @route('GET', r'/api/drawers')
@@ -668,13 +773,17 @@ def create_drawer(req):
     block_ids = body.get('blockIds') or []
     if not isinstance(block_ids, list) or len(block_ids) > 10000:
         raise HttpError(400, 'Could not add those files.')
+    visibility = body.get('visibility') or 'pin'
+    if visibility not in VISIBILITY:
+        raise HttpError(400, 'That sharing setting could not be saved.')
     drawer_id = new_id()
     stamp = now()
     with db.transaction(req.db):
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp, 1 if body.get('community') else 0))
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp,
+             1 if body.get('community') else 0, visibility))
         position = 0
         for block_id in block_ids:
             owned = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND user_id = ?',
@@ -684,16 +793,24 @@ def create_drawer(req):
                                'VALUES (?, ?, ?, ?)', (str(block_id), drawer_id, position, stamp))
                 position += 1
     row = own_drawer(req, drawer_id)
-    return json_response({'drawer': drawer_json(row, position, [])}, status=201)
+    return json_response({'drawer': planet_json(req, row, position, [])}, status=201)
 
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def get_drawer(req, drawer_id):
-    row = writable_drawer(req, drawer_id)
-    if row['community']:
-        return community_drawer(req, drawer_id)  # says whose it is
+    row = req.db.execute('SELECT d.*, u.username AS owner_name FROM drawers d JOIN users u ON u.id = d.user_id '
+                         'WHERE d.id = ?', (drawer_id,)).fetchone()
+    if not row or not drawer_visible(req, row):
+        if row and row['visibility'] == 'pin':
+            count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+            raise HttpError(403, 'Locked.', locked=True, owner=row['owner_name'],
+                            drawer=planet_json(req, row, count, locked=True))
+        raise HttpError(404, 'That planet does not exist.')
     blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
-    return json_response({'drawer': drawer_json(row, len(blocks)), 'blocks': blocks})
+    drawer = planet_json(req, row, len(blocks))
+    if not drawer['mine']:
+        drawer['owner'] = row['owner_name']
+    return json_response({'drawer': drawer, 'blocks': blocks})
 
 
 @route('PATCH', r'/api/drawers/(?P<drawer_id>[\w-]+)')
@@ -712,6 +829,12 @@ def update_drawer(req, drawer_id):
     icon = clean_icon(body.get('icon'))
     if icon:
         updates['icon'] = json.dumps(icon)
+    if 'visibility' in body:
+        if body['visibility'] not in VISIBILITY:
+            raise HttpError(400, 'That sharing setting could not be saved.')
+        updates['visibility'] = body['visibility']
+    if 'people' in body:
+        set_planet_people(req, drawer_id, body['people'])
     if 'community' in body:
         updates['community'] = 1 if body['community'] else 0
         if not body['community']:
@@ -724,7 +847,24 @@ def update_drawer(req, drawer_id):
         req.db.execute(f'UPDATE drawers SET {assignments} WHERE id = ?', (*updates.values(), drawer_id))
     row = own_drawer(req, drawer_id)
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
-    return json_response({'drawer': drawer_json(row, count)})
+    return json_response({'drawer': planet_json(req, row, count)})
+
+
+def set_planet_people(req, drawer_id, names):
+    if not isinstance(names, list) or len(names) > 200:
+        raise HttpError(400, 'Could not save those people.')
+    ids = set()
+    for name in names:
+        username = auth.normalize_username(name if isinstance(name, str) else '')
+        user = req.db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+        if not user:
+            raise HttpError(400, f'No one here is called @{username or name}.')
+        if user['id'] != req.user['id']:
+            ids.add(user['id'])
+    with db.transaction(req.db):
+        req.db.execute('DELETE FROM drawer_access WHERE drawer_id = ?', (drawer_id,))
+        for user_id in ids:
+            req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
 
 
 ORPHANS_SQL = (
@@ -773,6 +913,86 @@ def reorder_drawer(req, drawer_id):
                            (index, drawer_id, block_id))
         req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
     return json_response({'ok': True})
+
+
+# ---------------------------------------------------------------- autosort
+
+KIND_GROUPS = {'image': 'Images', 'video': 'Videos', 'audio': 'Sounds', 'pdf': 'Reading', 'doc': 'Reading',
+               'link': 'Links', 'text': 'Notes', 'code': 'Code', 'archive': 'Files', 'other': 'Files'}
+WORD_RE = re.compile(r'[a-z0-9]+')
+STOP_WORDS = set("""
+the and for with from that this your you are was were but not all any can had her his its our out has have
+into about over just what when where which who why how com www http https net org html htm php
+jpg jpeg png gif webp heic mov mp4 pdf doc docx txt img image screenshot screen shot copy untitled final new
+""".split())
+
+
+def words(text):
+    found = set()
+    for word in WORD_RE.findall((text or '').lower()):
+        if len(word) < 3 or word.isdigit() or word in STOP_WORDS:
+            continue
+        found.add(word[:-1] if len(word) > 3 and word.endswith('s') else word)
+    return found
+
+
+def pick_planet(req, block):
+    """Where a new file most likely belongs: (drawer id, created?)."""
+    uid = req.user['id']
+    group = KIND_GROUPS.get(block['kind'], 'Files')
+    meta = json.loads(block['meta'] or '{}')
+    about = words(' '.join([block['title'] or '', (block['content'] or '')[:300] if block['kind'] == 'text' else '',
+                            meta.get('domain') or '', meta.get('siteName') or '']))
+    planets = req.db.execute('SELECT id, title FROM drawers WHERE user_id = ? ORDER BY updated_at DESC',
+                             (uid,)).fetchall()
+    # 1. A planet named after something in the file.
+    best, best_score = None, 0
+    for planet in planets:
+        score = len(about & words(planet['title']))
+        if score > best_score:
+            best, best_score = planet['id'], score
+    if best:
+        return best, False
+    # 2. A planet named after its kind ("Images", "Links"…).
+    for planet in planets:
+        if planet['title'].strip().lower() == group.lower():
+            return planet['id'], False
+    # 3. A planet that's mostly this kind of thing already.
+    tally = {}
+    for row in req.db.execute('SELECT c.drawer_id, b.kind FROM connections c JOIN blocks b ON b.id = c.block_id '
+                              'JOIN drawers d ON d.id = c.drawer_id WHERE d.user_id = ?', (uid,)):
+        total, same = tally.get(row['drawer_id'], (0, 0))
+        tally[row['drawer_id']] = (total + 1, same + (KIND_GROUPS.get(row['kind']) == group))
+    fits = [(same / total, total, drawer_id) for drawer_id, (total, same) in tally.items()
+            if total >= 3 and same / total >= 0.6]
+    if fits:
+        return max(fits)[2], False
+    return None, True
+
+
+def autosort(req, block_id, icon=None):
+    """File a new block onto a planet, making one if nothing fits."""
+    block = own_block(req, block_id)
+    drawer_id, created = pick_planet(req, block)
+    if created:
+        drawer_id = new_id()
+        stamp = now()
+        req.db.execute(
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility) '
+            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'pin')",
+            (drawer_id, req.user['id'], KIND_GROUPS.get(block['kind'], 'Files'),
+             json.dumps(icon or default_icon()), stamp, stamp))
+    connect(req.db, block_id, drawer_id)
+    row = own_drawer(req, drawer_id)
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+    return {'planet': planet_json(req, row, count, drawer_previews(req, drawer_id, limit=12)), 'created': created}
+
+
+def icon_arg(value):
+    try:
+        return clean_icon(json.loads(value) if isinstance(value, str) else value)
+    except (HttpError, ValueError):
+        return None
 
 
 # ---------------------------------------------------------------- files (blocks)
@@ -910,9 +1130,12 @@ def create_block(req):
     else:
         block_id = insert_block(req, kind='text', title=title, content=content.strip('\n'), **shared)
 
+    sorted_into = None
     if drawer_id:
         connect(req.db, block_id, drawer_id)
-    return json_response({'block': reload_block(req, block_id)}, status=201)
+    elif body.get('autosort'):
+        sorted_into = autosort(req, block_id, icon_arg(body.get('icon')))
+    return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
 
 
 @route('POST', r'/api/upload')
@@ -935,9 +1158,12 @@ def upload(req):
     shared = {'shared_at': now()} if req.arg('share') == '1' else {}
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
                             mime=mime, ext=ext, size=size, meta=meta, **shared)
+    sorted_into = None
     if drawer_id:
         connect(req.db, block_id, drawer_id)
-    return json_response({'block': reload_block(req, block_id)}, status=201)
+    elif req.arg('autosort') == '1':
+        sorted_into = autosort(req, block_id, icon_arg(req.arg('icon')))
+    return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
 
 
 def int_arg(value, low, high):
@@ -983,8 +1209,6 @@ def save_block(req, block_id):
     row, mine = readable_block(req, block_id)
     if mine:
         raise HttpError(400, 'That one is already yours.')
-    if not row['shared_at'] and not in_community_drawer(req, block_id):
-        raise HttpError(403, 'Only shared files can be saved.')
     drawer_id = target_drawer(req, req.json().get('drawer'))
     existing = req.db.execute(
         "SELECT id FROM blocks WHERE user_id = ? AND json_extract(meta, '$.savedFrom.id') = ?",
@@ -1005,11 +1229,20 @@ def save_block(req, block_id):
     return json_response({'block': reload_block(req, copy_id), 'already': bool(existing)}, status=201)
 
 
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/autosort')
+def sort_block(req, block_id):
+    """A loose star dropped back into the black hole finds itself a planet."""
+    own_block(req, block_id)
+    sorted_into = autosort(req, block_id, icon_arg(req.json().get('icon')))
+    return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into,
+                          'connections': block_connections(req, block_id)})
+
+
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)')
 def get_block(req, block_id):
     row, mine = readable_block(req, block_id)
     owner = None if mine else row['owner_name']
-    connections = block_connections(req, block_id) if is_unlocked(req, row['user_id']) else []
+    connections = block_connections(req, block_id)
     block = mark_saved(req, [block_json(row, mine, owner)])[0]
     if not mine and in_community_drawer(req, block_id):
         block['community'] = True

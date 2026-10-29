@@ -1,7 +1,5 @@
-// The first box in every grid: type, paste a link, or drop/choose files.
+// The first box on a planet's grid: type, paste a link, or drop/choose files.
 
-import { renderIcon } from './pixel.js';
-import { critterFor } from './theme.js';
 import { h } from './util.js';
 
 export function entryCell({ onText, onFiles } = {}) {
@@ -15,10 +13,7 @@ export function entryCell({ onText, onFiles } = {}) {
       add),
     h('div', { class: 'entry-drop' }, h('span', null, 'Drop')),
     picker);
-  // Only seen in colorful mode: someone peeking over the edge.
-  const peek = h('span', { class: 'entry-peek', 'aria-hidden': 'true' },
-    renderIcon(critterFor(`entry-${Math.random()}`), { size: 27 }));
-  const cell = h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, peek, h('div', { class: 'cell-fill' }, box)));
+  const cell = h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, box)));
 
   const sync = () => box.classList.toggle('has-text', textarea.value.trim().length > 0);
   const submit = () => {

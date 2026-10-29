@@ -14,6 +14,7 @@ let active = 0;
 
 export function contextKey(ctx) {
   if (ctx.share) return 'community';
+  if (ctx.galaxy) return 'galaxy';
   return ctx.drawerId ? `drawer:${ctx.drawerId}` : 'loose';
 }
 
@@ -85,8 +86,12 @@ async function run(item) {
   const params = new URLSearchParams({ name: item.name });
   if (item.ctx.drawerId) params.set('drawer', item.ctx.drawerId);
   if (item.ctx.share) params.set('share', '1');
+  if (item.ctx.autosort) {
+    params.set('autosort', '1');
+    if (item.ctx.icon) params.set('icon', JSON.stringify(item.ctx.icon));
+  }
   try {
-    let { block } = await sendFile(`/api/upload?${params}`, item.file, {
+    let { block, sortedInto } = await sendFile(`/api/upload?${params}`, item.file, {
       type: item.file.type,
       onProgress: (p) => {
         item.progress = p;
@@ -109,6 +114,7 @@ async function run(item) {
     }
     item.status = 'done';
     item.block = block;
+    item.sortedInto = sortedInto || null;
     bus.emit('upload:done', item);
     ensureLooks([block], (b) => bus.emit('block:changed', b));
     setTimeout(() => dismiss(item.key), 4000);

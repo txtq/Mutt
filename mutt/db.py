@@ -147,6 +147,14 @@ def migrate(conn):
     drawer_columns = {row[1] for row in conn.execute('PRAGMA table_info(drawers)')}
     if 'community' not in drawer_columns:
         conn.execute('ALTER TABLE drawers ADD COLUMN community INTEGER NOT NULL DEFAULT 0')  # anyone can add
+    if 'visibility' not in drawer_columns:
+        # Who can look inside a drawer (a planet): private, pin (anyone with your code), people, public.
+        conn.execute("ALTER TABLE drawers ADD COLUMN visibility TEXT NOT NULL DEFAULT 'pin'")
+    conn.execute('CREATE TABLE IF NOT EXISTS drawer_access ('
+                 'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'PRIMARY KEY (drawer_id, user_id))')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_access_user ON drawer_access(user_id)')
 
 
 @contextmanager

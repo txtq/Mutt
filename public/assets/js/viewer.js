@@ -1,6 +1,6 @@
 // Full-screen block view: the block on the left, its details on the right.
 
-import { deleteBlock, openConnect, openSave, removeFromDrawer, toggleShare, watchPreview } from './actions.js';
+import { deleteBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
@@ -443,7 +443,7 @@ function metaRows(block) {
   if (block.updatedAt - block.createdAt > 60000) rows.push(['Edited', fullDate(block.updatedAt)]);
   const from = block.meta?.savedFrom;
   if (from && block.mine !== false) {
-    rows.push(['From', h('a', { href: `/u/${from.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/u/${from.username}`); } }, `@${from.username}`)]);
+    rows.push(['From', h('a', { href: `/g/${from.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${from.username}`); } }, `@${from.username}`)]);
   }
   const source = block.kind === 'link' ? block.content : block.meta?.source;
   if (source) rows.push(['Source', h('a', { href: source, target: '_blank', rel: 'noopener noreferrer' }, block.meta?.domain || source)]);
@@ -472,27 +472,23 @@ function renderSide() {
     block.file ? h('a', { class: 'btn', href: `${block.file}?dl=1` }, 'Download') : null,
     block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Original ↗') : null,
     block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
-    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null,
-    block.mine !== false ? h('button', {
-      type: 'button', class: `btn btn-share${block.sharedAt ? ' is-on' : ''}`, 'aria-pressed': String(!!block.sharedAt),
-      onclick: () => toggleShare(state.block),
-    }, block.sharedAt ? 'Shared ✓' : 'Share') : null);
+    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null);
 
   const count = connections?.length ?? block.connectionCount ?? 0;
 
-  // Someone else's file, seen through a drawer you unlocked: look, don't touch.
+  // Someone else's file, seen on one of their planets: look, keep a copy, don't touch.
   if (block.mine === false) {
     const owner = block.owner;
     fill(state.side,
       h('h2', { class: 'vw-title vw-title-static' }, displayTitle(block) || 'Untitled'),
       block.description ? h('p', { class: 'vw-desc vw-desc-static' }, block.description) : null,
-      h('a', { class: 'vw-owner', href: `/u/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/u/${owner}`); } }, `@${owner}`),
+      h('a', { class: 'vw-owner', href: `/g/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${owner}`); } }, `@${owner}`),
       actions,
-      block.sharedAt || block.community ? saveButton(block) : null,
+      saveButton(block),
       metaRows(block),
-      connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', null, plural(count, 'drawer'))) : null,
+      connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', null, plural(count, 'planet'))) : null,
       connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => {
-        const href = d.community ? drawerHref(d) : `/u/${owner}/d/${d.id}`;
+        const href = drawerHref(d);
         return h('li', null, h('a', {
           href, class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(href); },
         }, renderIcon(d.icon, { size: 18 }), h('span', null, d.title)));
@@ -500,7 +496,7 @@ function renderSide() {
     return;
   }
 
-  const connectBtn = h('button', { type: 'button', class: 'btn btn-dark btn-sm' }, 'Connect →');
+  const connectBtn = h('button', { type: 'button', class: 'btn btn-dark btn-sm' }, 'Planets →');
   connectBtn.addEventListener('click', () => openConnect(connectBtn, state.block, { align: 'end' }));
 
   const list = connections == null
@@ -510,7 +506,7 @@ function renderSide() {
         h('a', { href: drawerHref(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(drawerHref(d)); } },
           renderIcon(d.icon, { size: 18 }), h('span', null, d.title)),
         h('button', {
-          type: 'button', class: 'vw-conn-x', 'aria-label': `Remove from ${d.title}`, title: `Remove from ${d.title}`,
+          type: 'button', class: 'vw-conn-x', 'aria-label': `Take off ${d.title}`, title: `Take off ${d.title}`,
           onclick: () => removeFromDrawer(state.block, d.id, d.title),
         }, '×'))))
       : null;
@@ -521,12 +517,12 @@ function renderSide() {
     actions,
     metaRows(block),
     h('section', { class: 'vw-conn-head' },
-      h('span', null, count ? plural(count, 'drawer') : 'Drawers'),
+      h('span', null, count ? plural(count, 'planet') : 'A loose star'),
       connectBtn),
     list,
     h('div', { class: 'vw-danger' },
       drawer && connections?.some((d) => d.id === drawer.id)
-        ? h('button', { type: 'button', class: 'link', onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title) }, `Remove from ${drawer.title}`)
+        ? h('button', { type: 'button', class: 'link', onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title) }, `Take off ${drawer.title}`)
         : null,
       h('button', {
         type: 'button', class: 'link is-danger',

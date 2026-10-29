@@ -1,17 +1,24 @@
-// Sign in / make an account: a username, then a 4-digit PIN.
+// Sign in / make an account. First a question (new here?), then a
+// username, then a 4-digit PIN, under a little pixel night.
 
 import { api, session } from '../api.js';
 import { glitch, logo } from '../logo.js';
 import { nav } from '../nav.js';
-import { setPrefs } from '../theme.js';
+import { createNightScene } from '../nightscene.js';
+import { holdNight, setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
 import { h, wait } from '../util.js';
 
 const NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9]$/;
+const BEEN = 'mutt.been-here';
+
+const beenHere = () => { try { return !!localStorage.getItem(BEEN); } catch { return false; } };
+const markBeen = () => { try { localStorage.setItem(BEEN, '1'); } catch { /* private mode */ } };
 
 export const loginView = {
   create(params, data, url) {
-    let mode = url.searchParams.get('new') === '1' && session.signups ? 'signup' : 'signin';
+    let mode = 'signin';
+    let stage = 'ask';
     let step = 'name';
     let firstPin = '';
     let busy = false;
@@ -24,11 +31,20 @@ export const loginView = {
     const pin = pinField({ autocomplete: 'current-password', onComplete: (digits) => submitPin(digits) });
     const pinLabel = h('label', { class: 'login-label' }, 'Code');
     const msg = h('p', { class: 'login-msg', 'aria-live': 'polite' });
-    const switchBtn = h('button', { type: 'button', class: 'link', onclick: () => setMode(mode === 'signin' ? 'signup' : 'signin') });
-    const switchRow = h('div', { class: 'login-switch' }, switchBtn);
-    if (!session.signups) switchRow.hidden = true;
+    const yesBtn = h('button', { type: 'button', class: 'vbtn vbtn-blue login-choice', onclick: () => choose('signup') }, 'Yes, I’m new');
+    const noBtn = h('button', { type: 'button', class: 'vbtn login-choice', onclick: () => choose('signin') }, 'No, log in');
+    const ask = h('div', { class: 'login-ask' },
+      h('p', { class: 'login-q', id: 'login-q' }, 'Are you new to Mutt?'),
+      h('div', { class: 'login-choices', role: 'group', 'aria-labelledby': 'login-q' }, yesBtn, noBtn));
+
+    const heading = h('h2', { class: 'login-heading' });
+    const backBtn = h('button', { type: 'button', class: 'login-back', onclick: () => showAsk() },
+      h('span', { class: 'login-back-key', 'aria-hidden': 'true' }, '‹'), 'Back');
+    const backRow = h('div', { class: 'login-switch' }, backBtn);
+    if (!session.signups) backRow.hidden = true;
 
     const form = h('form', { class: 'login-form', novalidate: true },
+      heading,
       h('div', { class: 'login-field' },
         h('label', { class: 'login-label' }, 'Username'),
         h('div', { class: 'login-name-row' }, h('span', { class: 'login-at' }, '@'), nameInput, goBtn)),
@@ -36,17 +52,42 @@ export const loginView = {
       msg);
 
     const mark = h('h1', { class: 'login-mark' }, logo({ big: true, href: null }));
-    const el = h('div', { class: 'login' }, h('div', { class: 'login-box' }, mark, form, switchRow));
+    const scene = createNightScene();
+    // A warm light from the top right, like a low sun.
+    const light = h('div', { class: 'login-light', 'aria-hidden': 'true' });
+    const box = h('div', { class: 'login-box' }, mark, ask, h('div', { class: 'login-steps' }, form, backRow));
+    const el = h('div', { class: 'login' }, light, scene.el, box);
+    holdNight(true);
 
     function say(text, tone = '') {
       msg.textContent = text || '';
       msg.className = `login-msg${tone ? ` is-${tone}` : ''}${text ? ' is-on' : ''}`;
     }
 
+    // Each stage rises in softly, like the rest of the page.
+    const appear = (node) => node.animate(
+      [{ opacity: 0, transform: 'translateY(14px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
+      { duration: 700, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+
+    function showAsk() {
+      stage = 'ask';
+      el.dataset.stage = stage;
+      say('');
+      appear(ask);
+      (beenHere() ? noBtn : yesBtn).focus({ preventScroll: true });
+    }
+
+    function choose(next) {
+      stage = 'form';
+      el.dataset.stage = stage;
+      setMode(next);
+      appear(form);
+    }
+
     function setMode(next) {
       mode = next;
       firstPin = '';
-      switchBtn.textContent = mode === 'signin' ? 'Make an account' : 'Sign in';
+      heading.textContent = mode === 'signin' ? 'Welcome back' : 'Make your account';
       pin.input.autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
       el.dataset.mode = mode;
       say('');
@@ -60,7 +101,7 @@ export const loginView = {
       pin.clear();
       if (step === 'name') {
         pinLabel.textContent = 'Code';
-        nameInput.focus();
+        if (stage === 'form') nameInput.focus();
         return;
       }
       if (mode === 'signin') pinLabel.textContent = 'Code';
@@ -120,6 +161,7 @@ export const loginView = {
         const body = { username: nameInput.value, pin: digits };
         const res = await api.post(mode === 'signin' ? '/api/auth/login' : '/api/auth/signup', body);
         pin.state('ok');
+        markBeen();
         await wait(520);
         session.user = res.user;
         session.stats = res.stats;
@@ -142,13 +184,33 @@ export const loginView = {
     });
     nameInput.addEventListener('focus', () => { if (step !== 'name') setStep('name'); });
     nameInput.addEventListener('input', () => say(''));
+    el.addEventListener('keydown', (e) => {
+      if (stage !== 'ask' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key !== 'y' && key !== 'n') return;
+      e.preventDefault(); // or the letter lands in the name box
+      choose(key === 'y' ? 'signup' : 'signin');
+    });
 
-    setMode(mode);
+    // Straight to a form when there's nothing to ask.
+    if (!session.signups) choose('signin');
+    else if (url.searchParams.get('new') === '1') choose('signup');
+    else el.dataset.stage = stage;
+
     return {
       el,
-      title: mode === 'signin' ? 'Sign in' : 'Make an account',
+      title: 'Welcome',
       chrome: false,
-      mounted: () => { nameInput.focus(); glitch(mark.firstElementChild); },
+      mounted: () => {
+        scene.start();
+        if (stage === 'ask') (beenHere() ? noBtn : yesBtn).focus({ preventScroll: true });
+        else nameInput.focus();
+        glitch(mark.firstElementChild);
+      },
+      destroy: () => {
+        scene.stop();
+        holdNight(false);
+      },
     };
   },
 };

@@ -133,6 +133,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
   if (width) el.style.width = `${width}px`;
   document.body.append(el);
   const place = () => {
+    if (!anchor.isConnected) { close(); return; }
     const a = anchor.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     let left = align === 'end' ? a.right - r.width : a.left;
@@ -154,6 +155,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
     closed = true;
     document.removeEventListener('pointerdown', outside, true);
     removeEventListener('resize', close);
+    removeEventListener('scroll', follow, true);
     openPopovers.delete(api);
     openLayers.splice(openLayers.indexOf(api), 1);
     if (el.contains(document.activeElement)) {
@@ -167,6 +169,14 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
   const outside = (e) => { if (!el.contains(e.target) && !anchor.contains(e.target)) close(); };
   setTimeout(() => document.addEventListener('pointerdown', outside, true));
   addEventListener('resize', close);
+  // Stay with the button it came from while the page (or a panel) scrolls.
+  let following = 0;
+  const follow = (e) => {
+    if (el.contains(e.target)) return;
+    cancelAnimationFrame(following);
+    following = requestAnimationFrame(place);
+  };
+  addEventListener('scroll', follow, { capture: true, passive: true });
   anchor.setAttribute?.('aria-expanded', 'true');
   const api = { el, close, place };
   openPopovers.add(api);

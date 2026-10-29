@@ -1,21 +1,16 @@
-// A planet up close, laid out like a Vita LiveArea: the world itself, its
-// name and note, who can see it, then everything on it. Peel the corner to
-// go back to the galaxy.
+// A planet up close: a slim header (the world, its name and note, who can
+// see it) and then what matters, everything on it. The void in the corner
+// takes you back to your galaxy.
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
 import { nav } from '../nav.js';
 import { fillIcon, generateIcon, iconEditor } from '../pixel.js';
 import { VISIBILITY, glyph, planetEl } from '../planets.js';
-import { confirmDialog, openDialog, openMenu, pinField, segmented, toast } from '../ui.js';
+import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { autosize, bus, h, plural, timeAgo, wait } from '../util.js';
 
 const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer.owner}` : '/');
-
-function peel(href, label) {
-  return h('a', { class: 'peel', href, 'aria-label': label, title: label },
-    h('span', { class: 'peel-flap' }), h('span', { class: 'peel-under' }, glyph('chevron', 12)));
-}
 
 // The people a planet is shared with, as removable chips plus a box to add more.
 function peoplePicker(names, onChange) {
@@ -63,9 +58,8 @@ function lockedPlanet(id, data) {
       }
     },
   });
-  const world = planetEl(drawer, { size: 150, href: null, label: false });
+  const world = planetEl(drawer, { size: 120, href: null, label: false });
   const el = h('div', { class: 'page liv liv-locked', style: { '--pc': drawer.icon?.c || '#2F6BFF' } },
-    peel(`/g/${data.owner}`, `Back to @${data.owner}’s galaxy`),
     h('header', { class: 'liv-head' },
       h('div', { class: 'liv-world' }, world),
       h('div', { class: 'liv-info' },
@@ -78,6 +72,7 @@ function lockedPlanet(id, data) {
     title: drawer.title,
     chrome: 'planet',
     who: { username: data.owner, you: false },
+    home: true,
     mounted: () => setTimeout(() => field.focus(), 200),
   };
 }
@@ -98,7 +93,7 @@ export const planetView = {
     const mine = drawer.mine !== false;
     const home = homeOf(drawer);
 
-    const world = planetEl(drawer, { size: innerWidth < 640 ? 132 : 176, href: null, label: false });
+    const world = planetEl(drawer, { size: innerWidth < 640 ? 76 : 104, href: null, label: false });
     world.ball.dataset.vt = `planet-${id}`;
     world.classList.add('planet-big');
     if (mine) {
@@ -111,7 +106,10 @@ export const planetView = {
     const desc = h('textarea', { class: 'liv-desc', rows: 1, maxlength: '2000', value: drawer.description, placeholder: 'Add a note', 'aria-label': 'Note' });
     const meta = h('p', { class: 'liv-meta' });
     const setMeta = (count) => {
-      meta.replaceChildren(h('span', null, [plural(count, 'file'), timeAgo(drawer.updatedAt)].join(' · ')));
+      const vis = drawer.community ? 'community' : drawer.visibility;
+      meta.replaceChildren(
+        h('span', null, [plural(count, 'file'), timeAgo(drawer.updatedAt)].join(' · ')),
+        mine && vis ? h('span', { class: 'liv-vis' }, glyph(vis, 11), drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility].label) : null);
     };
     setMeta(drawer.count);
 
@@ -202,6 +200,7 @@ export const planetView = {
     // ------------------------------------------------------------ sharing
 
     let sharing = null;
+    let sharePop = null;
     if (mine) {
       const hint = h('p', { class: 'liv-share-hint' });
       const people = h('div', { class: 'liv-people' });
@@ -213,6 +212,8 @@ export const planetView = {
         people.hidden = drawer.visibility !== 'people';
         openRow.hidden = drawer.visibility !== 'public' && !drawer.community;
         world.update({ ...drawer, previews: world.planet?.previews });
+        setMeta(drawer.count);
+        sharePop?.place();
       };
       const seg = segmented(Object.entries(VISIBILITY).map(([value, v]) => ({ value, label: v.label })), drawer.visibility, async (value) => {
         seg.set(value);
@@ -259,6 +260,11 @@ export const planetView = {
         h('p', { class: 'liv-label' }, 'Who can see it'),
         seg.el, hint, people, openRow);
     }
+    const shareBtn = mine ? h('button', { type: 'button', class: 'vbtn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
+    shareBtn?.addEventListener('click', () => {
+      if (sharePop) { sharePop.close(); return; }
+      sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-share', width: 340, onClose: () => { sharePop = null; } });
+    });
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
@@ -289,14 +295,12 @@ export const planetView = {
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
     const el = h('div', { class: 'page liv', style: { '--pc': drawer.icon?.c || '#2F6BFF' } },
-      peel(home, mine ? 'Back to your galaxy' : `Back to @${drawer.owner}’s galaxy`),
       h('header', { class: 'liv-head' },
         h('div', { class: 'liv-world' }, world),
         h('div', { class: 'liv-info' },
           mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
-          title, desc, meta,
-          sharing),
-        mine ? h('div', { class: 'liv-tools' }, moreBtn) : null),
+          title, desc, meta),
+        mine ? h('div', { class: 'liv-tools' }, shareBtn, moreBtn) : null),
       h('div', { class: 'liv-body' }, collection.el));
 
     const inst = {
@@ -305,10 +309,11 @@ export const planetView = {
       drawer,
       chrome: 'planet',
       who: { username: mine ? session.user.username : drawer.owner, you: mine },
+      home: true,
       list: () => collection.list(),
       dropTarget: () => collection.dropTarget(),
       pasteText: (text) => collection.pasteText(text),
-      destroy: () => collection.destroy(),
+      destroy: () => { sharePop?.close(); collection.destroy(); },
     };
     return inst;
   },

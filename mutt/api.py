@@ -37,6 +37,7 @@ PREF_CHOICES = {
     'paper': {'white', 'warm', 'cool', 'blush', 'mint'},
     'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
     'sky': {'vita', 'nebula', 'aurora', 'dusk'},
+    'mode': {'auto', 'light', 'dark'},
 }
 FONT_TYPES = {
     b'wOF2': ('woff2', 'font/woff2'),
@@ -337,7 +338,10 @@ def link_file(from_user, to_user, key):
 def user_stats(conn, user_id):
     files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ?', (user_id,)).fetchone()[0]
     drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ?', (user_id,)).fetchone()[0]
-    return {'files': files, 'drawers': drawers}
+    stars = conn.execute(
+        'SELECT COUNT(*) FROM blocks b WHERE b.user_id = ? AND NOT EXISTS '
+        '(SELECT 1 FROM connections c WHERE c.block_id = b.id)', (user_id,)).fetchone()[0]
+    return {'files': files, 'drawers': drawers, 'stars': stars}
 
 
 # ---------------------------------------------------------------- health
@@ -728,21 +732,32 @@ def unlock_galaxy(req, username):
 
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
-    """Everyone with something you could look at: you first, then A to Z."""
+    """The universe: everyone with something you could look at. You come
+    first, then people whose planets are open to you, then the ones you'd
+    need a code for, each A to Z."""
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
     out = []
     for user in users:
         mine = user['id'] == req.user['id']
-        rows = req.db.execute('SELECT * FROM drawers WHERE user_id = ? ORDER BY created_at', (user['id'],)).fetchall()
-        seen = [r for r in rows if mine or r['visibility'] == 'pin' or drawer_visible(req, r)]
-        if not seen and not mine:
+        rows = req.db.execute(
+            'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+            'FROM drawers d WHERE d.user_id = ? ORDER BY d.created_at', (user['id'],)).fetchall()
+        worlds = []
+        for r in rows:
+            open_ = mine or drawer_visible(req, r)
+            if open_ or r['visibility'] == 'pin':
+                worlds.append({'c': json.loads(r['icon']).get('c'), 'n': r['n'], 'locked': not open_})
+        if not worlds and not mine:
             continue
-        entry = {'username': user['username'], 'you': mine, 'planets': len(seen),
-                 'critters': [json.loads(r['icon']) for r in seen[:5]]}
-        if mine:
-            out.insert(0, entry)
-        else:
-            out.append(entry)
+        opened = [w for w in worlds if not w['locked']]
+        out.append({
+            'username': user['username'], 'you': mine, 'planets': len(worlds),
+            'files': sum(w['n'] for w in opened), 'open': len(opened),
+            'locked': bool(worlds) and not opened,
+            'worlds': worlds[:16],
+            'critters': [json.loads(r['icon']) for r in rows[:5]] if mine else [],
+        })
+    out.sort(key=lambda g: (not g['you'], g['locked'], g['username']))
     return json_response({'galaxies': out})
 
 

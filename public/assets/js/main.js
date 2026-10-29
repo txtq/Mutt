@@ -10,7 +10,7 @@ import { closeTopLayer } from './ui.js';
 import { h, isEditable } from './util.js';
 import { viewerOpen } from './viewer.js';
 import { bootPrefs, setPrefs } from './theme.js';
-import { communityView, galaxyView } from './views/galaxy.js';
+import { galaxyView, universeView } from './views/galaxy.js';
 import { loginView } from './views/login.js';
 import { planetView } from './views/planet.js';
 
@@ -20,13 +20,13 @@ route(/^\/login$/, loginView);
 route(/^\/$/, galaxyView);
 route(/^\/g\/([a-z0-9_.-]+)$/, galaxyView);
 route(/^\/p\/([\w-]+)$/, planetView);
-route(/^\/community$/, communityView);
+route(/^\/universe$/, universeView);
 // Addresses from before the galaxy still lead somewhere sensible.
 redirect(/^\/(?:d|c)\/([\w-]+)$/, ([id]) => `/p/${id}`);
 redirect(/^\/u\/([a-z0-9_.-]+)\/d\/([\w-]+)$/, ([, id]) => `/p/${id}`);
 redirect(/^\/u\/([a-z0-9_.-]+)$/, ([name]) => `/g/${name}`);
 redirect(/^\/(?:all|settings|search|users)$/, () => '/');
-redirect(/^\/community\/.*$/, () => '/community');
+redirect(/^\/community(?:\/.*)?$/, () => '/universe');
 
 const sky = createSky();
 const bar = createStatusbar();

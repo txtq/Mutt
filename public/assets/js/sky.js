@@ -1,6 +1,7 @@
-// The sky behind every page: a deep Vita-blue wash, slow ribbons of light,
-// and a field of stars that twinkle, lean a little as you move, and get
-// tugged toward the black hole when it eats something.
+// The sky behind every page: a Vita wash (deep blue by night, pale silver
+// by day), slow ribbons of light, and a field of stars that twinkle, lean a
+// little as you move, bend round the void, and get tugged toward it when it
+// eats something. Further out, in the universe, it goes dark and still.
 
 import { h, reducedMotion } from './util.js';
 
@@ -77,6 +78,7 @@ export function createSky() {
     h('div', { class: 'sky-wash' }),
     h('div', { class: 'sky-nebula' }),
     ribbons(),
+    h('div', { class: 'sky-night' }),
     canvas);
   const ctx = canvas.getContext('2d');
   let stars = [];
@@ -87,6 +89,9 @@ export function createSky() {
   let pulls = [];
   let frame = 0;
   let last = 0;
+  let lens = null;
+  let night = 0;
+  let day = false;
 
   function seed() {
     dpr = Math.min(devicePixelRatio || 1, 2);
@@ -111,6 +116,7 @@ export function createSky() {
   }
 
   const COLORS = { white: '255,255,255', warm: '255,226,196', blue: '178,214,255' };
+  const DAY = { white: '70,86,130', warm: '120,96,90', blue: '60,96,170' };
 
   function draw(time) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -119,6 +125,9 @@ export function createSky() {
     lean.y += (lean.ty - lean.y) * 0.04;
     const scroll = scrollY;
     pulls = pulls.filter((p) => time - p.start < p.duration);
+    const hole = lens?.();
+    const dim = day ? 1 - night : 0;
+    const palette = dim > 0.5 ? DAY : COLORS;
     for (const s of stars) {
       const twinkle = 0.55 + 0.45 * Math.sin(time * 0.001 * s.speed + s.phase);
       let x = s.x + lean.x * s.depth * 14;
@@ -135,15 +144,30 @@ export function createSky() {
         x += (dx / dist) * reach * reach * k * 60;
         y += (dy / dist) * reach * reach * k * 60;
       }
-      const alpha = (0.25 + s.depth * 0.75) * twinkle;
-      ctx.fillStyle = `rgba(${COLORS[s.tint]},${alpha.toFixed(3)})`;
+      if (hole) {
+        // Gravitational lensing: light from behind the void is bent outward,
+        // so the stars crowd into a bright ring round its edge.
+        const dx = x - hole.x;
+        const dy = y - hole.y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        const e = hole.r * 1.05;
+        if (d < hole.r * 6) {
+          const bent = (d + Math.sqrt(d * d + 4 * e * e)) / 2;
+          x = hole.x + (dx / d) * bent;
+          y = hole.y + (dy / d) * bent;
+        }
+      }
+      let alpha = (0.25 + s.depth * 0.75) * twinkle;
+      if (dim > 0.5) alpha *= 0.45;
+      else if (night) alpha = Math.min(1, alpha * (1 + night * 0.35));
+      ctx.fillStyle = `rgba(${palette[s.tint]},${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(x, y, s.r, 0, Math.PI * 2);
       ctx.fill();
       if (s.flare && twinkle > 0.6) {
         // A little four-point glint on the nearest stars.
         const len = s.r * 5 * twinkle;
-        ctx.strokeStyle = `rgba(${COLORS[s.tint]},${(alpha * 0.55).toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${palette[s.tint]},${(alpha * 0.55).toFixed(3)})`;
         ctx.lineWidth = 0.6;
         ctx.beginPath();
         ctx.moveTo(x - len, y); ctx.lineTo(x + len, y);
@@ -183,9 +207,20 @@ export function createSky() {
     lean.ty = (e.clientY / height - 0.5) * 2;
   }, { passive: true });
 
+  const readMode = () => { day = document.documentElement.dataset.mode === 'light'; if (reducedMotion()) draw(performance.now()); };
+  document.addEventListener('mutt:mode', readMode);
+  readMode();
+
   instance = {
     el,
     restart: start,
+    // Where the void is right now ({ x, y, r } on screen), or null for none.
+    setLens(fn) { lens = fn; },
+    // 0 by your galaxy, 1 out in the universe.
+    setNight(v) {
+      night = v;
+      el.style.setProperty('--night', v.toFixed(3));
+    },
     // Stars near (x, y) lean in, then drift back.
     pull(x, y, { strength = 1, radius = 360, duration = 1300 } = {}) {
       if (reducedMotion()) return;

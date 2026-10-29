@@ -1,14 +1,15 @@
 // The thin bar along the top, like the Vita's: the wordmark on the left,
-// whose galaxy this is in the middle (tap it for settings), and search, a
-// count and the time on the right.
+// whose galaxy this is in the middle (tap it for your account and settings),
+// and search and the time on the right. Away from home, a little void sits
+// in the top corner: tap it to fall back into your own galaxy.
 
 import { api, session } from './api.js';
 import { LOGOS, glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { glyph, planetEl } from './planets.js';
-import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
+import { DEFAULTS, MODES, SKIES, updatePrefs } from './theme.js';
 import { segmented, toast } from './ui.js';
-import { bus, debounce, h, plural } from './util.js';
+import { bus, debounce, h, plural, reducedMotion } from './util.js';
 import { changePin, deleteAccount, signOut } from './account.js';
 import { renderCell } from './cells.js';
 
@@ -95,15 +96,16 @@ function autosortSwitch() {
 }
 
 function settingsBody(close) {
-  const stats = session.stats || { files: 0, drawers: 0 };
+  const stats = { files: 0, drawers: 0, stars: 0, ...session.stats };
   return h('div', { class: 'sheet-in' },
     h('header', { class: 'sheet-head' },
       h('div', null,
         h('div', { class: 'sheet-who' }, `@${session.user.username}`),
-        h('div', { class: 'sheet-sub' }, `${plural(stats.files, 'file')} · ${plural(stats.drawers, 'planet')}`)),
+        h('div', { class: 'sheet-sub' }, `${plural(stats.files, 'file')} · ${plural(stats.drawers, 'planet')} · ${plural(stats.stars, 'star')}`)),
       location.pathname !== '/'
         ? h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
         : null),
+    row('Mode', choice('mode', Object.entries(MODES).map(([value, label]) => ({ value, label })))),
     row('Sky', skyPicker()),
     row('Logo', logoPicker()),
     row('Autosort', autosortSwitch()),
@@ -161,12 +163,44 @@ export function createStatusbar() {
   const who = h('button', { type: 'button', class: 'sb-who', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
     whoName, glyph('caret', 11));
   const searchBtn = h('button', { type: 'button', class: 'sb-btn', 'aria-label': 'Search', title: 'Search (/)' }, glyph('search', 14));
-  const count = h('span', { class: 'sb-count', title: 'Files' }, glyph('star', 10), h('span'));
   const clock = h('span', { class: 'sb-clock' });
   const bar = h('header', { class: 'sb' },
     h('div', { class: 'sb-left' }, mark),
     who,
-    h('div', { class: 'sb-right' }, searchBtn, count, clock));
+    h('div', { class: 'sb-right' }, searchBtn, clock));
+
+  // Home: a small void in the corner. Everything on the page falls into it.
+  const home = h('button', { type: 'button', class: 'home-void', 'aria-label': 'Back to your galaxy', title: 'Your galaxy', hidden: true },
+    h('span', { class: 'home-void-ring' }), h('span', { class: 'home-void-hole' }));
+  document.body.append(home);
+  let current = null;
+  let falling = false;
+  home.addEventListener('click', async () => {
+    if (current?.goHome) { current.goHome(); return; }
+    if (falling) return;
+    falling = true;
+    const page = document.getElementById('view')?.firstElementChild;
+    if (page && !reducedMotion()) {
+      const r = home.getBoundingClientRect();
+      const box = page.getBoundingClientRect();
+      page.style.transformOrigin = `${r.left + r.width / 2 - box.left}px ${r.top + r.height / 2 - box.top}px`;
+      home.classList.add('is-eating');
+      await page.animate([
+        { transform: 'none', opacity: 1, filter: 'none' },
+        { transform: 'scale(0.04) rotate(-35deg)', opacity: 0, filter: 'blur(6px)' },
+      ], { duration: 420, easing: 'cubic-bezier(0.55, 0, 1, 0.45)', fill: 'forwards' }).finished.catch(() => {});
+      home.classList.remove('is-eating');
+    }
+    falling = false;
+    nav.go('/', { motion: 'none' });
+  });
+  let out = false;
+  const showHome = () => { home.hidden = !session.user || !(current?.home || out); };
+  bus.on('universe', (on) => {
+    out = on;
+    showHome();
+    paintWho();
+  });
 
   const settings = sheet('sheet-settings', settingsBody);
   const search = sheet('sheet-search-wrap', searchBody);
@@ -179,20 +213,22 @@ export function createStatusbar() {
   tick();
   setInterval(tick, 15000);
 
-  const showCount = () => { count.lastChild.textContent = session.stats ? session.stats.files.toLocaleString() : ''; };
-  bus.on('stats:changed', showCount);
+  function paintWho() {
+    const w = current?.who || { username: session.user?.username, you: true };
+    whoName.replaceChildren();
+    if (out) whoName.append('Universe');
+    else whoName.append(h('span', { class: 'sb-at' }, `@${w.username}`), '’s Galaxy');
+    who.classList.toggle('is-other', !out && !w.you);
+  }
 
   let glitched = false;
   return {
     el: bar,
     search: { focus: () => search.show(searchBtn) },
     update(inst) {
-      const w = inst.who || { username: session.user?.username, you: true };
-      whoName.replaceChildren();
-      if (w.community) whoName.append('Community');
-      else whoName.append(h('span', { class: 'sb-at' }, `@${w.username}`), '’s Galaxy');
-      who.classList.toggle('is-other', !w.you);
-      showCount();
+      current = inst;
+      paintWho();
+      showHome();
       if (session.user && !glitched) {
         glitched = true;
         requestAnimationFrame(() => glitch(mark));

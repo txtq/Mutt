@@ -8,29 +8,44 @@ import { PALETTE, generateIcon } from './pixel.js';
 import { debounce, reducedMotion, seeded } from './util.js';
 
 export const DEFAULTS = {
-  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false,
+  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false, mode: 'dark',
 };
 
-// Skies to live under. [deep, glow] for the picker; the rest is in galaxy.css.
+// Skies to live under, by night and by day. [deep, glow] for the picker;
+// the rest is in galaxy.css.
 export const SKIES = {
-  vita: { label: 'Vita', swatch: ['#06123f', '#2f6bff'], theme: '#071440' },
-  nebula: { label: 'Nebula', swatch: ['#160a3d', '#a061ff'], theme: '#140b38' },
-  aurora: { label: 'Aurora', swatch: ['#03212e', '#2fd9b0'], theme: '#04202c' },
-  dusk: { label: 'Dusk', swatch: ['#26092e', '#ff7f8f'], theme: '#230a2b' },
+  vita: { label: 'Vita', swatch: ['#06123f', '#2f6bff'], day: ['#c9d8f2', '#f4f7fd'], theme: '#071440', dayTheme: '#e9eff9' },
+  nebula: { label: 'Nebula', swatch: ['#160a3d', '#8f6bf0'], day: ['#d9d0f2', '#f7f5fd'], theme: '#140b38', dayTheme: '#efecfa' },
+  aurora: { label: 'Aurora', swatch: ['#03212e', '#2fbf9f'], day: ['#c8e6e0', '#f3faf8'], theme: '#04202c', dayTheme: '#e8f4f1' },
+  dusk: { label: 'Dusk', swatch: ['#26092e', '#e0727f'], day: ['#f0d5d2', '#fcf6f4'], theme: '#230a2b', dayTheme: '#f7ecea' },
 };
+
+export const MODES = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+// Light or dark, once Auto has asked the system.
+export const modeOf = (p = {}) => (p.mode === 'light' || p.mode === 'dark' ? p.mode : darkQuery.matches ? 'dark' : 'light');
+let applied = DEFAULTS;
+darkQuery.addEventListener?.('change', () => { if (applied.mode === 'auto') applyPrefs(applied); });
 
 const CACHE = 'mutt.prefs';
 const SIZES = { s: 0.93, m: 1, l: 1.1 };
 
 export function applyPrefs(raw = {}) {
   const p = { ...DEFAULTS, ...raw };
+  applied = p;
   const root = document.documentElement;
+  const mode = modeOf(p);
+  const sky = SKIES[p.sky] || SKIES.vita;
   root.style.setProperty('--t', SIZES[p.size] || 1);
   root.dataset.motion = p.motion;
   root.dataset.logo = p.logo;
   root.dataset.sky = SKIES[p.sky] ? p.sky : 'vita';
+  root.dataset.mode = mode;
+  root.style.colorScheme = mode;
   followLogo(p.logo);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', (SKIES[p.sky] || SKIES.vita).theme);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'light' ? sky.dayTheme : sky.theme);
+  document.dispatchEvent(new CustomEvent('mutt:mode', { detail: mode }));
   return p;
 }
 
@@ -91,5 +106,5 @@ export function tintFor(id) {
 export function sparkle(anchor) {
   if (reducedMotion() || !anchor?.isConnected) return;
   const r = anchor.getBoundingClientRect();
-  burst({ x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 40) }, { color: '#bfe3ff', count: 8, reach: 30 });
+  burst({ x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 40) }, { count: 6, reach: 24 });
 }

@@ -1,243 +1,153 @@
-// Your galaxy: the main page. Planets (your drawers) circle a black hole
-// that everything new goes in through; loose files drift further down as
-// stars. Swipe sideways (or use the arrows and dots) to visit other people's
-// galaxies, and Community at the end.
+// Your galaxy: the main page. A void sits in the middle, and everything new
+// goes in through it. Loose files (stars) settle in a cluster round its edge;
+// planets (your drawers) are scattered further out, each one showing the
+// files on it. Keep scrolling down and the galaxy shrinks away into the
+// universe, where everyone else's galaxies are.
 
 import { blockMenu, openConnect } from '../actions.js';
 import { api, session } from '../api.js';
 import { blackHole } from '../blackhole.js';
 import { draggable } from '../drag.js';
-import { arcTo, burst, center, chipFrom, float, shockwave, spiralInto } from '../fx.js';
+import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { generateIcon, renderIcon } from '../pixel.js';
-import { STAR_COLORS, glyph, planetEl, planetSize, starIcon } from '../planets.js';
+import { generateIcon } from '../pixel.js';
+import { dotWorld, fileFace, glyph, planetEl, planetSize } from '../planets.js';
+import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
-import { bus, debounce, h, isEditable, reducedMotion, seeded, wait } from '../util.js';
-import { viewerOpen } from '../viewer.js';
+import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, wait } from '../util.js';
 
-// Files made this visit, parked by the black hole until they find a planet.
-const fresh = new Set();
-// Set just before sliding to a neighbour, so the next galaxy comes in from that side.
-let entering = 0;
-let order = null;
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+const STAR_CAP = 240;
+// Set by /universe, so the page opens already scrolled out.
+let startOut = false;
 
-export async function galaxyOrder(force = false) {
-  if (!order || force) order = (await api.get('/api/galaxies')).galaxies;
-  return order;
-}
-
-const galaxyUrl = (g) => (g.community ? '/community' : g.you ? '/' : `/g/${g.username}`);
+const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
+const smooth = (t) => t * t * (3 - 2 * t);
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 function excerpt(text, n = 90) {
-  const t = text.trim().replace(/\s+/g, ' ');
+  const t = (text || '').trim().replace(/\s+/g, ' ');
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 }
 
 const starTitle = (b) => b.title || (b.kind === 'text' ? excerpt(b.content || '', 40) : b.fileName) || 'Untitled';
 
-// ---------------------------------------------------------------- swiping between galaxies
-
-function pager(index, list, slide) {
-  const dots = h('nav', { class: 'gx-dots', 'aria-label': 'Galaxies' },
-    list.map((g, i) => h('button', {
-      type: 'button', class: `gx-dot${i === index ? ' is-on' : ''}${g.community ? ' is-community' : ''}`,
-      title: g.community ? 'Community' : g.you ? 'Your galaxy' : `@${g.username}`,
-      'aria-label': g.community ? 'Community' : g.you ? 'Your galaxy' : `@${g.username}’s galaxy`,
-      'aria-current': i === index ? 'page' : null,
-      onclick: () => i !== index && slide(i),
-    })));
-  const arrow = (dir) => {
-    const g = list[index + dir];
-    if (!g) return null;
-    return h('button', {
-      type: 'button', class: `gx-arrow gx-arrow-${dir < 0 ? 'prev' : 'next'}`,
-      'aria-label': g.community ? 'Community' : g.you ? 'Your galaxy' : `@${g.username}’s galaxy`,
-      onclick: () => slide(index + dir),
-    }, glyph('chevron', 14), h('span', { class: 'gx-arrow-name' }, g.community ? 'Community' : g.you ? 'You' : `@${g.username}`));
-  };
-  return { dots, prev: arrow(-1), next: arrow(1) };
-}
-
-// Drag the empty sky sideways to go to the next galaxy over.
-function swipeable(surface, moving, { canGo, go }) {
-  surface.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || e.target.closest('.planet, .star, .bh, .sun, button, a, input, textarea, .gx-stars-head')) return;
-    const start = { x: e.clientX, y: e.clientY, t: performance.now() };
-    let dx = 0;
-    let mode = null;
-    const move = (ev) => {
-      if (ev.pointerId !== e.pointerId) return;
-      dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      if (!mode) {
-        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-        mode = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-        if (mode === 'x') document.body.classList.add('is-swiping');
-      }
-      if (mode !== 'x') return;
-      const dir = dx < 0 ? 1 : -1;
-      const pull = canGo(dir) ? dx : dx * 0.25; // rubber band at the ends
-      moving.style.transform = `perspective(1600px) translateX(${pull}px) rotateY(${(-pull / innerWidth) * 10}deg)`;
-      moving.style.opacity = String(1 - Math.min(0.5, Math.abs(pull) / innerWidth));
-    };
-    const up = (ev) => {
-      if (ev.pointerId !== e.pointerId) return;
-      removeEventListener('pointermove', move);
-      removeEventListener('pointerup', up);
-      removeEventListener('pointercancel', up);
-      document.body.classList.remove('is-swiping');
-      if (mode !== 'x') return;
-      const dir = dx < 0 ? 1 : -1;
-      const fast = Math.abs(dx) / (performance.now() - start.t) > 0.6;
-      if (canGo(dir) && (Math.abs(dx) > innerWidth * 0.2 || (fast && Math.abs(dx) > 40))) go(dir);
-      else {
-        moving.animate([{ transform: moving.style.transform, opacity: moving.style.opacity }, { transform: 'none', opacity: 1 }],
-          { duration: 480, easing: 'cubic-bezier(0.34, 1.3, 0.64, 1)' });
-        moving.style.transform = '';
-        moving.style.opacity = '';
-      }
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
-    addEventListener('pointercancel', up);
-  });
-}
-
-async function slideAway(el, dir) {
-  entering = dir;
-  if (reducedMotion()) return;
-  const from = el.style.transform || 'none';
-  await el.animate([
-    { transform: from, opacity: el.style.opacity || 1 },
-    { transform: `perspective(1600px) translateX(${-dir * innerWidth * 0.7}px) rotateY(${dir * 14}deg) scale(0.92)`, opacity: 0 },
-  ], { duration: 380, easing: 'cubic-bezier(0.55, 0, 1, 0.45)', fill: 'forwards' }).finished.catch(() => {});
-}
-
-function playEntrance(moving, planets, core) {
-  if (reducedMotion()) { entering = 0; return; }
-  const dir = entering;
-  entering = 0;
-  if (dir) {
-    moving.animate([
-      { transform: `perspective(1600px) translateX(${dir * innerWidth * 0.6}px) rotateY(${-dir * 14}deg) scale(0.94)`, opacity: 0 },
-      { transform: 'none', opacity: 1 },
-    ], { duration: 620, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
-  }
-  core?.animate([{ transform: 'scale(0.3)', opacity: 0, filter: 'blur(8px)' }, { transform: 'none', opacity: 1, filter: 'none' }],
-    { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
-  planets.forEach((p, i) => {
-    p.body.animate([
-      { transform: 'scale(0.15)', opacity: 0, filter: 'blur(6px)' },
-      { transform: 'scale(1.06)', opacity: 1, filter: 'none', offset: 0.7 },
-      { transform: 'none', opacity: 1 },
-    ], { duration: 900, delay: 120 + i * 55, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' });
-  });
-}
-
-// ---------------------------------------------------------------- layout: planets on orbits
-
-function perimeter(rx, ry) {
-  return Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
-}
-
-// Rings of planets around the middle, inner rings first. Wide screens get
-// flat ellipses; tall ones grow downwards and the page scrolls.
-function arrange(planets, width, viewH, coreR) {
+function metrics(width) {
   const narrow = width < 640;
-  const scale = narrow ? 0.7 : width < 1000 ? 0.85 : 1;
-  const sizes = planets.map((p) => planetSize(p.count, scale));
-  const big = Math.max(56, ...sizes);
-  const labelRoom = 46;
-  const margin = 14 + big / 2;
-  const aspect = Math.max(0.5, Math.min(1.35, (viewH / width) * 0.95));
-  const step = big + labelRoom + (narrow ? 10 : 26);
-  // The first orbit has to clear the hole's glowing disk sideways, and above
-  // and below it the planets' labels and the hole's own "Add".
-  const rxMin = coreR * 1.6 + big / 2 + (narrow ? 12 : 24);
-  const ryMin = coreR + big / 2 + labelRoom + (narrow ? 16 : 30);
-  let r = Math.max(coreR + big / 2 + (narrow ? 34 : 54), Math.min(width, viewH) * 0.3);
-  const rings = [];
-  let i = 0;
-  while (i < planets.length) {
-    const k = rings.length;
-    const rx = Math.min(Math.max(r, rxMin + k * step), width / 2 - margin);
-    const ry = Math.max(r * aspect, ryMin + k * step);
-    const room = Math.max(3, Math.floor(perimeter(rx, ry) / (big + (narrow ? 24 : 44))));
-    const n = Math.min(room, planets.length - i);
-    rings.push({ rx, ry, start: i, n });
-    i += n;
-    r += step;
-  }
-  const outer = rings.length ? rings[rings.length - 1].ry : coreR;
-  const height = Math.max(viewH, outer * 2 + big + labelRoom * 2 + 40);
-  const cx = width / 2;
-  const cy = height / 2;
+  const mid = width < 1000;
+  return {
+    narrow,
+    scale: narrow ? 0.72 : mid ? 0.86 : 1,
+    hole: narrow ? 46 : 64, // radius of the dark itself
+    chip: narrow ? 30 : 38,
+    cell: narrow ? 37 : 47,
+  };
+}
+
+// ---------------------------------------------------------------- layout
+
+// Stars: a sunflower spiral round the void, newest closest in.
+function starSpots(n, m) {
+  const r0 = m.hole + (m.narrow ? 30 : 42);
   const spots = [];
-  rings.forEach((ring, k) => {
-    const offset = -Math.PI / 2 + k * 0.7 + (ring.n % 2 ? 0 : Math.PI / ring.n / 2);
-    for (let j = 0; j < ring.n; j++) {
-      const a = offset + (j / ring.n) * Math.PI * 2;
-      spots.push({ x: cx + Math.cos(a) * ring.rx, y: cy + Math.sin(a) * ring.ry, size: sizes[ring.start + j] });
+  for (let i = 0; i < n; i++) {
+    const r = Math.sqrt(r0 * r0 + (i * m.cell * m.cell) / Math.PI);
+    const a = i * GOLDEN - Math.PI / 2;
+    spots.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  }
+  const outer = n ? Math.sqrt(r0 * r0 + (n * m.cell * m.cell) / Math.PI) + m.chip / 2 : m.hole + 50;
+  return { spots, outer };
+}
+
+function circleHitsRect(r, rect) {
+  const x = clamp(0, rect.x0, rect.x1);
+  const y = clamp(0, rect.y0, rect.y1);
+  return Math.hypot(x, y) < r;
+}
+
+const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
+
+// Planets: scattered outward in the order they were made, each one nudged
+// along a loose spiral until it sits clear of the void, the stars and every
+// planet (and name) before it.
+function scatter(planets, width, inner, m) {
+  const half = width / 2 - (m.narrow ? 8 : 28);
+  const ax = m.narrow ? 1 : 1.32;
+  const ay = m.narrow ? 1 : 0.78;
+  const pad = m.narrow ? 10 : 22;
+  const rects = [];
+  const spots = planets.map((p, i) => {
+    const s = planetSize(p.count, m.scale);
+    const w = Math.max(s, m.narrow ? 104 : 140);
+    const rand = seeded(`spot:${p.id}`);
+    let a = i * GOLDEN * 1.7 - Math.PI * 0.62 + (rand() - 0.5) * 0.7;
+    let d = inner + s / 2 + 8 + rand() * 40;
+    let x = 0;
+    let y = 0;
+    let rect = null;
+    for (let tries = 0; tries < 900; tries++) {
+      x = Math.cos(a) * d * ax;
+      y = Math.sin(a) * d * ay;
+      if (Math.abs(x) + w / 2 > half) x = Math.sign(x) * Math.max(0, half - w / 2);
+      rect = { x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 };
+      if (!circleHitsRect(inner, rect) && !rects.some((o) => overlaps(o, rect, pad))) break;
+      a += 0.17;
+      d += 3;
     }
+    rects.push(rect);
+    return { x, y, size: s };
   });
-  return { spots, rings, cx, cy, height, scale };
+  return { spots, rects };
 }
 
-function orbitsSvg() {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'gx-orbits');
-  svg.setAttribute('aria-hidden', 'true');
-  return svg;
-}
+// ---------------------------------------------------------------- the universe
 
-function drawOrbits(svg, { rings, cx, cy, height }, width) {
-  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  svg.setAttribute('width', width);
-  svg.setAttribute('height', height);
-  svg.replaceChildren(...rings.map((ring, k) => {
-    const e = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-    e.setAttribute('cx', cx);
-    e.setAttribute('cy', cy);
-    e.setAttribute('rx', ring.rx);
-    e.setAttribute('ry', ring.ry);
-    e.setAttribute('pathLength', '100');
-    e.style.setProperty('--k', k);
-    return e;
-  }));
-}
-
-// ---------------------------------------------------------------- someone else's middle
-
-function sunCore(username) {
-  const el = h('div', { class: 'sun' },
-    h('span', { class: 'sun-rays' }),
-    h('span', { class: 'sun-ball' }, h('span', { class: 'planet-gloss' })),
-    h('span', { class: 'sun-name' }, `@${username}`));
+function miniGalaxy(g, size) {
+  const rand = seeded(`uv:${g.username}`);
+  const worlds = (g.worlds || []).map((w, j) => {
+    const r = size * (0.2 + Math.min(0.24, Math.sqrt(j) * 0.075));
+    const a = j * GOLDEN + rand() * 6.28;
+    const d = Math.max(5, Math.min(size * 0.13, 5 + Math.sqrt(w.n || 0) * 1.6));
+    const dot = dotWorld(w, d);
+    dot.style.transform = `translate(${Math.cos(a) * r}px, ${Math.sin(a) * r}px)`;
+    return dot;
+  });
+  const meta = g.locked
+    ? [glyph('lock', 10), h('span', null, plural(g.planets, 'planet'))]
+    : [h('span', null, `${plural(g.open, 'planet')} · ${plural(g.files, 'file')}`)];
+  const el = h('button', {
+    type: 'button',
+    class: `uvg${g.you ? ' is-you' : ''}${g.locked ? ' is-locked' : ''}`,
+    dataset: { user: g.username },
+    style: { '--spin': `${(70 + rand() * 60).toFixed(0)}s`, '--tilt': `${Math.round((rand() - 0.5) * 30)}deg` },
+    'aria-label': g.you ? 'Your galaxy' : `@${g.username}’s galaxy${g.locked ? ' (locked)' : ''}`,
+  },
+  h('span', { class: 'uvg-sys' },
+    h('span', { class: 'uvg-disk' }, h('span', { class: 'uvg-spin' }, worlds)),
+    h('span', { class: 'uvg-core' })),
+  h('span', { class: 'uvg-name' }, g.you ? 'You' : `@${g.username}`),
+  h('span', { class: 'uvg-meta' }, meta));
+  el.galaxy = g;
   return el;
+}
+
+function universeLayout(list, width, height, m) {
+  const size = m.narrow ? 96 : 128;
+  const cell = size * 1.32;
+  const spots = list.map((g, i) => {
+    if (i === 0) return { x: 0, y: 0 };
+    const r = cell * Math.sqrt(i + 0.35);
+    const a = i * GOLDEN - Math.PI / 2;
+    return { x: Math.cos(a) * r * (m.narrow ? 0.9 : 1.3), y: Math.sin(a) * r * (m.narrow ? 1.15 : 0.82) };
+  });
+  const ext = spots.reduce((acc, s) => ({ x: Math.max(acc.x, Math.abs(s.x)), y: Math.max(acc.y, Math.abs(s.y)) }), { x: 0, y: 0 });
+  const fit = clamp(Math.min((width / 2 - 20) / (ext.x + size * 0.7), (height / 2 - 70) / (ext.y + size * 0.75)), 0.5, 1);
+  return { size, spots, fit };
 }
 
 // ---------------------------------------------------------------- the page
-
-function starPeek(block) {
-  if (block.thumb) return h('span', { class: 'star-peek star-peek-img' }, h('img', { alt: '', 'data-src': block.thumb }));
-  const text = block.kind === 'text' ? block.content : block.meta?.description || block.fileName || block.title;
-  return h('span', { class: 'star-peek' }, h('span', null, excerpt(text || '', 140)));
-}
-
-function ghostFor(block) {
-  const g = h('div', { class: 'star-ghost' }, starIcon(block.kind, 40));
-  g.style.setProperty('--star', STAR_COLORS[block.kind] || STAR_COLORS.other);
-  return g;
-}
-
-function cometFor(block, from, to) {
-  const angle = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
-  const el = h('div', { class: 'comet', style: { '--star': STAR_COLORS[block.kind] || STAR_COLORS.other, '--angle': `${angle}deg` } },
-    h('span', { class: 'comet-tail' }), starIcon(block.kind, 26));
-  return el;
-}
 
 class Galaxy {
   constructor(data, list) {
@@ -246,64 +156,72 @@ class Galaxy {
     this.owner = data.user.username;
     this.planetEls = new Map();
     this.stars = data.stars || [];
+    this.showAll = false;
     this.list = list;
-    this.index = this.mine ? list.findIndex((g) => g.you) : list.findIndex((g) => g.username === this.owner);
     this.off = [];
+    this.p = 0;
 
+    // ------------------------------------------------------------ the galaxy
     this.field = h('div', { class: 'gx-field' });
-    this.orbits = orbitsSvg();
+    this.starsEl = h('div', { class: 'gx-stars', 'aria-label': 'Stars' });
     if (this.mine) {
       this.hole = blackHole({
-        autosort: !!session.prefs.autosort,
-        onAutosort: (on) => updatePrefs({ autosort: on }),
-        onText: (text, from, sort) => this.addText(text, from, sort),
-        onFiles: (files, from, sort) => this.addFiles(files, from, sort),
+        planets: () => this.data.planets,
+        mode: session.prefs.autosort ? 'sort' : 'star',
+        onMode: (mode) => {
+          if ((mode === 'sort' || mode === 'star') && (mode === 'sort') !== !!session.prefs.autosort) updatePrefs({ autosort: mode === 'sort' });
+        },
+        onText: (text, from, dest) => this.addText(text, from, dest),
+        onFiles: (files, from, dest) => this.addFiles(files, from, dest),
       });
       this.coreEl = this.hole.el;
     } else {
-      this.coreEl = sunCore(this.owner);
+      this.coreEl = h('div', { class: 'void is-still' },
+        h('div', { class: 'void-core' },
+          h('span', { class: 'void-lens' }), h('span', { class: 'void-swirl' }), h('span', { class: 'void-ring' }), h('span', { class: 'void-hole' })),
+        h('span', { class: 'void-label' }, `@${this.owner}`));
     }
-    this.coreWrap = h('div', { class: 'gx-core' }, this.coreEl);
-    this.freshEl = h('div', { class: 'gx-fresh' });
+    this.coreWrap = h('div', { class: 'gx-core' }, this.starsEl, this.coreEl);
     this.hint = h('p', { class: 'gx-hint' });
-    this.sky = h('section', { class: 'gx-sky', 'aria-label': this.mine ? 'Your planets' : `@${this.owner}’s planets` },
-      this.orbits, this.coreWrap, this.field, this.freshEl, this.hint);
+    this.scene = h('div', { class: 'gx-scene' }, this.field, this.coreWrap, this.hint);
+    this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy` }, this.scene);
 
-    if (this.mine) {
-      this.starGrid = h('div', { class: 'gx-starfield' });
-      this.starCount = h('span', { class: 'gx-stars-n' });
-      this.starsEmpty = h('p', { class: 'gx-stars-empty' }, 'No loose stars. Everything has a planet.');
-      this.starsSection = h('section', { class: 'gx-stars', 'aria-label': 'Stars' },
-        h('header', { class: 'gx-stars-head' },
-          h('h2', { class: 'gx-stars-title' }, glyph('star', 12), h('span', null, 'Stars'), this.starCount),
-          h('p', { class: 'gx-stars-sub' }, 'Loose files. Drag one onto a planet, or back into the black hole to sort it.')),
-        this.starGrid, this.starsEmpty);
-      this.dock = h('div', { class: 'gx-dock', 'aria-hidden': 'true' });
-    }
-
-    this.moving = h('div', { class: 'gx-moving' }, this.sky, this.starsSection || null);
-    const { dots, prev, next } = pager(this.index, list, (i) => this.slide(i));
-    this.el = h('div', { class: 'galaxy' }, dots, prev, next, this.moving, this.dock || null);
-    swipeable(this.sky, this.moving, {
-      canGo: (dir) => !!this.list[this.index + dir],
-      go: (dir) => this.slide(this.index + dir),
-    });
+    // ------------------------------------------------------------ the universe below
+    this.uvField = h('div', { class: 'uv-field' });
+    this.uvScene = h('div', { class: 'uv-scene' }, this.uvField);
+    this.uvStage = h('section', { class: 'uv-stage', 'aria-label': 'Universe' },
+      h('header', { class: 'uv-head' },
+        h('h2', { class: 'uv-title' }, 'Universe'),
+        h('p', { class: 'uv-sub' }, 'Everyone’s galaxies. Open one to look around.')),
+      this.uvScene);
+    this.runway = h('div', { class: 'uv-runway' }, this.uvStage);
+    this.cue = h('button', { type: 'button', class: 'gx-cue', onclick: () => this.goOut() }, h('span', null, 'Universe'), glyph('down', 12));
+    this.el = h('div', { class: 'world' }, this.stage, this.runway, this.cue);
 
     for (const p of data.planets) this.addPlanet(p);
-    if (this.mine) this.renderStars();
+    this.renderStars();
+    this.renderUniverse();
     this.layout();
     this.setHint();
 
     this.relayout = debounce(() => this.layout(), 120);
-    addEventListener('resize', this.relayout);
     this.refresh = debounce(() => this.reload(), 450);
+    this.lastY = 0;
+    this.onScroll = () => {
+      if (scrollY !== this.lastY) this.heading = scrollY > this.lastY ? 1 : -1;
+      this.lastY = scrollY;
+      cancelAnimationFrame(this.scrollFrame);
+      this.scrollFrame = requestAnimationFrame(() => this.track());
+      clearTimeout(this.snapTimer);
+      this.snapTimer = setTimeout(() => this.snap(), 280);
+    };
     if (this.mine) this.listen();
   }
 
   // ------------------------------------------------------------ planets
 
   addPlanet(planet, { born = false } = {}) {
-    const el = planetEl(planet);
+    const el = planetEl(planet, { peek: true });
     el.ball.dataset.vt = `planet-${planet.id}`;
     if (planet.locked) {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(); });
@@ -312,45 +230,75 @@ class Galaxy {
     this.field.append(el);
     if (born && !reducedMotion()) {
       el.body.animate([
-        { transform: 'scale(0)', filter: 'brightness(3) blur(4px)' },
-        { transform: 'scale(1.25)', filter: 'brightness(1.6)', offset: 0.55 },
-        { transform: 'none', filter: 'none' },
+        { transform: 'scale(0.2)', opacity: 0 },
+        { transform: 'none', opacity: 1 },
       ], { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
     }
     return el;
   }
 
   layout() {
-    const width = this.sky.clientWidth || innerWidth;
-    const viewH = innerHeight - 34;
-    const coreR = width < 640 ? 54 : 74;
-    const planets = this.data.planets;
-    const plan = arrange(planets, width, viewH, coreR);
-    this.sky.style.height = `${plan.height}px`;
-    this.coreWrap.style.transform = `translate(${plan.cx}px, ${plan.cy}px)`;
-    this.center = { x: plan.cx, y: plan.cy };
-    drawOrbits(this.orbits, plan, width);
-    planets.forEach((p, i) => {
+    const width = this.stage.clientWidth || innerWidth;
+    const bar = this.barHeight();
+    const viewH = innerHeight - bar;
+    const m = metrics(width);
+    this.m = m;
+    const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m);
+    const inner = Math.max(outer, m.hole + (m.narrow ? 54 : 80)) + (m.narrow ? 10 : 18);
+    const { spots, rects } = scatter(this.data.planets, width, inner, m);
+
+    let top = -inner;
+    let bottom = inner;
+    for (const r of rects) { top = Math.min(top, r.y0); bottom = Math.max(bottom, r.y1); }
+    const pad = m.narrow ? 36 : 56;
+    const content = bottom - top + pad * 2;
+    const height = Math.max(viewH, content);
+    const cx = width / 2;
+    const cy = pad - top + (height - content) / 2;
+    this.size = { width, height, viewH, bar, cx, cy };
+
+    this.scene.style.height = `${height}px`;
+    this.stage.style.height = `${height}px`;
+    this.stage.style.top = `${bar + viewH - height}px`;
+    this.coreWrap.style.transform = `translate(${cx}px, ${cy}px)`;
+    this.scene.style.transformOrigin = `${cx}px ${cy}px`;
+    this.data.planets.forEach((p, i) => {
       const el = this.planetEls.get(p.id);
-      const spot = plan.spots[i];
+      const spot = spots[i];
       if (!el || !spot) return;
       el.update(p, { size: spot.size });
-      el.style.transform = `translate(${spot.x}px, ${spot.y}px)`;
+      el.style.transform = `translate(${cx + spot.x}px, ${cy + spot.y}px)`;
     });
-    this.placeFresh();
+    [...this.starsEl.children].forEach((el, i) => {
+      const at = starAt[i];
+      if (at) el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+    });
+    this.starsEl.style.setProperty('--chip', `${m.chip}px`);
+
+    // The runway below: how far you scroll to get out to the universe.
+    this.travel = Math.round(Math.max(520, viewH * 1.05));
+    this.runway.style.height = `${this.travel + viewH}px`;
+    this.runway.style.marginTop = `${-viewH}px`;
+    this.uvStage.style.height = `${viewH}px`;
+    this.placeUniverse(width, viewH, m);
+    this.track();
     // Only glide between spots once the first arrangement has landed.
-    if (!this.field.classList.contains('is-live')) requestAnimationFrame(() => requestAnimationFrame(() => this.field.classList.add('is-live')));
+    if (!this.scene.classList.contains('is-live')) requestAnimationFrame(() => requestAnimationFrame(() => this.scene.classList.add('is-live')));
+  }
+
+  barHeight() {
+    return document.querySelector('.sb')?.offsetHeight || 34;
   }
 
   setHint() {
     if (this.mine) {
       const empty = !this.data.planets.length && !this.stars.length;
-      this.hint.textContent = empty ? 'Your galaxy is empty. Click the black hole to put something in.' : '';
+      this.hint.textContent = empty ? 'Your galaxy is empty. Click the void to put something in.' : '';
     } else if (!this.data.planets.length) {
       this.hint.textContent = `@${this.owner} hasn’t shared any planets yet.`;
     } else if (this.data.planets.some((p) => p.locked) && !this.data.unlocked) {
       this.hint.replaceChildren(
-        h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => this.unlock() }, glyph('lock', 12), h('span', null, `Enter @${this.owner}’s code to see the locked planets`)));
+        h('button', { type: 'button', class: 'vbtn', onclick: () => this.unlock() }, glyph('lock', 12), h('span', null, `Enter @${this.owner}’s code to see the locked planets`)));
     } else this.hint.textContent = '';
     this.hint.hidden = !this.hint.textContent && !this.hint.children.length;
   }
@@ -366,7 +314,7 @@ class Galaxy {
     for (const id of known) {
       const el = this.planetEls.get(id);
       this.planetEls.delete(id);
-      el.animate([{ transform: el.style.transform, opacity: 1 }, { transform: `${el.style.transform} scale(0)`, opacity: 0 }], { duration: 500, easing: 'ease-in' })
+      el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, easing: 'ease-in' })
         .finished.then(() => el.remove(), () => el.remove());
     }
     if (this.mine) {
@@ -392,19 +340,20 @@ class Galaxy {
     else this.data.planets.push(planet);
   }
 
-  async unlock() {
+  async unlock(owner = this.owner, after = null) {
     const msg = h('p', { class: 'dialog-msg' });
     const field = pinField({
       autocomplete: 'off',
-      label: `${this.owner}'s code`,
+      label: `${owner}'s code`,
       onComplete: async (pin) => {
         msg.textContent = '';
         field.state('busy');
         try {
-          const data = await api.post(`/api/galaxy/${encodeURIComponent(this.owner)}/unlock`, { pin });
+          const data = await api.post(`/api/galaxy/${encodeURIComponent(owner)}/unlock`, { pin });
           field.state('ok');
           await wait(380);
           dialog.close();
+          if (after) { after(); return; }
           for (const el of this.planetEls.values()) if (el.planet.locked) el.classList.add('is-thawing');
           await wait(reducedMotion() ? 0 : 420);
           this.apply(data);
@@ -420,7 +369,7 @@ class Galaxy {
       },
     });
     const dialog = openDialog({
-      title: `@${this.owner}’s code`,
+      title: `@${owner}’s code`,
       className: 'dialog-code',
       body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, 'Their locked planets open for you for 12 hours.'), field.el, msg),
     });
@@ -429,19 +378,17 @@ class Galaxy {
 
   // ------------------------------------------------------------ stars
 
+  shownStars() {
+    return this.showAll || this.stars.length <= STAR_CAP ? this.stars : this.stars.slice(0, STAR_CAP - 1);
+  }
+
   starEl(block) {
     const label = starTitle(block);
-    const rand = seeded(block.id);
     const el = h('button', {
       type: 'button', class: 'star', dataset: { id: block.id, kind: block.kind }, 'aria-label': `${label} (star)`,
-      style: { '--jx': `${Math.round((rand() - 0.5) * 18)}px`, '--jy': `${Math.round((rand() - 0.5) * 22)}px`, '--tw': `${(3 + rand() * 4).toFixed(1)}s`, '--twd': `${(-rand() * 6).toFixed(1)}s`, '--star': STAR_COLORS[block.kind] || STAR_COLORS.other },
-    }, h('span', { class: 'star-glow' }), starIcon(block.kind, 30), h('span', { class: 'star-name' }, label), starPeek(block));
+    }, fileFace(block), h('span', { class: 'star-tip' }, label));
     el.block = block;
     el.addEventListener('click', () => nav.openBlock(block.id));
-    el.addEventListener('pointerenter', () => {
-      const img = el.querySelector('img[data-src]');
-      if (img) { img.src = img.dataset.src; img.removeAttribute('data-src'); }
-    });
     el.addEventListener('contextmenu', (e) => {
       if (document.body.classList.contains('is-carrying')) return;
       e.preventDefault();
@@ -451,105 +398,57 @@ class Galaxy {
       if (e.key === 'm' || (e.key === 'Enter' && e.shiftKey)) { e.preventDefault(); openConnect(el, el.block); }
     });
     draggable(el, {
-      ghost: () => ghostFor(el.block),
+      ghost: () => h('div', { class: 'star-ghost' }, fileFace(el.block)),
       targets: () => this.targets(),
-      onStart: () => this.showDock(),
-      onEnd: () => this.hideDock(),
       onDrop: (target, ghost) => this.dropStar(el.block, target, ghost),
     });
     return el;
   }
 
   renderStars() {
-    const have = new Map([...this.starGrid.children].map((el) => [el.dataset.id, el]));
+    if (!this.mine) return;
+    const have = new Map([...this.starsEl.querySelectorAll('.star[data-id]')].map((el) => [el.dataset.id, el]));
     const next = [];
-    for (const block of this.stars) {
+    const shown = this.shownStars();
+    for (const block of shown) {
       let el = have.get(block.id);
-      if (el) { el.block = block; have.delete(block.id); } else { el = this.starEl(block); el.classList.add('is-new'); }
+      if (el && (el.block.thumb !== block.thumb || el.block.title !== block.title)) {
+        const swap = this.starEl(block);
+        swap.style.transform = el.style.transform;
+        el = swap;
+      } else if (el) {
+        el.block = block;
+      } else {
+        el = this.starEl(block);
+        el.classList.add('is-new');
+      }
+      have.delete(block.id);
       next.push(el);
     }
-    for (const el of have.values()) el.remove();
-    this.starGrid.replaceChildren(...next);
-    this.starCount.textContent = this.stars.length ? String(this.stars.length) : '';
-    this.starsEmpty.hidden = this.stars.length > 0;
-    this.renderFresh();
-  }
-
-  // New stars wait by the black hole, ready to be dragged off.
-  renderFresh() {
-    if (!this.mine) return;
-    const ids = this.stars.filter((b) => fresh.has(b.id)).slice(0, 8);
-    for (const id of [...fresh]) if (!this.stars.some((b) => b.id === id)) fresh.delete(id);
-    const have = new Map([...this.freshEl.children].map((el) => [el.dataset.id, el]));
-    const next = ids.map((block) => {
-      const el = have.get(block.id) || this.freshStar(block);
-      have.delete(block.id);
-      return el;
-    });
-    for (const el of have.values()) el.remove();
-    this.freshEl.replaceChildren(...next);
-    this.placeFresh();
-  }
-
-  freshStar(block) {
-    const el = this.starEl(block);
-    el.classList.add('star-fresh');
-    el.querySelector('.star-name').textContent = 'new';
-    return el;
-  }
-
-  placeFresh() {
-    if (!this.center) return;
-    const kids = [...this.freshEl.children];
-    const narrow = innerWidth < 640;
-    kids.forEach((el, i) => {
-      const a = -Math.PI * 0.82 + i * 0.52;
-      const rx = narrow ? 84 : 118;
-      const ry = narrow ? 92 : 104;
-      el.style.transform = `translate(${this.center.x + Math.cos(a) * rx}px, ${this.center.y + Math.sin(a) * ry}px)`;
-    });
+    const more = this.stars.length - shown.length;
+    if (more) {
+      next.push(h('button', {
+        type: 'button', class: 'star star-more', 'aria-label': `Show ${more} more stars`,
+        onclick: () => { this.showAll = true; this.renderStars(); this.layout(); },
+      }, h('span', null, `+${more}`)));
+    }
+    this.starsEl.replaceChildren(...next);
   }
 
   targets() {
     const list = [];
-    const fromDock = this.dock?.classList.contains('is-on');
     for (const [id, el] of this.planetEls) {
       if (el.planet.locked) continue;
       list.push({ kind: 'planet', id, el, measure: () => el.center() });
     }
-    if (fromDock) {
-      for (const el of this.dock.children) {
-        list.push({ kind: 'planet', id: el.dataset.id, el, dock: true, measure: () => {
-          const r = el.querySelector('.planet-ball').getBoundingClientRect();
-          return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
-        } });
-      }
-    }
     if (this.hole) {
-      list.push({ kind: 'hole', el: this.hole.el, measure: () => ({ ...this.hole.center(), r: 46 }), onHover: (on) => this.hole.hover(on) });
+      list.push({ kind: 'hole', el: this.hole.el, measure: () => ({ ...this.hole.center(), r: this.hole.radius() }), onHover: (on) => this.hole.hover(on) });
     }
     return list;
   }
 
-  // Dragging a star from far down the page: your planets line up along the bottom.
-  showDock() {
-    if (!this.dock || !this.data.planets.length) return;
-    if (this.sky.getBoundingClientRect().bottom > innerHeight * 0.55) return;
-    this.dock.replaceChildren(...this.data.planets.filter((p) => !p.locked).map((p) => {
-      const el = planetEl(p, { size: 44, href: null });
-      el.classList.add('planet-mini');
-      return el;
-    }));
-    this.dock.classList.add('is-on');
-  }
-
-  hideDock() {
-    this.dock?.classList.remove('is-on');
-  }
-
   async dropStar(block, target, ghost) {
     const at = target.measure();
-    const color = STAR_COLORS[block.kind] || STAR_COLORS.other;
     if (target.kind === 'hole') {
       await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 900 });
       this.hole.gulp();
@@ -563,16 +462,14 @@ class Galaxy {
       }
       return;
     }
-    const planetEl = this.planetEls.get(target.id);
-    await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 620, turns: 0.6 });
-    (target.dock ? target.el : planetEl)?.gulp?.();
-    burst(at, { color, count: 8, reach: 28 });
+    const el = this.planetEls.get(target.id);
+    await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 620, turns: 0.5 });
+    el?.gulp();
     try {
       const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: target.id });
       this.forgetStar(block.id);
-      planetEl?.bump(1);
-      planetEl?.gulp();
-      toast(`Moved to ${planetEl?.planet.title || 'a planet'}`);
+      el?.bump(1);
+      toast(`Moved to ${el?.planet.title || 'a planet'}`);
       bus.emit('block:connected', { block: res.block, drawerId: target.id });
       this.refresh();
     } catch (err) {
@@ -581,27 +478,42 @@ class Galaxy {
   }
 
   forgetStar(id) {
-    fresh.delete(id);
-    const all = [...this.starGrid.querySelectorAll(`.star[data-id="${CSS.escape(id)}"]`), ...this.freshEl.querySelectorAll(`.star[data-id="${CSS.escape(id)}"]`)];
+    const el = this.starsEl.querySelector(`.star[data-id="${CSS.escape(id)}"]`);
     this.stars = this.stars.filter((b) => b.id !== id);
-    for (const el of all) el.classList.add('is-leaving');
-    setTimeout(() => this.renderStars(), all.length && !reducedMotion() ? 380 : 0);
+    el?.classList.add('is-leaving');
+    setTimeout(() => { this.renderStars(); this.layout(); }, el && !reducedMotion() ? 320 : 0);
   }
 
   // ------------------------------------------------------------ putting things in
 
-  async addText(text, from, sort) {
+  // The planet a new thing is headed for, made first if it's new.
+  async target(dest) {
+    if (dest.mode === 'planet') return this.data.planets.find((p) => p.id === dest.planetId) || null;
+    if (dest.mode === 'new') {
+      const { drawer } = await api.post('/api/drawers', { title: dest.title, icon: generateIcon() });
+      return { ...drawer, count: 0, previews: [], mine: true, isNew: true };
+    }
+    return null;
+  }
+
+  async addText(text, from, dest) {
     const isLink = /^https?:\/\/\S+$/i.test(text.trim());
-    const chip = chipFrom(from, h('span', { class: `fx-chip-text${isLink ? ' is-link' : ''}` }, excerpt(text, 70)));
-    const request = api.post('/api/blocks', { content: text, autosort: sort, icon: sort ? generateIcon() : undefined });
+    const chip = chipFrom(from, h('span', { class: `fx-chip-text${isLink ? ' is-link' : ''}` }, excerpt(text, 70)), 'fx-paper');
+    const sort = dest.mode === 'sort';
+    const request = (async () => {
+      const planet = await this.target(dest);
+      const res = await api.post('/api/blocks', { content: text, autosort: sort, icon: sort ? generateIcon() : undefined, drawer: planet?.id });
+      return { ...res, planet };
+    })();
     await spiralInto(chip, center(chip.getBoundingClientRect()), this.hole.center());
     this.hole.gulp();
     this.hole.setLabel(isLink ? 'Looking…' : 'Add');
     try {
-      const { block, sortedInto } = await request;
+      const { block, sortedInto, planet } = await request;
       if (session.stats) session.stats.files += 1;
       bus.emit('stats:changed', session.stats);
       if (sortedInto) await this.launch(block, sortedInto);
+      else if (planet) await this.launch(block, { planet: { ...planet, count: (planet.count || 0) + 1, previews: [block, ...(planet.previews || [])] }, created: planet.isNew });
       else await this.birth(block);
     } catch (err) {
       toast(err.message);
@@ -611,19 +523,33 @@ class Galaxy {
     }
   }
 
-  addFiles(files, from, sort) {
+  async addFiles(files, from, dest) {
     if (!files.length) return;
     const start = from ? center(from) : this.hole.center();
     files.slice(0, 6).forEach((file, i) => {
       setTimeout(() => {
-        const icon = file.type.startsWith('image/') && file.size < 20e6
+        const face = file.type.startsWith('image/') && file.size < 20e6
           ? h('img', { src: URL.createObjectURL(file), alt: '' })
           : h('span', { class: 'fx-chip-text' }, file.name);
-        const chip = float(h('div', { class: 'fx-chip fx-chip-file' }, icon), start);
+        const chip = float(h('div', { class: 'fx-chip fx-chip-file' }, face), start);
         spiralInto(chip, start, this.hole.center(), { duration: 950 + i * 40 }).then(() => this.hole.gulp());
       }, i * 140);
     });
-    addFiles(files, { galaxy: true, autosort: sort, icon: sort ? generateIcon() : null });
+    const sort = dest.mode === 'sort';
+    let planet = null;
+    try {
+      planet = await this.target(dest);
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+    if (planet?.isNew) {
+      this.setPlanet(planet);
+      this.addPlanet(planet, { born: true });
+      this.layout();
+      toast(`New planet: ${planet.title}`);
+    }
+    addFiles(files, { galaxy: true, drawerId: planet?.id || null, autosort: sort, icon: sort ? generateIcon() : null });
   }
 
   // Into a planet straight from the sky (files dropped on it).
@@ -633,33 +559,30 @@ class Galaxy {
     files.slice(0, 6).forEach((file, i) => {
       setTimeout(() => {
         const chip = float(h('div', { class: 'fx-chip fx-chip-file' }, h('span', { class: 'fx-chip-text' }, file.name)), at);
-        spiralInto(chip, at, el.center(), { duration: 700, turns: 0.6 }).then(() => el.gulp());
+        spiralInto(chip, at, el.center(), { duration: 700, turns: 0.5 }).then(() => el.gulp());
       }, i * 120);
     });
     addFiles(files, { drawerId: planetId });
   }
 
-  // A star is born: out of the black hole and into orbit beside it.
+  // A new star: up out of the void and into the cluster round it.
   async birth(block) {
-    fresh.add(block.id);
     if (!this.stars.some((b) => b.id === block.id)) this.stars.unshift(block);
-    const from = this.hole.center();
-    const color = STAR_COLORS[block.kind] || STAR_COLORS.other;
-    burst(from, { color, count: 12, reach: 44 });
-    shockwave(from, { size: 90, color });
     this.renderStars();
-    const slot = this.freshEl.querySelector(`.star[data-id="${CSS.escape(block.id)}"]`);
-    if (!slot || reducedMotion()) { this.setHint(); return; }
-    slot.classList.add('is-arriving');
-    const to = center(slot.querySelector('.star-icon').getBoundingClientRect());
-    await arcTo(float(ghostFor(block), from), from, to, { duration: 900, lift: 0.55, startScale: 0.1, endScale: 0.75, spin: 360 });
-    slot.classList.remove('is-arriving');
-    slot.classList.add('is-born');
-    burst(to, { color, count: 6, reach: 18 });
+    this.layout();
     this.setHint();
+    const el = this.starsEl.querySelector(`.star[data-id="${CSS.escape(block.id)}"]`);
+    if (!el || reducedMotion()) return;
+    el.classList.remove('is-new');
+    const to = el.style.transform;
+    el.animate([
+      { transform: 'translate(0px, 0px) scale(0.1)', opacity: 0 },
+      { transform: `${to} scale(1.2)`, opacity: 1, offset: 0.7 },
+      { transform: `${to} scale(1)`, opacity: 1 },
+    ], { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
   }
 
-  // A comet out of the black hole to the planet it was sorted onto.
+  // Out of the void to the planet it went onto: the file itself, flying.
   async launch(block, { planet, created }) {
     this.setPlanet(planet);
     let el = this.planetEls.get(planet.id);
@@ -672,13 +595,12 @@ class Galaxy {
     }
     const from = this.hole.center();
     const to = el.center();
-    const color = STAR_COLORS[block.kind] || STAR_COLORS.other;
-    burst(from, { color, count: 10, reach: 36 });
-    await arcTo(float(cometFor(block, from, to), from), from, to, { duration: 1000, lift: 0.28, startScale: 0.3, endScale: 0.35 });
+    const chip = float(h('div', { class: 'fx-file' }, fileFace(block)), from);
+    await arcTo(chip, from, to, { duration: 950, lift: 0.22, startScale: 0.4, endScale: 0.3 });
     el.gulp();
     el.bump(1);
-    burst(to, { color, count: 10, reach: 34 });
-    toast(created ? `New planet: ${planet.title}` : `Sorted into ${planet.title}`);
+    burst(to, { color: 'rgba(255,255,255,0.8)', count: 5, reach: 20 });
+    toast(created ? `New planet: ${planet.title}` : `Added to ${planet.title}`);
     this.setHint();
     this.refresh();
   }
@@ -691,13 +613,13 @@ class Galaxy {
       if (el.planet.locked) continue;
       const c = el.center();
       const d = Math.hypot(x - c.x, y - c.y);
-      if (d < c.r * 1.3 + 18 && (!best || d < best.d)) best = { id, el, d };
+      if (d < c.r * 1.2 + 14 && (!best || d < best.d)) best = { id, el, d };
     }
     return best;
   }
 
   dropTarget() {
-    if (!this.mine) return { label: 'You can only add to your own galaxy' };
+    if (!this.mine || this.p > 0.5) return { label: this.mine ? 'Scroll back up to your galaxy to add files' : 'You can only add to your own galaxy' };
     return {
       overlay: false,
       over: (e) => {
@@ -714,7 +636,7 @@ class Galaxy {
         for (const el of this.planetEls.values()) el.classList.remove('is-target');
         this.hole.hover(false);
         if (found) this.addFilesTo(found.id, files, { x: e.clientX, y: e.clientY });
-        else this.addFiles(files, e ? new DOMRect(e.clientX - 20, e.clientY - 20, 40, 40) : null, this.hole.autosort());
+        else this.addFiles(files, e ? new DOMRect(e.clientX - 20, e.clientY - 20, 40, 40) : null, { mode: this.hole.mode() === 'sort' ? 'sort' : 'star' });
       },
     };
   }
@@ -726,7 +648,10 @@ class Galaxy {
       bus.on('upload:done', (item) => {
         if (item.ctx.galaxy) {
           if (item.sortedInto) this.launch(item.block, item.sortedInto);
-          else this.birth(item.block);
+          else if (item.ctx.drawerId) {
+            const p = this.data.planets.find((x) => x.id === item.ctx.drawerId);
+            if (p) this.launch(item.block, { planet: { ...p, count: (p.count || 0) + 1, previews: [item.block, ...(p.previews || [])] }, created: false });
+          } else this.birth(item.block);
         } else if (item.ctx.drawerId && this.planetEls.has(item.ctx.drawerId)) {
           this.planetEls.get(item.ctx.drawerId).bump(1);
           this.refresh();
@@ -743,21 +668,111 @@ class Galaxy {
     );
   }
 
-  // ------------------------------------------------------------ moving between galaxies
+  // ------------------------------------------------------------ out to the universe and back
 
-  async slide(i) {
-    const g = this.list[i];
-    if (!g || this.sliding) return;
-    this.sliding = true;
-    await slideAway(this.moving, i > this.index ? 1 : -1);
-    nav.go(galaxyUrl(g), { motion: 'none' });
+  renderUniverse() {
+    this.uvEls = this.list.map((g) => {
+      const el = miniGalaxy(g, 100);
+      el.addEventListener('click', () => this.visit(g, el));
+      return el;
+    });
+    this.uvField.replaceChildren(...this.uvEls);
   }
 
-  keys = (e) => {
-    if (isEditable(document.activeElement) || viewerOpen() || document.querySelector('.scrim, .sheet.is-open') || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'ArrowLeft' && this.list[this.index - 1]) { e.preventDefault(); this.slide(this.index - 1); }
-    if (e.key === 'ArrowRight' && this.list[this.index + 1]) { e.preventDefault(); this.slide(this.index + 1); }
-  };
+  placeUniverse(width, viewH, m) {
+    const plan = universeLayout(this.list, width, viewH, m);
+    this.uvEls.forEach((el, i) => {
+      el.style.setProperty('--m', `${plan.size}px`);
+      el.style.transform = `translate(${plan.spots[i].x}px, ${plan.spots[i].y}px)`;
+    });
+    this.uvField.style.transform = `scale(${plan.fit})`;
+    // Where this galaxy sits out there (yours is in the middle).
+    const i = Math.max(0, this.list.findIndex((g) => (this.mine ? g.you : g.username === this.owner)));
+    const spot = plan.spots[i] || { x: 0, y: 0 };
+    this.home = { x: spot.x * plan.fit, y: spot.y * plan.fit + 24, size: plan.size * plan.fit };
+    this.uvScene.style.transformOrigin = `calc(50% + ${this.home.x}px) calc(50% + ${this.home.y}px)`;
+  }
+
+  // Scroll position → how far out we are (0 here, 1 in the universe).
+  track() {
+    if (!this.size) return;
+    const { height, viewH, width, cy, cx } = this.size;
+    const p = clamp((scrollY - (height - viewH)) / this.travel);
+    this.p = p;
+    const e = easeInOut(p);
+    // The galaxy turns away and shrinks into its place among the others.
+    const span = Math.max(width, height) * 0.92;
+    const k = 1 - (1 - (this.home.size * 1.15) / span) * e;
+    const dx = (width / 2 + this.home.x - cx) * e;
+    const dy = (viewH / 2 + this.home.y - (viewH - height + cy)) * e;
+    this.scene.style.transform = p ? `translate(${dx}px, ${dy}px) rotate(${-26 * e}deg) scale(${k})` : '';
+    this.scene.style.opacity = p ? String(1 - smooth(clamp((e - 0.55) / 0.4))) : '';
+    // The universe swings in from very close.
+    const z = 3.4 - 2.4 * e;
+    this.uvScene.style.transform = `rotate(${22 * (1 - e)}deg) scale(${z})`;
+    this.uvStage.style.opacity = String(smooth(clamp((e - 0.3) / 0.55)));
+    this.cue.style.opacity = String(1 - clamp(p * 5));
+    this.cue.style.pointerEvents = p > 0.1 ? 'none' : '';
+    const out = p > 0.5;
+    if (out !== this.out) {
+      this.out = out;
+      this.el.classList.toggle('is-out', out);
+      if (out && !isEditable(document.activeElement)) this.hole?.close();
+      bus.emit('universe', out);
+    }
+    theSky()?.setNight(e);
+  }
+
+  // Let go between the two and it carries on the way you were going.
+  snap() {
+    if (!this.size || this.p <= 0.01 || this.p >= 0.99 || reducedMotion()) return;
+    // Typing (a phone keyboard can scroll the page): leave it where it is.
+    if (this.hole?.isOpen() || isEditable(document.activeElement)) return;
+    const start = this.size.height - this.size.viewH;
+    const out = this.heading > 0 ? this.p > 0.1 : this.p > 0.9;
+    scrollTo({ top: out ? start + this.travel : start, behavior: 'smooth' });
+  }
+
+  goOut(instant = false) {
+    if (!this.size) return;
+    scrollTo({ top: this.size.height - this.size.viewH + this.travel, behavior: instant || reducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  goHome() {
+    scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  async visit(g, el) {
+    const here = this.mine ? g.you : g.username === this.owner;
+    if (here) { this.goHome(); return; }
+    const go = async () => {
+      if (!reducedMotion()) {
+        const r = el.getBoundingClientRect();
+        const s = this.uvStage.getBoundingClientRect();
+        this.uvScene.style.transformOrigin = `${r.left + r.width / 2 - s.left}px ${r.top + r.height / 2 - s.top}px`;
+        await this.uvScene.animate([
+          { transform: this.uvScene.style.transform || 'none', opacity: 1 },
+          { transform: 'scale(3.2)', opacity: 0 },
+        ], { duration: 520, easing: 'cubic-bezier(0.55, 0, 1, 0.45)', fill: 'forwards' }).finished.catch(() => {});
+      }
+      nav.go(g.you ? '/' : `/g/${g.username}`, { motion: 'none' });
+    };
+    if (g.locked) this.unlock(g.username, go);
+    else go();
+  }
+
+  entrance() {
+    if (reducedMotion()) return;
+    this.coreEl.animate([{ transform: 'scale(0.6)', opacity: 0 }, { transform: 'none', opacity: 1 }],
+      { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 200, fill: 'backwards' });
+    [...this.planetEls.values()].forEach((p, i) => {
+      p.body.animate([
+        { transform: 'scale(0.85)', opacity: 0 },
+        { transform: 'none', opacity: 1 },
+      ], { duration: 800, delay: 120 + i * 50, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' });
+    });
+  }
 
   inst() {
     return {
@@ -765,18 +780,31 @@ class Galaxy {
       title: this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy`,
       chrome: 'galaxy',
       who: { username: this.owner, you: this.mine },
+      home: !this.mine,
+      goHome: this.mine ? () => this.goHome() : null,
       list: () => this.stars,
       dropTarget: () => this.dropTarget(),
-      pasteText: (text) => this.hole?.focusText(text),
+      pasteText: (text) => { if (this.p < 0.5) this.hole?.focusText(text); },
       mounted: () => {
         this.layout();
-        addEventListener('keydown', this.keys);
-        playEntrance(this.moving, [...this.planetEls.values()], this.coreEl);
+        addEventListener('resize', this.relayout);
+        addEventListener('scroll', this.onScroll, { passive: true });
+        theSky()?.setLens(() => {
+          if (this.p > 0.02 || !this.el.isConnected) return null;
+          const r = this.coreEl.querySelector('.void-hole').getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+        });
+        if (startOut) { startOut = false; requestAnimationFrame(() => this.goOut(true)); }
+        this.entrance();
       },
       destroy: () => {
         removeEventListener('resize', this.relayout);
-        removeEventListener('keydown', this.keys);
+        removeEventListener('scroll', this.onScroll);
+        clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
+        theSky()?.setLens(null);
+        theSky()?.setNight(0);
+        bus.emit('universe', false);
       },
     };
   }
@@ -785,14 +813,14 @@ class Galaxy {
 export const galaxyView = {
   async load([username]) {
     const mine = !username || username === session.user.username;
-    const [data, list] = await Promise.all([
+    const [data, { galaxies }] = await Promise.all([
       api.get(mine ? '/api/galaxy' : `/api/galaxy/${encodeURIComponent(username)}`),
-      galaxyOrder(true),
+      api.get('/api/galaxies'),
     ]);
-    if (!mine && !list.some((g) => g.username === data.user.username)) {
-      list.push({ username: data.user.username, you: false, planets: data.planets.length, critters: [] });
+    if (!mine && !galaxies.some((g) => g.username === data.user.username)) {
+      galaxies.push({ username: data.user.username, you: false, planets: data.planets.length, open: data.planets.length, files: 0, worlds: [] });
     }
-    return { data, list: [...list, { community: true }] };
+    return { data, list: galaxies };
   },
 
   create(params, { data, list }) {
@@ -802,43 +830,11 @@ export const galaxyView = {
   },
 };
 
-// The last page over: Community, still being built.
-export const communityView = {
-  async load() {
-    const list = await galaxyOrder(true);
-    return { list: [...list, { community: true }] };
-  },
-
-  create(params, { list }) {
-    const index = list.length - 1;
-    const moving = h('div', { class: 'gx-moving' });
-    const slide = async (i) => {
-      await slideAway(moving, i > index ? 1 : -1);
-      nav.go(galaxyUrl(list[i]), { motion: 'none' });
-    };
-    const { dots, prev } = pager(index, list, slide);
-    const scene = h('section', { class: 'gx-sky gx-construction' },
-      h('div', { class: 'cx-scene' },
-        h('div', { class: 'cx-planet' },
-          h('span', { class: 'cx-scaffold' }),
-          h('span', { class: 'cx-ball' }, h('span', { class: 'planet-gloss' })),
-          h('span', { class: 'cx-crane' }, h('span', { class: 'cx-hook' }, renderIcon(generateIcon(seeded('builder')), { size: 22 })))),
-        h('h1', { class: 'cx-title' }, 'Community'),
-        h('p', { class: 'cx-sub' }, 'Under construction. Soon: planets everyone can add to, and a sky of things people share.'),
-        h('div', { class: 'cx-tape', 'aria-hidden': 'true' })));
-    moving.append(scene);
-    swipeable(scene, moving, { canGo: (dir) => !!list[index + dir], go: (dir) => slide(index + dir) });
-    const keys = (e) => {
-      if (isEditable(document.activeElement) || document.querySelector('.scrim, .sheet.is-open')) return;
-      if (e.key === 'ArrowLeft') { e.preventDefault(); slide(index - 1); }
-    };
-    return {
-      el: h('div', { class: 'galaxy' }, dots, prev, moving),
-      title: 'Community',
-      chrome: 'galaxy',
-      who: { community: true },
-      mounted: () => { addEventListener('keydown', keys); playEntrance(moving, [], scene.querySelector('.cx-scene')); },
-      destroy: () => removeEventListener('keydown', keys),
-    };
+// The universe is your galaxy, scrolled all the way out.
+export const universeView = {
+  load: () => galaxyView.load([]),
+  create(params, loaded) {
+    startOut = true;
+    return galaxyView.create([], loaded);
   },
 };

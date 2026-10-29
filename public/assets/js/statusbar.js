@@ -1,7 +1,7 @@
 // The thin bar along the top, like the Vita's: the wordmark on the left,
 // whose galaxy this is in the middle (tap it for your account and settings),
-// and search and the time on the right. Away from home, a little void sits
-// in the top corner: tap it to fall back into your own galaxy.
+// and search and the time on the right. Away from home, a little ship waits
+// in the top corner: tap it to fly back to your own galaxy.
 
 import { api, session } from './api.js';
 import { LOGOS, glitch, logo } from './logo.js';
@@ -15,6 +15,101 @@ import { renderCell } from './cells.js';
 
 const current = () => ({ ...DEFAULTS, ...session.prefs });
 const save = (patch) => updatePrefs(patch, (err) => err && toast(err.message));
+
+// ---------------------------------------------------------------- the ship home
+
+// Drawn nose up; CSS turns it toward the wordmark.
+const SHIP = `<svg viewBox="0 0 32 32" aria-hidden="true">
+  <defs>
+    <linearGradient id="ship-hull" x1="0" x2="1">
+      <stop offset="0" class="ship-hull-a"/><stop offset="0.45" class="ship-hull-b"/><stop offset="1" class="ship-hull-c"/>
+    </linearGradient>
+    <linearGradient id="ship-fire" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff4d6"/><stop offset="0.35" stop-color="#ffb347"/><stop offset="1" stop-color="#ff7a3a" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="ship-glass" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#cfe6ff"/><stop offset="0.5" stop-color="#4f8dff"/><stop offset="1" stop-color="#1b2f74"/>
+    </radialGradient>
+  </defs>
+  <path class="ship-fire" d="M13.2 23.2h5.6L16 31.5z" fill="url(#ship-fire)"/>
+  <path class="ship-fin" d="M11.6 15.5 6.5 22.4v2.1l5.2-2.6zM20.4 15.5l5.1 6.9v2.1l-5.2-2.6z"/>
+  <path class="ship-hull" d="M16 2.2c3.6 3 5.4 8.4 5.1 14.6l-.4 6.4H11.3l-.4-6.4C10.6 10.6 12.4 5.2 16 2.2z" fill="url(#ship-hull)"/>
+  <path class="ship-nozzle" d="M12.6 23.2h6.8l-.9 1.6h-5z"/>
+  <path class="ship-keel" d="M16 18.5v6.2"/>
+  <circle cx="16" cy="11.2" r="2.7" fill="url(#ship-glass)" class="ship-window"/>
+  <circle cx="15.1" cy="10.3" r="0.8" fill="#fff" opacity="0.85"/>
+</svg>`;
+
+// A point and heading `t` of the way along a cubic curve.
+function bezier(p, t) {
+  const u = 1 - t;
+  const at = (k) => u * u * u * p[0][k] + 3 * u * u * t * p[1][k] + 3 * u * t * t * p[2][k] + t * t * t * p[3][k];
+  const d = (k) => 3 * u * u * (p[1][k] - p[0][k]) + 6 * u * t * (p[2][k] - p[1][k]) + 3 * t * t * (p[3][k] - p[2][k]);
+  return { x: at(0), y: at(1), heading: (Math.atan2(d(0), -d(1)) * 180) / Math.PI };
+}
+
+// The take-off: a shudder as it lights, then a lift along its nose, a wide
+// swing out over the page (growing as it comes toward you) and a climb up
+// off the top, leaving a fading trail. The page drops away behind it.
+async function launch(btn, craft, page) {
+  const r = btn.getBoundingClientRect();
+  const x0 = r.left + r.width / 2;
+  const y0 = r.top + r.height / 2;
+  const tilt = parseFloat(getComputedStyle(btn).getPropertyValue('--aim')) || 0;
+  const rad = (tilt * Math.PI) / 180;
+  const w = innerWidth;
+  const hgt = innerHeight;
+  const curve = [
+    [x0, y0],
+    [x0 + Math.sin(rad) * hgt * 0.5, y0 - Math.cos(rad) * hgt * 0.5 + hgt * 0.35],
+    [w * 0.78, hgt * 0.95],
+    [w * 0.6, -hgt * 0.3],
+  ];
+  // Even steps along the curve's length, so the ship and its trail keep pace.
+  const fine = Array.from({ length: 121 }, (_, i) => bezier(curve, i / 120));
+  const run = [0];
+  for (let i = 1; i < fine.length; i++) run.push(run[i - 1] + Math.hypot(fine[i].x - fine[i - 1].x, fine[i].y - fine[i - 1].y));
+  const total = run[run.length - 1];
+  const steps = 30;
+  let turn = tilt;
+  const frames = [];
+  for (let i = 0, j = 0; i <= steps; i++) {
+    while (j < fine.length - 1 && run[j] < (total * i) / steps) j++;
+    const p = fine[j];
+    // Keep turning the short way round.
+    let heading = p.heading;
+    while (heading - turn > 180) heading -= 360;
+    while (heading - turn < -180) heading += 360;
+    turn = i === 0 ? tilt : heading;
+    const grow = 1 + 2.4 * Math.sin((Math.PI * i) / steps * 0.85);
+    frames.push({ transform: `translate(${(p.x - x0).toFixed(1)}px, ${(p.y - y0).toFixed(1)}px) rotate(${(turn - tilt).toFixed(1)}deg) scale(${grow.toFixed(2)})` });
+  }
+
+  const trail = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  trail.setAttribute('class', 'home-ship-trail');
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  line.setAttribute('d', `M${curve[0]} C${curve[1]} ${curve[2]} ${curve[3]}`);
+  line.setAttribute('pathLength', '1');
+  trail.append(line);
+  document.body.append(trail);
+
+  btn.classList.add('is-lit');
+  await craft.animate([
+    { transform: 'none' }, { transform: 'translate(-0.6px, 0.8px)' }, { transform: 'translate(0.6px, 0.4px)' },
+    { transform: 'translate(-0.4px, 1px)' }, { transform: 'translate(0, 1.4px)' },
+  ], { duration: 260, easing: 'linear' }).finished.catch(() => {});
+
+  const time = { duration: 1250, easing: 'cubic-bezier(0.35, 0, 0.65, 0.6)' };
+  page?.animate([
+    { transform: 'none', opacity: 1 },
+    { transform: 'translateY(36px) scale(0.97)', opacity: 0 },
+  ], { ...time, duration: 900, delay: 250, fill: 'forwards' });
+  line.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { ...time, fill: 'forwards' });
+  trail.animate([{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], { duration: 1500, fill: 'forwards' })
+    .finished.then(() => trail.remove(), () => trail.remove());
+  await btn.animate(frames, { ...time, fill: 'forwards' }).finished.catch(() => {});
+  btn.classList.remove('is-lit');
+}
 
 // ---------------------------------------------------------------- sheets (drop down from the bar)
 
@@ -186,36 +281,38 @@ export function createStatusbar() {
     who,
     h('div', { class: 'sb-right' }, searchBtn, clock));
 
-  // Home: a small void in the corner. Everything on the page falls into it.
-  const home = h('button', { type: 'button', class: 'home-void', 'aria-label': 'Back to your galaxy', title: 'Your galaxy', hidden: true },
-    h('span', { class: 'home-void-ring' }), h('span', { class: 'home-void-hole' }));
+  // Home: a little ship parked under the wordmark, nose toward it. Tap it and
+  // it lifts off, swings out across the page and soars up out of sight,
+  // taking you back to your own galaxy.
+  const ship = h('span', { class: 'home-ship-craft', html: SHIP });
+  const home = h('button', { type: 'button', class: 'home-ship', 'aria-label': 'Back to your galaxy', title: 'Your galaxy', hidden: true }, ship);
   document.body.append(home);
   let current = null;
-  let falling = false;
+  let flying = false;
+  const aim = () => {
+    if (home.hidden) return;
+    const r = home.getBoundingClientRect();
+    const m = mark.getBoundingClientRect();
+    const a = Math.atan2(m.left + m.width / 2 - (r.left + r.width / 2), r.top + r.height / 2 - (m.top + m.height / 2));
+    home.style.setProperty('--aim', `${((a * 180) / Math.PI).toFixed(1)}deg`);
+  };
+  addEventListener('resize', debounce(aim, 100));
   home.addEventListener('click', async () => {
     if (current?.goHome) { current.goHome(); return; }
-    if (falling) return;
-    falling = true;
-    const page = document.getElementById('view')?.firstElementChild;
-    if (page && !reducedMotion()) {
-      const r = home.getBoundingClientRect();
-      const box = page.getBoundingClientRect();
-      page.style.transformOrigin = `${r.left + r.width / 2 - box.left}px ${r.top + r.height / 2 - box.top}px`;
-      home.classList.add('is-eating');
-      await page.animate([
-        { transform: 'none', opacity: 1, filter: 'none' },
-        { transform: 'scale(0.04) rotate(-35deg)', opacity: 0, filter: 'blur(6px)' },
-      ], { duration: 420, easing: 'cubic-bezier(0.55, 0, 1, 0.45)', fill: 'forwards' }).finished.catch(() => {});
-      home.classList.remove('is-eating');
-    }
-    falling = false;
+    if (flying) return;
+    flying = true;
+    if (!reducedMotion()) await launch(home, ship, document.getElementById('view')?.firstElementChild);
+    flying = false;
     nav.go('/', { motion: 'none' });
+    home.getAnimations().forEach((a) => a.cancel());
   });
+  const showHome = () => {
+    home.hidden = !session.user || !current?.home;
+    aim();
+  };
   let out = false;
-  const showHome = () => { home.hidden = !session.user || !(current?.home || out); };
   bus.on('universe', (on) => {
     out = on;
-    showHome();
     paintWho();
   });
 

@@ -1,5 +1,5 @@
 // A planet up close: a slim header (the world, its name and note, who can
-// see it) and then what matters, everything on it. The void in the corner
+// see it) and then what matters, everything on it. The ship in the corner
 // takes you back to your galaxy.
 
 import { api, session } from '../api.js';

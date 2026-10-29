@@ -451,12 +451,12 @@ body.no-chrome #view { padding: 0; }
 .gx { position: sticky; z-index: 1; overflow-x: clip; }
 .gx-scene { position: relative; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .gx-field { position: absolute; inset: 0; z-index: 3; }
-.gx-core { position: absolute; left: 0; top: 0; z-index: 4; width: 0; height: 0; }
+.gx-core { position: absolute; left: 0; top: 0; z-index: 5; width: 0; height: 0; }
 .gx-hint {
   position: absolute;
   left: 50%;
   bottom: 70px;
-  z-index: 5;
+  z-index: 6;
   width: min(420px, calc(100% - 40px));
   transform: translateX(-50%);
   text-align: center;
@@ -492,187 +492,181 @@ body.no-chrome #view { padding: 0; }
 
 /* ------------------------------------------------------------------ the void */
 
+/* The black hole is painted on a canvas (voidart.js) in its own layer under
+   the planets. While the add box is open it rises above them. */
+.gx-art { position: absolute; left: 0; top: 0; z-index: 2; width: 0; height: 0; pointer-events: none; }
+.void-art { position: absolute; left: 0; top: 0; display: block; transform: translate(-50%, -50%); }
+.gx.is-adding .gx-art { z-index: 4; }
+.gx-field, .gx-stars { transition: opacity 0.5s var(--ease); }
+.gx.is-adding .gx-field { opacity: 0.4; }
+.gx.is-adding .gx-stars { opacity: 0; pointer-events: none; }
+
 .void {
-  --vs: 256px;
+  --vr: 80px;
   position: absolute;
-  left: calc(var(--vs) / -2);
-  top: calc(var(--vs) / -2);
+  left: calc(var(--vr) * -1.9);
+  top: calc(var(--vr) * -1.9);
   z-index: 2;
-  width: var(--vs);
-  height: var(--vs);
+  width: calc(var(--vr) * 3.8);
+  height: calc(var(--vr) * 3.8);
+  /* the add box inside the dark */
+  --vf-fill: rgba(10, 8, 14, 0.82);
+  --vf-line: rgba(214, 206, 232, 0.22);
+  --vf-line-on: rgba(214, 206, 232, 0.6);
+  --vf-ink: #ece8f2;
+  --vf-on-ink: #0c0a10;
+  --vf-mute: rgba(214, 206, 232, 0.55);
+}
+html[data-mode="light"] .void {
+  --vf-fill: rgba(255, 255, 255, 0.92);
+  --vf-line: rgba(18, 20, 32, 0.2);
+  --vf-line-on: rgba(18, 20, 32, 0.55);
+  --vf-ink: #15171f;
+  --vf-on-ink: #ffffff;
+  --vf-mute: rgba(21, 23, 31, 0.5);
 }
 .void.is-open, .void.is-swallowing { z-index: 30; }
 .void-core {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.7s var(--ease);
-}
-.void-core:focus-visible { outline: none; }
-/* the halo of bent light round it */
-.void-lens {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle closest-side, transparent 48%, var(--void-lens) 52%, color-mix(in srgb, var(--void-lens) 40%, transparent) 70%, transparent 100%);
-  pointer-events: none;
-}
-/* a faint, slow drift of matter going in */
-.void-swirl {
-  position: absolute;
-  inset: 12%;
-  border-radius: 50%;
-  background: conic-gradient(from 20deg, transparent 0deg, var(--void-lens) 40deg, transparent 110deg, var(--void-lens) 190deg, transparent 260deg, var(--void-lens) 320deg, transparent 360deg);
-  -webkit-mask: radial-gradient(closest-side, transparent 64%, #000 72%, transparent 100%);
-  mask: radial-gradient(closest-side, transparent 64%, #000 72%, transparent 100%);
-  animation: spin 60s linear infinite;
-  pointer-events: none;
-}
-.void-ring {
-  position: absolute;
-  inset: 24.6%;
-  border-radius: 50%;
-  box-shadow: var(--void-ring);
-  transition: box-shadow 0.4s, transform 0.5s var(--ease);
-  pointer-events: none;
-}
-.void-hole {
-  position: absolute;
-  inset: 25%;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: radial-gradient(circle, #000 0 72%, #020309 100%);
-  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.void-plus { color: rgba(255, 255, 255, 0.28); transition: color 0.3s, transform 0.5s var(--ease); }
-.void-core:hover .void-plus, .void-core:focus-visible .void-plus { color: rgba(255, 255, 255, 0.75); transform: rotate(90deg); }
-.void-core:hover .void-ring, .void-core:focus-visible .void-ring, .void.is-hungry .void-ring { transform: scale(1.04); filter: brightness(1.4); }
-.void.is-hungry .void-core { transform: scale(1.12); }
-.void.is-hungry .void-swirl { animation-duration: 8s; }
-.void.is-gulping .void-hole, .void.is-gulping .void-ring { animation: void-gulp 0.7s var(--ease); }
-@keyframes void-gulp { 30% { transform: scale(0.9); } 65% { transform: scale(1.05); } }
-.void-label {
+.void-core:focus-visible { outline: none; }
+/* only measured: the dark's centre and size */
+.void-hole {
   position: absolute;
   left: 50%;
-  top: calc(75% + 10px);
-  transform: translateX(-50%);
-  font: 500 10.5px/1 var(--mono);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  white-space: nowrap;
+  top: 50%;
+  width: calc(var(--vr) * 2);
+  height: calc(var(--vr) * 2);
+  transform: translate(-50%, -50%);
   pointer-events: none;
-  transition: opacity 0.25s;
 }
-.void.is-still .void-label { top: calc(75% + 8px); font: 500 13px/1 var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); text-shadow: var(--label-shadow); }
-.void.is-open .void-core { transform: scale(var(--open, 3.1)); }
-.void.is-open .void-label { opacity: 0; }
-.void.is-open .void-plus { opacity: 0; }
+.void-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 238, 214, 0.34);
+  pointer-events: none;
+  transition: color 0.3s, opacity 0.25s;
+}
+html[data-mode="light"] .void-mid { color: rgba(20, 24, 44, 0.42); }
+.void-plus { display: grid; transition: transform 0.5s var(--ease); }
+.void-label { font: 500 10.5px/1 var(--mono); letter-spacing: 0.22em; text-transform: uppercase; white-space: nowrap; }
+.void-core:hover .void-mid, .void-core:focus-visible .void-mid, .void.is-hungry .void-mid { color: rgba(255, 238, 214, 0.8); }
+html[data-mode="light"] .void-core:hover .void-mid, html[data-mode="light"] .void-core:focus-visible .void-mid { color: rgba(20, 24, 44, 0.8); }
+.void-core:hover .void-plus, .void-core:focus-visible .void-plus { transform: rotate(90deg); }
+.void.is-still .void-label { font: 500 13px/1 var(--sans); letter-spacing: 0; text-transform: none; }
+.void.is-open .void-mid { opacity: 0; }
 
-/* the new file: a sheet of paper risen out of the dark */
+/* the add box, held in the middle of the opened dark: flat and plain, like
+   Are.na's. A bordered square to type in, with the choices as plain text. */
 .vf {
   position: absolute;
   left: 50%;
   top: 50%;
   z-index: 3;
-  width: min(380px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 40px));
+  color: var(--vf-ink);
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.12) rotate(-14deg);
-  filter: drop-shadow(0 22px 34px rgba(0, 0, 12, 0.5)) drop-shadow(0 2px 3px rgba(0, 0, 12, 0.25)) blur(3px);
+  transform: translate(-50%, -50%) scale(0.92);
   pointer-events: none;
-  transition: transform 0.42s var(--ease-in), opacity 0.35s ease-in, filter 0.3s;
+  transition: transform 0.3s var(--ease-in), opacity 0.22s ease-in;
 }
 .void.is-open .vf {
   opacity: 1;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0 22px 34px rgba(0, 0, 12, 0.5)) drop-shadow(0 2px 3px rgba(0, 0, 12, 0.25));
   pointer-events: auto;
-  transition: transform 0.65s var(--ease), opacity 0.3s ease, filter 0.4s;
+  transition: transform 0.6s var(--ease) 0.3s, opacity 0.4s ease 0.3s;
 }
-.vf-paper {
+.void.is-swallowing .vf { transform: translate(-50%, -50%) scale(0.2); transition-duration: 0.35s; }
+.vf-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.vf-tab { font-size: 13px; color: var(--vf-mute); }
+.vf-close { font-size: 13px; color: var(--vf-mute); }
+.vf-close:hover { color: var(--vf-ink); }
+.vf-field {
   position: relative;
-  padding: 14px 18px 16px;
-  border-radius: 5px 0 8px 8px;
-  background: var(--paper);
-  color: var(--paper-ink);
-  clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 30px, 100% 100%, 0 100%);
+  border: 1px solid var(--vf-line);
+  border-radius: 2px;
+  background: var(--vf-fill);
+  transition: border-color 0.2s;
 }
-/* the dog-eared corner */
-.vf-paper::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 30px;
-  height: 30px;
-  border-bottom-left-radius: 5px;
-  background: linear-gradient(225deg, transparent 50%, #d9d5c9 50%, #e8e5dc 68%, #f4f2ec 100%);
-  box-shadow: -2px 2px 4px rgba(40, 35, 20, 0.16);
-}
-.vf-head { display: flex; align-items: center; justify-content: space-between; padding-right: 26px; margin-bottom: 6px; }
-.vf-tab { font: 500 10.5px/1 var(--mono); letter-spacing: 0.18em; text-transform: uppercase; color: var(--paper-mute); }
-.vf-close { width: 24px; height: 24px; border-radius: 50%; font-size: 17px; line-height: 1; color: var(--paper-mute); }
-.vf-close:hover { background: rgba(40, 45, 60, 0.07); color: var(--paper-ink); }
+.vf-field:focus-within { border-color: var(--vf-line-on); }
 .vf-input {
   display: block;
   width: 100%;
-  min-height: 96px;
-  padding: 0 2px;
+  height: calc(24px * 9 + 36px);
+  padding: 18px 20px;
   resize: none;
   border: 0;
   outline: none;
-  background: repeating-linear-gradient(180deg, transparent 0 23px, rgba(60, 80, 140, 0.13) 23px 24px);
-  background-attachment: local;
-  color: var(--paper-ink);
-  font: 400 15px/24px var(--sans);
-}
-.vf-input::placeholder { color: #a5a194; }
-.vf-dest { margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(60, 60, 50, 0.18); }
-.vf-label { display: block; margin-bottom: 7px; font: 500 10px/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--paper-mute); }
-.vf-modes { display: flex; gap: 2px; padding: 3px; border-radius: 9px; background: rgba(40, 45, 60, 0.07); box-shadow: inset 0 1px 2px rgba(40, 45, 60, 0.14); }
-.vf-mode { flex: 1; height: 28px; padding: 0 6px; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: #626674; white-space: nowrap; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
-.vf-mode:hover { color: var(--paper-ink); }
-.vf-mode[aria-pressed="true"] { background: #fff; color: var(--paper-ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.08); }
-.vf-planets { display: flex; gap: 6px; margin-top: 9px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
-.vf-planets::-webkit-scrollbar { display: none; }
-.vf-planet {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 11px 0 8px;
-  border-radius: 999px;
-  background: rgba(40, 45, 60, 0.06);
-  font-size: 12.5px;
-  color: var(--paper-ink);
-  transition: background 0.2s, color 0.2s;
-}
-.vf-planet:hover { background: rgba(40, 45, 60, 0.11); }
-.vf-planet[aria-selected="true"] { background: #262a34; color: #fff; }
-.vf-planet-dot { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--c) 50%, white), var(--c) 55%, color-mix(in srgb, var(--c) 60%, black)); }
-.vf-none { font-size: 12.5px; color: var(--paper-mute); }
-.vf-name {
-  display: block;
-  width: 100%;
-  height: 34px;
-  margin-top: 9px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 1px solid rgba(40, 45, 60, 0.22);
-  outline: none;
   background: transparent;
-  color: var(--paper-ink);
-  font-size: 14px;
+  color: var(--vf-ink);
+  font: 400 16px/24px var(--sans);
 }
-.vf-name:focus { border-bottom-color: var(--accent); }
-.vf-name::placeholder { color: #a5a194; }
+.vf-input::placeholder { color: var(--vf-mute); }
+.vf-drop {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--vf-line-on);
+  font-size: 14px;
+  color: var(--vf-ink);
+  background: var(--vf-fill);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.void.is-open.is-hungry .vf-drop { opacity: 1; }
+.vf-dest { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 14px; }
+.vf-label { font-size: 13px; color: var(--vf-mute); }
+.vf-modes { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.vf-mode, .vf-planet { padding: 2px 0; font-size: 13px; color: var(--vf-mute); text-decoration: underline transparent; text-underline-offset: 4px; transition: color 0.2s, text-decoration-color 0.2s; }
+.vf-mode:hover, .vf-planet:hover { color: var(--vf-ink); }
+.vf-mode[aria-pressed="true"], .vf-planet[aria-selected="true"] { color: var(--vf-ink); text-decoration-color: currentColor; }
+.vf-planets { display: flex; flex-wrap: wrap; gap: 4px 14px; flex-basis: 100%; }
+.vf-planet { display: inline-flex; align-items: center; gap: 6px; }
+.vf-planet-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.vf-none { font-size: 13px; color: var(--vf-mute); }
+.vf-name {
+  flex-basis: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--vf-line);
+  border-radius: 2px;
+  outline: none;
+  background: var(--vf-fill);
+  color: var(--vf-ink);
+  font-size: 16px;
+}
+.vf-name:focus { border-color: var(--vf-line-on); }
+.vf-name::placeholder { color: var(--vf-mute); }
 .vf-planets[hidden], .vf-name[hidden] { display: none; }
-.vf-hint { margin-top: 8px; font-size: 11.5px; line-height: 1.4; color: var(--paper-mute); }
-.vf-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
-.vf .vbtn:not(.vbtn-blue) { background: linear-gradient(180deg, #ffffff, #f0eee7); border-color: rgba(40, 45, 60, 0.18); color: var(--paper-ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+.vf-hint { flex-basis: 100%; font-size: 12.5px; line-height: 1.45; color: var(--vf-mute); }
+.vf-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.vf-upload { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--vf-mute); }
+.vf-upload:hover { color: var(--vf-ink); }
+.vf .vf-go, .vf .vf-go:hover {
+  height: 32px;
+  padding: 0 18px;
+  border: 1px solid var(--vf-line);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--vf-mute);
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: none;
+  filter: none;
+  pointer-events: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.vf.has-text .vf-go { border-color: var(--vf-ink); background: var(--vf-ink); color: var(--vf-on-ink); pointer-events: auto; }
 
 /* ------------------------------------------------------------------ files as small faces */
 
@@ -915,7 +909,6 @@ a.planet:hover .planet-body, .planet:focus-visible .planet-body { transform: sca
   pointer-events: none;
 }
 .planet-title { display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; }
-.planet-critter { display: inline-flex; flex-shrink: 0; filter: drop-shadow(0 1px 1px rgba(0, 0, 20, 0.35)); }
 .planet-name {
   min-width: 0;
   overflow: hidden;
@@ -947,6 +940,33 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .planet.is-empty .planet-map { filter: saturate(0.7); }
 
 /* choosing what kind of world a planet is */
+/* A planet's colour as a dot, in lists of planets. */
+.planet-dot {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000));
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+
+/* Planet colour picker. */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0 2px; }
+.swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000));
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s var(--ease);
+}
+.swatch:hover { transform: scale(1.08); }
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink); }
+.swatch-custom { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.swatch-custom::-webkit-color-swatch-wrapper { padding: 3px; }
+.swatch-custom::-webkit-color-swatch { border: 0; border-radius: 50%; }
+
 .look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; padding: 4px 0 2px; }
 .look-pick { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px 10px; border-radius: 14px; color: var(--ink); transition: background 0.2s; }
 .look-pick:hover, .look-pick:focus-visible { background: var(--tint-2); }
@@ -959,7 +979,7 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .planet.planet-mini, .liv-world .planet { position: relative; left: auto; top: auto; display: inline-block; vertical-align: top; }
 .planet-mini .planet-label { width: 84px; top: calc(100% + 5px); }
 .planet-mini .planet-name { font-size: 11px; }
-.planet-mini .planet-meta, .planet-mini .planet-critter, .planet-mini .planet-peek, .planet-mini .planet-ring { display: none; }
+.planet-mini .planet-meta, .planet-mini .planet-peek, .planet-mini .planet-ring { display: none; }
 .liv-world .planet-ring { display: none !important; }
 .uvg-name { margin-top: -10px; }
 
@@ -1190,18 +1210,90 @@ html:not([data-mode="light"]) .toast button { color: #8cc0ff; }
 .pin.is-ok .pin-cell { background: var(--accent-gloss); border-color: transparent; }
 .pin.is-ok .pin-dot { background: #fff; }
 
-/* sign in, floating in the sky */
-.login { padding-top: 6vh; }
-.login-box { width: min(380px, 100%); padding: 36px 32px 30px; border-radius: 26px; }
+/* sign in, floating in the sky (always night), with a little pixel
+   horizon along the bottom */
+.login { position: relative; z-index: 0; isolation: isolate; padding-top: 6vh; padding-bottom: 18vh; }
+.nightscene { position: fixed; left: 0; right: 0; bottom: 0; height: 100lvh; z-index: -1; overflow: hidden; pointer-events: none; }
+.nightscene-canvas { position: absolute; left: 0; bottom: 0; image-rendering: crisp-edges; image-rendering: pixelated; }
+
+/* A warm light from just past the top-right corner, like a low sun. */
+.login-light {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(24% 18% at 96% -4%, rgba(255, 214, 150, 0.32), transparent 70%),
+    radial-gradient(70% 55% at 100% -10%, rgba(255, 142, 64, 0.3), rgba(255, 120, 60, 0.09) 50%, transparent 74%);
+}
+
+
+/* The box catches the warm light: a bright line along its top edge, toward
+   the right where the sun is, and a soft warm wash across the glass. */
+.login-box {
+  position: relative;
+  z-index: 0;
+  width: min(380px, 100%);
+  padding: 36px 32px 30px;
+  border-radius: 26px;
+  border-top-color: rgba(255, 216, 172, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 224, 184, 0.24), var(--glass-shadow);
+}
+.login-box::before, .login-box::after { content: ""; position: absolute; pointer-events: none; }
+.login-box::before {
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(90% 60% at 100% 0%, rgba(255, 178, 110, 0.18), transparent 72%);
+}
+.login-box::after {
+  top: -1px;
+  left: 34%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 230, 192, 0.85) 75%, transparent);
+}
 .login-mark .logo { color: var(--ink); }
 .login-name-row { border-bottom-color: var(--line-2); }
 .login-name-row:focus-within { border-color: var(--accent); }
 .login-go:hover { background: var(--tint-2); }
-.login-switch .link { color: var(--accent); }
+
+.login[data-stage="ask"] .login-steps, .login[data-stage="form"] .login-ask { display: none; }
+.login-ask { margin-top: 30px; animation: rise 1s var(--ease) 0.42s both; }
+.login-q { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink); }
+.login-heading { margin: 0 0 26px; font-size: 20px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); }
+.login-choices { display: grid; gap: 10px; margin-top: 24px; }
+.login .login-choice { height: 46px; font-size: 15px; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255, 230, 196, 0.42), 0 1px 3px rgba(0, 0, 20, 0.22); }
+.login .login-choice.vbtn-blue { box-shadow: inset 0 1px 0 rgba(255, 238, 210, 0.7), 0 6px 14px -8px rgba(10, 40, 150, 0.7); }
+.login .login-choice:active { box-shadow: inset 0 1px 3px rgba(0, 0, 20, 0.3); }
+.login-name:focus-visible { outline: none; } /* the underline already shows focus */
+.login .pin-cell { box-shadow: var(--well-shadow), inset 0 -1px 0 rgba(255, 210, 160, 0.12); }
+.login-form { margin-top: 34px; }
+
+.login-switch { margin-top: 30px; }
+.login-back { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-3); font-size: 13px; transition: color 0.2s; }
+.login-back:hover { color: var(--ink); }
+.login-back-key {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--btn-edge);
+  border-radius: 50%;
+  background: var(--btn-fill);
+  box-shadow: inset 0 1px 0 rgba(255, 230, 196, 0.38), 0 1px 3px rgba(0, 0, 20, 0.22);
+  color: var(--btn-ink);
+  font-size: 16px;
+  line-height: 1;
+  padding-bottom: 2px;
+  transition: transform 0.3s var(--spring);
+}
+.login-back:active .login-back-key { transform: translateY(1px); }
 
 /* ------------------------------------------------------------------ calmer motion */
 
-html[data-motion="calm"] .void-swirl, html[data-motion="calm"] .uvg-spin, html[data-motion="calm"] .uvg-sys::before { animation-duration: 180s; }
+html[data-motion="calm"] html[data-motion="calm"] .uvg-spin, html[data-motion="calm"] .uvg-sys::before { animation-duration: 180s; }
 html[data-motion="calm"] .sky-ribbon, html[data-motion="calm"] .sky-nebula { animation-play-state: paused; }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation-play-state: paused !important; transition-duration: 0.01ms !important; }
 
@@ -1211,7 +1303,6 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .sb { padding: 0 10px 0 12px; }
   .sb .logo { font-size: 16px; }
   .sb-right { gap: 8px; }
-  .void { --vs: 184px; --open: 3.6; }
   .planet-name { font-size: 12px; }
   .planet-label { width: max(104px, calc(var(--s) + 16px)); top: calc(100% + 8px); }
   .home-ship { left: 8px; top: calc(var(--bar) + 8px); width: 40px; height: 40px; }
@@ -1222,10 +1313,13 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .search-grid { --cols: 2; }
   .sheet { border-radius: 18px; padding: 16px; }
   .sheet .set-row { grid-template-columns: 1fr; gap: 8px; }
-  .vf-mode { font-size: 11.5px; padding: 0 4px; }
+  .vf-input { height: calc(24px * 6 + 36px); }
   .uv-sub { display: none; }
+  .login { padding-bottom: 16vh; }
+  .login-box { padding: 30px 24px 26px; }
+  .login-q { font-size: 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sky-ribbon, .sky-nebula, .void-swirl, .uvg-spin, .uvg-sys::before, .home-ship-craft svg, .gx-cue .glyph { animation: none !important; }
+  .sky-ribbon, .sky-nebula, .uvg-spin, .uvg-sys::before, .home-ship-craft svg, .gx-cue .glyph { animation: none !important; }
 }

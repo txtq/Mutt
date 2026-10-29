@@ -1,7 +1,6 @@
 // Toasts, dialogs, popovers, menus, sliding pills and the PIN field.
 
-import { PALETTE } from './pixel.js';
-import { h, reducedMotion } from './util.js';
+import { PALETTE, h, reducedMotion } from './util.js';
 
 // ---------------------------------------------------------------- sliding-pill control
 

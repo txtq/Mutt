@@ -239,12 +239,12 @@ void main() {
   cloud *= 1.0 - tile.a * 0.85;
 
   float ndl = dot(v, SUN);
-  float day = hard > 0.5 ? smoothstep(-0.04, 0.28, ndl) : smoothstep(-0.22, 0.62, ndl);
+  float day = hard > 0.5 ? smoothstep(-0.08, 0.26, ndl) : smoothstep(-0.3, 0.55, ndl);
   float light = mix(day, 0.32 + 0.68 * day, tile.a);
-  vec3 c = col * (vec3(0.05, 0.06, 0.1) + vec3(1.02, 1.0, 0.96) * light);
+  vec3 c = col * (vec3(0.09, 0.1, 0.15) + vec3(1.06, 1.04, 1.0) * light);
   c = mix(c, cloudC * (0.06 + 0.98 * day), cloud * 0.9);
   c += vec3(1.0, 0.97, 0.9) * pow(max(dot(reflect(-SUN, v), vec3(0.0, 0.0, 1.0)), 0.0), 28.0) * spec * day * (1.0 - cloud);
-  c *= mix(1.0, 0.72, limb * pow(1.0 - v.z, 1.5));
+  c *= mix(1.0, 0.8, limb * pow(1.0 - v.z, 1.5));
   c = mix(c, atmoC * (0.12 + 0.88 * day), pow(1.0 - v.z, 2.5) * atmo * 0.55);
   c += glow * (1.0 - 0.5 * day);
   outColor = vec4(c * alpha, alpha);

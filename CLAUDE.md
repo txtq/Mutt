@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Handoff rule
 
-Read `PROGRESS.md` at the start of every session. After finishing each task, update it: what was done, what's next, and any new preferences the user gave. Preferences that should hold for all future work also go in the **User preferences** section below. `/handoff` (`.claude/commands/handoff.md`) does this update on demand.
+The handoff notes are **one shared file: `/Users/edan/Mutt/PROGRESS.md`**, in the main checkout. Most sessions run in a worktree under `.claude/worktrees/`, and the `PROGRESS.md` there is a stale copy from when the worktree was made, which never reaches the other sessions. So:
+- Read `/Users/edan/Mutt/PROGRESS.md` at the start of every session, on its own (the Read tool, not chained with other commands, so one bad path can't fail the read).
+- After finishing each task, update that same file: what was done, what's next (name your branch if it isn't merged), and any new preferences the user gave. Don't edit the worktree's own `PROGRESS.md`, or merging branches will conflict.
+- Preferences that should hold for all future work also go in the **User preferences** section below.
+- The shared file is committed on `galaxy` from the main checkout, along with merges and deploys.
+- `/handoff` (`.claude/commands/handoff.md`) does this update on demand.
 
 ## What Mutt is
 
@@ -57,7 +62,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - `fx.js` holds the motion helpers; `drag.js` handles pointer drag onto targets.
 
 **CSS:**
-- `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
+- Stylesheets sit directly in `public/assets/` (there is no `css/` folder). `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
 - Light mode is `html[data-mode="light"]`, set by `theme.js` (Auto/Light/Dark). The universe stays dark in both modes.
 - Don't put `position` in the shared glass rule (`.glass, .sheet, .dialog, .pop, …`). `.pop` and `.tray` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
 

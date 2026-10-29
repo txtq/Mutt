@@ -40,8 +40,10 @@ function textFace(block) {
 }
 
 function linkFace(block) {
-  return h('div', { class: 'face face-link' },
+  // Still waiting on a picture of the page: shimmer until it lands.
+  return h('div', { class: `face face-link${block.meta?.shot === 'pending' ? ' is-shimmer' : ''}` },
     h('div', { class: 'face-link-title' }, block.title || block.content),
+    block.meta?.description ? h('div', { class: 'face-link-desc' }, block.meta.description) : null,
     h('div', { class: 'face-sub' }, block.meta?.domain || ''));
 }
 

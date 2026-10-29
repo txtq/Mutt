@@ -10,6 +10,7 @@ import os
 import re
 import socket
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -195,6 +196,34 @@ def _oembed(url, embed):
         info['description'] = _clip(data['author_name'], 200)
     preview = _fetch_image(data['thumbnail_url'], MAX_PREVIEW_IMAGE) if data.get('thumbnail_url') else None
     return info, preview
+
+
+# WordPress.com's free mShots service takes the picture. It answers with a
+# redirect to a placeholder until the picture is ready, usually a few seconds.
+SHOTS = 'https://s.wordpress.com/mshots/v1/'
+SHOT_WAITS = (0, 4, 4, 5, 6, 8, 10, 12)
+
+
+def screenshot(url):
+    """A picture of the page's first screen, as (bytes, ext), or None."""
+    try:
+        _guard(url)  # never hand out addresses on private networks
+    except Blocked:
+        return None
+    shot = f"{SHOTS}{urllib.parse.quote(url, safe='')}?w=1280&h=960"
+    request = urllib.request.Request(shot, headers={'User-Agent': UA, 'Accept': 'image/*'})
+    for delay in SHOT_WAITS:
+        time.sleep(delay)
+        try:
+            with _opener.open(request, timeout=20) as resp:
+                ext = IMAGE_TYPES.get(resp.headers.get_content_type())
+                data = resp.read(MAX_PREVIEW_IMAGE + 1)
+                return (data, ext) if ext and 0 < len(data) <= MAX_PREVIEW_IMAGE else None
+        except urllib.error.HTTPError as err:
+            err.close()  # a redirect means "not ready yet"; errors are often brief too
+        except Exception:
+            pass  # a slow answer: ask again
+    return None
 
 
 def inspect(url):

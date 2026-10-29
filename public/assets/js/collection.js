@@ -1,7 +1,7 @@
 // A set of files shown in the grid, kept in sync with uploads, edits made
 // elsewhere, and (in Everything) the chosen sort.
 
-import { blockMenu, openConnect, openSave } from './actions.js';
+import { blockMenu, openConnect, openSave, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { entryCell } from './entry.js';
 import { Grid } from './grid.js';
@@ -116,6 +116,7 @@ export class Collection {
 
   arrived(key, block) {
     if (!block) return;
+    watchPreview(block);
     if (!this.blocks.some((b) => b.id === block.id)) this.blocks.unshift(block);
     const cell = this.grid.resolve(key, block);
     if (cell) sparkle(cell);

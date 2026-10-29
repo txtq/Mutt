@@ -1,10 +1,11 @@
 // Full-screen block view: the block on the left, its details on the right.
 
-import { deleteBlock, openConnect, openSave, removeFromDrawer, toggleShare } from './actions.js';
+import { deleteBlock, openConnect, openSave, removeFromDrawer, toggleShare, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
 import { drawerHref } from './nav.js';
+import { loadPdfjs } from './pdfjs.js';
 import { renderIcon } from './pixel.js';
 import { transition } from './transitions.js';
 import { toast } from './ui.js';
@@ -52,6 +53,7 @@ export async function openViewer(id, { list = [], drawer = null } = {}) {
     after: () => (state?.media ? [[state.media, `b-${id}`]] : []),
   });
   if (!connections) loadConnections();
+  wantShot(block);
 }
 
 export async function closeViewer() {
@@ -65,6 +67,7 @@ export async function closeViewer() {
   cell = cell && inViewport(cell) ? cell : null;
   s.media?.querySelector('video, audio')?.pause?.();
   s.media?.matches?.('video') && s.media.pause();
+  s.cleanup?.();
   await transition(() => {
     s.el.remove();
     document.documentElement.classList.remove('has-viewer');
@@ -86,6 +89,21 @@ function show(block, { list, drawer, connections } = {}) {
   renderStage();
   renderSide();
   if (!connections) loadConnections();
+  wantShot(block);
+}
+
+// Links from before screenshots (or whose picture got stuck) get one now.
+async function wantShot(block) {
+  if (block.kind !== 'link' || block.mine === false || block.meta?.embed || block.meta?.shot === 'done') return;
+  try {
+    const { block: next } = await api.post(`/api/blocks/${block.id}/preview`);
+    if (next.meta?.shot !== 'pending') return;
+    if (state?.block.id === block.id && !state.block.thumb) {
+      state.block = { ...state.block, meta: next.meta };
+      renderStage();  // show the picture's placeholder while it's taken
+    }
+    watchPreview(next);
+  } catch { /* keep what it has */ }
 }
 
 function step(delta) {
@@ -143,6 +161,8 @@ function renderStage() {
   const index = list.findIndex((b) => b.id === block.id);
   state.counter.textContent = list.length > 1 && index >= 0 ? `${index + 1} / ${list.length}` : '';
   state.nav.classList.toggle('is-single', list.length < 2);
+  state.cleanup?.();
+  state.cleanup = null;
   state.media = stageMedia(block);
   state.media.dataset.vtMedia = '';
   state.stage.dataset.kind = block.kind;
@@ -168,9 +188,7 @@ function stageMedia(block) {
     if (block.width && block.height) { video.width = block.width; video.height = block.height; }
     return video;
   }
-  if (block.kind === 'pdf' && block.file) {
-    return h('div', { class: 'vw-media vw-doc' }, h('iframe', { src: block.file, title: displayTitle(block) }));
-  }
+  if (block.kind === 'pdf' && block.file) return pdfStage(block);
   if (block.kind === 'link') return linkStage(block);
   if (block.kind === 'text') return textStage(block);
   if (block.kind === 'audio' && block.file) {
@@ -191,51 +209,198 @@ function stageMedia(block) {
     block.file ? h('a', { class: 'btn btn-dark', href: `${block.file}?dl=1` }, 'Download') : null);
 }
 
-function linkStage(block) {
-  if (block.meta?.embed) {
-    return h('div', { class: 'vw-media vw-embed' },
-      h('iframe', {
-        src: block.meta.embed, title: displayTitle(block), allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen',
-        allowfullscreen: true, referrerpolicy: 'strict-origin-when-cross-origin',
-      }));
-  }
-  return h('div', { class: 'vw-media vw-link' },
-    block.thumb ? h('img', { src: block.thumb, alt: '', class: 'vw-link-img' }) : null,
-    h('div', { class: 'vw-link-body' },
-      h('div', { class: 'vw-link-domain' }, block.meta?.siteName || block.meta?.domain || ''),
-      h('div', { class: 'vw-link-title' }, block.title || block.content),
-      block.meta?.description ? h('p', { class: 'vw-link-desc' }, block.meta.description) : null,
-      h('a', { class: 'btn btn-dark', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗')));
+// The address along the top, like a browser's: click it to go to the site.
+function linkBar(block) {
+  let host = block.meta?.domain || block.content;
+  let path = '';
+  try {
+    const url = new URL(block.content);
+    host = url.hostname.replace(/^www\./, '');
+    path = `${url.pathname}${url.search}`.replace(/^\/$/, '');
+  } catch { /* show it as typed */ }
+  return h('a', { class: 'vw-link-bar', href: block.content, target: '_blank', rel: 'noopener noreferrer', title: block.content },
+    h('span', { class: 'vw-link-host' }, host),
+    h('span', { class: 'vw-link-path' }, path),
+    h('span', { class: 'vw-link-go', 'aria-hidden': 'true' }, '↗'));
 }
 
+function linkStage(block) {
+  if (block.meta?.embed) {
+    return h('div', { class: 'vw-media vw-link vw-link-play' },
+      linkBar(block),
+      h('div', { class: 'vw-embed' }, h('iframe', {
+        src: block.meta.embed, title: displayTitle(block), allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen',
+        allowfullscreen: true, referrerpolicy: 'strict-origin-when-cross-origin',
+      })));
+  }
+  const pending = block.meta?.shot === 'pending';
+  const picture = block.thumb
+    ? h('a', { class: 'vw-link-shot', href: block.content, target: '_blank', rel: 'noopener noreferrer', tabindex: '-1' },
+      h('img', { src: block.thumb, alt: displayTitle(block), draggable: false }))
+    : pending ? h('div', { class: 'vw-link-shot is-pending is-shimmer' }) : null;
+  return h('div', { class: 'vw-media vw-link' },
+    linkBar(block),
+    picture,
+    h('div', { class: 'vw-link-body' },
+      block.meta?.siteName ? h('div', { class: 'vw-link-site' }, block.meta.siteName) : null,
+      picture ? null : h('div', { class: 'vw-link-title' }, block.title || block.content),
+      block.meta?.description ? h('p', { class: 'vw-link-desc' }, block.meta.description) : null));
+}
+
+// Your own text: click it to edit right there. Saves when you click away.
 function textStage(block) {
   const body = h('div', { class: 'vw-text-body md', html: markdown(block.content) });
   const wrap = h('div', { class: 'vw-media vw-text' }, body);
-  const edit = h('button', { type: 'button', class: 'btn btn-ghost vw-text-edit' }, 'Edit');
-  edit.addEventListener('click', () => {
-    const area = h('textarea', { class: 'vw-text-area', value: block.content });
-    const save = h('button', { type: 'button', class: 'btn btn-dark' }, 'Save');
-    const cancel = h('button', { type: 'button', class: 'btn' }, 'Cancel');
-    const restore = () => wrap.replaceChildren(body, edit);
-    cancel.onclick = restore;
-    const commit = async () => {
+  if (block.mine === false) return wrap;
+  body.classList.add('is-editable');
+  wrap.classList.add('is-editable');
+  let editing = false;
+  wrap.addEventListener('click', (e) => {
+    if (editing || e.target.closest('a') || !getSelection().isCollapsed) return;
+    edit();
+  });
+
+  function edit() {
+    editing = true;
+    const area = h('textarea', { class: 'vw-text-area', value: block.content, 'aria-label': 'Text', spellcheck: 'true' });
+    let done = false;
+    const finish = async (keep) => {
+      if (done) return;
+      done = true;
       const content = area.value;
-      if (content === block.content) { restore(); return; }
+      const back = () => { editing = false; wrap.replaceChildren(body); };
+      if (!keep || content === block.content) { back(); return; }
       try {
         const { block: saved } = await api.patch(`/api/blocks/${block.id}`, { content });
         applyUpdate(saved);
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+        back();
+      }
     };
-    save.onclick = commit;
+    area.addEventListener('blur', () => finish(true));
     area.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); restore(); }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); area.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
     });
-    wrap.replaceChildren(area, h('div', { class: 'vw-text-actions' }, cancel, save));
+    wrap.replaceChildren(area, h('div', { class: 'vw-hint' }, 'click away to save · esc to cancel'));
     autosize(area);
     area.focus();
-  });
-  if (block.mine !== false) wrap.append(edit);
+    area.setSelectionRange(area.value.length, area.value.length);
+  }
+  return wrap;
+}
+
+// PDFs are drawn page by page with pdf.js, so they read the same in every
+// browser (phones won't show a PDF inside a page otherwise).
+const PDF_ZOOMS = [0.6, 0.8, 1, 1.3, 1.7];
+
+function pdfStage(block) {
+  const pages = h('div', { class: 'vw-pdf-pages' });
+  const count = h('span', { class: 'vw-pdf-count' }, block.meta?.pages ? plural(block.meta.pages, 'page') : '');
+  const zoomOut = h('button', { type: 'button', class: 'vw-btn', 'aria-label': 'Zoom out' }, '−');
+  const zoomIn = h('button', { type: 'button', class: 'vw-btn', 'aria-label': 'Zoom in' }, '+');
+  const wrap = h('div', { class: 'vw-media vw-pdf' },
+    h('div', { class: 'vw-pdf-bar' }, count, h('span', { class: 'vw-pdf-zoom' }, zoomOut, zoomIn)),
+    pages);
+  // The first page's preview (or a blank page) stands in while the real thing loads.
+  const ratio = block.width && block.height ? `${block.width} / ${block.height}` : '8.5 / 11';
+  pages.append(h('div', { class: 'vw-pdf-page is-shimmer', style: block.thumb ? {} : { aspectRatio: ratio } },
+    block.thumb ? h('img', { src: block.thumb, alt: '' }) : null));
+
+  let doc = null;
+  let observer = null;
+  let gone = false;
+  let zoom = 2;
+  let redraw = 0;
+  const rendering = new Map();
+  state.cleanup = () => {
+    gone = true;
+    clearTimeout(redraw);
+    observer?.disconnect();
+    doc?.destroy();
+  };
+
+  const targetWidth = (page) => Math.round(page.clientWidth * Math.min(devicePixelRatio || 1, 2));
+
+  async function draw(box) {
+    const n = Number(box.dataset.n);
+    const width = targetWidth(box);
+    if (!width || box.dataset.w === String(width) || rendering.get(n) === width) return;
+    rendering.set(n, width);
+    try {
+      const page = await doc.getPage(n);
+      const base = page.getViewport({ scale: 1 });
+      box.style.aspectRatio = `${base.width} / ${base.height}`;
+      const viewport = page.getViewport({ scale: width / base.width });
+      const canvas = h('canvas', { width: Math.round(viewport.width), height: Math.round(viewport.height) });
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      if (gone || rendering.get(n) !== width) return;
+      box.replaceChildren(canvas);
+      box.dataset.w = String(width);
+      box.classList.remove('is-shimmer');
+    } catch {
+      rendering.delete(n);
+    }
+  }
+
+  function setZoom(next) {
+    zoom = Math.max(0, Math.min(PDF_ZOOMS.length - 1, next));
+    pages.style.setProperty('--zoom', PDF_ZOOMS[zoom]);
+    zoomOut.disabled = zoom === 0;
+    zoomIn.disabled = zoom === PDF_ZOOMS.length - 1;
+    // Pages on screen redraw sharp once they've grown; the rest when reached.
+    clearTimeout(redraw);
+    redraw = setTimeout(() => pages.querySelectorAll('.vw-pdf-page.is-near').forEach(draw), 500);
+  }
+  zoomOut.addEventListener('click', () => setZoom(zoom - 1));
+  zoomIn.addEventListener('click', () => setZoom(zoom + 1));
+  setZoom(zoom);
+
+  const showPage = () => {
+    if (!doc) return;
+    const top = pages.getBoundingClientRect().top + pages.clientHeight / 3;
+    const boxes = pages.children;
+    let current = 1;
+    for (const box of boxes) {
+      if (box.getBoundingClientRect().top > top) break;
+      current = Number(box.dataset.n) || current;
+    }
+    count.textContent = `${current} / ${doc.numPages}`;
+  };
+  pages.addEventListener('scroll', showPage, { passive: true });
+
+  (async () => {
+    try {
+      const pdfjs = await loadPdfjs();
+      if (gone) return;
+      doc = await pdfjs.getDocument({ url: block.file, isEvalSupported: false }).promise;
+      if (gone) { doc.destroy(); return; }
+      const first = (await doc.getPage(1)).getViewport({ scale: 1 });
+      const boxes = [];
+      for (let n = 1; n <= doc.numPages; n++) {
+        const box = h('div', { class: 'vw-pdf-page is-shimmer', dataset: { n }, style: { aspectRatio: `${first.width} / ${first.height}` } });
+        boxes.push(box);
+      }
+      const poster = pages.querySelector('img');
+      if (poster) boxes[0].append(poster);
+      pages.replaceChildren(...boxes);
+      observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          entry.target.classList.toggle('is-near', entry.isIntersecting);
+          if (entry.isIntersecting) draw(entry.target);
+        }
+        showPage();  // once the pages have their real size
+      }, { root: pages, rootMargin: '900px 0px' });
+      boxes.forEach((box) => observer.observe(box));
+    } catch {
+      if (gone) return;
+      wrap.replaceChildren(h('div', { class: 'vw-card' },
+        h('div', { class: 'vw-card-ext' }, 'PDF'),
+        h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
+        h('a', { class: 'btn btn-dark', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗')));
+    }
+  })();
   return wrap;
 }
 
@@ -379,8 +544,11 @@ function applyUpdate(block, { keepSide = false } = {}) {
 }
 
 bus.on('block:changed', (block) => {
-  if (state?.block.id !== block.id || state.block.sharedAt === block.sharedAt) return;
+  if (state?.block.id !== block.id) return;
+  const newPicture = block.thumb !== undefined && block.thumb !== state.block.thumb;
+  if (state.block.sharedAt === block.sharedAt && !newPicture) return;
   state.block = { ...state.block, ...block };
+  if (newPicture) renderStage();
   renderSide();
 });
 bus.on('block:connected', ({ block, connections }) => {

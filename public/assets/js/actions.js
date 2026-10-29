@@ -5,7 +5,7 @@ import { displayTitle } from './kinds.js';
 import { drawerHref, nav } from './nav.js';
 import { generateIcon, renderIcon } from './pixel.js';
 import { confirmDialog, openMenu, openPopover, toast } from './ui.js';
-import { bus, h, plural } from './util.js';
+import { bus, h, plural, wait } from './util.js';
 
 // ---------------------------------------------------------------- connect picker
 
@@ -95,6 +95,27 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
   });
   render();
   return pop;
+}
+
+// ---------------------------------------------------------------- link screenshots
+
+// A new link's picture of the page arrives a few seconds after the link does.
+const watching = new Set();
+export async function watchPreview(block) {
+  if (block?.kind !== 'link' || block.meta?.shot !== 'pending' || watching.has(block.id)) return;
+  watching.add(block.id);
+  try {
+    for (const delay of [3000, 3000, 4000, 5000, 6000, 8000, 10000, 12000]) {
+      await wait(delay);
+      const { block: next } = await api.get(`/api/blocks/${block.id}`);
+      if (next.meta?.shot !== 'pending') {
+        bus.emit('block:changed', next);
+        return;
+      }
+    }
+  } catch { /* the link keeps whatever preview it has */ } finally {
+    watching.delete(block.id);
+  }
 }
 
 // ---------------------------------------------------------------- saving someone's shared file

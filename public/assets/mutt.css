@@ -456,6 +456,8 @@ body.no-chrome #view { max-width: none; padding: 0; }
 .face-sub { margin-top: 4px; font: 400 11px/1.3 var(--mono); color: var(--ink-3); }
 
 .face-link { display: flex; flex-direction: column; justify-content: flex-end; padding: 16px 18px; }
+.cell[data-kind="link"] .face-img { box-shadow: 0 0 0 1px var(--line); }
+.face-link-desc { margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-3); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .face-link-title { font-size: 15px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
 
 .cell-badge {
@@ -714,9 +716,25 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-media { max-width: 100%; max-height: 100%; }
 .vw-img, .vw-video { width: auto; height: auto; object-fit: contain; }
 .vw-video { background: #000; }
-.vw-doc { width: 100%; height: 100%; border: 1px solid var(--line); }
-.vw-doc iframe, .vw-embed iframe { width: 100%; height: 100%; border: 0; display: block; }
-.vw-embed { width: min(100%, calc((100svh - 140px) * 16 / 9)); aspect-ratio: 16 / 9; background: #000; }
+.vw-embed iframe { width: 100%; height: 100%; border: 0; display: block; }
+.vw-embed { width: 100%; aspect-ratio: 16 / 9; background: #000; }
+
+/* PDFs: pages drawn in Mutt, scrolled top to bottom */
+.vw-pdf { display: flex; flex-direction: column; width: 100%; height: 100%; }
+.vw-pdf-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px 10px; }
+.vw-pdf-count { font: 400 12px/1 var(--mono); color: var(--ink-3); }
+.vw-pdf-zoom { display: flex; gap: 2px; }
+.vw-pdf-zoom .vw-btn:disabled { opacity: 0.3; pointer-events: none; }
+.vw-pdf-pages { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 32px; overscroll-behavior: contain; }
+.vw-pdf-page {
+  position: relative;
+  width: calc(min(860px, 100%) * var(--zoom, 1));
+  margin: 0 auto 18px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line), 0 10px 30px -12px rgba(0, 0, 0, 0.12);
+  transition: width 0.45s var(--ease);
+}
+.vw-pdf-page canvas, .vw-pdf-page img { display: block; width: 100%; height: auto; }
 .vw-card {
   display: flex;
   flex-direction: column;
@@ -734,31 +752,62 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-codebox { width: min(860px, 100%); height: 100%; overflow: auto; border: 1px solid var(--line); background: #fff; }
 .vw-code { margin: 0; padding: 22px 24px; font: 400 12.5px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-.vw-text { position: relative; width: min(680px, 100%); max-height: 100%; overflow-y: auto; padding: 24px 4px 40px; align-self: flex-start; }
+.vw-text { position: relative; width: min(716px, 100%); max-height: 100%; overflow-y: auto; padding: 24px 18px 40px; align-self: flex-start; }
 .vw-text-body { font-size: 18px; line-height: 1.6; letter-spacing: -0.01em; }
-.vw-text-edit { position: sticky; bottom: 0; float: right; margin-top: 12px; }
+/* Click your own text to edit it in place */
+.vw-text-body.is-editable { cursor: text; border-radius: 10px; margin: -12px -14px; padding: 12px 14px; transition: background 0.25s; }
+.vw-text.is-editable { min-height: 50%; cursor: text; }
+.vw-text.is-editable:hover .vw-text-body { background: var(--tint); }
 .vw-text-area {
-  width: 100%;
-  min-height: 240px;
-  border: 1px solid var(--line-2);
+  display: block;
+  width: calc(100% + 28px);
+  min-height: 160px;
+  margin: -12px -14px;
+  border: 0;
   border-radius: 10px;
-  padding: 16px 18px;
-  font-size: 16px;
+  padding: 12px 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line-2);
+  font-size: 18px;
   line-height: 1.6;
+  letter-spacing: -0.01em;
   outline: none;
   resize: none;
+  transition: box-shadow 0.25s;
 }
-.vw-text-area:focus { border-color: var(--ink); }
+.vw-text-area:focus { box-shadow: 0 0 0 1.5px var(--ink); }
+.vw-text .vw-hint { margin-top: 22px; }
 .vw-text-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 12px; }
 .vw-hint { margin-right: auto; font: 400 11px/1 var(--mono); color: var(--ink-4); }
 
-.vw-link { display: flex; flex-direction: column; width: min(720px, 100%); max-height: 100%; overflow-y: auto; }
-.vw-link-img { width: 100%; height: auto; max-height: 55vh; object-fit: contain; background: var(--tint); }
-.vw-link-body { padding: 22px 2px 0; }
-.vw-link-domain { font: 400 12px/1 var(--mono); color: var(--ink-3); }
-.vw-link-title { margin-top: 10px; font-size: 24px; font-weight: 500; letter-spacing: -0.025em; line-height: 1.25; overflow-wrap: anywhere; }
-.vw-link-desc { margin-top: 10px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
-.vw-link .btn { margin-top: 18px; }
+/* Links: the address up top, a picture of the page, what the site says about itself */
+.vw-link { display: flex; flex-direction: column; gap: 14px; width: min(960px, 100%); max-height: 100%; overflow-y: auto; }
+.vw-link-play { width: min(100%, calc((100svh - 200px) * 16 / 9)); }
+.vw-link-bar {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: min(var(--r-ui), 12px);
+  font: 400 12.5px/1.3 var(--mono);
+  color: var(--ink);
+  transition: border-color 0.25s, background 0.25s;
+}
+.vw-link-bar:hover { border-color: var(--ink-4); background: var(--tint); }
+.vw-link-host { flex-shrink: 0; }
+.vw-link-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
+.vw-link-go { margin-left: auto; padding-left: 14px; flex-shrink: 0; transition: transform 0.35s var(--ease); }
+.vw-link-bar:hover .vw-link-go { transform: translate(2px, -2px); }
+.vw-link-shot { position: relative; display: block; flex-shrink: 0; overflow: hidden; border: 1px solid var(--line); background: var(--tint); }
+.vw-link-shot img { display: block; width: 100%; height: auto; max-height: calc(100svh - 300px); object-fit: cover; object-position: top; }
+.vw-link-shot.is-pending { aspect-ratio: 4 / 3; max-height: calc(100svh - 300px); }
+.vw-link-body { max-width: 640px; padding: 2px 2px 8px; }
+.vw-link-body:empty { display: none; }
+.vw-link-site { margin-bottom: 8px; font: 400 12px/1 var(--mono); color: var(--ink-3); }
+.vw-link-title { font-size: 24px; font-weight: 500; letter-spacing: -0.025em; line-height: 1.25; overflow-wrap: anywhere; }
+.vw-link-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.vw-link-title + .vw-link-desc { margin-top: 10px; }
 
 .vw-side {
   grid-row: 1 / -1;
@@ -1665,7 +1714,8 @@ html.colorful .btn:not(.btn-dark):not(.btn-danger):hover { border-color: #A66BFF
   .vw-stage { min-height: 62svh; padding: 0 16px 24px; }
   .vw-side { grid-row: 3; grid-column: 1; border-left: 0; border-top: 1px solid var(--line); padding: 24px 20px 60px; overflow: visible; }
   .vw-img, .vw-video { max-height: 70svh; }
-  .vw-doc { height: 70svh; }
+  .vw-pdf { height: 76svh; }
+  .vw-link-shot img { max-height: 56svh; }
   .vw-codebox { height: 70svh; }
 }
 

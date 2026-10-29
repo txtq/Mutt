@@ -1,8 +1,9 @@
 // Preview images made in the browser while a file uploads, so the server
 // never has to decode media. Returns { blob, width, height, duration, pages }.
 
+import { loadPdfjs } from './pdfjs.js';
+
 const MAX_EDGE = 1000;
-const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168';
 
 function scaled(w, h, max = MAX_EDGE) {
   const s = Math.min(1, max / Math.max(w, h));
@@ -104,14 +105,9 @@ async function audioInfo(file) {
   }
 }
 
-let pdfjsPromise;
 async function pdfThumb(file) {
   if (file.size > 80 * 1024 * 1024) return null;
-  pdfjsPromise ||= import(`${PDFJS}/pdf.min.mjs`).then((lib) => {
-    lib.GlobalWorkerOptions.workerSrc = `${PDFJS}/pdf.worker.min.mjs`;
-    return lib;
-  });
-  const pdfjs = await pdfjsPromise;
+  const pdfjs = await loadPdfjs();
   const doc = await pdfjs.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
   try {
     const page = await doc.getPage(1);

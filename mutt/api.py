@@ -6,8 +6,10 @@ import re
 import secrets
 import shutil
 import sqlite3
+import threading
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 
 from . import auth, db, kinds, links
 from .web import HttpError, file_response, json_response, route, stream_to_file
@@ -800,6 +802,76 @@ def save_thumb(req, block_id, data, ext):
         remove_block_files(req.user['id'], old['thumb_key'])
 
 
+# ---------------------------------------------------------------- link screenshots
+
+# Pictures of linked pages are taken in the background, a few at a time.
+_shooter = ThreadPoolExecutor(max_workers=3, thread_name_prefix='shot')
+_shooting = set()
+_shooting_lock = threading.Lock()
+
+
+def wants_screenshot(meta):
+    return not meta.get('embed')  # players (YouTube, Vimeo) bring their own
+
+
+def start_screenshot(user_id, block_id, url):
+    with _shooting_lock:
+        if block_id in _shooting:
+            return
+        _shooting.add(block_id)
+    _shooter.submit(_take_screenshot, user_id, block_id, url)
+
+
+def _take_screenshot(user_id, block_id, url):
+    try:
+        found = links.screenshot(url)
+        key = None
+        if found:
+            data, ext = found
+            key = f't_{secrets.token_hex(10)}.{ext}'
+            with open(os.path.join(db.user_files_dir(user_id), key), 'wb') as f:
+                f.write(data)
+        conn = db.connect()
+        try:
+            row = conn.execute('SELECT thumb_key, meta FROM blocks WHERE id = ? AND user_id = ?',
+                               (block_id, user_id)).fetchone()
+            if not row:  # deleted while the picture was being taken
+                if key:
+                    remove_block_files(user_id, key)
+                return
+            meta = json.loads(row['meta'] or '{}')
+            meta['shot'] = 'done' if key else 'none'
+            meta['shotAt'] = int(time.time() * 1000)
+            if key:
+                meta.pop('look', None)  # colours came from the old preview
+                conn.execute('UPDATE blocks SET thumb_key = ?, meta = ? WHERE id = ?',
+                             (key, json.dumps(meta, ensure_ascii=False), block_id))
+                if row['thumb_key']:
+                    remove_block_files(user_id, row['thumb_key'])
+            else:
+                conn.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    finally:
+        with _shooting_lock:
+            _shooting.discard(block_id)
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/preview')
+def refresh_preview(req, block_id):
+    """Links added before screenshots existed (or whose picture got stuck) ask here."""
+    row = own_block(req, block_id)
+    meta = json.loads(row['meta'] or '{}')
+    tried_lately = meta.get('shot') == 'none' and time.time() * 1000 - meta.get('shotAt', 0) < 6 * 3600 * 1000
+    if row['kind'] == 'link' and wants_screenshot(meta) and meta.get('shot') != 'done' and not tried_lately:
+        meta['shot'] = 'pending'
+        req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
+        start_screenshot(req.user['id'], block_id, row['content'])
+    return json_response({'block': reload_block(req, block_id)})
+
+
 @route('POST', r'/api/blocks')
 def create_block(req):
     body = req.json()
@@ -826,10 +898,15 @@ def create_block(req):
                                     mime=mime, ext=ext, size=len(data),
                                     meta={'source': stripped, 'domain': info.get('domain')}, **shared)
         else:
+            shoot = wants_screenshot(info)
+            if shoot:
+                info['shot'] = 'pending'
             block_id = insert_block(req, kind='link', title=title or info.get('title') or stripped,
                                     content=stripped, meta=info, **shared)
             if preview:
                 save_thumb(req, block_id, *preview)
+            if shoot:
+                start_screenshot(req.user['id'], block_id, stripped)
     else:
         block_id = insert_block(req, kind='text', title=title, content=content.strip('\n'), **shared)
 

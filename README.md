@@ -7,10 +7,16 @@ before settling on one of five logos (pick yours in Settings).
 - **Accounts**: a username and a 4-digit code.
 - **Filing cabinet**: your drawers, one per row with a strip of what's inside.
   Each drawer has a pixel critter you can redraw.
-- **Files**: text (light Markdown), links (title and preview pulled in;
-  YouTube and Vimeo play inline), images, video, audio, PDFs, documents,
-  code, archives. The first box in every drawer adds: type, paste, drop or
-  upload. Drag files to rearrange a drawer.
+- **Files**: text (light Markdown; click your text to edit it in place),
+  links, images, video, audio, PDFs, documents, code, archives. The first
+  box in every drawer adds: type, paste, drop or upload. Drag files to
+  rearrange a drawer.
+- **Links** open like a page: the address along the top (click to visit), a
+  picture of the site, and the site's own description. YouTube and Vimeo
+  play inline. The picture is taken by WordPress.com's free mShots service a
+  few seconds after you add the link, so the link's address is sent there.
+- **PDFs** open and scroll inside Mutt, page by page (drawn with pdf.js), with
+  zoom, on phones as well.
 - **Connections**: one file can live in many drawers ("Connect →").
 - **Everything**: every file you've added, sortable by New, Old, Color,
   Vibes, Format, A–Z and Size. Color and Vibes use each picture's colours,

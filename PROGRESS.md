@@ -9,19 +9,37 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Where things stand (2026-10-29)
 
-- The second galaxy redesign is **live**: `galaxy` and `main` are both at 01d78d2 (redesign, handoff files, README update), deployed on Northflank and checked in the browser.
+- **Planets update is live**: `galaxy` and `main` include the planets branch `claude/mutt-planets-interactions-1d7230` (merged at 2894ba6), deployed on Northflank. The new files are served and `/api/health` shows persistent storage. Planets can be moved, turn smoothly, and are each one of eight kinds of world.
+- The database gained `drawers.look`, `drawers.x` and `drawers.y` (added by itself on start). The `classic` site was checked against a copy with them and still works.
 - The project now lives in `/Users/edan/Mutt`.
 - Backup of the pre-galaxy site: branch `classic`, tag `classic-v1`.
 
 ## Next
 
-- In progress in other sessions, not merged: new login screen (`claude/mutt-login-screen-d7c6db`, waiting for the user to look), planets you can move with unique looks (`claude/mutt-planets-interactions-1d7230`), and the black hole look (`claude/black-hole-center-visual-0dae27`).
+- In progress in other sessions, not merged: new login screen (`claude/mutt-login-screen-d7c6db`, waiting for the user to look) and the black hole look (`claude/black-hole-center-visual-0dae27`). The black hole branch touches the galaxy page too, so merge `galaxy` into it before shipping.
 - Worktrees made before the 2026-10-29 handoff fix still have the old rule (their own `PROGRESS.md` copy) in their `CLAUDE.md` until they merge `galaxy`.
 
-1. Try it on a real phone. In particular, check that typing in the void with the keyboard open doesn't slide the page into the universe.
+1. Try it on a real phone. In particular:
+   - hold and drag a planet (only checked with a mouse so far);
+   - check that typing in the void with the keyboard open doesn't slide the page into the universe.
 2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
+
+### 2026-10-29: planets you can move, smooth spin, eight kinds of world (deployed)
+- **Glitchy spin fixed.** The old painter moved the surface in whole steps of about 2 screen pixels, every 150–300 ms, with no smoothing. Now one shared WebGL canvas (`planetgl.js`) paints every planet with a smooth turn at full sharpness, about 30 times a second each. Ten planets cost no measurable frame time. Without WebGL the old painter takes over (`?flat=1` forces it).
+- **Kinds of world:**
+  - eight of them: ocean, green, gas giant, lava, ice, desert, moon rock, storm;
+  - each has animated ground and weather, tinted by the planet's colour;
+  - files stay readable on the surface, and some planets have small moons;
+  - a new planet gets a kind picked for it; **Planet type…** in the ••• menu changes it.
+- **Arranging:**
+  - drag your planets; on touch, hold first; Shift+arrows on the keyboard;
+  - the first move saves every planet's spot, so the others never wander later;
+  - others see the arrangement on their next visit, and so do the mini galaxies in the universe;
+  - phones squeeze and stretch it to fit without overlaps;
+  - **Tidy planets** in the account sheet resets it.
+- Checked in the browser (dark, light, phone width, a second user's view). `tests/galaxy.sh` covers looks and layouts.
 
 ### 2026-10-29: handoff notes fixed
 - Sessions were reading the notes but bundling the read with a guess at a `public/assets/css/` folder that doesn't exist, so the step showed as failed. `CLAUDE.md` now says where the stylesheets are and to read the notes on their own.

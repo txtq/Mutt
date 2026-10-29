@@ -6,7 +6,7 @@ import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
 import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
-import { renderIcon } from './pixel.js';
+import { planetDot } from './planets.js';
 import { transition } from './transitions.js';
 import { toast } from './ui.js';
 import { autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural } from './util.js';
@@ -491,7 +491,7 @@ function renderSide() {
         const href = drawerHref(d);
         return h('li', null, h('a', {
           href, class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(href); },
-        }, renderIcon(d.icon, { size: 18 }), h('span', null, d.title)));
+        }, planetDot(d), h('span', null, d.title)));
       })) : null);
     return;
   }
@@ -504,7 +504,7 @@ function renderSide() {
     : connections.length
       ? h('ul', { class: 'vw-conns' }, connections.map((d) => h('li', null,
         h('a', { href: drawerHref(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(drawerHref(d)); } },
-          renderIcon(d.icon, { size: 18 }), h('span', null, d.title)),
+          planetDot(d), h('span', null, d.title)),
         h('button', {
           type: 'button', class: 'vw-conn-x', 'aria-label': `Take off ${d.title}`, title: `Take off ${d.title}`,
           onclick: () => removeFromDrawer(state.block, d.id, d.title),

@@ -36,7 +36,10 @@ const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 // The system setting, or Motion: Off in Mutt's own settings.
 export const reducedMotion = () => motionQuery.matches || document.documentElement.dataset.motion === 'off';
 
-// Small seeded random numbers, so the same name always gets the same critters.
+// The colours planets (and a few touches like toasts) are picked from.
+export const PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240'];
+
+// Small seeded random numbers, so the same name always gets the same look.
 export function seeded(text) {
   let seed = 2166136261;
   for (let i = 0; i < text.length; i++) seed = Math.imul(seed ^ text.charCodeAt(i), 16777619);

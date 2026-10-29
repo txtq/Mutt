@@ -610,12 +610,9 @@ def list_users(req):
         'FROM users u ORDER BY u.created_at').fetchall()
     users = []
     for row in rows:
-        icons = req.db.execute('SELECT icon FROM drawers WHERE user_id = ? ORDER BY updated_at DESC LIMIT 12',
-                               (row['id'],)).fetchall()
         users.append({
             'username': row['username'], 'createdAt': ms(row['created_at']),
             'files': row['files'], 'drawers': row['drawers'],
-            'critters': [json.loads(i['icon']) for i in icons],
             'you': row['id'] == req.user['id'],
             'unlocked': is_unlocked(req, row['id']),
         })
@@ -790,7 +787,6 @@ def list_galaxies(req):
             'files': sum(w['n'] for w in opened), 'open': len(opened),
             'locked': bool(worlds) and not opened,
             'worlds': worlds[:16],
-            'critters': [json.loads(r['icon']) for r in rows[:5]] if mine else [],
         })
     out.sort(key=lambda g: (not g['you'], g['locked'], g['username']))
     return json_response({'galaxies': out})

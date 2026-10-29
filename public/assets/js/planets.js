@@ -1,10 +1,8 @@
 // Planets: every drawer is a small world that turns slowly. Its files are
 // laid onto the surface like continents between bands of weather, mapped
 // onto a real sphere (a little canvas per planet), then lit from the upper
-// left with an atmosphere round the edge. Its critter flies the flag in the
-// label underneath.
+// left with an atmosphere round the edge, with its name underneath.
 
-import { blink, renderIcon } from './pixel.js';
 import { canPaint, forget, paint } from './planetgl.js';
 import { h, plural, reducedMotion, seeded } from './util.js';
 
@@ -122,12 +120,35 @@ export function lookOf(planet) {
   return LOOKS[Math.floor(seeded(`look:${planet.id}`)() * LOOKS.length)].id;
 }
 
-// A world's colours: its kind's palette, leaning toward its critter's colour
-// (which is bright; worlds are dustier).
+// More colourful: pushes a colour's saturation up and lifts it a touch.
+// Greys and whites barely move, so ice caps and clouds stay clean.
+function richer(hex, amount = 1.4) {
+  const [r, g, b] = rgb(hex);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (!d) return hex;
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  hue = (hue * 60 + 360) % 360;
+  const s2 = Math.min(1, s * amount);
+  const l2 = Math.min(0.92, l + (1 - l) * 0.06);
+  const c = (1 - Math.abs(2 * l2 - 1)) * s2;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const [r1, g1, b1] = hue < 60 ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x] : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
+  const m = l2 - c / 2;
+  const to = (v) => Math.round((v + m) * 255);
+  return `#${((1 << 24) | (to(r1) << 16) | (to(g1) << 8) | to(b1)).toString(16).slice(1)}`;
+}
+
+// A world's colours: its kind's palette, leaning toward the planet's colour
+// (which is bright; worlds are a little dustier), then made more colourful.
 function worldColors(planet, look = lookOf(planet)) {
-  const tint = shade(planet.icon?.c || planet.c || '#2F6BFF', '#6f7891', 0.3);
+  const tint = shade(planet.icon?.c || planet.c || '#2F6BFF', '#6f7891', 0.15);
   const pal = PALETTES[look];
-  const colors = pal.colors.map((c, i) => shade(c, tint, pal.tint[i]));
+  // Lava stays dark and hot rather than taking on the planet's colour.
+  const colors = pal.colors.map((c, i) => richer(shade(c, tint, pal.tint[i]), look === 'lava' ? 1.1 : 1.4));
   const base = look === 'lava' ? shade(colors[1], colors[3], 0.4) : colors[1];
   return { colors, base, light: shade(base, '#f4f1ea', 0.38), dark: shade(base, '#070a16', 0.5) };
 }
@@ -483,7 +504,6 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const ringBack = h('span', { class: 'planet-ring planet-ring-back' });
   const ringFront = h('span', { class: 'planet-ring planet-ring-front' });
   const bubble = h('span', { class: 'planet-bubble', 'aria-hidden': 'true' });
-  const critter = h('span', { class: 'planet-critter' });
   const name = h('span', { class: 'planet-name' });
   const meta = h('span', { class: 'planet-meta' });
   const peekRow = peek ? h('span', { class: 'planet-peek', 'aria-hidden': 'true' }) : null;
@@ -509,12 +529,11 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, ...moons, bubble);
   const el = h(tag, { class: `planet${canPaint() ? ' is-gl' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
     body,
-    label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, critter, name), meta, peekRow) : null);
+    label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta, peekRow) : null);
 
   el.style.setProperty('--tilt', `${tilt}deg`);
   el.style.setProperty('--ring-tilt', `${ringTilt}deg`);
 
-  let critterSvg = null;
   let peekFor = '';
   let shownWorld = '';
   el.update = (next, opts = {}) => {
@@ -540,10 +559,6 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const previews = next.locked ? [] : (next.previews || []).slice(0, 12);
     const tex = textureFor(next, previews, () => globeApi.setTexture(textures.get(tex.key) || tex));
     globeApi.setTexture(tex);
-    if (next.icon && label) {
-      critterSvg = renderIcon(next.icon, { size: 14 });
-      critter.replaceChildren(critterSvg);
-    }
     name.textContent = next.title;
     const bits = [];
     const vis = next.community ? 'community' : next.visibility;
@@ -561,7 +576,6 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   el.update(planet);
 
   el.addEventListener('pointerenter', () => {
-    blink(critterSvg);
     for (const img of el.querySelectorAll('.planet-peek img[data-src]')) { img.src = img.dataset.src; img.removeAttribute('data-src'); }
   });
   el.ball = ball;
@@ -582,7 +596,6 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     void body.offsetWidth;
     body.classList.add('is-gulping');
     setTimeout(() => body.classList.remove('is-gulping'), 900);
-    blink(critterSvg);
   };
   el.center = () => {
     const r = ball.getBoundingClientRect();
@@ -592,6 +605,11 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
 }
 
 // A tiny painted world for the universe: no files, just colour and light.
+// A planet's colour as a small dot, for lists of planets.
+export function planetDot(planet) {
+  return h('span', { class: 'planet-dot', style: { '--c': planet.icon?.c || planet.c || '#2F6BFF' }, 'aria-hidden': 'true' });
+}
+
 export function dotWorld(world, size) {
   const colors = worldColors(world);
   return h('span', {

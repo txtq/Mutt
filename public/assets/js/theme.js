@@ -4,8 +4,7 @@
 import { api, session } from './api.js';
 import { DEFAULT_LOGO, followLogo } from './logo.js';
 import { burst } from './fx.js';
-import { PALETTE, generateIcon } from './pixel.js';
-import { debounce, reducedMotion, seeded } from './util.js';
+import { PALETTE, debounce, reducedMotion, seeded } from './util.js';
 
 export const DEFAULTS = {
   size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false, mode: 'dark',
@@ -91,11 +90,6 @@ export function forgetPrefs() {
 }
 
 // ---------------------------------------------------------------- little touches
-
-// The same name always gets the same critter.
-export function critterFor(seed, index = 0) {
-  return generateIcon(seeded(`${seed}:${index}`));
-}
 
 export function tintFor(id) {
   const r = seeded(id)();

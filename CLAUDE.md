@@ -52,7 +52,8 @@ The suites are curl scripts that **print** what the API returned; nothing assert
   - `dropTarget()`, `pasteText()`, `mounted()`, `destroy()`
 - `statusbar.js` reads the view instance in `update(inst)`. It also owns the account/settings sheet, search, and the corner "home" void.
 - `views/galaxy.js` is the main page: a sticky galaxy section followed by a scroll "runway". Scroll progress drives the zoom out into the universe stage (`track()`), and `/universe` opens already scrolled out.
-- `planets.js` paints each planet on a small canvas from a texture of its files.
+- `planets.js` builds each planet: its kind (`LOOKS`, with `lookOf()` picking one from the id when the owner hasn't), palette, moons, and a texture of its files. `planetgl.js` paints them: one shared off-screen WebGL2 canvas draws every planet's sphere (ground, weather and light in one shader, branching on the kind) and copies it onto the planet's own canvas, about 30 times a second each. Without WebGL2 (or with `?flat=1`) the older 2D painter takes over.
+- Planet positions: `drawers.x`/`y` are offsets from the void in desktop pixels (empty means "scatter it"), saved by `PUT /api/galaxy/layout`. `scatter()` in `views/galaxy.js` places the saved ones first, then scatters the rest; `movable()` in `drag.js` does the dragging.
 - `sky.js` is the fixed background. Pages can give it a lens (the void bends stars) and a night amount.
 - `fx.js` holds the motion helpers; `drag.js` handles pointer drag onto targets.
 

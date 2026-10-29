@@ -7,11 +7,11 @@
 import { blockMenu, openConnect } from '../actions.js';
 import { api, session } from '../api.js';
 import { blackHole } from '../blackhole.js';
-import { draggable } from '../drag.js';
+import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
 import { generateIcon } from '../pixel.js';
-import { dotWorld, fileFace, glyph, planetEl, planetSize } from '../planets.js';
+import { dotWorld, fileFace, glyph, holdPlanets, planetEl, planetSize } from '../planets.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
@@ -69,18 +69,58 @@ function circleHitsRect(r, rect) {
 
 const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
 
-// Planets: scattered outward in the order they were made, each one nudged
-// along a loose spiral until it sits clear of the void, the stars and every
-// planet (and name) before it.
+const placed = (p) => p.x != null && p.y != null;
+const footprint = (s, m) => Math.max(s, m.narrow ? 104 : 140);
+// The room a planet and its name take up, round (x, y).
+const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 });
+
+// The nearest spot to `at` where a planet clears the void, the stars round
+// it, the screen's sides and every rect in `taken`.
+function nearestFree(at, s, m, taken, inner, room) {
+  const w = footprint(s, m);
+  const pad = m.narrow ? 10 : 22;
+  const x0 = clamp(at.x, -room, room);
+  for (let tries = 0, a = Math.atan2(at.y, at.x), d = 0; tries < 1500; tries++, a += 0.45, d += 1.6) {
+    const x = clamp(x0 + Math.cos(a) * d, -room, room);
+    const y = at.y + Math.sin(a) * d;
+    const rect = box(x, y, s, w);
+    if (!circleHitsRect(inner, rect) && !taken.some((o) => overlaps(o, rect, pad))) return { x, y, rect };
+  }
+  return { x: x0, y: at.y, rect: box(x0, at.y, s, w) };
+}
+
+// Planets: the ones you've put somewhere stay there. On a narrow screen the
+// arrangement is drawn in from the sides and stretched taller, and any that
+// end up on top of each other (or of the stars, which grow) settle into the
+// nearest free spot. The rest are scattered outward in the order they were
+// made, each one nudged along a loose spiral until it sits clear of the void,
+// the stars and every planet (and name) before it.
 function scatter(planets, width, inner, m) {
   const half = width / 2 - (m.narrow ? 8 : 28);
   const ax = m.narrow ? 1 : 1.32;
   const ay = m.narrow ? 1 : 0.78;
   const pad = m.narrow ? 10 : 22;
+  const sizes = planets.map((p) => planetSize(p.count, m.scale));
+  let fx = 1;
+  planets.forEach((p, i) => {
+    if (!placed(p) || !p.x) return;
+    const room = Math.max(0, half - footprint(sizes[i], m) / 2);
+    fx = Math.min(fx, room / Math.abs(p.x * m.scale));
+  });
+  const stretch = 1 / Math.sqrt(Math.max(fx, 0.1));
   const rects = [];
   const spots = planets.map((p, i) => {
-    const s = planetSize(p.count, m.scale);
-    const w = Math.max(s, m.narrow ? 104 : 140);
+    if (!placed(p)) return null;
+    const s = sizes[i];
+    const room = Math.max(0, half - footprint(s, m) / 2);
+    const spot = nearestFree({ x: p.x * m.scale * fx, y: p.y * m.scale * stretch }, s, m, rects, inner, room);
+    rects.push(spot.rect);
+    return { ...spot, size: s };
+  });
+  planets.forEach((p, i) => {
+    if (spots[i]) return;
+    const s = sizes[i];
+    const w = footprint(s, m);
     const rand = seeded(`spot:${p.id}`);
     let a = i * GOLDEN * 1.7 - Math.PI * 0.62 + (rand() - 0.5) * 0.7;
     let d = inner + s / 2 + 8 + rand() * 40;
@@ -91,27 +131,41 @@ function scatter(planets, width, inner, m) {
       x = Math.cos(a) * d * ax;
       y = Math.sin(a) * d * ay;
       if (Math.abs(x) + w / 2 > half) x = Math.sign(x) * Math.max(0, half - w / 2);
-      rect = { x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 };
+      rect = box(x, y, s, w);
       if (!circleHitsRect(inner, rect) && !rects.some((o) => overlaps(o, rect, pad))) break;
       a += 0.17;
       d += 3;
     }
     rects.push(rect);
-    return { x, y, size: s };
+    spots[i] = { x, y, size: s, rect };
   });
-  return { spots, rects };
+  return { spots, rects, fx, stretch };
 }
 
 // ---------------------------------------------------------------- the universe
 
 function miniGalaxy(g, size) {
   const rand = seeded(`uv:${g.username}`);
+  // Planets their owner has arranged keep that arrangement in miniature.
+  const reach = Math.max(1, ...(g.worlds || []).filter(placed).map((w) => Math.hypot(w.x, w.y)));
   const worlds = (g.worlds || []).map((w, j) => {
-    const r = size * (0.2 + Math.min(0.24, Math.sqrt(j) * 0.075));
-    const a = j * GOLDEN + rand() * 6.28;
+    let x;
+    let y;
+    if (placed(w)) {
+      const k = (size * 0.44) / reach;
+      const r = Math.max(size * 0.2, Math.hypot(w.x, w.y) * k);
+      const a = Math.atan2(w.y, w.x);
+      x = Math.cos(a) * r;
+      y = Math.sin(a) * r;
+    } else {
+      const r = size * (0.2 + Math.min(0.24, Math.sqrt(j) * 0.075));
+      const a = j * GOLDEN + rand() * 6.28;
+      x = Math.cos(a) * r;
+      y = Math.sin(a) * r;
+    }
     const d = Math.max(5, Math.min(size * 0.13, 5 + Math.sqrt(w.n || 0) * 1.6));
     const dot = dotWorld(w, d);
-    dot.style.transform = `translate(${Math.cos(a) * r}px, ${Math.sin(a) * r}px)`;
+    dot.style.transform = `translate(${x}px, ${y}px)`;
     return dot;
   });
   const meta = g.locked
@@ -226,6 +280,7 @@ class Galaxy {
     if (planet.locked) {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(); });
     }
+    else if (this.mine) this.makeMovable(el);
     this.planetEls.set(planet.id, el);
     this.field.append(el);
     if (born && !reducedMotion()) {
@@ -237,6 +292,89 @@ class Galaxy {
     return el;
   }
 
+  // ------------------------------------------------------------ arranging planets
+
+  // Your own planets can be picked up and put somewhere else. Everyone who
+  // opens your galaxy sees them where you left them.
+  makeMovable(el) {
+    let grab = null;
+    let at = null;
+    let shown = null;
+    const toScene = (pointer) => {
+      const r = this.scene.getBoundingClientRect();
+      return { x: pointer.x - r.left - this.size.cx, y: pointer.y - r.top - this.size.cy };
+    };
+    movable(el, {
+      enabled: () => this.p < 0.02 && !!this.spots?.get(el.planet.id),
+      limits: () => ({ top: 0, bottom: Math.max(0, this.size.height - this.size.viewH) }),
+      onStart: (pointer) => {
+        const spot = this.spots.get(el.planet.id);
+        const p = toScene(pointer);
+        grab = { x: p.x - spot.x, y: p.y - spot.y };
+        at = { x: spot.x, y: spot.y };
+        shown = { ...at };
+        el.classList.add('is-moving');
+      },
+      onMove: (pointer) => {
+        const p = toScene(pointer);
+        const half = this.size.width / 2;
+        at = { x: clamp(p.x - grab.x, -half, half), y: p.y - grab.y };
+        // A little behind the pointer, as if it has some weight.
+        const k = reducedMotion() ? 1 : 0.3;
+        shown = { x: shown.x + (at.x - shown.x) * k, y: shown.y + (at.y - shown.y) * k };
+        el.style.transform = `translate(${this.size.cx + shown.x}px, ${this.size.cy + shown.y}px)`;
+      },
+      onEnd: (pointer, cancelled) => {
+        if (cancelled) { el.classList.remove('is-moving'); this.layout(); return; }
+        this.place(el.planet, at, el);
+      },
+    });
+    el.addEventListener('keydown', (e) => {
+      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!e.shiftKey || !step || this.p > 0.02) return;
+      e.preventDefault();
+      const spot = this.spots.get(el.planet.id);
+      if (spot) this.place(el.planet, { x: spot.x + step[0] * 24, y: spot.y + step[1] * 24 });
+    });
+  }
+
+  // Where a planet dropped at `at` ends up: there, or the nearest free spot.
+  freeSpot(planet, at) {
+    const m = this.m;
+    const s = planetSize(planet.count, m.scale);
+    const room = Math.max(0, this.size.width / 2 - (m.narrow ? 8 : 28) - footprint(s, m) / 2);
+    const others = [...this.spots].filter(([id, spot]) => id !== planet.id && spot).map(([, spot]) => spot.rect);
+    return nearestFree(at, s, m, others, this.inner, room);
+  }
+
+  // Put a planet down and remember where. The first time, every planet's
+  // spot is saved, so none of the others wander off later.
+  async place(planet, at, el = null) {
+    const spot = this.freeSpot(planet, at);
+    const unit = (x, y) => ({ x: Math.round((x / (this.m.scale * this.fx)) * 10) / 10, y: Math.round((y / (this.m.scale * this.stretch)) * 10) / 10 });
+    const first = !this.data.planets.some(placed);
+    const list = first
+      ? this.data.planets.map((p) => {
+        const s = p.id === planet.id ? spot : this.spots.get(p.id);
+        return { id: p.id, ...unit(s.x, s.y) };
+      })
+      : [{ id: planet.id, ...unit(spot.x, spot.y) }];
+    const before = new Map(this.data.planets.map((p) => [p.id, { x: p.x, y: p.y }]));
+    for (const s of list) {
+      const p = this.data.planets.find((q) => q.id === s.id);
+      if (p) Object.assign(p, { x: s.x, y: s.y });
+    }
+    el?.classList.remove('is-moving');
+    this.layout();
+    try {
+      await api.put('/api/galaxy/layout', { planets: list });
+    } catch (err) {
+      toast(err.message);
+      for (const p of this.data.planets) Object.assign(p, before.get(p.id));
+      this.layout();
+    }
+  }
+
   layout() {
     const width = this.stage.clientWidth || innerWidth;
     const bar = this.barHeight();
@@ -245,7 +383,11 @@ class Galaxy {
     this.m = m;
     const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m);
     const inner = Math.max(outer, m.hole + (m.narrow ? 54 : 80)) + (m.narrow ? 10 : 18);
-    const { spots, rects } = scatter(this.data.planets, width, inner, m);
+    const { spots, rects, fx, stretch } = scatter(this.data.planets, width, inner, m);
+    this.inner = inner;
+    this.fx = fx;
+    this.stretch = stretch;
+    this.spots = new Map(this.data.planets.map((p, i) => [p.id, spots[i]]));
 
     let top = -inner;
     let bottom = inner;
@@ -267,6 +409,7 @@ class Galaxy {
       const spot = spots[i];
       if (!el || !spot) return;
       el.update(p, { size: spot.size });
+      if (el.classList.contains('is-moving')) return;
       el.style.transform = `translate(${cx + spot.x}px, ${cy + spot.y}px)`;
     });
     [...this.starsEl.children].forEach((el, i) => {
@@ -717,6 +860,7 @@ class Galaxy {
     if (out !== this.out) {
       this.out = out;
       this.el.classList.toggle('is-out', out);
+      holdPlanets(out);
       if (out && !isEditable(document.activeElement)) this.hole?.close();
       bus.emit('universe', out);
     }
@@ -804,6 +948,7 @@ class Galaxy {
         this.off.forEach((off) => off());
         theSky()?.setLens(null);
         theSky()?.setNight(0);
+        holdPlanets(false);
         bus.emit('universe', false);
       },
     };

@@ -6,7 +6,7 @@ import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
 import { nav } from '../nav.js';
 import { fillIcon, generateIcon, iconEditor } from '../pixel.js';
-import { VISIBILITY, glyph, planetEl } from '../planets.js';
+import { LOOKS, VISIBILITY, glyph, lookOf, planetEl } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { autosize, bus, h, plural, timeAgo, wait } from '../util.js';
 
@@ -173,6 +173,37 @@ export const planetView = {
       });
     }
 
+    // What kind of world it is: picked for it, or one you choose.
+    async function setLook(look) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { look }));
+        inst.drawer = drawer;
+        world.update({ ...drawer, previews: world.planet?.previews });
+        bus.emit('drawer:changed', drawer);
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
+    function pickLook() {
+      const previews = world.planet?.previews || [];
+      const auto = LOOKS.find((l) => l.id === lookOf({ id })).label;
+      const choices = [{ id: null, label: 'Auto', note: auto }, ...LOOKS];
+      const grid = h('div', { class: 'look-grid', role: 'radiogroup', 'aria-label': 'Kind of planet' });
+      const dialog = openDialog({ title: 'Planet type', className: 'dialog-wide', body: grid });
+      for (const choice of choices) {
+        const preview = planetEl({ ...drawer, look: choice.id, previews }, { size: 64, href: null, label: false });
+        preview.classList.add('planet-mini');
+        grid.append(h('button', {
+          type: 'button',
+          class: 'look-pick',
+          role: 'radio',
+          'aria-checked': String((drawer.look || null) === choice.id),
+          onclick: () => { dialog.close(); if ((drawer.look || null) !== choice.id) setLook(choice.id); },
+        }, preview, h('span', { class: 'look-name' }, choice.label), choice.note ? h('span', { class: 'look-note' }, choice.note) : null));
+      }
+    }
+
     async function remove() {
       let orphans = 0;
       try { ({ count: orphans } = await api.get(`/api/drawers/${id}/orphans`)); } catch { /* ask anyway */ }
@@ -268,6 +299,7 @@ export const planetView = {
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
+      { label: 'Planet type…', run: pickLook },
       { label: 'Draw critter…', run: editIcon },
       { label: 'New critter', run: () => setIcon(generateIcon()) },
       '-',

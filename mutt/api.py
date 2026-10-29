@@ -26,6 +26,8 @@ COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
 PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240']
 VISIBILITY = ('private', 'pin', 'people', 'public')
+PLANET_LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'rock', 'storm')
+LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
 
 PREF_CHOICES = {
     'font': {'geist', 'inter', 'instrument', 'grotesk', 'plex', 'fraunces', 'newsreader', 'mono', 'pixel', 'custom'},
@@ -98,6 +100,9 @@ def drawer_json(row, count=None, previews=None):
         'updatedAt': ms(row['updated_at']),
         'community': bool(row['community']) if 'community' in row.keys() else False,
         'visibility': row['visibility'] if 'visibility' in row.keys() else 'pin',
+        'look': row['look'] if 'look' in row.keys() else None,
+        'x': row['x'] if 'x' in row.keys() else None,
+        'y': row['y'] if 'y' in row.keys() else None,
     }
     if count is not None:
         data['count'] = count
@@ -730,6 +735,35 @@ def unlock_galaxy(req, username):
     return json_response(galaxy_of(req, owner))
 
 
+@route('PUT', r'/api/galaxy/layout')
+def save_layout(req):
+    """Where you've put your planets. `reset` sends them all back to being
+    placed for you."""
+    body = req.json()
+    if body.get('reset'):
+        req.db.execute('UPDATE drawers SET x = NULL, y = NULL WHERE user_id = ?', (req.user['id'],))
+        return json_response({'ok': True})
+    spots = body.get('planets')
+    if not isinstance(spots, list) or not spots or len(spots) > 2000:
+        raise HttpError(400, 'Could not save where your planets are.')
+    rows = []
+    for spot in spots:
+        if not isinstance(spot, dict):
+            raise HttpError(400, 'Could not save where your planets are.')
+        xy = []
+        for key, reach in zip(('x', 'y'), LAYOUT_REACH):
+            n = spot.get(key)
+            if isinstance(n, bool) or not isinstance(n, (int, float)) or n != n or n in (float('inf'), float('-inf')):
+                raise HttpError(400, 'Could not save where your planets are.')
+            xy.append(round(max(-reach, min(reach, float(n))), 1))
+        rows.append((*xy, str(spot.get('id') or ''), req.user['id']))
+    with db.transaction(req.db):
+        for row in rows:
+            if not req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ?', row).rowcount:
+                raise HttpError(404, 'One of those planets is not yours.')
+    return json_response({'ok': True})
+
+
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
     """The universe: everyone with something you could look at. You come
@@ -746,7 +780,8 @@ def list_galaxies(req):
         for r in rows:
             open_ = mine or drawer_visible(req, r)
             if open_ or r['visibility'] == 'pin':
-                worlds.append({'c': json.loads(r['icon']).get('c'), 'n': r['n'], 'locked': not open_})
+                worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': r['n'], 'locked': not open_,
+                               'look': r['look'], 'x': r['x'], 'y': r['y']})
         if not worlds and not mine:
             continue
         opened = [w for w in worlds if not w['locked']]
@@ -848,6 +883,10 @@ def update_drawer(req, drawer_id):
         if body['visibility'] not in VISIBILITY:
             raise HttpError(400, 'That sharing setting could not be saved.')
         updates['visibility'] = body['visibility']
+    if 'look' in body:
+        if body['look'] is not None and body['look'] not in PLANET_LOOKS:
+            raise HttpError(400, 'That kind of planet does not exist.')
+        updates['look'] = body['look']
     if 'people' in body:
         set_planet_people(req, drawer_id, body['people'])
     if 'community' in body:

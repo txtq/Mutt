@@ -13,11 +13,23 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   **Autosort**, a **Planet** you choose, or a **New planet** you name right
   there. You can also drop files straight onto the void.
 - **Planets** are collections (drawers, in the code). Each one is a slowly
-  turning world with your files laid across its surface, scattered round
-  the void and bigger the more it holds; full ones get thin rings. Hover
-  for a peek at what's on it; drag a file from your computer, or a star,
-  onto a planet to put it there. Open a planet to see and edit everything
-  in it, and use **Share** there to choose who can see it.
+  turning world with your files laid across its surface, bigger the more it
+  holds; full ones get thin rings, and some have small moons. Hover for a
+  peek at what's on it; drag a file from your computer, or a star, onto a
+  planet to put it there. Open a planet to see and edit everything in it,
+  and use **Share** there to choose who can see it.
+- **Kinds of planet**: every planet is one of eight worlds (ocean, green,
+  gas giant, lava, ice, desert, moon rock, storm), each with its own ground
+  and weather: drifting clouds, sliding bands, slowly glowing lava seams,
+  dust storms, now-and-then lightning. A new planet gets one picked for it;
+  change it with **Planet type…** in the planet's ••• menu. The planet's
+  colour tints whichever kind it is.
+- **Arranging**: drag your planets anywhere in your galaxy (on a phone,
+  hold one for a moment first; with the keyboard, Shift and the arrow
+  keys). Everyone who opens your galaxy sees them where you put them, and
+  your little galaxy in the universe keeps the same shape. Phones squeeze
+  the arrangement to fit. **Tidy planets** in your account sheet lets them
+  spread out on their own again.
 - **Stars** are files that aren't on a planet yet. They sit as small
   thumbnails clustered round the void, newest closest in. Click to open,
   drag onto a planet, or drag back into the void to autosort it.
@@ -47,8 +59,8 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 
 The pre-galaxy Mutt is kept on the `classic` branch and the `classic-v1`
 tag. Both read the same database, so you can switch back and forth; the
-classic version just ignores who-can-see settings and treats every planet as
-Code.
+classic version just ignores who-can-see settings, planet kinds and where
+you've put planets, and treats every planet as Code.
 
 ## Run it
 

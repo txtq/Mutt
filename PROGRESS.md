@@ -6,25 +6,21 @@ The handoff note between sessions. Read it first; update it after every task
 
 ## Where things stand (2026-10-29)
 
-- Branch `galaxy` has the second galaxy redesign (commit 1574ef0), plus `CLAUDE.md`, this file, `/handoff` and `tests/`.
-- **Not yet merged to `main` or deployed.** The live site still runs the first galaxy version (93a18a7).
+- The second galaxy redesign is **live**: `galaxy` and `main` are both at 01d78d2 (redesign, handoff files, README update), deployed on Northflank and checked in the browser.
+- The project now lives in `/Users/edan/Mutt`.
 - Backup of the pre-galaxy site: branch `classic`, tag `classic-v1`.
 
 ## Next
 
-1. Merge `galaxy` into `main`, push, and check the live site (dark, light, phone).
-2. Rewrite `README.md` for the new design:
-   - the void and paper add box, with its Star / Autosort / Planet / New planet choices
-   - stars around the void
-   - scrolling down into the universe, replacing the old swipe and Community
-   - light mode
-   - the corner void as the way home
-   - the Share button on planet pages
-   - fonts are now Red Hat Text / Red Hat Mono
-3. Try it on a real phone. In particular, check that typing in the void with the keyboard open doesn't slide the page into the universe.
-4. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
+1. Try it on a real phone. In particular, check that typing in the void with the keyboard open doesn't slide the page into the universe.
+2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
+
+### 2026-10-29: deployed
+- Merged the redesign into `main`; the live site updated and its storage check is healthy.
+- README rewritten for the new design (void, stars, universe, light mode, corner void, Share, fonts).
+- Added CLAUDE.md, this handoff file, the `/handoff` command and `tests/`.
 
 ### 2026-10-29: second galaxy redesign (from the user's feedback)
 - Fixed the planet picker and ••• menu opening in the wrong place.

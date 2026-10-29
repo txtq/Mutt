@@ -10,6 +10,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 ## Where things stand (2026-10-29)
 
 - **New login screen is live**: `claude/mutt-login-screen-d7c6db` is merged into `galaxy` and `main` and deployed. It has the "Are you new to Mutt?" question, a low pixel horizon, a warm light from the top right, and is always night.
+- **Critters are gone and planets are more colourful (live)**: `claude/remove-critters-brighten-planets-122880` is merged into `galaxy` and `main` and deployed.
 - **Planets update is live**: `galaxy` and `main` include the planets branch `claude/mutt-planets-interactions-1d7230` (merged at 2894ba6), deployed on Northflank. The new files are served and `/api/health` shows persistent storage. Planets can be moved, turn smoothly, and are each one of eight kinds of world.
 - The database gained `drawers.look`, `drawers.x` and `drawers.y` (added by itself on start). The `classic` site was checked against a copy with them and still works.
 - The project now lives in `/Users/edan/Mutt`.
@@ -18,6 +19,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 ## Next
 
 - In progress in another session, not merged: the black hole look (`claude/black-hole-center-visual-0dae27`). It touches the galaxy page too, so merge `galaxy` into it before shipping.
+- Done but not committed or merged: the corner map replacing the corner black hole, in the worktree branch `claude/black-hole-go-home-alt-43cebc` (see Done). It touches `views/galaxy.js` (the universe's mini galaxies now use `miniWorlds()` from `planets.js`), so watch for overlap with the black hole look branch. It will also meet the critters change in `planets.js` (`worldColors`, `planetDot`) when it merges `galaxy`.
 - Worktrees made before the 2026-10-29 handoff fix still have the old rule (their own `PROGRESS.md` copy) in their `CLAUDE.md` until they merge `galaxy`.
 
 1. Try it on a real phone. In particular:
@@ -26,6 +28,21 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
+
+### 2026-10-29: critters removed, planets more colourful (deployed)
+- The user asked to get rid of critters. Gone: the pixel creature by each planet's name, the critter editor, "New critter", and the blinking. `pixel.js` is deleted and `PALETTE` moved to `util.js`. Lists of planets (putting a file on a planet, the viewer) show a small colour dot instead (`planetDot()` in `planets.js`).
+- The planet's colour still lives in `drawers.icon.c`, next to the old pixels, because the `classic` site still draws them. **Planet colour…** in the ••• menu changes only the colour. New planets get the server's default icon. Clicking the big planet on its page now opens **Planet type**.
+- Planets were "too dark". Their colours now go through `richer()` in `planets.js` (more saturation, a little lighter, with the planet's own colour greyed less). The shader's shadow side and edge are lighter too. Lava gets a smaller boost so it stays hot.
+- Checked in the browser: desktop dark, phone width in light mode, the colour picker saving, the dots, `?flat=1`, and the merge with the new login screen. Test suites print as before.
+- Note: the in-app browser pane doesn't show planet canvases in screenshots while it's hidden. Copying each canvas into an `<img>` overlay works.
+
+### 2026-10-29: a map of your galaxy replaces the corner black hole (not merged)
+- The user didn't like the little black hole in the top-left corner as the way home. They picked a mini map instead.
+- Away from your galaxy (on a planet, or in someone else's galaxy) the corner now shows a round, glossy window onto your own galaxy: your planets as small coloured dots, in the spots you put them, slowly turning round the middle. The planet you're on has a ring round it. Tap it and it zooms to fill the screen and takes you home.
+- It doesn't show in the universe; the user said scrolling back up is enough there.
+- It's 64 px wide (52 px on phones), so the planet page header moved right to make room. The dark window stays dark in light mode.
+- The miniature drawing is shared with the universe's mini galaxies (`miniWorlds()` in `planets.js`), which look the same as before.
+- Checked in the browser: planet page, someone else's galaxy, tapping it home, hidden on your own galaxy and in the universe, light mode, phone width. Test suites read normally.
 
 ### 2026-10-29: login screen, "Are you new to Mutt?" (deployed)
 - Login opens on a question, "Are you new to Mutt?", with "Yes, I'm new" (make an account) and "No, log in". Y and N keys work too.

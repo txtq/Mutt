@@ -9,6 +9,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Where things stand (2026-10-29)
 
+- **The spaceship home is live**: `claude/black-hole-go-home-alt-43cebc` is merged into `galaxy` and `main` (bcfeda6) and deployed. Away from your galaxy, a little ship in the top-left corner flies you home; it replaced the corner black hole.
 - **The black hole void is live**: `claude/black-hole-center-visual-0dae27` is merged into `galaxy` and `main` and deployed. The middle of the galaxy is a big, grainy, smoky black hole, and clicking it opens a flat, Are.na-style add box inside the dark.
 - **New login screen is live**: `claude/mutt-login-screen-d7c6db` is merged into `galaxy` and `main` and deployed. It has the "Are you new to Mutt?" question, a low pixel horizon, a warm light from the top right, and is always night.
 - **Critters are gone and planets are more colourful (live)**: `claude/remove-critters-brighten-planets-122880` is merged into `galaxy` and `main` and deployed.
@@ -19,12 +20,12 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Next
 
-- Done but not committed or merged: the spaceship replacing the corner black hole, in the worktree branch `claude/black-hole-go-home-alt-43cebc` (see Done). It changes `statusbar.js` and `galaxy.css`. It no longer touches `planets.js`, so it shouldn't clash with the critters change there.
 - Worktrees made before the 2026-10-29 handoff fix still have the old rule (their own `PROGRESS.md` copy) in their `CLAUDE.md` until they merge `galaxy`.
 
 1. Try it on a real phone. In particular:
    - hold and drag a planet (only checked with a mouse so far);
    - check that typing in the void with the keyboard open doesn't slide the page into the universe (the open add box is about 320px tall on a phone).
+   - tap the corner spaceship and watch the flight (only checked in the desktop browser and its phone-size view);
    - see how smoothly the black hole turns on an older phone; it builds its textures on first load and on each light/dark switch, which takes a moment.
 2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
@@ -51,13 +52,13 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 - Checked in the browser: desktop dark, phone width in light mode, the colour picker saving, the dots, `?flat=1`, and the merge with the new login screen. Test suites print as before.
 - Note: the in-app browser pane doesn't show planet canvases in screenshots while it's hidden. Copying each canvas into an `<img>` overlay works.
 
-### 2026-10-29: a spaceship replaces the corner black hole (not merged)
+### 2026-10-29: a spaceship replaces the corner black hole (deployed)
 - The user didn't like the little black hole in the top-left corner as the way home. A mini map of your galaxy was tried first; the user preferred a spaceship.
 - Away from your galaxy (on a planet, or in someone else's galaxy) a small silver ship with blue fins and window sits in the corner, nose turned toward the "mutt" wordmark, bobbing gently.
 - Tap it: it shudders as its flame lights, lifts off, swings out across the page growing larger, then climbs off the top, leaving a thin trail while the page falls away. Then your galaxy opens. With reduced motion it just goes home.
 - It doesn't show in the universe; the user said scrolling back up is enough there.
 - All in `statusbar.js` (`SHIP`, `launch()`) and the "ship in the corner" section of `galaxy.css`.
-- Checked in the browser: dark, light, phone width, the flight paused at several points, landing home. Not checked on a real phone.
+- Checked in the browser: dark, light, phone width, the flight paused at several points, landing home. Merged `galaxy` (black hole void, login, critters removal) in first; the only clash was one line of the reduce-motion list. Checked again after the merge, then deployed: new files served, `/api/health` shows persistent storage. Not checked on a real phone.
 
 ### 2026-10-29: login screen, "Are you new to Mutt?" (deployed)
 - Login opens on a question, "Are you new to Mutt?", with "Yes, I'm new" (make an account) and "No, log in". Y and N keys work too.

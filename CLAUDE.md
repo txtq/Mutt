@@ -72,6 +72,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 ## User preferences
 
 - **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, with both light and dark modes.
+- **Pixel touches:** pixel art is welcome as an accent only, like the login's horizon of trees, cottage and mutt, with warm touches. Don't go "too Stardew Valley": no pixel fonts, pixel frames, pixel moon or stars. The Mutt and Vita look (rounded glass, Red Hat type, fluid motion) comes first. The login screen is always night.
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (dark, light and phone width) before deploying, and keep the `classic` backup intact.
 - **Explanations:** write to the user in plain language, without code terms.

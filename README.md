@@ -1,45 +1,49 @@
 # Mutt
 
 A personal place to keep things and connect them, like Are.na with only
-what's needed, dressed up as a little galaxy in deep PS Vita blues.
+what's needed, dressed up as a little galaxy in PS Vita blues.
 
 - **Accounts**: a username and a 4-digit code.
 - **Your galaxy** is the whole app. A thin bar along the top says whose
-  galaxy it is; tap your name for settings, or the magnifier (or press `/`)
-  to search.
-- **Planets** are collections (what used to be drawers). Each one is a
-  glossy little world with your files wrapped round its surface as tiny
-  glowing windows, a pixel critter on its north pole you can redraw, rings
-  once it holds 8 or more, and moons that orbit when you hover. Drag a file
-  from your computer, or a star, onto a planet to put it there. Open a
-  planet to see and edit everything in it.
-- **The black hole** in the middle is how you add things: click it to type
-  a note, paste a link or upload, or drop files straight onto it. New things
-  wait beside it as stars until you drag them onto a planet.
-- **Autosort** (a switch in the black hole and in settings) sends new things
-  to a planet by itself: one whose name matches the words, one named after
-  the kind of file (Images, Links, Notes, Reading…), or one that's mostly
-  that kind. If none fits, a new planet is born.
-- **Stars**: scroll down past the planets to find every file that isn't on
-  a planet yet. Hover for a peek, click to open, drag onto a planet (or back
-  into the black hole to autosort it).
+  galaxy it is; tap your name for your account (files, planets and stars)
+  and settings, or the magnifier (or press `/`) to search.
+- **The void** in the middle is how you add things. Click it and it opens
+  wide, and a sheet of paper rises out of the dark: write a note, paste a
+  link or upload, and pick where it goes: **Star** (loose, by the void),
+  **Autosort**, a **Planet** you choose, or a **New planet** you name right
+  there. You can also drop files straight onto the void.
+- **Planets** are collections (drawers, in the code). Each one is a slowly
+  turning world with your files laid across its surface, scattered round
+  the void and bigger the more it holds; full ones get thin rings. Hover
+  for a peek at what's on it; drag a file from your computer, or a star,
+  onto a planet to put it there. Open a planet to see and edit everything
+  in it, and use **Share** there to choose who can see it.
+- **Stars** are files that aren't on a planet yet. They sit as small
+  thumbnails clustered round the void, newest closest in. Click to open,
+  drag onto a planet, or drag back into the void to autosort it.
+- **Autosort** sends new things to a planet by itself: one whose name
+  matches the words, one named after the kind of file (Images, Links,
+  Notes, Reading...), or one that's mostly that kind. If none fits, a new
+  planet is born.
 - **Who can see a planet**: Private (only you), Code (anyone who has your
   4-digit code, the default), People (the usernames you list) or Public
   (everyone signed in). A public planet can also let others add files.
-- **Other galaxies**: swipe left or right (or use the arrows and the dots
-  on the left) to visit other people's galaxies. Their planets you can't
-  open yet look frosted; type their code to thaw them. Wrong codes count
-  toward the same lockout as signing in; changing your code locks everyone
-  out again. **Save** a file you like to keep your own copy.
-- **Community** sits at the end of the swipe and is under construction.
+- **The universe**: keep scrolling down and your galaxy shrinks away into a
+  dark universe of everyone's galaxies (or go straight to `/universe`).
+  Click one to visit it. Planets you can't open yet look frosted; type
+  their code to thaw them. Wrong codes count toward the same lockout as
+  signing in; changing your code locks everyone out again. **Save** a file
+  you like to keep your own copy.
+- **Going home**: away from your galaxy, a small void sits in the top-left
+  corner. Tap it to fall back home.
 - **Files**: text (light Markdown; click your text to edit it in place),
   links, images, video, audio, PDFs, documents, code, archives. Links open
   with a picture of the site (taken by WordPress.com's free mShots service,
   so the link's address is sent there); YouTube and Vimeo play inline; PDFs
   scroll inside Mutt, drawn with pdf.js. One file can sit on many planets.
-- **Settings**: sky (Vita, Nebula, Aurora, Dusk), logo, autosort, text
-  size, and motion (Lively, Calm or Still). Mutt also respects your
-  system's reduce-motion setting.
+- **Settings**: mode (Auto, Light or Dark), sky (Vita, Nebula, Aurora,
+  Dusk), logo, autosort, text size, and motion (Lively, Calm or Still).
+  Mutt also respects your system's reduce-motion setting.
 
 The pre-galaxy Mutt is kept on the `classic` branch and the `classic-v1`
 tag. Both read the same database, so you can switch back and forth; the
@@ -125,9 +129,10 @@ over if someone guessed right.
 server.py            starts the server
 mutt/                Python: app, api, auth, db, links (link previews), kinds (bundles)
 public/index.html    the single page
-public/assets/       mutt.css + galaxy.css, and js/ (galaxy, planets, black hole, sky, viewer…)
+public/assets/       mutt.css + galaxy.css, and js/ (galaxy, planets, the void, sky, viewer…)
+tests/               API test suites: tests/run.sh [smoke|galaxy|preview]
 ```
 
 Previews (image thumbnails, video posters, PDF first pages) are made in the
 browser during upload, so the server never decodes media. PDF previews load
-pdf.js from cdnjs; fonts come from Google Fonts (M PLUS Rounded 1c and Geist Mono).
+pdf.js from cdnjs; fonts come from Google Fonts (Red Hat Text and Red Hat Mono).

@@ -72,6 +72,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 ## User preferences
 
 - **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, with both light and dark modes.
+- **The void:** a big black hole that's artsy and textured (smoky, grainy dust, like a print), not realistic or painted light. Pixel art only as small touches. Add boxes are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (dark, light and phone width) before deploying, and keep the `classic` backup intact.
 - **Explanations:** write to the user in plain language, without code terms.

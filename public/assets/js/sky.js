@@ -6,6 +6,7 @@
 import { h, reducedMotion } from './util.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const smoothstep = (t) => { const c = Math.max(0, Math.min(1, t)); return c * c * (3 - 2 * c); };
 
 // One soft band of light: a filled wave with a bright hairline along its crest.
 function ribbon(index, { y, amp, thick, period, opacity, line }) {
@@ -150,9 +151,13 @@ export function createSky() {
         const dx = x - hole.x;
         const dy = y - hole.y;
         const d = Math.hypot(dx, dy) || 0.01;
+        // The bend fades out smoothly a little way past the dark, so a big
+        // void doesn't shove the whole sky about.
         const e = hole.r * 1.05;
-        if (d < hole.r * 6) {
-          const bent = (d + Math.sqrt(d * d + 4 * e * e)) / 2;
+        const reach = hole.r * 3.2;
+        if (d < reach) {
+          const fade = 1 - smoothstep((d - hole.r * 1.8) / (reach - hole.r * 1.8));
+          const bent = d + ((d + Math.sqrt(d * d + 4 * e * e)) / 2 - d) * fade;
           x = hole.x + (dx / d) * bent;
           y = hole.y + (dy / d) * bent;
         }

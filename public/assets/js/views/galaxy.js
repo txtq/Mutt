@@ -6,7 +6,7 @@
 
 import { blockMenu, openConnect } from '../actions.js';
 import { api, session } from '../api.js';
-import { blackHole } from '../blackhole.js';
+import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
@@ -17,6 +17,7 @@ import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
 import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, wait } from '../util.js';
+import { REACH, voidRadius } from '../voidart.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
@@ -34,13 +35,17 @@ function excerpt(text, n = 90) {
 
 const starTitle = (b) => b.title || (b.kind === 'text' ? excerpt(b.content || '', 40) : b.fileName) || 'Untitled';
 
-function metrics(width) {
+function metrics(width, viewH) {
   const narrow = width < 640;
   const mid = width < 1000;
+  const hole = voidRadius(width, viewH); // radius of the dark itself
   return {
     narrow,
     scale: narrow ? 0.72 : mid ? 0.86 : 1,
-    hole: narrow ? 46 : 64, // radius of the dark itself
+    hole,
+    // The glow round it: a tall oval.
+    rx: hole * REACH.x,
+    ry: hole * REACH.y,
     chip: narrow ? 30 : 38,
     cell: narrow ? 37 : 47,
   };
@@ -48,23 +53,26 @@ function metrics(width) {
 
 // ---------------------------------------------------------------- layout
 
-// Stars: a sunflower spiral round the void, newest closest in.
+// Stars: a sunflower spiral in the dust round the void, newest closest in,
+// starting just outside the arcs of light and stretched tall like the dust.
+const TALL = REACH.y / REACH.x;
 function starSpots(n, m) {
-  const r0 = m.hole + (m.narrow ? 30 : 42);
+  const r0 = m.hole * 2.25 + m.chip / 2;
   const spots = [];
   for (let i = 0; i < n; i++) {
-    const r = Math.sqrt(r0 * r0 + (i * m.cell * m.cell) / Math.PI);
+    const r = Math.sqrt(r0 * r0 + (i * m.cell * m.cell) / (Math.PI * TALL));
     const a = i * GOLDEN - Math.PI / 2;
-    spots.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+    spots.push({ x: Math.cos(a) * r, y: Math.sin(a) * r * TALL });
   }
-  const outer = n ? Math.sqrt(r0 * r0 + (n * m.cell * m.cell) / Math.PI) + m.chip / 2 : m.hole + 50;
+  const outer = n ? Math.sqrt(r0 * r0 + (n * m.cell * m.cell) / (Math.PI * TALL)) + m.chip / 2 : 0;
   return { spots, outer };
 }
 
-function circleHitsRect(r, rect) {
+// Does a rectangle reach into the oval (rx × ry) round the middle?
+function ovalHitsRect(rx, ry, rect) {
   const x = clamp(0, rect.x0, rect.x1);
   const y = clamp(0, rect.y0, rect.y1);
-  return Math.hypot(x, y) < r;
+  return (x / rx) ** 2 + (y / ry) ** 2 < 1;
 }
 
 const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
@@ -73,6 +81,7 @@ const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 <
 // along a loose spiral until it sits clear of the void, the stars and every
 // planet (and name) before it.
 function scatter(planets, width, inner, m) {
+  const tall = inner.ry / inner.rx;
   const half = width / 2 - (m.narrow ? 8 : 28);
   const ax = m.narrow ? 1 : 1.32;
   const ay = m.narrow ? 1 : 0.78;
@@ -83,16 +92,16 @@ function scatter(planets, width, inner, m) {
     const w = Math.max(s, m.narrow ? 104 : 140);
     const rand = seeded(`spot:${p.id}`);
     let a = i * GOLDEN * 1.7 - Math.PI * 0.62 + (rand() - 0.5) * 0.7;
-    let d = inner + s / 2 + 8 + rand() * 40;
+    let d = inner.rx + s / 2 + 8 + rand() * 40;
     let x = 0;
     let y = 0;
     let rect = null;
     for (let tries = 0; tries < 900; tries++) {
       x = Math.cos(a) * d * ax;
-      y = Math.sin(a) * d * ay;
+      y = Math.sin(a) * d * ay * tall;
       if (Math.abs(x) + w / 2 > half) x = Math.sign(x) * Math.max(0, half - w / 2);
       rect = { x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 };
-      if (!circleHitsRect(inner, rect) && !rects.some((o) => overlaps(o, rect, pad))) break;
+      if (!ovalHitsRect(inner.rx, inner.ry, rect) && !rects.some((o) => overlaps(o, rect, pad))) break;
       a += 0.17;
       d += 3;
     }
@@ -174,16 +183,15 @@ class Galaxy {
         onText: (text, from, dest) => this.addText(text, from, dest),
         onFiles: (files, from, dest) => this.addFiles(files, from, dest),
       });
-      this.coreEl = this.hole.el;
+      this.void = this.hole;
     } else {
-      this.coreEl = h('div', { class: 'void is-still' },
-        h('div', { class: 'void-core' },
-          h('span', { class: 'void-lens' }), h('span', { class: 'void-swirl' }), h('span', { class: 'void-ring' }), h('span', { class: 'void-hole' })),
-        h('span', { class: 'void-label' }, `@${this.owner}`));
+      this.void = stillVoid(`@${this.owner}`);
     }
+    this.coreEl = this.void.el;
+    this.art = h('div', { class: 'gx-art' }, this.void.art);
     this.coreWrap = h('div', { class: 'gx-core' }, this.starsEl, this.coreEl);
     this.hint = h('p', { class: 'gx-hint' });
-    this.scene = h('div', { class: 'gx-scene' }, this.field, this.coreWrap, this.hint);
+    this.scene = h('div', { class: 'gx-scene' }, this.art, this.field, this.coreWrap, this.hint);
     this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy` }, this.scene);
 
     // ------------------------------------------------------------ the universe below
@@ -241,14 +249,17 @@ class Galaxy {
     const width = this.stage.clientWidth || innerWidth;
     const bar = this.barHeight();
     const viewH = innerHeight - bar;
-    const m = metrics(width);
+    const m = metrics(width, viewH);
     this.m = m;
     const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m);
-    const inner = Math.max(outer, m.hole + (m.narrow ? 54 : 80)) + (m.narrow ? 10 : 18);
+    // Planets keep clear of the glow and of the stars caught in it. The
+    // dust fades out well before its edge, so they may sit on its rim.
+    const gap = m.narrow ? 10 : 18;
+    const inner = { rx: Math.max(outer, m.rx * 0.72) + gap, ry: Math.max(outer * TALL, m.ry * 0.72) + gap };
     const { spots, rects } = scatter(this.data.planets, width, inner, m);
 
-    let top = -inner;
-    let bottom = inner;
+    let top = -inner.ry;
+    let bottom = inner.ry;
     for (const r of rects) { top = Math.min(top, r.y0); bottom = Math.max(bottom, r.y1); }
     const pad = m.narrow ? 36 : 56;
     const content = bottom - top + pad * 2;
@@ -261,6 +272,9 @@ class Galaxy {
     this.stage.style.height = `${height}px`;
     this.stage.style.top = `${bar + viewH - height}px`;
     this.coreWrap.style.transform = `translate(${cx}px, ${cy}px)`;
+    this.art.style.transform = `translate(${cx}px, ${cy}px)`;
+    // The canvas covers the page's width and a bit more than a screen tall.
+    this.void.size(m.hole, width + 40, Math.max(viewH * 1.5, m.ry * 2.6));
     this.scene.style.transformOrigin = `${cx}px ${cy}px`;
     this.data.planets.forEach((p, i) => {
       const el = this.planetEls.get(p.id);
@@ -623,7 +637,7 @@ class Galaxy {
     return {
       overlay: false,
       over: (e) => {
-        const found = this.hit(e.clientX, e.clientY);
+        const found = this.hole.isOpen() ? null : this.hit(e.clientX, e.clientY);
         for (const el of this.planetEls.values()) el.classList.toggle('is-target', el === found?.el);
         this.hole.hover(!found);
       },
@@ -632,10 +646,13 @@ class Galaxy {
         this.hole.hover(false);
       },
       drop: (files, e) => {
-        const found = e ? this.hit(e.clientX, e.clientY) : null;
+        const open = this.hole.isOpen();
+        const found = e && !open ? this.hit(e.clientX, e.clientY) : null;
         for (const el of this.planetEls.values()) el.classList.remove('is-target');
         this.hole.hover(false);
-        if (found) this.addFilesTo(found.id, files, { x: e.clientX, y: e.clientY });
+        // With the box open, files go wherever the box says.
+        if (open) this.hole.takeFiles(files, e ? new DOMRect(e.clientX - 20, e.clientY - 20, 40, 40) : null);
+        else if (found) this.addFilesTo(found.id, files, { x: e.clientX, y: e.clientY });
         else this.addFiles(files, e ? new DOMRect(e.clientX - 20, e.clientY - 20, 40, 40) : null, { mode: this.hole.mode() === 'sort' ? 'sort' : 'star' });
       },
     };
@@ -720,6 +737,9 @@ class Galaxy {
       if (out && !isEditable(document.activeElement)) this.hole?.close();
       bus.emit('universe', out);
     }
+    // The black hole only moves while you can see it.
+    if (p > 0.3) this.void.pause();
+    else this.void.play();
     theSky()?.setNight(e);
   }
 
@@ -763,8 +783,9 @@ class Galaxy {
 
   entrance() {
     if (reducedMotion()) return;
-    this.coreEl.animate([{ transform: 'scale(0.6)', opacity: 0 }, { transform: 'none', opacity: 1 }],
-      { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    this.coreEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 300, fill: 'backwards' });
+    this.void.art.animate([{ transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }],
+      { duration: 1200, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
     this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 200, fill: 'backwards' });
     [...this.planetEls.values()].forEach((p, i) => {
       p.body.animate([
@@ -791,8 +812,7 @@ class Galaxy {
         addEventListener('scroll', this.onScroll, { passive: true });
         theSky()?.setLens(() => {
           if (this.p > 0.02 || !this.el.isConnected) return null;
-          const r = this.coreEl.querySelector('.void-hole').getBoundingClientRect();
-          return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+          return { ...this.void.center(), r: this.void.radius() };
         });
         if (startOut) { startOut = false; requestAnimationFrame(() => this.goOut(true)); }
         this.entrance();
@@ -803,6 +823,7 @@ class Galaxy {
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
         theSky()?.setLens(null);
+        this.void.destroy();
         theSky()?.setNight(0);
         bus.emit('universe', false);
       },

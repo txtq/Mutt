@@ -9,6 +9,8 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Where things stand (2026-10-30)
 
+- **Smoother trip back from a planet (live)**: `claude/planet-exit-animation-bug-ee8c5b` is merged into `galaxy` and `main` (32c102b) and deployed.
+
 - **Light mode is gone (live)**: `claude/remove-light-mode-16b469` is merged into `galaxy` (395d103) and `main` and deployed, on top of the universe update. Nothing in the code refers to light mode any more.
 - **Universe update is live**: `claude/galaxy-universe-scroll-animation-0ee24a` is merged into `galaxy` and `main` (70a26a8) and deployed. The trip out to the universe takes about twice the scrolling and glides; each galaxy there is a true miniature of its owner's planets, bigger than before.
 - **The void is now a caged light (live)**: `claude/black-hole-center-visual-0dae27` (4068d78) is merged into `galaxy` and `main` and deployed. The middle is a smaller stippled print of a white light caged by webbed, sinewy strands, sitting straight on the sky, with the add box opening in the light.
@@ -33,6 +35,16 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
+
+### 2026-10-30: the trip from a planet back home is smooth (deployed)
+- The user said leaving a planet for home was "super buggy". Causes found:
+  - after the page change had already faded the galaxy in, the galaxy played its own entrance on top, so planets blinked out and popped back and the void shrank and regrew;
+  - the stars' bend round the void snapped on at the end;
+  - the planet page's file cards hovered crisply over the arriving galaxy;
+  - the planet shot most of the way home in the first tenth of a second, then crawled.
+- Fixes: the router tells a page whether a page change already brought it in (`mounted({ moved })`), and the galaxy skips its entrance then. The sky eases its bend in and out (`sky.js`). Only things on both pages morph (`router.js`). Planets glide with an even ease over 0.72s (`view-transition-class: planet`, rules in `mutt.css`).
+- Checked in the browser, freezing the change at several moments: desktop and phone width, and again after merging `galaxy` in. Not checked on a real phone.
+- Testing tips: when the session's window is out of view the page draws no frames, so page changes hang mid-way; taking a screenshot moves it on. A safety hook blocks the Edit tool on this shared file from a worktree session; the user asked for it to be updated from the main checkout anyway.
 
 ### 2026-10-30: light mode removed (deployed)
 - The user asked to remove light mode from the site entirely.

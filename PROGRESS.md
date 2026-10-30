@@ -10,7 +10,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 ## Where things stand (2026-10-30)
 
 - **Smoother zoom out and detailed universe galaxies (not merged yet)**: on branch `claude/galaxy-universe-scroll-animation-0ee24a` (91e59c0), made from the back-arrow commit. Needs merging into `galaxy` and deploying. It touches `views/galaxy.js` like the caged-light branch does (different parts), so expect an easy merge.
-- **The void is now a caged light (not committed or merged yet)**: uncommitted changes on branch `claude/black-hole-center-visual-0dae27` (which already includes the back arrow). Waiting for the user to look at it before committing and deploying.
+- **The void is now a caged light (live)**: `claude/black-hole-center-visual-0dae27` (4068d78) is merged into `galaxy` and `main` and deployed. The middle is a smaller stippled print of a white light caged by webbed, sinewy strands, sitting straight on the sky, with the add box opening in the light.
 - **A back arrow replaces the spaceship**: `claude/back-arrow-galaxy-nav-ac6ea4` is merged into `galaxy` and `main` (71efa5a) and deployed. Northflank ignored the first push to `main`; a second push (the notes commit) set off the build within two minutes. If a deploy seems stuck, push again.
 - **The spaceship home is live**: `claude/black-hole-go-home-alt-43cebc` is merged into `galaxy` and `main` (bcfeda6) and deployed. Away from your galaxy, a little ship in the top-left corner flies you home; it replaced the corner black hole.
 - **The black hole void is live**: `claude/black-hole-center-visual-0dae27` is merged into `galaxy` and `main` and deployed. The middle of the galaxy is a big, grainy, smoky black hole, and clicking it opens a flat, Are.na-style add box inside the dark.
@@ -40,13 +40,21 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 - Checked in the browser: desktop dark and light, phone width, the in-between frames, snapping, opening another galaxy from the universe. Not checked on a real phone.
 - Testing tip: test servers on other ports of `127.0.0.1` share its cookies and sign the preview out; a name like `uvtest.localhost:<port>` gets its own. Check a port is free first (`lsof -iTCP:<port>`): this session's setup accidentally wrote to the void session's test server on 8131 and left an empty `edan` test account there.
 
-### 2026-10-30: the void becomes a caged light print (branch `claude/black-hole-center-visual-0dae27`, uncommitted)
+### 2026-10-30: the void becomes a caged light print (deployed)
 - The user asked to remove the orange from the black hole and redraw it from a new reference: a black-and-white stippled print of a bright white light caged by dark, twisting strands in a sphere, with grey stippled lobes, thin cross lines of light and fine stars.
 - Their answers: bright light in the middle, with the add box sitting in it; keep only a faint mauve tint; no figure; in light mode the same print as a dark patch of night on the pale page.
 - `voidart.js` is redrawn: a night patch with print stars, stippled lobes that darken near the strands, eight wandering-width strands that turn in 3D (the back half behind the light, the front half crossing in front), the white light, and cross lines. The orange embers, smoky dust and square sparks are gone, and both modes use one look.
 - When it opens, the light widens and the add box sits on clean white, so the box is light (white with dark ink) in both modes, and "+ Add" and other people's names are dark ink (`galaxy.css`).
 - Star notes start just outside the cage. On a phone the spiral of star notes is squeezed to fit the width and grows taller, so none hang off the side (`views/galaxy.js`).
 - Checked in the browser: desktop dark and light, open and closed, typing and adding, phone dark and light with no sideways scroll, someone else's galaxy, and that it holds still in the universe. Test suites read normally.
+- Second pass, after the user asked for it smaller, with no black halo, and closer to the reference's style:
+  - It's about three quarters the size (`voidRadius`), so it sits in proportion with the planets.
+  - The night patch and its own stars are gone; the ball sits straight on the sky, with a dark stippled body only inside its outline.
+  - Strands flare into each other where they cross, like webbed sinew, and are speckled like ink.
+  - Cells are bright at their rims and dim in the middle, with faint rays from the light.
+  - Bright places get more dots: the bright parts are stippled as extra layers of dots on top of the cells.
+  - It runs at 60 frames a second on desktop.
+- The user then asked to remove the white crosshair lines through the middle; they're gone.
 
 ### 2026-10-30: a plain back arrow replaces the spaceship (deployed)
 - The user said the rocket animation "looks very AI" and asked for a semi-transparent back arrow in the top-left corner instead.

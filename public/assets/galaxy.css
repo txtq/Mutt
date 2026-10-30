@@ -983,21 +983,10 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .uvg:hover .uvg-sys, .uvg:focus-visible .uvg-sys { transform: scale(1.08); }
 .uvg:focus-visible { outline: none; }
 .uvg:focus-visible .uvg-name { text-decoration: underline; }
-/* faint spiral arms, face on */
-.uvg-sys::before {
-  content: "";
-  position: absolute;
-  inset: 4%;
-  border-radius: 50%;
-  background:
-    conic-gradient(from var(--tilt), transparent 0deg, rgba(190, 205, 255, 0.08) 50deg, transparent 120deg, transparent 180deg, rgba(190, 205, 255, 0.08) 230deg, transparent 300deg),
-    radial-gradient(circle closest-side, rgba(160, 180, 240, 0.1), transparent 75%);
-  -webkit-mask: radial-gradient(closest-side, #000 40%, transparent 100%);
-  mask: radial-gradient(closest-side, #000 40%, transparent 100%);
-  animation: spin var(--spin) linear infinite;
-}
 .uvg-disk { position: absolute; inset: 0; }
-.uvg-spin { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: spin var(--spin) linear infinite; }
+.uvg-spin { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: spin var(--spin) linear infinite; will-change: transform; }
+/* the spiral of dust, painted by uvart.js */
+.uvg-dust { position: absolute; left: calc(var(--m) / -2); top: calc(var(--m) / -2); width: var(--m); height: var(--m); transform: rotate(var(--tilt)); }
 .uv-world {
   position: absolute;
   left: calc(var(--w) / -2);
@@ -1005,22 +994,22 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
   width: var(--w);
   height: var(--w);
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, var(--c-light), var(--c) 50%, var(--c-dark) 100%);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--c-light) 30%, transparent);
+  background: radial-gradient(circle at var(--lx, 35%) var(--ly, 32%), var(--c-light), var(--c) 45%, var(--c-dark) 90%);
+  box-shadow: 0 0 0 0.5px rgba(5, 7, 15, 0.6);
 }
 .uv-world.is-locked { filter: saturate(0.3) brightness(0.65); }
 .uvg-core {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(var(--m) * 0.16);
-  height: calc(var(--m) * 0.16);
+  width: calc(var(--m) * 0.1);
+  height: calc(var(--m) * 0.1);
   border-radius: 50%;
   background: #000;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 1px rgba(236, 240, 255, 0.45), 0 0 10px 1px rgba(190, 205, 255, 0.25);
+  box-shadow: 0 0 0 1px rgba(240, 220, 194, 0.4);
 }
-.uvg.is-you .uvg-core { box-shadow: 0 0 0 1.5px rgba(150, 195, 255, 0.85), 0 0 14px 2px rgba(120, 170, 255, 0.4); }
+.uvg.is-you .uvg-core { box-shadow: 0 0 0 1.5px rgba(150, 195, 255, 0.85); }
 .uvg-name { font-size: 13px; font-weight: 500; white-space: nowrap; }
 .uvg.is-you .uvg-name { color: #a9cdff; }
 .uvg-meta { display: inline-flex; align-items: center; gap: 4px; font: 400 10.5px/1.2 var(--mono); color: rgba(200, 210, 235, 0.5); white-space: nowrap; }
@@ -1258,7 +1247,7 @@ html:not([data-mode="light"]) .toast button { color: #8cc0ff; }
 
 /* ------------------------------------------------------------------ calmer motion */
 
-html[data-motion="calm"] html[data-motion="calm"] .uvg-spin, html[data-motion="calm"] .uvg-sys::before { animation-duration: 180s; }
+html[data-motion="calm"] .uvg-spin { animation-duration: 180s; }
 html[data-motion="calm"] .sky-ribbon, html[data-motion="calm"] .sky-nebula { animation-play-state: paused; }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation-play-state: paused !important; transition-duration: 0.01ms !important; }
 
@@ -1285,5 +1274,5 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sky-ribbon, .sky-nebula, .uvg-spin, .uvg-sys::before, .gx-cue .glyph { animation: none !important; }
+  .sky-ribbon, .sky-nebula, .uvg-spin, .gx-cue .glyph { animation: none !important; }
 }

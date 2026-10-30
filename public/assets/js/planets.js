@@ -145,7 +145,7 @@ function richer(hex, amount = 1.4) {
 
 // A world's colours: its kind's palette, leaning toward the planet's colour
 // (which is bright; worlds are a little dustier), then made more colourful.
-function worldColors(planet, look = lookOf(planet)) {
+export function worldColors(planet, look = lookOf(planet)) {
   const tint = shade(planet.icon?.c || planet.c || '#2F6BFF', '#6f7891', 0.15);
   const pal = PALETTES[look];
   // Lava stays dark and hot rather than taking on the planet's colour.

@@ -12,6 +12,7 @@ import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
 import { dotWorld, fileFace, glyph, holdPlanets, planetEl, planetSize } from '../planets.js';
 import { theSky } from '../sky.js';
+import { paintGalaxy } from '../uvart.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
@@ -154,28 +155,31 @@ function scatter(planets, width, inner, m) {
 
 function miniGalaxy(g, size) {
   const rand = seeded(`uv:${g.username}`);
+  const k = size / 128;
   // Planets their owner has arranged keep that arrangement in miniature.
   const reach = Math.max(1, ...(g.worlds || []).filter(placed).map((w) => Math.hypot(w.x, w.y)));
+  const orbits = [];
   const worlds = (g.worlds || []).map((w, j) => {
-    let x;
-    let y;
+    let r;
+    let a;
     if (placed(w)) {
-      const k = (size * 0.44) / reach;
-      const r = Math.max(size * 0.2, Math.hypot(w.x, w.y) * k);
-      const a = Math.atan2(w.y, w.x);
-      x = Math.cos(a) * r;
-      y = Math.sin(a) * r;
+      r = Math.max(size * 0.2, Math.hypot(w.x, w.y) * ((size * 0.42) / reach));
+      a = Math.atan2(w.y, w.x);
     } else {
-      const r = size * (0.2 + Math.min(0.24, Math.sqrt(j) * 0.075));
-      const a = j * GOLDEN + rand() * 6.28;
-      x = Math.cos(a) * r;
-      y = Math.sin(a) * r;
+      r = size * (0.2 + Math.min(0.22, Math.sqrt(j) * 0.07));
+      a = j * GOLDEN + rand() * 6.28;
     }
-    const d = Math.max(5, Math.min(size * 0.13, 5 + Math.sqrt(w.n || 0) * 1.6));
+    orbits.push(r);
+    const d = Math.max(6 * k, Math.min(size * 0.12, (6 + Math.sqrt(w.n || 0) * 1.8) * k));
     const dot = dotWorld(w, d);
-    dot.style.transform = `translate(${x}px, ${y}px)`;
+    // Lit from the galaxy's middle, so the bright side faces the core.
+    dot.style.setProperty('--lx', `${(50 - Math.cos(a) * 24).toFixed(0)}%`);
+    dot.style.setProperty('--ly', `${(50 - Math.sin(a) * 24).toFixed(0)}%`);
+    dot.style.transform = `translate(${(Math.cos(a) * r).toFixed(1)}px, ${(Math.sin(a) * r).toFixed(1)}px)`;
     return dot;
   });
+  const dust = h('canvas', { class: 'uvg-dust', 'aria-hidden': 'true' });
+  paintGalaxy(dust, g, size, orbits);
   const meta = g.locked
     ? [glyph('lock', 10), h('span', null, plural(g.planets, 'planet'))]
     : [h('span', null, `${plural(g.open, 'planet')} · ${plural(g.files, 'file')}`)];
@@ -187,7 +191,7 @@ function miniGalaxy(g, size) {
     'aria-label': g.you ? 'Your galaxy' : `@${g.username}’s galaxy${g.locked ? ' (locked)' : ''}`,
   },
   h('span', { class: 'uvg-sys' },
-    h('span', { class: 'uvg-disk' }, h('span', { class: 'uvg-spin' }, worlds)),
+    h('span', { class: 'uvg-disk' }, h('span', { class: 'uvg-spin' }, dust, worlds)),
     h('span', { class: 'uvg-core' })),
   h('span', { class: 'uvg-name' }, g.you ? 'You' : `@${g.username}`),
   h('span', { class: 'uvg-meta' }, meta));
@@ -196,16 +200,42 @@ function miniGalaxy(g, size) {
 }
 
 function universeLayout(list, width, height, m) {
-  const size = m.narrow ? 96 : 128;
-  const cell = size * 1.32;
+  const size = m.narrow ? 124 : 172;
+  // Spread to the screen's shape: wide on a desktop, tall on a phone.
+  const wide = clamp(Math.sqrt(width / height), 0.62, 1.5);
   const spots = list.map((g, i) => {
     if (i === 0) return { x: 0, y: 0 };
-    const r = cell * Math.sqrt(i + 0.35);
+    const r = size * 0.62 * Math.sqrt(i + 0.35);
     const a = i * GOLDEN - Math.PI / 2;
-    return { x: Math.cos(a) * r * (m.narrow ? 0.9 : 1.3), y: Math.sin(a) * r * (m.narrow ? 1.15 : 0.82) };
+    return { x: Math.cos(a) * r * wide, y: Math.sin(a) * r / wide };
   });
+  // Nudge apart any that crowd each other. Each one is a box with its
+  // name underneath, so they need more room up and down than across.
+  const across = size * 1.1;
+  const down = size * 1.32;
+  for (let pass = 0; pass < 80; pass++) {
+    let moved = false;
+    for (let i = 0; i < spots.length; i++) {
+      for (let j = i + 1; j < spots.length; j++) {
+        const dx = spots[j].x - spots[i].x;
+        const dy = spots[j].y - spots[i].y;
+        const ox = across - Math.abs(dx);
+        const oy = down - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue;
+        moved = true;
+        // Slide apart along whichever way is the shorter way out.
+        const move = ox / across < oy / down
+          ? { x: (dx < 0 ? -ox : ox) / 2, y: 0 }
+          : { x: 0, y: (dy < 0 ? -oy : oy) / 2 };
+        const k = i === 0 ? 2 : 1;
+        spots[j].x += move.x * k; spots[j].y += move.y * k;
+        if (i) { spots[i].x -= move.x; spots[i].y -= move.y; }
+      }
+    }
+    if (!moved) break;
+  }
   const ext = spots.reduce((acc, s) => ({ x: Math.max(acc.x, Math.abs(s.x)), y: Math.max(acc.y, Math.abs(s.y)) }), { x: 0, y: 0 });
-  const fit = clamp(Math.min((width / 2 - 20) / (ext.x + size * 0.7), (height / 2 - 70) / (ext.y + size * 0.75)), 0.5, 1);
+  const fit = clamp(Math.min((width / 2 - 16) / (ext.x + size * 0.6), (height / 2 - 64) / (ext.y + size * 0.72)), 0.4, 1);
   return { size, spots, fit };
 }
 
@@ -274,7 +304,7 @@ class Galaxy {
       cancelAnimationFrame(this.scrollFrame);
       this.scrollFrame = requestAnimationFrame(() => this.track());
       clearTimeout(this.snapTimer);
-      this.snapTimer = setTimeout(() => this.snap(), 280);
+      this.snapTimer = setTimeout(() => this.snap(), 450);
     };
     if (this.mine) this.listen();
   }
@@ -432,12 +462,12 @@ class Galaxy {
     this.starsEl.style.setProperty('--chip', `${m.chip}px`);
 
     // The runway below: how far you scroll to get out to the universe.
-    this.travel = Math.round(Math.max(520, viewH * 1.05));
+    this.travel = Math.round(Math.max(1000, viewH * 2.2));
     this.runway.style.height = `${this.travel + viewH}px`;
     this.runway.style.marginTop = `${-viewH}px`;
     this.uvStage.style.height = `${viewH}px`;
     this.placeUniverse(width, viewH, m);
-    this.track();
+    this.track(true);
     // Only glide between spots once the first arrangement has landed.
     if (!this.scene.classList.contains('is-live')) requestAnimationFrame(() => requestAnimationFrame(() => this.scene.classList.add('is-live')));
   }
@@ -829,9 +859,10 @@ class Galaxy {
 
   // ------------------------------------------------------------ out to the universe and back
 
-  renderUniverse() {
+  renderUniverse(size = this.uvSize || 172) {
+    this.uvSize = size;
     this.uvEls = this.list.map((g) => {
-      const el = miniGalaxy(g, 100);
+      const el = miniGalaxy(g, size);
       el.addEventListener('click', () => this.visit(g, el));
       return el;
     });
@@ -840,6 +871,7 @@ class Galaxy {
 
   placeUniverse(width, viewH, m) {
     const plan = universeLayout(this.list, width, viewH, m);
+    if (plan.size !== this.uvSize) this.renderUniverse(plan.size);
     this.uvEls.forEach((el, i) => {
       el.style.setProperty('--m', `${plan.size}px`);
       el.style.transform = `translate(${plan.spots[i].x}px, ${plan.spots[i].y}px)`;
@@ -850,26 +882,62 @@ class Galaxy {
     const spot = plan.spots[i] || { x: 0, y: 0 };
     this.home = { x: spot.x * plan.fit, y: spot.y * plan.fit + 24, size: plan.size * plan.fit };
     this.uvScene.style.transformOrigin = `calc(50% + ${this.home.x}px) calc(50% + ${this.home.y}px)`;
+    // The others arrive nearest first, so the universe opens out round you.
+    const far = Math.max(1, ...plan.spots.map((s) => Math.hypot(s.x - spot.x, s.y - spot.y)));
+    this.uvRank = plan.spots.map((s) => Math.hypot(s.x - spot.x, s.y - spot.y) / far);
   }
 
-  // Scroll position → how far out we are (0 here, 1 in the universe).
-  track() {
+  // Scroll position → how far out we are (0 here, 1 in the universe). The
+  // picture follows the scroll with a little weight, so it glides rather
+  // than stepping with each notch of the wheel.
+  track(jump = false) {
     if (!this.size) return;
+    const { height, viewH } = this.size;
+    const goal = clamp((scrollY - (height - viewH)) / this.travel);
+    this.goal = goal;
+    const now = performance.now();
+    const dt = this.tickAt ? Math.min(64, now - this.tickAt) : 16;
+    let p = goal;
+    if (!jump && !this.jump && !reducedMotion()) {
+      p = this.p + (goal - this.p) * (1 - Math.exp(-dt / 140));
+      if (Math.abs(goal - p) < 0.0008) p = goal;
+    }
+    this.jump = false;
+    this.render(p);
+    if (p !== goal) {
+      this.tickAt = now;
+      cancelAnimationFrame(this.scrollFrame);
+      this.scrollFrame = requestAnimationFrame(() => this.track());
+    } else {
+      this.tickAt = 0;
+    }
+  }
+
+  render(p) {
     const { height, viewH, width, cy, cx } = this.size;
-    const p = clamp((scrollY - (height - viewH)) / this.travel);
     this.p = p;
     const e = easeInOut(p);
-    // The galaxy turns away and shrinks into its place among the others.
+    // The galaxy leans back, turns away and shrinks into its place among
+    // the others. It starts slowly, so the first bit of scrolling just
+    // pulls the camera back.
     const span = Math.max(width, height) * 0.92;
-    const k = 1 - (1 - (this.home.size * 1.15) / span) * e;
+    const k = 1 - (1 - (this.home.size * 1.1) / span) * e;
     const dx = (width / 2 + this.home.x - cx) * e;
     const dy = (viewH / 2 + this.home.y - (viewH - height + cy)) * e;
-    this.scene.style.transform = p ? `translate(${dx}px, ${dy}px) rotate(${-26 * e}deg) scale(${k})` : '';
-    this.scene.style.opacity = p ? String(1 - smooth(clamp((e - 0.55) / 0.4))) : '';
+    const lean = 38 * Math.sin(Math.PI * Math.min(1, p * 1.25));
+    this.scene.style.transform = p
+      ? `translate(${dx}px, ${dy}px) perspective(${Math.round(span * 1.4)}px) rotateX(${lean.toFixed(2)}deg) rotate(${(-30 * e).toFixed(2)}deg) scale(${k})`
+      : '';
+    this.scene.style.opacity = p ? String(1 - smooth(clamp((e - 0.6) / 0.35))) : '';
     // The universe swings in from very close.
-    const z = 3.4 - 2.4 * e;
-    this.uvScene.style.transform = `rotate(${22 * (1 - e)}deg) scale(${z})`;
-    this.uvStage.style.opacity = String(smooth(clamp((e - 0.3) / 0.55)));
+    const z = 3.6 - 2.6 * e;
+    this.uvScene.style.transform = `rotate(${(24 * (1 - e)).toFixed(2)}deg) scale(${z})`;
+    this.uvStage.style.opacity = String(smooth(clamp((e - 0.25) / 0.3)));
+    this.uvEls.forEach((el, i) => {
+      const t = smooth(clamp((e - 0.55 - (this.uvRank?.[i] || 0) * 0.25) / 0.2));
+      el.style.opacity = t === 1 ? '' : String(t);
+      el.style.scale = t === 1 ? '' : String(0.55 + 0.45 * t);
+    });
     this.cue.style.opacity = String(1 - clamp(p * 5));
     this.cue.style.pointerEvents = p > 0.1 ? 'none' : '';
     const out = p > 0.5;
@@ -888,16 +956,19 @@ class Galaxy {
 
   // Let go between the two and it carries on the way you were going.
   snap() {
-    if (!this.size || this.p <= 0.01 || this.p >= 0.99 || reducedMotion()) return;
+    const p = this.goal ?? this.p;
+    if (!this.size || p <= 0.01 || p >= 0.99 || reducedMotion()) return;
     // Typing (a phone keyboard can scroll the page): leave it where it is.
     if (this.hole?.isOpen() || isEditable(document.activeElement)) return;
     const start = this.size.height - this.size.viewH;
-    const out = this.heading > 0 ? this.p > 0.1 : this.p > 0.9;
+    // Only a nudge: it finishes the trip once you're well on your way.
+    const out = this.heading > 0 ? p > 0.4 : p > 0.6;
     scrollTo({ top: out ? start + this.travel : start, behavior: 'smooth' });
   }
 
   goOut(instant = false) {
     if (!this.size) return;
+    if (instant) this.jump = true;
     scrollTo({ top: this.size.height - this.size.viewH + this.travel, behavior: instant || reducedMotion() ? 'auto' : 'smooth' });
   }
 

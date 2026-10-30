@@ -153,8 +153,9 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
     if (closed) return;
     closed = true;
     document.removeEventListener('pointerdown', outside, true);
-    removeEventListener('resize', close);
+    removeEventListener('resize', resized);
     removeEventListener('scroll', follow, true);
+    cancelAnimationFrame(following);
     openPopovers.delete(api);
     openLayers.splice(openLayers.indexOf(api), 1);
     if (el.contains(document.activeElement)) {
@@ -167,7 +168,11 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
   };
   const outside = (e) => { if (!el.contains(e.target) && !anchor.contains(e.target)) close(); };
   setTimeout(() => document.addEventListener('pointerdown', outside, true));
-  addEventListener('resize', close);
+  // A new width moves things about, so it closes; a phone's address bar or
+  // keyboard only changes the height, and following covers that.
+  const openWidth = innerWidth;
+  const resized = () => (innerWidth === openWidth ? place() : close());
+  addEventListener('resize', resized);
   // Stay with the button it came from while the page (or a panel) scrolls.
   let following = 0;
   const follow = (e) => {

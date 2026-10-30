@@ -296,7 +296,15 @@ class Galaxy {
     this.layout();
     this.setHint();
 
-    this.relayout = debounce(() => this.layout(), 120);
+    // On a phone, the address bar sliding in and out as you scroll changes
+    // the height a little. Laying out again then would resize the void and
+    // send every planet gliding mid-scroll, so only a real resize does.
+    this.relayout = debounce(() => {
+      const s = this.size;
+      const coarse = matchMedia('(pointer: coarse)').matches;
+      if (coarse && s && (this.stage.clientWidth || innerWidth) === s.width && Math.abs(innerHeight - this.barHeight() - s.viewH) < 160) return;
+      this.layout();
+    }, 120);
     this.refresh = debounce(() => this.reload(), 450);
     this.lastY = 0;
     this.onScroll = () => {

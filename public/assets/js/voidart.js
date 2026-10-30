@@ -210,6 +210,14 @@ for (const ring of RINGS) {
     }
     return Math.max(0, 1 - Math.sqrt(near) / 0.24) ** 2;
   });
+  // Each strand's thickness along it (in light radii), before it turns:
+  // it wanders, gaps open in it, and it flares where it meets another.
+  ring.thick = ring.pts.map((_, i) => {
+    const t = i / STEPS;
+    const f = ring.flare[i];
+    const taper = Math.max(smooth(clamp((ring.gaps(t) - 0.22) / 0.2)), f);
+    return ring.w * (0.2 + 1.4 * ring.width(t) ** 1.5 + 1.3 * f) * taper;
+  });
 }
 
 // ---------------------------------------------------------------- the painter
@@ -225,6 +233,7 @@ export function voidArt() {
   const ictx = ink.getContext('2d');
   let stipple = null;
   let speckle = null;
+  let drawnBox = null;
   const root = document.documentElement;
 
   let W = 0;
@@ -257,7 +266,9 @@ export function voidArt() {
   }
   const wideR = (now) => Math.max(openR(now), R * 2.2);
 
-  // Where each strand runs this frame: the rings turned and laid flat.
+  // Where each strand runs this frame: the rings turned and laid flat. The
+  // points are kept and moved, not made anew each frame.
+  const turned = RINGS.map((ring) => ring.pts.map(() => ({ x: 0, y: 0, z: 0, w: 0 })));
   function cage(S) {
     const yaw = spin;
     const tilt = 0.32 + Math.sin(spin * 0.37) * 0.06;
@@ -265,25 +276,23 @@ export function voidArt() {
     const sy = Math.sin(yaw);
     const ct = Math.cos(tilt);
     const st = Math.sin(tilt);
-    return RINGS.map((ring) => {
-      const pts = [];
+    RINGS.forEach((ring, r) => {
+      const out = turned[r];
       for (let i = 0; i <= STEPS; i++) {
-        const t = i / STEPS;
-        const c = Math.cos(t * TAU);
-        const s = Math.sin(t * TAU);
-        let x = ring.nv[0] * ring.d + ring.rc * (c * ring.u[0] + s * ring.v[0]);
-        let y = ring.nv[1] * ring.d + ring.rc * (c * ring.u[1] + s * ring.v[1]);
-        let z = ring.nv[2] * ring.d + ring.rc * (c * ring.u[2] + s * ring.v[2]);
+        const [x0, y0, z0] = ring.pts[i];
         // Turn about the upright axis, then lean towards us.
-        [x, z] = [x * cy + z * sy, -x * sy + z * cy];
-        [y, z] = [y * ct - z * st, y * st + z * ct];
-        const f = ring.flare[i];
-        const taper = Math.max(smooth(clamp((ring.gaps(t) - 0.22) / 0.2)), f);
-        const w = R * ring.w * (0.2 + 1.4 * ring.width(t) ** 1.5 + 1.3 * f) * taper * (0.75 + 0.3 * z);
-        pts.push({ x: x * S, y: y * S, z, w });
+        const x = x0 * cy + z0 * sy;
+        const z1 = -x0 * sy + z0 * cy;
+        const y = y0 * ct - z1 * st;
+        const z = y0 * st + z1 * ct;
+        const p = out[i];
+        p.x = x * S;
+        p.y = y * S;
+        p.z = z;
+        p.w = R * ring.thick[i] * (0.75 + 0.3 * z);
       }
-      return pts;
     });
+    return turned;
   }
   // Runs of a strand's points (all, or only those in front or behind).
   function runs(pts, keep, each) {
@@ -404,8 +413,10 @@ export function voidArt() {
     const y0 = Math.max(0, Math.floor((H / 2 - half) * dpr));
     const box = [x0, y0, Math.min(canvas.width, Math.ceil((W / 2 + half) * dpr)) - x0, Math.min(canvas.height, Math.ceil((H / 2 + half) * dpr)) - y0];
 
+    // Everything is drawn inside the box, so only last frame's box needs clearing.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(...(drawnBox || [0, 0, canvas.width, canvas.height]));
+    drawnBox = box;
 
     // The ball's dark body, then three layers of stipple: the cells, then
     // the rims and rays, then the light's glow. Each layer adds its own dots,
@@ -503,6 +514,12 @@ export function voidArt() {
     } else {
       cancelAnimationFrame(frame);
       frame = 0;
+      // Held still (zooming out, say), it shows where it was heading rather
+      // than freezing halfway through opening or closing.
+      open.start = -1e9;
+      wide.start = -1e9;
+      gulpAt = -1e9;
+      hunger = hungry ? 1 : 0;
       draw(performance.now());
     }
   }
@@ -526,6 +543,7 @@ export function voidArt() {
           c.width = Math.round(W * dpr);
           c.height = Math.round(H * dpr);
         }
+        drawnBox = null;
         canvas.style.width = `${W}px`;
         canvas.style.height = `${H}px`;
       }

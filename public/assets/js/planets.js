@@ -432,7 +432,10 @@ function makeGlobe(canvas, rand) {
   let out = null;
   let table = null;
   let tex = null;
+  let texVersion = -1;
   let world = null;
+  // What the painter is handed each frame, reused rather than made anew.
+  const job = { seed };
   let drawn = false;
   let shown = -1;
   let visible = !watcher;
@@ -455,14 +458,25 @@ function makeGlobe(canvas, rand) {
       drawn = false;
       shown = -1;
     },
-    setWorld(next) { world = next; drawn = false; globe.draw(performance.now(), true); },
-    setTexture(next) { tex = next; drawn = false; shown = -1; globe.draw(performance.now(), true); },
+    setWorld(next) { world = next; Object.assign(job, next); drawn = false; globe.draw(performance.now(), true); },
+    // Laying the page out again hands back the same texture: no need to repaint for that.
+    setTexture(next) {
+      if (next === tex && next.version === texVersion && drawn) return;
+      tex = next;
+      texVersion = next.version;
+      drawn = false;
+      shown = -1;
+      globe.draw(performance.now(), true);
+    },
     draw(now, force = false) {
       if (!tex || !size || (!visible && !force)) return;
       const still = reducedMotion();
       if (!force && drawn && (still || held)) return;
       const turn = still ? offset / period : ((now + offset) % period) / period;
-      if (live && world && paint(ctx, size, { ...world, source: tex, turn, time: still ? 0 : now / 1000, seed })) {
+      job.source = tex;
+      job.turn = turn;
+      job.time = still ? 0 : now / 1000;
+      if (live && world && paint(ctx, size, job)) {
         drawn = true;
         return;
       }

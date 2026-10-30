@@ -9,7 +9,8 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Where things stand (2026-10-30)
 
-- **Smoother zoom out and detailed universe galaxies (not merged yet)**: on branch `claude/galaxy-universe-scroll-animation-0ee24a` (91e59c0), made from the back-arrow commit. Needs merging into `galaxy` and deploying. It touches `views/galaxy.js` like the caged-light branch does (different parts), so expect an easy merge.
+- **Light mode removed (not merged yet)**: on branch `claude/remove-light-mode-16b469` (0a88a3b). Needs merging into `galaxy` and deploying. The universe-scroll branch was checked in light mode too; after both merge, nothing should refer to light mode (search for `data-mode`).
+- **Universe update is live**: `claude/galaxy-universe-scroll-animation-0ee24a` is merged into `galaxy` and `main` (70a26a8) and deployed. The trip out to the universe takes about twice the scrolling and glides; each galaxy there is a true miniature of its owner's planets, bigger than before.
 - **The void is now a caged light (live)**: `claude/black-hole-center-visual-0dae27` (4068d78) is merged into `galaxy` and `main` and deployed. The middle is a smaller stippled print of a white light caged by webbed, sinewy strands, sitting straight on the sky, with the add box opening in the light.
 - **A back arrow replaces the spaceship**: `claude/back-arrow-galaxy-nav-ac6ea4` is merged into `galaxy` and `main` (71efa5a) and deployed. Northflank ignored the first push to `main`; a second push (the notes commit) set off the build within two minutes. If a deploy seems stuck, push again.
 - **The spaceship home is live**: `claude/black-hole-go-home-alt-43cebc` is merged into `galaxy` and `main` (bcfeda6) and deployed. Away from your galaxy, a little ship in the top-left corner flies you home; it replaced the corner black hole.
@@ -33,11 +34,21 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Done
 
-### 2026-10-30: a longer, smoother trip to the universe, and detailed galaxies (branch `claude/galaxy-universe-scroll-animation-0ee24a`, not merged)
+### 2026-10-30: light mode removed (branch `claude/remove-light-mode-16b469`, not merged)
+- The user asked to remove light mode from the site entirely.
+- Gone: the Mode row (Auto/Light/Dark) in the account sheet, the light colours in `galaxy.css`, the sky's daytime star colours (`sky.js`), the day colours in `SKIES` and the login's hold-night switch (`theme.js`, `login.js`). The page always says it is dark to the browser.
+- People who had saved Light or Auto just get dark. The server no longer accepts a mode and drops an old one the next time settings are saved.
+- `CLAUDE.md` preferences now say dark only, and deploy checks are desktop and phone width.
+- Checked in the browser: an account with a saved light mode opens dark, the settings sheet without Mode, changing the sky, phone width, the login page. Test suites read normally.
+
+### 2026-10-30: a longer, smoother trip to the universe, and true miniature galaxies (deployed)
 - The user asked for the galaxy → universe scroll to feel more satisfying and take more scrolling, and for the universe's galaxies to be larger and more detailed.
 - The scroll: about twice as far (2.2 screens instead of about 1). The picture follows the scroll with a little weight instead of stepping, the galaxy leans back as it pulls away, and the other galaxies arrive nearest first after yours has taken its place. Letting go only finishes the trip once you're 40% of the way (it used to be 10%).
 - The galaxies: about 1.5× larger on screen (packed closer, with a pass that stops names overlapping, spread to the screen's shape so phones use their height). Each is a grainy spiral painted once on a canvas (`uvart.js`) in its owner's planet colours: dust arms, bright knots, dark lanes, a warm middle, faint orbit lines; planets are lit from the galaxy's middle. The glow round the core is gone.
 - Checked in the browser: desktop dark and light, phone width, the in-between frames, snapping, opening another galaxy from the universe. Not checked on a real phone.
+- Deployed: merged `main` (the caged-light void) into the branch first, checked desktop dark, phone light and the universe at phone width after the merge, then fast-forwarded `galaxy` and `main` and pushed. The new files are served and `/api/health` shows persistent storage.
+- Follow-up the same day: the user didn't want the spiral look ("just show their planets accurately") and asked for them a bit bigger and a really smooth animation. Now each galaxy is a true miniature of its owner's page: `miniGalaxy()` runs the page's own `scatter()` for a 1280×800 screen, at one shared scale so galaxies compare honestly, and `worldPicture()` in `planets.js` paints each planet once with the real WebGL painter (same face, kind and colours as on their page; rings at 10+ files), round a small dark void. They sit in wide boxes, so they draw about 40% larger. `uvart.js` is gone. No spinning.
+- Smoothness: while zooming (`is-zooming`), planets and the black hole hold still and the scene, universe and sky layers are composited. Measured with the preview pane visible: a steady 60 frames a second through the whole zoom, no drops. (A hidden preview pane throttles to ~20 fps; don't trust timings from it.)
 - Testing tip: test servers on other ports of `127.0.0.1` share its cookies and sign the preview out; a name like `uvtest.localhost:<port>` gets its own. Check a port is free first (`lsof -iTCP:<port>`): this session's setup accidentally wrote to the void session's test server on 8131 and left an empty `edan` test account there.
 
 ### 2026-10-30: the void becomes a caged light print (deployed)
@@ -149,7 +160,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Preferences the user has given
 
-- PS Vita style, skeuomorphic where it helps and minimal elsewhere. Not cartoony, no AI-style graphics, clean, with light and dark modes.
+- PS Vita style, skeuomorphic where it helps and minimal elsewhere. Not cartoony, no AI-style graphics, clean. Dark only: light mode was removed at the user's request (2026-10-30).
 - Work and files stay at the centre of the site.
 - No showy "AI-looking" animations for simple controls (the flying spaceship home was rejected for that); plain and quiet wins.
 - Pixel art only as an accent (the login horizon: trees, cottage, mutt), with warm touches. Not "too Stardew": no pixel fonts, pixel frames, pixel moon or stars. Mutt and Vita looks (rounded glass, Red Hat type, fluid motion) come first. Login is always night.

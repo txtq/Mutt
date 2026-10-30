@@ -11,7 +11,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 - **Smoother zoom out and detailed universe galaxies (not merged yet)**: on branch `claude/galaxy-universe-scroll-animation-0ee24a` (91e59c0), made from the back-arrow commit. Needs merging into `galaxy` and deploying. It touches `views/galaxy.js` like the caged-light branch does (different parts), so expect an easy merge.
 - **The void is now a caged light (not committed or merged yet)**: uncommitted changes on branch `claude/black-hole-center-visual-0dae27` (which already includes the back arrow). Waiting for the user to look at it before committing and deploying.
-- **A back arrow replaces the spaceship**: `claude/back-arrow-galaxy-nav-ac6ea4` is merged into `galaxy` and `main` (71efa5a) and pushed. On 2026-10-30 Northflank had not rebuilt 20+ minutes after the push (live `galaxy.css` still had `home-ship`); check that the deploy went through.
+- **A back arrow replaces the spaceship**: `claude/back-arrow-galaxy-nav-ac6ea4` is merged into `galaxy` and `main` (71efa5a) and deployed. Northflank ignored the first push to `main`; a second push (the notes commit) set off the build within two minutes. If a deploy seems stuck, push again.
 - **The spaceship home is live**: `claude/black-hole-go-home-alt-43cebc` is merged into `galaxy` and `main` (bcfeda6) and deployed. Away from your galaxy, a little ship in the top-left corner flies you home; it replaced the corner black hole.
 - **The black hole void is live**: `claude/black-hole-center-visual-0dae27` is merged into `galaxy` and `main` and deployed. The middle of the galaxy is a big, grainy, smoky black hole, and clicking it opens a flat, Are.na-style add box inside the dark.
 - **New login screen is live**: `claude/mutt-login-screen-d7c6db` is merged into `galaxy` and `main` and deployed. It has the "Are you new to Mutt?" question, a low pixel horizon, a warm light from the top right, and is always night.
@@ -48,7 +48,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 - Star notes start just outside the cage. On a phone the spiral of star notes is squeezed to fit the width and grows taller, so none hang off the side (`views/galaxy.js`).
 - Checked in the browser: desktop dark and light, open and closed, typing and adding, phone dark and light with no sideways scroll, someone else's galaxy, and that it holds still in the universe. Test suites read normally.
 
-### 2026-10-30: a plain back arrow replaces the spaceship (merged and pushed)
+### 2026-10-30: a plain back arrow replaces the spaceship (deployed)
 - The user said the rocket animation "looks very AI" and asked for a semi-transparent back arrow in the top-left corner instead.
 - Away from your galaxy, a simple line arrow sits in the same corner spot, faint until you hover it. Tapping it goes straight home, with no flight. The ship drawing, its flight and trail are all removed (`statusbar.js`, `galaxy.css`); the arrow is a new `back` icon in `glyph()`.
 - Checked in the browser: dark desktop, phone width dark and light, tapping it lands on your galaxy and the arrow hides there.

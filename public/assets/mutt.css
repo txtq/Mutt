@@ -1305,6 +1305,11 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 @keyframes page-out { to { opacity: 0; filter: blur(3px); } }
 @keyframes page-in { from { opacity: 0; } }
 
+/* A planet glides between the galaxy and its page: even speed in the middle
+   and soft at both ends, rather than a jump that then crawls. */
+::view-transition-group(*.planet) { animation-duration: 0.72s; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(*.planet), ::view-transition-new(*.planet) { animation-duration: 0.72s; animation-timing-function: ease-in-out; }
+
 html[data-vt="first"]::view-transition-old(root) { animation: none; opacity: 0; }
 
 html[data-vt="viewer"]::view-transition-old(root),

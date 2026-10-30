@@ -91,6 +91,10 @@ export function createSky() {
   let frame = 0;
   let last = 0;
   let lens = null;
+  // How strongly the void bends the sky (0 to 1). It eases in and out, so
+  // arriving at or leaving a galaxy doesn't snap the stars into a ring.
+  let bend = 0;
+  let lastHole = null;
   let night = 0;
   let day = false;
 
@@ -126,7 +130,11 @@ export function createSky() {
     lean.y += (lean.ty - lean.y) * 0.04;
     const scroll = scrollY;
     pulls = pulls.filter((p) => time - p.start < p.duration);
-    const hole = lens?.();
+    const want = lens?.() || null;
+    if (want) lastHole = want;
+    bend = reducedMotion() ? (want ? 1 : 0) : bend + ((want ? 1 : 0) - bend) * 0.09;
+    if (bend < 0.005) bend = 0;
+    const hole = bend ? lastHole : null;
     const dim = day ? 1 - night : 0;
     const palette = dim > 0.5 ? DAY : COLORS;
     for (const s of stars) {
@@ -156,7 +164,7 @@ export function createSky() {
         const e = hole.r * 1.05;
         const reach = hole.r * 3.2;
         if (d < reach) {
-          const fade = 1 - smoothstep((d - hole.r * 1.8) / (reach - hole.r * 1.8));
+          const fade = (1 - smoothstep((d - hole.r * 1.8) / (reach - hole.r * 1.8))) * bend;
           const bent = d + ((d + Math.sqrt(d * d + 4 * e * e)) / 2 - d) * fade;
           x = hole.x + (dx / d) * bent;
           y = hole.y + (dy / d) * bent;

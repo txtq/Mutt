@@ -734,6 +734,7 @@ a.planet:hover .planet-body, .planet:focus-visible .planet-body { transform: sca
   position: absolute;
   inset: 0;
   z-index: 2;
+  view-transition-class: planet;
   overflow: hidden;
   border-radius: 50%;
   background: var(--c-dark);

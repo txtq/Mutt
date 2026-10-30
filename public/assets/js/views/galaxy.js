@@ -953,7 +953,7 @@ class Galaxy {
       list: () => this.stars,
       dropTarget: () => this.dropTarget(),
       pasteText: (text) => { if (this.p < 0.5) this.hole?.focusText(text); },
-      mounted: () => {
+      mounted: ({ moved = false } = {}) => {
         this.layout();
         addEventListener('resize', this.relayout);
         addEventListener('scroll', this.onScroll, { passive: true });
@@ -962,7 +962,7 @@ class Galaxy {
           return { ...this.void.center(), r: this.void.radius() };
         });
         if (startOut) { startOut = false; requestAnimationFrame(() => this.goOut(true)); }
-        this.entrance();
+        if (!moved) this.entrance();
       },
       destroy: () => {
         removeEventListener('resize', this.relayout);

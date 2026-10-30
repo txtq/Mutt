@@ -39,7 +39,6 @@ PREF_CHOICES = {
     'paper': {'white', 'warm', 'cool', 'blush', 'mint'},
     'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
     'sky': {'vita', 'nebula', 'aurora', 'dusk'},
-    'mode': {'auto', 'light', 'dark'},
 }
 FONT_TYPES = {
     b'wOF2': ('woff2', 'font/woff2'),
@@ -506,6 +505,7 @@ def save_prefs(req, prefs):
 def update_prefs(req):
     body = req.json()
     prefs = user_prefs(req.user)
+    prefs.pop('mode', None)  # light mode is gone
     for key, allowed in PREF_CHOICES.items():
         if key in body:
             if body[key] not in allowed:

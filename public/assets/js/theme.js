@@ -7,53 +7,32 @@ import { burst } from './fx.js';
 import { PALETTE, debounce, reducedMotion, seeded } from './util.js';
 
 export const DEFAULTS = {
-  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false, mode: 'dark',
+  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false,
 };
 
-// Skies to live under, by night and by day. [deep, glow] for the picker;
+// Skies to live under. [deep, glow] for the picker;
 // the rest is in galaxy.css.
 export const SKIES = {
-  vita: { label: 'Vita', swatch: ['#06123f', '#2f6bff'], day: ['#c9d8f2', '#f4f7fd'], theme: '#071440', dayTheme: '#e9eff9' },
-  nebula: { label: 'Nebula', swatch: ['#160a3d', '#8f6bf0'], day: ['#d9d0f2', '#f7f5fd'], theme: '#140b38', dayTheme: '#efecfa' },
-  aurora: { label: 'Aurora', swatch: ['#03212e', '#2fbf9f'], day: ['#c8e6e0', '#f3faf8'], theme: '#04202c', dayTheme: '#e8f4f1' },
-  dusk: { label: 'Dusk', swatch: ['#26092e', '#e0727f'], day: ['#f0d5d2', '#fcf6f4'], theme: '#230a2b', dayTheme: '#f7ecea' },
+  vita: { label: 'Vita', swatch: ['#06123f', '#2f6bff'], theme: '#071440' },
+  nebula: { label: 'Nebula', swatch: ['#160a3d', '#8f6bf0'], theme: '#140b38' },
+  aurora: { label: 'Aurora', swatch: ['#03212e', '#2fbf9f'], theme: '#04202c' },
+  dusk: { label: 'Dusk', swatch: ['#26092e', '#e0727f'], theme: '#230a2b' },
 };
-
-export const MODES = { auto: 'Auto', light: 'Light', dark: 'Dark' };
-
-const darkQuery = matchMedia('(prefers-color-scheme: dark)');
-// Light or dark, once Auto has asked the system.
-export const modeOf = (p = {}) => (p.mode === 'light' || p.mode === 'dark' ? p.mode : darkQuery.matches ? 'dark' : 'light');
-let applied = DEFAULTS;
-let nightHeld = false; // the sign-in page is always night
-darkQuery.addEventListener?.('change', () => { if (applied.mode === 'auto') applyPrefs(applied); });
 
 const CACHE = 'mutt.prefs';
 const SIZES = { s: 0.93, m: 1, l: 1.1 };
 
 export function applyPrefs(raw = {}) {
   const p = { ...DEFAULTS, ...raw };
-  applied = p;
   const root = document.documentElement;
-  const mode = nightHeld ? 'dark' : modeOf(p);
   const sky = SKIES[p.sky] || SKIES.vita;
   root.style.setProperty('--t', SIZES[p.size] || 1);
   root.dataset.motion = p.motion;
   root.dataset.logo = p.logo;
   root.dataset.sky = SKIES[p.sky] ? p.sky : 'vita';
-  root.dataset.mode = mode;
-  root.style.colorScheme = mode;
   followLogo(p.logo);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'light' ? sky.dayTheme : sky.theme);
-  document.dispatchEvent(new CustomEvent('mutt:mode', { detail: mode }));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', sky.theme);
   return p;
-}
-
-// Keep it night whatever the saved mode, until let go.
-export function holdNight(on) {
-  if (nightHeld === on) return;
-  nightHeld = on;
-  applyPrefs(applied);
 }
 
 export function bootPrefs() {

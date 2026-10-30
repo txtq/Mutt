@@ -45,7 +45,7 @@ echo "stars now: $(curl -s "${A[@]}" $B/api/galaxy | j "[s['content'] for s in d
 echo "connect star: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$STAR/connections -d "{\"drawer\":\"$PUB\"}" | j "[c['title'] for c in d['connections']]")"
 echo "stars after: $(curl -s "${A[@]}" $B/api/galaxy | j "[s['content'] for s in d['stars']]")"
 echo "bo universe: $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], g['open'], g['locked'], g['files'], len(g['worlds'])) for g in d['galaxies']]")"
-echo "mode pref: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/me/prefs -d '{"mode":"light"}' | j "d['prefs'].get('mode')")"
+echo "mode pref gone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/me/prefs -d '{"mode":"light"}' | j "d['prefs'].get('mode')")"
 echo "stats: $(curl -s "${A[@]}" $B/api/me | j "d['stats']")"
 # planet looks
 echo "look set: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$PUB -d '{"look":"lava"}' | j "d['drawer']['look']")"

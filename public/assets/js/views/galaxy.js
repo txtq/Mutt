@@ -53,18 +53,22 @@ function metrics(width, viewH) {
 // ---------------------------------------------------------------- layout
 
 // Stars: a sunflower spiral in the dust round the void, newest closest in,
-// starting just outside the dark's ragged edge and stretched tall like the dust.
+// starting just outside the cage of strands round the light.
 const TALL = REACH.y / REACH.x;
-function starSpots(n, m) {
-  const r0 = m.hole * 2.25 + m.chip / 2;
+function starSpots(n, m, width) {
+  const r0 = m.hole * 2.75 + m.chip / 2;
+  const outer = n ? Math.sqrt(r0 * r0 + (n * m.cell * m.cell) / (Math.PI * TALL)) + m.chip / 2 : 0;
+  // On a narrow screen the spiral is squeezed to fit the width and grows
+  // taller instead, so no star hangs off the side.
+  const room = width / 2 - 10;
+  const squeeze = outer > room ? room / outer : 1;
   const spots = [];
   for (let i = 0; i < n; i++) {
     const r = Math.sqrt(r0 * r0 + (i * m.cell * m.cell) / (Math.PI * TALL));
     const a = i * GOLDEN - Math.PI / 2;
-    spots.push({ x: Math.cos(a) * r, y: Math.sin(a) * r * TALL });
+    spots.push({ x: Math.cos(a) * r * squeeze, y: (Math.sin(a) * r * TALL) / squeeze });
   }
-  const outer = n ? Math.sqrt(r0 * r0 + (n * m.cell * m.cell) / (Math.PI * TALL)) + m.chip / 2 : 0;
-  return { spots, outer };
+  return { spots, outer: { x: outer * squeeze, y: (outer * TALL) / squeeze } };
 }
 
 // Does a rectangle reach into the oval (rx × ry) round the middle?
@@ -388,11 +392,11 @@ class Galaxy {
     const viewH = innerHeight - bar;
     const m = metrics(width, viewH);
     this.m = m;
-    const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m);
+    const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m, width);
     // Planets keep clear of the dust and of the stars caught in it. The
     // dust fades out well before its edge, so they may sit on its rim.
     const gap = m.narrow ? 10 : 18;
-    const inner = { rx: Math.max(outer, m.rx * 0.72) + gap, ry: Math.max(outer * TALL, m.ry * 0.72) + gap };
+    const inner = { rx: Math.max(outer.x, m.rx * 0.72) + gap, ry: Math.max(outer.y, m.ry * 0.72) + gap };
     const { spots, rects, fx, stretch } = scatter(this.data.planets, width, inner, m);
     this.inner = inner;
     this.fx = fx;

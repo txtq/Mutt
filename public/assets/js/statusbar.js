@@ -7,7 +7,7 @@ import { api, session } from './api.js';
 import { LOGOS, glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { glyph, planetEl } from './planets.js';
-import { DEFAULTS, MODES, SKIES, updatePrefs } from './theme.js';
+import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
 import { confirmDialog, segmented, toast } from './ui.js';
 import { bus, debounce, h, plural } from './util.js';
 import { changePin, deleteAccount, signOut } from './account.js';
@@ -121,7 +121,6 @@ function settingsBody(close) {
       location.pathname !== '/'
         ? h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
         : null),
-    row('Mode', choice('mode', Object.entries(MODES).map(([value, label]) => ({ value, label })))),
     row('Sky', skyPicker()),
     row('Logo', logoPicker()),
     row('Autosort', autosortSwitch()),

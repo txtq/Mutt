@@ -5,7 +5,7 @@ import { api, session } from '../api.js';
 import { glitch, logo } from '../logo.js';
 import { nav } from '../nav.js';
 import { createNightScene } from '../nightscene.js';
-import { holdNight, setPrefs } from '../theme.js';
+import { setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
 import { h, wait } from '../util.js';
 
@@ -57,7 +57,6 @@ export const loginView = {
     const light = h('div', { class: 'login-light', 'aria-hidden': 'true' });
     const box = h('div', { class: 'login-box' }, mark, ask, h('div', { class: 'login-steps' }, form, backRow));
     const el = h('div', { class: 'login' }, light, scene.el, box);
-    holdNight(true);
 
     function say(text, tone = '') {
       msg.textContent = text || '';
@@ -209,7 +208,6 @@ export const loginView = {
       },
       destroy: () => {
         scene.stop();
-        holdNight(false);
       },
     };
   },

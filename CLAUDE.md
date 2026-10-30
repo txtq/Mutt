@@ -64,7 +64,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 
 **CSS:**
 - Stylesheets sit directly in `public/assets/` (there is no `css/` folder). `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
-- Light mode is `html[data-mode="light"]`, set by `theme.js` (Auto/Light/Dark). The universe stays dark in both modes.
+- The site is dark only. Light mode (and the Mode setting) was removed on 2026-10-30; don't bring it back.
 - Don't put `position` in the shared glass rule (`.glass, .sheet, .dialog, .pop, …`). `.pop` and `.tray` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
 
 ## Branches and deploying
@@ -77,9 +77,9 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 
 ## User preferences
 
-- **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, with both light and dark modes.
+- **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, and dark only (no light mode).
 - **Pixel touches:** pixel art is welcome as an accent only, like the login's horizon of trees, cottage and mutt, with warm touches. Don't go "too Stardew Valley": no pixel fonts, pixel frames, pixel moon or stars. The Mutt and Vita look (rounded glass, Red Hat type, fluid motion) comes first. The login screen is always night.
-- **The void:** a big black hole that's artsy and textured (smoky, grainy dust, like a print), not realistic or painted light. Pixel art only as small touches. Add boxes are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
+- **The void:** a stippled black-and-white print (from the user's reference picture): a bright white light caged by dark, sinewy strands that web together where they cross, turning in 3D; stippled cells, bright at their rims and dim in the middle; faint rays; only a faint mauve tint. No crosshair lines through it. Bright places are dotted more densely, like a print. Sized in proportion to the planets, sitting straight on the sky with no dark halo round it. No orange, no pixel sparks, not realistic or painted light. Add boxes are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
-- **Deploying:** check changes in the browser (dark, light and phone width) before deploying, and keep the `classic` backup intact.
+- **Deploying:** check changes in the browser (desktop and phone width) before deploying, and keep the `classic` backup intact.
 - **Explanations:** write to the user in plain language, without code terms.

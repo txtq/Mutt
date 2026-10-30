@@ -3,7 +3,7 @@
 
 import { session } from './api.js';
 import { nav } from './nav.js';
-import { transition } from './transitions.js';
+import { canTransition, transition, visibleShared } from './transitions.js';
 import { closeAllPopovers, toast } from './ui.js';
 import { h } from './util.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
@@ -143,10 +143,26 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     chrome.update(inst, url);
     scrollTo(0, pop ? history.state?.scroll || 0 : 0);
   };
-  // The very first page just plays its own entrance.
-  if (current && motion !== 'none') await transition(swap);
+  // The very first page just plays its own entrance. After a page change
+  // the change itself was the entrance, so the page shouldn't play another.
+  const moved = !!current && motion !== 'none' && canTransition();
+  if (moved) {
+    // Only things on both pages morph (a planet into its page and back).
+    // Everything else fades with the page, so the old page's files don't
+    // hang crisp over the new one while it arrives.
+    const coming = new Set([...inst.el.querySelectorAll('[data-vt]')].map((el) => el.dataset.vt));
+    let names = new Set();
+    await transition(swap, {
+      before: () => {
+        const pairs = visibleShared().filter(([, n]) => coming.has(n));
+        names = new Set(pairs.map(([, n]) => n));
+        return pairs;
+      },
+      after: () => visibleShared().filter(([, n]) => names.has(n)),
+    });
+  }
   else swap();
-  inst.mounted?.();
+  inst.mounted?.({ moved });
   if (id === navId) await syncViewer(blockId);
 }
 

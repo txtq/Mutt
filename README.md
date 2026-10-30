@@ -49,9 +49,8 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   their code to thaw them. Wrong codes count toward the same lockout as
   signing in; changing your code locks everyone out again. **Save** a file
   you like to keep your own copy.
-- **Going home**: away from your galaxy, a little spaceship waits in the
-  top-left corner, nose toward the wordmark. Tap it and it takes off, swings
-  out across the page and flies you home.
+- **Going home**: away from your galaxy, a faint back arrow in the top-left
+  corner takes you home.
 - **Files**: text (light Markdown; click your text to edit it in place),
   links, images, video, audio, PDFs, documents, code, archives. Links open
   with a picture of the site (taken by WordPress.com's free mShots service,

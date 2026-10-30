@@ -378,61 +378,26 @@ html[data-mode="light"] .sb-who.is-other .sb-at { color: #b07612; }
 .search-grid { --cols: 4; column-gap: 14px; row-gap: 20px; margin-top: 8px; }
 .search-none { padding: 26px 6px 8px; color: var(--ink-3); }
 
-/* ------------------------------------------------------------------ the ship in the corner: home */
+/* ------------------------------------------------------------------ the back arrow in the corner: home */
 
-/* Silver hull, blue glass, a warm flame. It points at the wordmark (--aim, set by statusbar.js). */
-.home-ship {
-  --aim: 0deg;
-  --hull-a: #f4f6fb;
-  --hull-b: #c9d1e3;
-  --hull-c: #7d88a6;
-  --ship-fin: #2f6bff;
-  --ship-line: rgba(10, 16, 40, 0.55);
+.home-back {
   position: fixed;
   top: calc(var(--bar) + 12px);
   left: 14px;
   z-index: 38;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border-radius: 50%;
+  color: var(--ink);
+  opacity: 0.45;
+  transition: opacity 0.2s var(--ease), background-color 0.2s var(--ease);
   -webkit-tap-highlight-color: transparent;
-  animation: home-in 0.6s var(--ease) backwards;
 }
-html[data-mode="light"] .home-ship { --hull-c: #6c7898; --ship-line: rgba(20, 30, 70, 0.6); }
-.home-ship[hidden] { display: none; }
-@keyframes home-in { from { opacity: 0; transform: translateY(14px) scale(0.6); } }
-.home-ship-craft {
-  display: block;
-  width: 34px;
-  height: 34px;
-  transform: rotate(var(--aim));
-  transition: transform 0.4s var(--ease);
-}
-.home-ship-craft svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 2px 3px rgba(4, 8, 24, 0.4)); animation: ship-bob 3.2s ease-in-out infinite; }
-@keyframes ship-bob { 50% { transform: translateY(-1.5px); } }
-.home-ship:hover .home-ship-craft, .home-ship:focus-visible .home-ship-craft { transform: rotate(var(--aim)) translateY(-3px) scale(1.08); }
-.home-ship:focus-visible { outline-offset: 0; }
-.ship-hull-a { stop-color: var(--hull-a); }
-.ship-hull-b { stop-color: var(--hull-b); }
-.ship-hull-c { stop-color: var(--hull-c); }
-.ship-hull { stroke: var(--ship-line); stroke-width: 0.6; }
-.ship-fin { fill: var(--ship-fin); stroke: var(--ship-line); stroke-width: 0.5; stroke-linejoin: round; }
-.ship-nozzle { fill: #3a4258; }
-.ship-keel { stroke: var(--ship-fin); stroke-width: 1.4; stroke-linecap: round; }
-.ship-window { stroke: rgba(10, 16, 40, 0.6); stroke-width: 0.5; }
-/* the flame: a small flicker at rest, long and bright when it lights */
-.ship-fire { transform-origin: 16px 23.2px; transform: scaleY(0.35); opacity: 0.75; transition: transform 0.25s var(--ease), opacity 0.25s; }
-.home-ship:hover .ship-fire, .home-ship:focus-visible .ship-fire { transform: scaleY(0.6); opacity: 0.9; }
-.home-ship.is-lit .ship-fire { transform: scaleY(1.25); opacity: 1; animation: ship-flicker 0.09s steps(2) infinite; }
-@keyframes ship-flicker { 50% { transform: scaleY(1.05); } }
-.home-ship.is-lit { z-index: 45; }
-.home-ship.is-lit .home-ship-craft svg { animation: none; }
-.home-ship-trail { position: fixed; inset: 0; z-index: 44; width: 100%; height: 100%; pointer-events: none; }
-.home-ship-trail path { fill: none; stroke: rgba(225, 232, 250, 0.55); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
-html[data-mode="light"] .home-ship-trail path { stroke: rgba(30, 45, 90, 0.35); }
+.home-back[hidden] { display: none; }
+.home-back:hover, .home-back:focus-visible { opacity: 0.9; background: color-mix(in srgb, var(--ink) 8%, transparent); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------------ pages */
@@ -1305,8 +1270,7 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .sb-right { gap: 8px; }
   .planet-name { font-size: 12px; }
   .planet-label { width: max(104px, calc(var(--s) + 16px)); top: calc(100% + 8px); }
-  .home-ship { left: 8px; top: calc(var(--bar) + 8px); width: 40px; height: 40px; }
-  .home-ship-craft { width: 30px; height: 30px; }
+  .home-back { left: 8px; top: calc(var(--bar) + 8px); }
   .liv-head { grid-template-columns: auto minmax(0, 1fr); gap: 14px; margin-left: 46px; padding: 12px 14px; }
   .liv-tools { grid-column: 1 / -1; justify-content: flex-end; }
   .liv-title, .liv-title-static { font-size: 20px; }
@@ -1321,5 +1285,5 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sky-ribbon, .sky-nebula, .uvg-spin, .uvg-sys::before, .home-ship-craft svg, .gx-cue .glyph { animation: none !important; }
+  .sky-ribbon, .sky-nebula, .uvg-spin, .uvg-sys::before, .gx-cue .glyph { animation: none !important; }
 }

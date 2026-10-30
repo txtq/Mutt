@@ -10,9 +10,8 @@ import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { dotWorld, fileFace, glyph, holdPlanets, planetEl, planetSize } from '../planets.js';
+import { fileFace, glyph, holdPlanets, planetEl, planetSize, worldPicture } from '../planets.js';
 import { theSky } from '../sky.js';
-import { paintGalaxy } from '../uvart.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
@@ -153,33 +152,31 @@ function scatter(planets, width, inner, m) {
 
 // ---------------------------------------------------------------- the universe
 
+// Someone's galaxy in miniature: their planets laid out just as their own
+// page lays them out on a desktop screen, shrunk to fit `size`.
+const MINI = { width: 1280, height: 800 };
+// The box each one sits in is wide, like the galaxies themselves.
+const MINI_TALL = 0.66;
 function miniGalaxy(g, size) {
-  const rand = seeded(`uv:${g.username}`);
-  const k = size / 128;
-  // Planets their owner has arranged keep that arrangement in miniature.
-  const reach = Math.max(1, ...(g.worlds || []).filter(placed).map((w) => Math.hypot(w.x, w.y)));
-  const orbits = [];
-  const worlds = (g.worlds || []).map((w, j) => {
-    let r;
-    let a;
-    if (placed(w)) {
-      r = Math.max(size * 0.2, Math.hypot(w.x, w.y) * ((size * 0.42) / reach));
-      a = Math.atan2(w.y, w.x);
-    } else {
-      r = size * (0.2 + Math.min(0.22, Math.sqrt(j) * 0.07));
-      a = j * GOLDEN + rand() * 6.28;
-    }
-    orbits.push(r);
-    const d = Math.max(6 * k, Math.min(size * 0.12, (6 + Math.sqrt(w.n || 0) * 1.8) * k));
-    const dot = dotWorld(w, d);
-    // Lit from the galaxy's middle, so the bright side faces the core.
-    dot.style.setProperty('--lx', `${(50 - Math.cos(a) * 24).toFixed(0)}%`);
-    dot.style.setProperty('--ly', `${(50 - Math.sin(a) * 24).toFixed(0)}%`);
-    dot.style.transform = `translate(${(Math.cos(a) * r).toFixed(1)}px, ${(Math.sin(a) * r).toFixed(1)}px)`;
+  const m = metrics(MINI.width, MINI.height);
+  const inner = { rx: m.rx * 0.72 + 18, ry: m.ry * 0.72 + 18 };
+  const planets = (g.worlds || []).map((w) => ({ id: w.id, count: w.n, x: w.x, y: w.y }));
+  const { spots } = scatter(planets, MINI.width, inner, m);
+  // One scale for everyone (about a screen's worth), so galaxies compare
+  // honestly; only a big spread-out one shrinks a little more to fit.
+  let rx = MINI.width * 0.42;
+  let ry = MINI.height * 0.42;
+  for (const sp of spots) {
+    rx = Math.max(rx, Math.abs(sp.x) + sp.size / 2);
+    ry = Math.max(ry, Math.abs(sp.y) + sp.size / 2);
+  }
+  const k = Math.min((size / 2) / rx, (size * MINI_TALL / 2) / ry);
+  const worlds = (g.worlds || []).map((w, i) => {
+    const sp = spots[i];
+    const dot = worldPicture(w, Math.max(7, sp.size * k));
+    dot.style.transform = `translate(${(sp.x * k).toFixed(1)}px, ${(sp.y * k).toFixed(1)}px)`;
     return dot;
   });
-  const dust = h('canvas', { class: 'uvg-dust', 'aria-hidden': 'true' });
-  paintGalaxy(dust, g, size, orbits);
   const meta = g.locked
     ? [glyph('lock', 10), h('span', null, plural(g.planets, 'planet'))]
     : [h('span', null, `${plural(g.open, 'planet')} · ${plural(g.files, 'file')}`)];
@@ -187,11 +184,11 @@ function miniGalaxy(g, size) {
     type: 'button',
     class: `uvg${g.you ? ' is-you' : ''}${g.locked ? ' is-locked' : ''}`,
     dataset: { user: g.username },
-    style: { '--spin': `${(70 + rand() * 60).toFixed(0)}s`, '--tilt': `${Math.round((rand() - 0.5) * 30)}deg` },
+    style: { '--core': `${(m.hole * 2 * k).toFixed(1)}px` },
     'aria-label': g.you ? 'Your galaxy' : `@${g.username}’s galaxy${g.locked ? ' (locked)' : ''}`,
   },
   h('span', { class: 'uvg-sys' },
-    h('span', { class: 'uvg-disk' }, h('span', { class: 'uvg-spin' }, dust, worlds)),
+    h('span', { class: 'uvg-disk' }, h('span', { class: 'uvg-spin' }, worlds)),
     h('span', { class: 'uvg-core' })),
   h('span', { class: 'uvg-name' }, g.you ? 'You' : `@${g.username}`),
   h('span', { class: 'uvg-meta' }, meta));
@@ -200,7 +197,7 @@ function miniGalaxy(g, size) {
 }
 
 function universeLayout(list, width, height, m) {
-  const size = m.narrow ? 124 : 172;
+  const size = m.narrow ? 150 : 210;
   // Spread to the screen's shape: wide on a desktop, tall on a phone.
   const wide = clamp(Math.sqrt(width / height), 0.62, 1.5);
   const spots = list.map((g, i) => {
@@ -211,8 +208,8 @@ function universeLayout(list, width, height, m) {
   });
   // Nudge apart any that crowd each other. Each one is a box with its
   // name underneath, so they need more room up and down than across.
-  const across = size * 1.1;
-  const down = size * 1.32;
+  const across = size * 1.06;
+  const down = size * MINI_TALL + 46;
   for (let pass = 0; pass < 80; pass++) {
     let moved = false;
     for (let i = 0; i < spots.length; i++) {
@@ -235,7 +232,7 @@ function universeLayout(list, width, height, m) {
     if (!moved) break;
   }
   const ext = spots.reduce((acc, s) => ({ x: Math.max(acc.x, Math.abs(s.x)), y: Math.max(acc.y, Math.abs(s.y)) }), { x: 0, y: 0 });
-  const fit = clamp(Math.min((width / 2 - 16) / (ext.x + size * 0.6), (height / 2 - 64) / (ext.y + size * 0.72)), 0.4, 1);
+  const fit = clamp(Math.min((width / 2 - 12) / (ext.x + size * 0.54), (height / 2 - 60) / (ext.y + size * MINI_TALL / 2 + 46)), 0.4, 1);
   return { size, spots, fit };
 }
 
@@ -859,7 +856,7 @@ class Galaxy {
 
   // ------------------------------------------------------------ out to the universe and back
 
-  renderUniverse(size = this.uvSize || 172) {
+  renderUniverse(size = this.uvSize || 210) {
     this.uvSize = size;
     this.uvEls = this.list.map((g) => {
       const el = miniGalaxy(g, size);
@@ -874,6 +871,7 @@ class Galaxy {
     if (plan.size !== this.uvSize) this.renderUniverse(plan.size);
     this.uvEls.forEach((el, i) => {
       el.style.setProperty('--m', `${plan.size}px`);
+      el.style.setProperty('--mh', `${Math.round(plan.size * MINI_TALL)}px`);
       el.style.transform = `translate(${plan.spots[i].x}px, ${plan.spots[i].y}px)`;
     });
     this.uvField.style.transform = `scale(${plan.fit})`;
@@ -944,13 +942,19 @@ class Galaxy {
     if (out !== this.out) {
       this.out = out;
       this.el.classList.toggle('is-out', out);
-      holdPlanets(out);
       if (out && !isEditable(document.activeElement)) this.hole?.close();
       bus.emit('universe', out);
     }
-    // The black hole only moves while you can see it.
-    if (p > 0.3) this.void.pause();
-    else this.void.play();
+    // Once it starts to zoom, the planets and the black hole hold still
+    // (keeping their picture), so each frame only moves finished layers.
+    const moving = p > 0.01;
+    if (moving !== this.moving) {
+      this.moving = moving;
+      this.el.classList.toggle('is-zooming', moving);
+      holdPlanets(moving);
+      if (moving) this.void.pause();
+      else this.void.play();
+    }
     theSky()?.setNight(e);
   }
 

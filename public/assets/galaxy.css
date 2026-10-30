@@ -140,12 +140,14 @@ body {
   filter: blur(24px);
   animation: nebula-drift 90s ease-in-out infinite alternate;
   opacity: calc(1 - var(--night, 0));
+  will-change: transform, opacity;
 }
 @keyframes nebula-drift { to { transform: translate(4%, -3%) rotate(5deg) scale(1.05); } }
 .sky-ribbons {
   position: absolute; left: 0; right: 0; bottom: -4%; width: 100%; height: 100%;
   mix-blend-mode: var(--ribbon-blend);
   opacity: calc(0.85 - var(--night, 0) * 0.85);
+  will-change: opacity;
 }
 .sky-ribbon { animation: ribbon-drift 130s linear infinite; }
 .sky-ribbon-1 { animation-duration: 95s; animation-direction: reverse; }
@@ -157,6 +159,7 @@ body {
   inset: 0;
   background: radial-gradient(120% 90% at 50% 55%, #070914 0%, #020307 60%, #000002 100%);
   opacity: var(--night, 0);
+  will-change: opacity;
 }
 .sky-stars { position: absolute; inset: 0; width: 100%; height: 100%; }
 
@@ -960,6 +963,9 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
   pointer-events: none;
 }
 .world.is-out .uv-stage { pointer-events: auto; }
+/* while zooming, the moving parts get layers of their own */
+.world.is-zooming .gx-scene { will-change: transform, opacity; }
+.world.is-zooming .uv-stage { will-change: opacity; }
 .uv-scene { position: absolute; inset: 0; will-change: transform; }
 .uv-field { position: absolute; left: 50%; top: calc(50% + 24px); width: 0; height: 0; }
 .uv-head { position: absolute; top: 22px; left: 0; right: 0; z-index: 2; text-align: center; pointer-events: none; }
@@ -970,7 +976,7 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
   --m: 128px;
   position: absolute;
   left: calc(var(--m) / -2);
-  top: calc(var(--m) / -2);
+  top: calc(var(--mh, var(--m)) / -2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -979,14 +985,13 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
   color: #e9edf8;
   -webkit-tap-highlight-color: transparent;
 }
-.uvg-sys { position: relative; display: block; width: var(--m); height: var(--m); transition: transform 0.6s var(--ease); }
+.uvg-sys { position: relative; display: block; width: var(--m); height: var(--mh, var(--m)); transition: transform 0.6s var(--ease); }
 .uvg:hover .uvg-sys, .uvg:focus-visible .uvg-sys { transform: scale(1.08); }
 .uvg:focus-visible { outline: none; }
 .uvg:focus-visible .uvg-name { text-decoration: underline; }
 .uvg-disk { position: absolute; inset: 0; }
-.uvg-spin { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: spin var(--spin) linear infinite; will-change: transform; }
-/* the spiral of dust, painted by uvart.js */
-.uvg-dust { position: absolute; left: calc(var(--m) / -2); top: calc(var(--m) / -2); width: var(--m); height: var(--m); transform: rotate(var(--tilt)); }
+.uvg-spin { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+/* their planets, as their own page shows them */
 .uv-world {
   position: absolute;
   left: calc(var(--w) / -2);
@@ -994,22 +999,36 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
   width: var(--w);
   height: var(--w);
   border-radius: 50%;
-  background: radial-gradient(circle at var(--lx, 35%) var(--ly, 32%), var(--c-light), var(--c) 45%, var(--c-dark) 90%);
-  box-shadow: 0 0 0 0.5px rgba(5, 7, 15, 0.6);
+  background: radial-gradient(circle at 35% 32%, var(--c-light), var(--c) 45%, var(--c-dark) 90%);
+}
+.uv-world.is-painted { background: none; }
+.uv-world-map { position: absolute; inset: 0; width: 100%; height: 100%; }
+.uv-world.has-rings::after {
+  content: "";
+  position: absolute;
+  left: -32%;
+  right: -32%;
+  top: 36%;
+  bottom: 36%;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--c-light) 55%, transparent);
+  transform: rotate(-14deg);
+  pointer-events: none;
 }
 .uv-world.is-locked { filter: saturate(0.3) brightness(0.65); }
+/* the void in the middle, with a little of its dust round it */
 .uvg-core {
+  --rim: rgba(205, 195, 225, 0.3);
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(var(--m) * 0.1);
-  height: calc(var(--m) * 0.1);
+  width: calc(var(--core, 14px) * 2.4);
+  height: calc(var(--core, 14px) * 2.4);
   border-radius: 50%;
-  background: #000;
+  background: radial-gradient(closest-side, #04050b 40%, var(--rim) 41.5%, rgba(175, 165, 200, 0.14) 48%, rgba(175, 165, 200, 0.05) 72%, transparent);
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 1px rgba(240, 220, 194, 0.4);
 }
-.uvg.is-you .uvg-core { box-shadow: 0 0 0 1.5px rgba(150, 195, 255, 0.85); }
+.uvg.is-you .uvg-core { --rim: rgba(150, 195, 255, 0.85); }
 .uvg-name { font-size: 13px; font-weight: 500; white-space: nowrap; }
 .uvg.is-you .uvg-name { color: #a9cdff; }
 .uvg-meta { display: inline-flex; align-items: center; gap: 4px; font: 400 10.5px/1.2 var(--mono); color: rgba(200, 210, 235, 0.5); white-space: nowrap; }
@@ -1247,7 +1266,6 @@ html:not([data-mode="light"]) .toast button { color: #8cc0ff; }
 
 /* ------------------------------------------------------------------ calmer motion */
 
-html[data-motion="calm"] .uvg-spin { animation-duration: 180s; }
 html[data-motion="calm"] .sky-ribbon, html[data-motion="calm"] .sky-nebula { animation-play-state: paused; }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation-play-state: paused !important; transition-duration: 0.01ms !important; }
 
@@ -1274,5 +1292,5 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sky-ribbon, .sky-nebula, .uvg-spin, .gx-cue .glyph { animation: none !important; }
+  .sky-ribbon, .sky-nebula, .gx-cue .glyph { animation: none !important; }
 }

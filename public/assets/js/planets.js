@@ -145,7 +145,7 @@ function richer(hex, amount = 1.4) {
 
 // A world's colours: its kind's palette, leaning toward the planet's colour
 // (which is bright; worlds are a little dustier), then made more colourful.
-export function worldColors(planet, look = lookOf(planet)) {
+function worldColors(planet, look = lookOf(planet)) {
   const tint = shade(planet.icon?.c || planet.c || '#2F6BFF', '#6f7891', 0.15);
   const pal = PALETTES[look];
   // Lava stays dark and hot rather than taking on the planet's colour.
@@ -611,11 +611,46 @@ export function planetDot(planet) {
   return h('span', { class: 'planet-dot', style: { '--c': planet.icon?.c || planet.c || '#2F6BFF' }, 'aria-hidden': 'true' });
 }
 
-export function dotWorld(world, size) {
+// A planet as it looks in its own galaxy, painted once and held still, for
+// the universe. It has no files on it (the universe doesn't load them).
+let blank = null;
+export function worldPicture(world, size) {
   const colors = worldColors(world);
-  return h('span', {
-    class: `uv-world${world.locked ? ' is-locked' : ''}`,
-    dataset: { look: lookOf(world) },
+  const look = lookOf(world);
+  const el = h('span', {
+    class: `uv-world${world.locked ? ' is-locked' : ''}${(world.n || 0) >= 10 ? ' has-rings' : ''}`,
+    dataset: { look },
     style: { '--w': `${size}px`, '--c': colors.base, '--c-light': colors.light, '--c-dark': colors.dark },
   });
+  if (!canPaint()) return el;
+  // The same draws from the planet's id as planetEl() and makeGlobe(), so
+  // it shows the same face, tilt and weather.
+  const rand = seeded(world.id);
+  const tilt = (rand() - 0.5) * 36;
+  rand();
+  const period = 80 + rand() * 70;
+  const offset = rand() * period;
+  const seed = [rand() * 97, rand() * 97, rand() * 97];
+  if (!blank) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 4;
+    canvas.height = 2;
+    blank = { canvas };
+  }
+  const px = Math.max(16, Math.round(size * Math.min(3, (devicePixelRatio || 1) * 1.5)));
+  const canvas = h('canvas', { class: 'uv-world-map', width: px, height: px, 'aria-hidden': 'true' });
+  const ok = paint(canvas.getContext('2d'), px, {
+    source: blank,
+    look: LOOK_INDEX[look],
+    tilt: (tilt * Math.PI) / 180,
+    colors: colors.colors.map(rgb),
+    turn: offset / period,
+    time: 0,
+    seed,
+  });
+  if (ok) {
+    el.classList.add('is-painted');
+    el.append(canvas);
+  }
+  return el;
 }

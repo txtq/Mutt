@@ -9,6 +9,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Where things stand (2026-10-30)
 
+- **Code cleanup (live)**: `claude/website-code-review-aa94e1` is merged into `galaxy` and `main` (76d4c16) and deployed. About 560 lines of unused code removed; nothing visible changed.
 - **Smoother trip back from a planet (live)**: `claude/planet-exit-animation-bug-ee8c5b` is merged into `galaxy` and `main` (32c102b) and deployed.
 
 - **Light mode is gone (live)**: `claude/remove-light-mode-16b469` is merged into `galaxy` (395d103) and `main` and deployed, on top of the universe update. Nothing in the code refers to light mode any more.
@@ -35,6 +36,16 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
+
+### 2026-10-30: code cleanup (deployed)
+- The user asked for a review to remove anything redundant or unneeded, then to bring it up to date with the latest work and make it live.
+- Styles: ~340 lines in `mutt.css` from the old design (old top bar and breadcrumbs, drawer rows, people cards, font tiles, the never-enabled "colorful" theme, caption settings), plus unused variables and the `.glass` class in `galaxy.css`. The screen-size rules at the end of `mutt.css` are one block per size now.
+- Scripts: unused `showsImage`, `countKinds` (`kinds.js`), `miniFace` (`cells.js`) and `plain` (`md.js`).
+- Server: routes nothing calls are gone: custom font upload (`/api/me/font`), the old people pages (`/api/users…`), the old community feed (`/api/community…`) and the plain file list (`GET /api/blocks`). Settings no longer accepted: font, corners, density, captions, paper, accent, colorful. Open ("community") planets still work.
+- Merged with the light-mode removal, universe update and smoother planet exit. Two small clashes in `galaxy.css`, both settled in favour of the newer work (light colours gone; the universe galaxies no longer spin, so a "Calm" fix for their spin was dropped).
+- After merging, a rescan found no unused code, styles, animations or variables, and no light-mode leftovers.
+- Checked: test suites print exactly the same as the live version. In the browser, every element's computed style matched the live stylesheets on login, galaxy, planet page, file viewer, settings sheet and universe, at desktop and phone width (no sideways scroll). Opening files and the planet picker work, with no script errors.
+- Testing tip: to compare styles, serve the old and new stylesheets from the same server (the site's security rules block stylesheets from another port) and toggle each one's `.sheet.disabled`, not the link tag's `disabled`. Two test servers on 127.0.0.1 sign each other out, so keep one tab.
 
 ### 2026-10-30: the trip from a planet back home is smooth (deployed)
 - The user said leaving a planet for home was "super buggy". Causes found:

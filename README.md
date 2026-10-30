@@ -56,7 +56,7 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   with a picture of the site (taken by WordPress.com's free mShots service,
   so the link's address is sent there); YouTube and Vimeo play inline; PDFs
   scroll inside Mutt, drawn with pdf.js. One file can sit on many planets.
-- **Settings**: mode (Auto, Light or Dark), sky (Vita, Nebula, Aurora,
+- **Settings**: sky (Vita, Nebula, Aurora,
   Dusk), logo, autosort, text size, and motion (Lively, Calm or Still).
   Mutt also respects your system's reduce-motion setting.
 

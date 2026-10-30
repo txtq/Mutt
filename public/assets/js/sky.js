@@ -1,5 +1,4 @@
-// The sky behind every page: a Vita wash (deep blue by night, pale silver
-// by day), slow ribbons of light, and a field of stars that twinkle, lean a
+// The sky behind every page: a deep blue Vita wash, slow ribbons of light, and a field of stars that twinkle, lean a
 // little as you move, bend round the void, and get tugged toward it when it
 // eats something. Further out, in the universe, it goes dark and still.
 
@@ -92,7 +91,6 @@ export function createSky() {
   let last = 0;
   let lens = null;
   let night = 0;
-  let day = false;
 
   function seed() {
     dpr = Math.min(devicePixelRatio || 1, 2);
@@ -117,7 +115,6 @@ export function createSky() {
   }
 
   const COLORS = { white: '255,255,255', warm: '255,226,196', blue: '178,214,255' };
-  const DAY = { white: '70,86,130', warm: '120,96,90', blue: '60,96,170' };
 
   function draw(time) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -127,8 +124,6 @@ export function createSky() {
     const scroll = scrollY;
     pulls = pulls.filter((p) => time - p.start < p.duration);
     const hole = lens?.();
-    const dim = day ? 1 - night : 0;
-    const palette = dim > 0.5 ? DAY : COLORS;
     for (const s of stars) {
       const twinkle = 0.55 + 0.45 * Math.sin(time * 0.001 * s.speed + s.phase);
       let x = s.x + lean.x * s.depth * 14;
@@ -163,16 +158,15 @@ export function createSky() {
         }
       }
       let alpha = (0.25 + s.depth * 0.75) * twinkle;
-      if (dim > 0.5) alpha *= 0.45;
-      else if (night) alpha = Math.min(1, alpha * (1 + night * 0.35));
-      ctx.fillStyle = `rgba(${palette[s.tint]},${alpha.toFixed(3)})`;
+      if (night) alpha = Math.min(1, alpha * (1 + night * 0.35));
+      ctx.fillStyle = `rgba(${COLORS[s.tint]},${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(x, y, s.r, 0, Math.PI * 2);
       ctx.fill();
       if (s.flare && twinkle > 0.6) {
         // A little four-point glint on the nearest stars.
         const len = s.r * 5 * twinkle;
-        ctx.strokeStyle = `rgba(${palette[s.tint]},${(alpha * 0.55).toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${COLORS[s.tint]},${(alpha * 0.55).toFixed(3)})`;
         ctx.lineWidth = 0.6;
         ctx.beginPath();
         ctx.moveTo(x - len, y); ctx.lineTo(x + len, y);
@@ -211,10 +205,6 @@ export function createSky() {
     lean.tx = (e.clientX / width - 0.5) * 2;
     lean.ty = (e.clientY / height - 0.5) * 2;
   }, { passive: true });
-
-  const readMode = () => { day = document.documentElement.dataset.mode === 'light'; if (reducedMotion()) draw(performance.now()); };
-  document.addEventListener('mutt:mode', readMode);
-  readMode();
 
   instance = {
     el,

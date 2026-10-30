@@ -2,7 +2,7 @@
 // caged by dark, sinewy strands wrapped round it like a sphere, stippled
 // cells between them (bright at their rims, dim in the middle), faint rays
 // from the light. The cage turns slowly in 3D. It sits straight on the sky,
-// with no patch of night round it, and looks the same in light mode.
+// with no patch of night round it.
 //
 // The cells are a texture built once; the strands are drawn fresh each frame
 // from a handful of rings on a sphere. Opening the void widens the light

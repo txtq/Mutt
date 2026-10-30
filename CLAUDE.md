@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Handoff rule
 
-The handoff notes are **one shared file: `/Users/edan/Mutt/PROGRESS.md`**, in the main checkout. Most sessions run in a worktree under `.claude/worktrees/`, and the `PROGRESS.md` there is a stale copy from when the worktree was made, which never reaches the other sessions. So:
-- Read `/Users/edan/Mutt/PROGRESS.md` at the start of every session, on its own (the Read tool, not chained with other commands, so one bad path can't fail the read).
-- After finishing each task, update that same file: what was done, what's next (name your branch if it isn't merged), and any new preferences the user gave. Don't edit the worktree's own `PROGRESS.md`, or merging branches will conflict.
+The handoff notes are **one shared file: `/Users/edan/Mutt-notes/PROGRESS.md`**, in a folder beside the project, not inside it. Most sessions run in a worktree under `.claude/worktrees/`, and the app blocks a worktree session from editing files in the main checkout (`/Users/edan/Mutt/...`), so the notes live outside the repo where every session can edit them. So:
+- Read `/Users/edan/Mutt-notes/PROGRESS.md` at the start of every session, on its own (the Read tool, not chained with other commands, so one bad path can't fail the read).
+- After finishing each task, update that same file with the Edit tool: what was done, what's next (name your branch if it isn't merged), and any new preferences the user gave.
+- The repo's own `PROGRESS.md` is only a pointer to it. Don't write notes there.
 - Preferences that should hold for all future work also go in the **User preferences** section below.
-- The shared file is committed on `galaxy` from the main checkout, along with merges and deploys.
+- The notes aren't in git, so there's nothing to commit for them.
 - `/handoff` (`.claude/commands/handoff.md`) does this update on demand.
 
 ## What Mutt is

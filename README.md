@@ -7,10 +7,10 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Your galaxy** is the whole app. A thin bar along the top says whose
   galaxy it is; tap your name for your account (files, planets and stars)
   and settings, or the magnifier (or press `/`) to search.
-- **The void** in the middle is how you add things: a big black hole of
-  grainy, smoky dust turning round a dark middle (a stippled ink print in
-  light mode).
-  Click it and it sweeps open, and an add box sits in the dark: type a note,
+- **The void** in the middle is how you add things: a stippled black and
+  white print of a bright light caged by dark, sinewy strands that turn
+  slowly round it, with stippled cells and faint rays between them.
+  Click it and the light widens, and a plain add box sits in the light: type a note,
   paste a link, upload or drop a file, and pick where it goes: **Star**
   (loose, by the void), **Autosort**, a **Planet** you choose, or a **New
   planet** you name right there. You can also drop files straight onto the
@@ -34,7 +34,7 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   the arrangement to fit. **Tidy planets** in your account sheet lets them
   spread out on their own again.
 - **Stars** are files that aren't on a planet yet. They sit as small
-  thumbnails floating in the void's dust, newest closest in. Click to open,
+  thumbnails floating round the void, newest closest in. Click to open,
   drag onto a planet, or drag back into the void to autosort it.
 - **Autosort** sends new things to a planet by itself: one whose name
   matches the words, one named after the kind of file (Images, Links,

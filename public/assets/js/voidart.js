@@ -1,13 +1,12 @@
-// The black hole itself, painted on a canvas like a grainy print rather
-// than a render: folds of smoky dust slowly turning round a dark middle with
-// a ragged edge, a faint tilted smudge of matter running through it, one thin
-// stray arc, and a few small square sparks drifting in. Two tiny embers circle
-// each other down in the dark. In light mode it's the same picture printed
-// in ink on pale paper, with the middle left pale.
+// The void, painted on a canvas like a stippled print: a bright white light
+// caged by dark, sinewy strands wrapped round it like a sphere, stippled
+// cells between them (bright at their rims, dim in the middle), faint rays
+// from the light. The cage turns slowly in 3D. It sits straight on the sky,
+// with no patch of night round it, and looks the same in light mode.
 //
-// The textures are built once (and again on a theme change); each frame only
-// turns them. Opening the void widens the dark, and the dust thins into a
-// ring round it.
+// The cells are a texture built once; the strands are drawn fresh each frame
+// from a handful of rings on a sphere. Opening the void widens the light
+// until it holds the add box, burning through the strands behind it.
 
 import { h, reducedMotion, seeded } from './util.js';
 
@@ -19,16 +18,19 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const easeOut = (t) => 1 - (1 - t) ** 3;
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-// How big the dark is for a page this size (its radius, in CSS pixels).
+// How big the light is for a page this size (its radius, in CSS pixels).
 export function voidRadius(width, viewH) {
   const narrow = width < 640;
-  return Math.round(clamp(Math.min(viewH * 0.13, width * (narrow ? 0.16 : 0.11)), narrow ? 50 : 64, 120));
+  return Math.round(clamp(Math.min(viewH * 0.095, width * (narrow ? 0.12 : 0.08)), narrow ? 40 : 50, 92));
 }
-// How far out the dust reaches, in multiples of that radius.
-export const REACH = { x: 3.3, y: 3.8 };
-const TALL = REACH.y / REACH.x;
+// How far out the cage reaches, in multiples of that radius.
+export const REACH = { x: 3.1, y: 3.3 };
+const CAGE = 2.5; // the sphere the strands wrap, in multiples of the radius
+const LILAC = '236, 231, 247';
+const INK = '#0c0911';
+const INK_RGB = [12, 9, 17];
 
-// ---------------------------------------------------------------- textures
+// ---------------------------------------------------------------- noise
 
 // Value noise that wraps round the circle (x repeats every `period` cells).
 function noise(seed) {
@@ -43,11 +45,8 @@ function noise(seed) {
     const yi = Math.floor(y);
     const fx = smooth(x - xi);
     const fy = smooth(y - yi);
-    const a = lerp(at(xi, yi, period), at(xi + 1, yi, period), fx);
-    const b = lerp(at(xi, yi + 1, period), at(xi + 1, yi + 1, period), fx);
-    return lerp(a, b, fy);
+    return lerp(lerp(at(xi, yi, period), at(xi + 1, yi, period), fx), lerp(at(xi, yi + 1, period), at(xi + 1, yi + 1, period), fx), fy);
   };
-  // A few octaves, still wrapping.
   return (x, y, period, octaves = 3) => {
     let v = 0;
     let amp = 0.5;
@@ -63,147 +62,154 @@ function noise(seed) {
   };
 }
 
-function ramp(stops, v) {
-  for (let i = 1; i < stops.length; i++) {
-    if (v <= stops[i][0]) {
-      const [p0, c0] = stops[i - 1];
-      const [p1, c1] = stops[i];
-      const t = clamp((v - p0) / (p1 - p0 || 1));
-      return c0.map((c, k) => lerp(c, c1[k], t));
-    }
-  }
-  return stops[stops.length - 1][1];
+// Smooth wandering along a loop (t in 0..1), for a strand's width.
+function wander(seed, cells) {
+  const rand = seeded(seed);
+  const v = Array.from({ length: cells }, () => rand());
+  return (t) => {
+    const x = (((t % 1) + 1) % 1) * cells;
+    const i = Math.floor(x);
+    return lerp(v[i], v[(i + 1) % cells], smooth(x - i));
+  };
 }
 
-function blank() {
-  const canvas = document.createElement('canvas');
-  canvas.width = TEX;
-  canvas.height = TEX;
+// ---------------------------------------------------------------- textures
+
+// The cells: a sphere shell of pale dust, dim in the middle and bright at
+// the rim, lumpy, with a scalloped outline. The body is the same shape in
+// ink, so the ball stays dark inside without a halo round it.
+function shell() {
+  const n = noise('lobes');
+  const make = () => {
+    const c = document.createElement('canvas');
+    c.width = TEX;
+    c.height = TEX;
+    return c;
+  };
+  const canvas = make();
+  const body = make();
   const ctx = canvas.getContext('2d');
-  return { canvas, ctx, img: ctx.createImageData(TEX, TEX) };
-}
-
-// Smoke round a hole: noise in circular coordinates, folded back on itself
-// (domain warping) so it billows, with thin bright creases where the sheets
-// of dust fold over, a ragged inner edge, and grain over everything.
-function smoke({ seed, inner, ragged = 0.1, peak, outer, twist = 0.5, grain, stops }) {
-  const n = noise(seed);
-  const { canvas, ctx, img } = blank();
+  const img = ctx.createImageData(TEX, TEX);
+  const ink = ctx.createImageData(TEX, TEX);
   const half = TEX / 2;
-  const speck = seeded(`${seed}:grain`);
+  const [lr, lg, lb] = LILAC.split(',').map(Number);
   for (let y = 0; y < TEX; y++) {
     for (let x = 0; x < TEX; x++) {
       const dx = (x + 0.5 - half) / half;
       const dy = (y + 0.5 - half) / half;
       const r = Math.hypot(dx, dy);
-      if (r >= outer || r <= inner - ragged) continue;
+      if (r >= 1) continue;
       const a = (Math.atan2(dy, dx) / TAU + 1) % 1;
-      const edge = inner + ragged * (n(a * 7, 3.7, 7, 2) - 0.5) * 2;
-      if (r <= edge) continue;
-      const body = smooth(clamp((r - edge) / 0.06)) * (r < peak ? 1 : (1 - smooth((r - peak) / (outer - peak))) ** 1.3);
-      if (body <= 0.002) continue;
-      const s = (a + r * twist) % 1;
-      const q = n(s * 5, r * 4, 5);
-      const w = n(s * 9 + q * 3, r * 7 + q * 2.5, 9);
-      const crease = (1 - Math.abs(2 * w - 1)) ** 3.5;
-      const lip = 1 + 1.6 * Math.exp(-(r - edge) / 0.05);
-      let v = body * (0.42 * smooth(clamp(w * 1.4 - 0.2)) + 0.6 * crease * lip);
-      v *= 1 - grain + grain * 2 * speck();
-      const [cr, cg, cb, ca] = ramp(stops, clamp(v));
+      const edge = 0.86 + 0.13 * n(a * 6, 2.3, 6, 2);
+      if (r >= edge) continue;
+      const k = r / edge;
+      const lump = n(a * 9, r * 6, 9);
+      const rim = smooth(clamp((edge - r) / 0.025));
+      let d = 0.16 + 0.9 * k ** 7 + 0.35 * Math.exp(-((k / 0.42) ** 2));
+      d *= 0.55 + 0.9 * lump;
       const i = (y * TEX + x) * 4;
-      img.data[i] = cr;
-      img.data[i + 1] = cg;
-      img.data[i + 2] = cb;
-      img.data[i + 3] = ca * 255;
+      img.data[i] = lr;
+      img.data[i + 1] = lg;
+      img.data[i + 2] = lb;
+      img.data[i + 3] = clamp(d * rim) * 255;
+      ink.data[i] = INK_RGB[0];
+      ink.data[i + 1] = INK_RGB[1];
+      ink.data[i + 2] = INK_RGB[2];
+      ink.data[i + 3] = smooth(clamp((edge - r) / 0.06)) * 255;
     }
   }
   ctx.putImageData(img, 0, 0);
-  return canvas;
+  body.getContext('2d').putImageData(ink, 0, 0);
+  return { cells: canvas, body };
 }
 
-// A long thin smudge of dust, stippled, tapering at both ends (drawn tilted).
-function smudge({ seed, grain, color }) {
-  const n = noise(seed);
-  const { canvas, ctx, img } = blank();
-  const half = TEX / 2;
-  const speck = seeded(`${seed}:grain`);
-  for (let y = 0; y < TEX; y++) {
-    for (let x = 0; x < TEX; x++) {
-      const u = (x + 0.5 - half) / half;
-      const v = (y + 0.5 - half) / half;
-      const width = 0.16 * (1 - Math.abs(u)) ** 1.6 + 0.012;
-      const across = Math.abs(v) / width;
-      if (across >= 1) continue;
-      let k = (1 - across * across) ** 2 * (1 - Math.abs(u)) ** 0.7;
-      k *= 0.55 + 0.6 * n(u * 6 + 10, v * 30, 1000, 3);
-      k *= 1 - grain + grain * 2 * speck();
-      const i = (y * TEX + x) * 4;
-      img.data[i] = color[0];
-      img.data[i + 1] = color[1];
-      img.data[i + 2] = color[2];
-      img.data[i + 3] = clamp(k) * color[3] * 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return canvas;
-}
-
-// Film grain: a tile of random specks, laid over the dust at screen
-// resolution so it stays fine however big the dust is drawn.
-function grainTile(strength) {
-  const size = 192;
+// Stipple: punched through whatever is drawn under it, it clears all but
+// round dots of mixed sizes, so soft light breaks up like a print.
+function stippleTile() {
+  const size = 240;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  const rand = seeded('film');
-  for (let i = 0; i < size * size; i++) {
-    const k = rand();
-    img.data[i * 4 + 3] = (k < 0.5 ? k * 2 * strength : strength * (0.35 + 0.65 * (k - 0.5) * 2) * (k > 0.93 ? 1.4 : 0.6)) * 255;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.93)';
+  ctx.fillRect(0, 0, size, size);
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = '#000';
+  const rand = seeded('stipple');
+  for (let i = 0; i < size * size * 0.17; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 0.45 + rand() ** 2 * 0.85;
+    // Drawn again across each edge, so the tile repeats without seams.
+    for (const ox of [0, -size, size]) {
+      for (const oy of [0, -size, size]) {
+        if ((ox && Math.abs(x + ox - size / 2) > size / 2 + 2) || (oy && Math.abs(y + oy - size / 2) > size / 2 + 2)) continue;
+        ctx.beginPath();
+        ctx.arc(x + ox, y + oy, r, 0, TAU);
+        ctx.fill();
+      }
+    }
   }
-  ctx.putImageData(img, 0, 0);
   return canvas;
 }
 
-const LOOKS = {
-  dark: {
-    haze: 'rgba(96, 80, 132, 0.16)',
-    core: ['#020104', 'rgba(2, 1, 4, 0)'],
-    arc: 'rgba(206, 196, 228, 0.32)',
-    ember: [255, 70, 36],
-    sparks: ['#f1e6d4', '#d6cdf0', '#fff6e4'],
-    smoke: [[0, [56, 42, 74, 0]], [0.2, [70, 54, 92, 0.5]], [0.5, [116, 96, 144, 0.75]], [0.8, [174, 160, 198, 0.85]], [1, [224, 216, 238, 0.92]]],
-    smudge: [196, 186, 220, 0.5],
-    grain: 0.15,
-    film: 0.6,
-  },
-  light: {
-    haze: 'rgba(30, 32, 48, 0.07)',
-    core: ['#f7f6f1', 'rgba(247, 246, 241, 0)'],
-    arc: 'rgba(18, 20, 32, 0.45)',
-    ember: [18, 20, 32],
-    sparks: ['#1b1d2c', '#3a3d52', '#1b1d2c'],
-    smoke: [[0, [40, 42, 58, 0]], [0.2, [40, 42, 58, 0.3]], [0.55, [24, 26, 40, 0.62]], [1, [10, 11, 20, 0.92]]],
-    smudge: [16, 18, 30, 0.7],
-    grain: 0.3,
-    film: 0.75,
-  },
-};
+// Faint rays from the light: [angle, width] pairs.
+const RAYS = (() => {
+  const rand = seeded('rays');
+  return Array.from({ length: 18 }, (_, i) => [((i + rand() * 0.7) / 18) * TAU, 0.03 + rand() * 0.06]);
+})();
 
-const cache = {};
-function textures(mode) {
-  if (cache[mode]) return cache[mode];
-  const look = LOOKS[mode];
-  cache[mode] = {
-    look,
-    dust: smoke({ seed: 'dust', inner: 0.32, ragged: 0.07, peak: 0.5, outer: 1, twist: 0.6, grain: look.grain, stops: look.smoke }),
-    dust2: smoke({ seed: 'dust-far', inner: 0.36, ragged: 0.1, peak: 0.6, outer: 1, twist: -0.4, grain: look.grain, stops: look.smoke }),
-    thin: smoke({ seed: 'dust-thin', inner: 0.6, ragged: 0.05, peak: 0.7, outer: 1, twist: 0.4, grain: look.grain, stops: look.smoke }),
-    smudge: smudge({ seed: 'smudge', grain: look.grain, color: look.smudge }),
-    film: grainTile(look.film),
+let shellTex = null;
+let tile = null;
+
+// ---------------------------------------------------------------- the cage
+
+// Rings on a unit sphere: a normal, how far the ring sits off the centre
+// (0 is a great circle), and how thick its strand is (in light radii).
+const RINGS = [
+  { n: [0.2, 1, 0.15], d: 0, w: 0.26 },
+  { n: [1, 0.25, -0.45], d: 0, w: 0.22 },
+  { n: [-0.6, 0.55, 0.8], d: 0, w: 0.2 },
+  { n: [0.75, -0.6, 0.5], d: 0, w: 0.17 },
+  { n: [0.1, 0.35, -1], d: 0, w: 0.15 },
+  { n: [0.9, 0.9, 0.2], d: 0.55, w: 0.12 },
+  { n: [-0.8, 0.2, -0.5], d: 0.62, w: 0.11 },
+  { n: [0.3, -1, -0.35], d: 0.48, w: 0.1 },
+].map((ring, i) => {
+  const len = Math.hypot(...ring.n);
+  const nv = ring.n.map((v) => v / len);
+  // Two directions across the ring.
+  const helper = Math.abs(nv[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  const u = norm(cross(nv, helper));
+  const v = cross(nv, u);
+  return {
+    ...ring, nv, u, v,
+    rc: Math.sqrt(1 - ring.d * ring.d),
+    width: wander(`strand:${i}`, 9),
+    gaps: wander(`gap:${i}`, 5),
   };
-  return cache[mode];
+});
+const STEPS = 120;
+
+// Where strands meet on the sphere, they flare into each other like webbed
+// sinew. The rings never change shape, only turn, so this is worked out once.
+const at = (ring, t) => {
+  const c = Math.cos(t * TAU);
+  const s = Math.sin(t * TAU);
+  return [0, 1, 2].map((k) => ring.nv[k] * ring.d + ring.rc * (c * ring.u[k] + s * ring.v[k]));
+};
+for (const ring of RINGS) ring.pts = Array.from({ length: STEPS + 1 }, (_, i) => at(ring, i / STEPS));
+for (const ring of RINGS) {
+  ring.flare = ring.pts.map((p) => {
+    let near = Infinity;
+    for (const other of RINGS) {
+      if (other === ring) continue;
+      for (const q of other.pts) near = Math.min(near, (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2);
+    }
+    return Math.max(0, 1 - Math.sqrt(near) / 0.24) ** 2;
+  });
 }
 
 // ---------------------------------------------------------------- the painter
@@ -211,21 +217,21 @@ function textures(mode) {
 export function voidArt() {
   const canvas = h('canvas', { class: 'void-art', 'aria-hidden': 'true' });
   const ctx = canvas.getContext('2d');
-  // The dust is drawn here first so the grain only bites into the dust.
+  // The cells, rays and the light's halo are drawn here first, then stippled.
   const layer = document.createElement('canvas');
   const lctx = layer.getContext('2d');
-  let film = null;
-  let filmMode = '';
+  // The strands, so they can be speckled like ink before they go down.
+  const ink = document.createElement('canvas');
+  const ictx = ink.getContext('2d');
+  let stipple = null;
+  let speckle = null;
   const root = document.documentElement;
-  const rand = seeded('sparks');
 
-  let tex = null;
-  let mode = '';
   let W = 0;
   let H = 0;
   let dpr = 1;
-  let R = 80; // the dark's radius, closed
-  // The dark's radius when open (fits the add box), easing when the box changes size.
+  let R = 80; // the light's radius, closed
+  // The light's radius when open (fits the add box), easing when the box changes size.
   const wide = { from: 0, to: 0, start: 0 };
   const openR = (now) => lerp(wide.from, wide.to, easeOut(clamp((now - wide.start) / 450)));
   let frame = 0;
@@ -240,24 +246,9 @@ export function voidArt() {
   let hungry = false;
   let gulpAt = -1e9;
 
-  const sparks = Array.from({ length: 10 }, (_, i) => ({
-    a: rand() * TAU,
-    r: 1.3 + rand() * 2,
-    w: 0.35 + rand() * 0.3,
-    tone: i % 3,
-    phase: rand() * TAU,
-  }));
-
-  function theme() {
-    const next = root.dataset.mode === 'light' ? 'light' : 'dark';
-    if (next === mode) return;
-    mode = next;
-    tex = textures(mode);
-    draw(performance.now());
-  }
-  // Light/dark and the motion setting can change while it's on screen.
-  const watch = new MutationObserver(() => { theme(); sync(); });
-  watch.observe(root, { attributes: true, attributeFilter: ['data-mode', 'data-motion'] });
+  // The motion setting can change while it's on screen.
+  const watch = new MutationObserver(() => sync());
+  watch.observe(root, { attributes: true, attributeFilter: ['data-motion'] });
 
   function openness(now) {
     const t = clamp((now - open.start) / open.dur);
@@ -266,125 +257,222 @@ export function voidArt() {
   }
   const wideR = (now) => Math.max(openR(now), R * 2.2);
 
+  // Where each strand runs this frame: the rings turned and laid flat.
+  function cage(S) {
+    const yaw = spin;
+    const tilt = 0.32 + Math.sin(spin * 0.37) * 0.06;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const ct = Math.cos(tilt);
+    const st = Math.sin(tilt);
+    return RINGS.map((ring) => {
+      const pts = [];
+      for (let i = 0; i <= STEPS; i++) {
+        const t = i / STEPS;
+        const c = Math.cos(t * TAU);
+        const s = Math.sin(t * TAU);
+        let x = ring.nv[0] * ring.d + ring.rc * (c * ring.u[0] + s * ring.v[0]);
+        let y = ring.nv[1] * ring.d + ring.rc * (c * ring.u[1] + s * ring.v[1]);
+        let z = ring.nv[2] * ring.d + ring.rc * (c * ring.u[2] + s * ring.v[2]);
+        // Turn about the upright axis, then lean towards us.
+        [x, z] = [x * cy + z * sy, -x * sy + z * cy];
+        [y, z] = [y * ct - z * st, y * st + z * ct];
+        const f = ring.flare[i];
+        const taper = Math.max(smooth(clamp((ring.gaps(t) - 0.22) / 0.2)), f);
+        const w = R * ring.w * (0.2 + 1.4 * ring.width(t) ** 1.5 + 1.3 * f) * taper * (0.75 + 0.3 * z);
+        pts.push({ x: x * S, y: y * S, z, w });
+      }
+      return pts;
+    });
+  }
+  // Runs of a strand's points (all, or only those in front or behind).
+  function runs(pts, keep, each) {
+    let run = [];
+    for (const p of pts) {
+      if (p.w > 0.15 && keep(p)) run.push(p);
+      else {
+        if (run.length > 1) each(run);
+        run = [];
+      }
+    }
+    if (run.length > 1) each(run);
+  }
+  // The strands, the half behind the light or the half in front, speckled
+  // with the stipple so they read as ink.
+  function strands(rings, front, alpha, box) {
+    ictx.setTransform(1, 0, 0, 1, 0, 0);
+    ictx.globalCompositeOperation = 'source-over';
+    ictx.clearRect(...box);
+    ictx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
+    ictx.fillStyle = INK;
+    for (const pts of rings) runs(pts, (p) => (p.z > 0) === front, (run) => ribbon(ictx, run, 1));
+    if (!speckle) speckle = ictx.createPattern(tile, 'repeat');
+    ictx.setTransform(1, 0, 0, 1, 0, 0);
+    ictx.globalCompositeOperation = 'destination-out';
+    ictx.globalAlpha = 0.3;
+    ictx.fillStyle = speckle;
+    ictx.fillRect(...box);
+    ictx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(ink, ...box, ...box);
+    ctx.globalAlpha = 1;
+  }
+  // Light catches the cells' edges along every strand, so each cell is
+  // bright at its rim and dim in the middle.
+  function rims(rings) {
+    lctx.fillStyle = '#fff';
+    for (const [spread, alpha] of [[3.4, 0.25], [2.4, 0.4], [1.6, 0.7]]) {
+      for (const pts of rings) {
+        runs(pts, () => true, (run) => {
+          lctx.globalAlpha = alpha * (run[run.length >> 1].z > 0 ? 1 : 0.55);
+          ribbon(lctx, run, spread);
+        });
+      }
+    }
+    lctx.globalAlpha = 1;
+  }
+  // Faint rays from the light out through the cells.
+  function rays(rc, S) {
+    const L = S * 1.04;
+    const turn = spin * 0.1;
+    for (const [angle, width] of RAYS) {
+      const a = angle + turn;
+      const g = lctx.createLinearGradient(0, 0, Math.cos(a) * L, Math.sin(a) * L);
+      g.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+      g.addColorStop(rc / L, 'rgba(255, 255, 255, 0.5)');
+      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      lctx.fillStyle = g;
+      lctx.beginPath();
+      lctx.moveTo(0, 0);
+      lctx.lineTo(Math.cos(a - width) * L, Math.sin(a - width) * L);
+      lctx.lineTo(Math.cos(a + width) * L, Math.sin(a + width) * L);
+      lctx.closePath();
+      lctx.fill();
+    }
+  }
+  function ribbon(c, run, spread) {
+    const left = [];
+    const right = [];
+    for (let i = 0; i < run.length; i++) {
+      const a = run[Math.max(0, i - 1)];
+      const b = run[Math.min(run.length - 1, i + 1)];
+      const tx = b.x - a.x;
+      const ty = b.y - a.y;
+      const len = Math.hypot(tx, ty) || 1;
+      const nx = -ty / len;
+      const ny = tx / len;
+      const p = run[i];
+      const w = (p.w * spread) / 2;
+      left.push([p.x + nx * w, p.y + ny * w]);
+      right.push([p.x - nx * w, p.y - ny * w]);
+    }
+    c.beginPath();
+    c.moveTo(left[0][0], left[0][1]);
+    for (const [x, y] of left) c.lineTo(x, y);
+    for (let i = right.length - 1; i >= 0; i--) c.lineTo(right[i][0], right[i][1]);
+    c.closePath();
+    c.fill();
+  }
+
+  function light(rc, alpha) {
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rc * 1.08);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.86, '#fdfcff');
+    g.addColorStop(0.93, `rgba(${LILAC}, 0.9)`);
+    g.addColorStop(1, `rgba(${LILAC}, 0)`);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, rc * 1.08, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   function draw(now) {
-    if (!W || !tex) return;
-    const { look } = tex;
+    if (!W || !shellTex) return;
     openness(now);
     const o = open.o;
     const g = clamp((now - gulpAt) / 700);
     const gulp = g < 1 ? Math.sin(Math.PI * g) : 0;
-    const r = lerp(R, wideR(now), o) * (1 - gulp * 0.06) * (1 + hunger * 0.04);
-    const G = R * (1 + hunger * 0.05) * (1 - gulp * 0.04);
+    const rc = lerp(R * 0.9, wideR(now), o) * (1 - gulp * 0.08) * (1 + hunger * 0.05);
+    const S = Math.max(R * CAGE, rc * 1.32) * (1 + hunger * 0.03);
+    const centre = () => ctx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
+    // Only the square round the ball needs redrawing on the layers.
+    const half = Math.max(S * 1.12, rc * 2.6);
+    const x0 = Math.max(0, Math.floor((W / 2 - half) * dpr));
+    const y0 = Math.max(0, Math.floor((H / 2 - half) * dpr));
+    const box = [x0, y0, Math.min(canvas.width, Math.ceil((W / 2 + half) * dpr)) - x0, Math.min(canvas.height, Math.ceil((H / 2 + half) * dpr)) - y0];
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
 
-    // Haze: the faintest dust, reaching furthest.
+    // The ball's dark body, then three layers of stipple: the cells, then
+    // the rims and rays, then the light's glow. Each layer adds its own dots,
+    // so the brighter a place is, the more densely it's dotted, like a print.
+    centre();
     ctx.save();
-    ctx.scale(1, TALL);
-    const haze = ctx.createRadialGradient(0, 0, r * 0.9, 0, 0, Math.max(G * REACH.x * 1.2, r * 1.9));
-    haze.addColorStop(0, look.haze);
-    haze.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = haze;
-    ctx.fillRect(-W, -H, W * 2, H * 2);
+    ctx.rotate(spin * 0.25);
+    ctx.globalAlpha = 0.72;
+    ctx.drawImage(shellTex.body, -S, -S, S * 2, S * 2);
     ctx.restore();
-
-    // The tilted smudge of matter running through it, and one stray arc.
-    ctx.save();
-    ctx.rotate(-0.38);
-    ctx.globalAlpha = lerp(1, 0.55, o);
-    const S = Math.max(G * 5.2, r * 2.6);
-    ctx.drawImage(tex.smudge, -S, -S * 0.5, S * 2, S);
-    ctx.restore();
-    ctx.save();
-    ctx.rotate(spin * 0.15);
-    ctx.strokeStyle = look.arc;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([1.5, 2.5]);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, Math.max(G * 3.05, r * 1.75), Math.max(G * 3.05, r * 1.75) * 1.08, 0, 2.2, 3.9);
-    ctx.stroke();
-    ctx.restore();
-
-    // The dark itself, soft at the edge; the dust's ragged lip covers that.
-    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.22);
-    core.addColorStop(0, look.core[0]);
-    core.addColorStop(0.8, look.core[0]);
-    core.addColorStop(1, look.core[1]);
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 1.22, 0, TAU);
-    ctx.fill();
-
-    // Two tiny embers circling each other down in the dark.
-    const fade = 1 - smooth(clamp(o * 1.6));
-    if (fade > 0.01) {
-      const c = { x: -0.3 * r, y: 0.48 * r };
-      for (const k of [0, Math.PI]) {
-        const a = spin * 0.9 + k;
-        const x = c.x + Math.cos(a) * r * 0.12;
-        const y = c.y + Math.sin(a) * r * 0.08;
-        const e = Math.max(3, r * 0.055);
-        const glow = ctx.createRadialGradient(x, y, 0, x, y, e * 2.2);
-        const [er, eg, eb] = look.ember;
-        glow.addColorStop(0, `rgba(${er}, ${eg}, ${eb}, 0)`);
-        glow.addColorStop(0.3, `rgba(${er}, ${eg}, ${eb}, ${0.95 * fade})`);
-        glow.addColorStop(0.55, `rgba(${er}, ${eg}, ${eb}, ${0.35 * fade})`);
-        glow.addColorStop(1, `rgba(${er}, ${eg}, ${eb}, 0)`);
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(x, y, e * 2.2, 0, TAU);
-        ctx.fill();
-      }
-    }
-
-    // Dust: two layers turning at different speeds, a tall oval. Open, it
-    // hands over to a thinner ring round the wider dark.
-    lctx.setTransform(1, 0, 0, 1, 0, 0);
-    lctx.globalCompositeOperation = 'source-over';
-    lctx.clearRect(0, 0, layer.width, layer.height);
-    lctx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
-    const dust = (img, D, turn, alpha) => {
-      if (alpha <= 0.01) return;
-      lctx.save();
-      lctx.scale(1, TALL);
-      lctx.rotate(turn);
-      lctx.globalAlpha = alpha;
-      lctx.drawImage(img, -D, -D, D * 2, D * 2);
-      lctx.restore();
+    const rings = cage(S);
+    if (!stipple) stipple = lctx.createPattern(tile, 'repeat');
+    const pass = (shift, paint) => {
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.globalCompositeOperation = 'source-over';
+      lctx.globalAlpha = 1;
+      lctx.clearRect(...box);
+      lctx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
+      paint();
+      lctx.setTransform(1, 0, 0, 1, shift[0], shift[1]);
+      lctx.globalCompositeOperation = 'destination-out';
+      lctx.globalAlpha = 1;
+      lctx.fillStyle = stipple;
+      lctx.fillRect(box[0] - shift[0], box[1] - shift[1], box[2], box[3]);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(layer, ...box, ...box);
     };
-    const D = G * REACH.x;
-    dust(tex.dust2, D * 1.06, spin * 0.6, 0.75 * (1 - o));
-    dust(tex.dust, D, spin, 1 - o);
-    dust(tex.thin, (r * 1.04) / 0.6, spin * 0.8, o);
-    lctx.globalAlpha = 1;
-    if (filmMode !== mode) {
-      film = lctx.createPattern(tex.film, 'repeat');
-      filmMode = mode;
-    }
-    lctx.setTransform(1, 0, 0, 1, 0, 0);
-    lctx.globalCompositeOperation = 'destination-out';
-    lctx.fillStyle = film;
-    lctx.fillRect(0, 0, layer.width, layer.height);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(layer, 0, 0);
+    pass([0, 0], () => {
+      lctx.rotate(spin * 0.25);
+      lctx.globalAlpha = 0.95;
+      lctx.drawImage(shellTex.cells, -S, -S, S * 2, S * 2);
+    });
+    pass([97, 53], () => {
+      rims(rings);
+      rays(rc, S);
+    });
+    pass([41, 171], () => {
+      const halo = lctx.createRadialGradient(0, 0, rc * 0.85, 0, 0, rc * 2.6);
+      halo.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      halo.addColorStop(0.35, 'rgba(255, 255, 255, 1)');
+      halo.addColorStop(0.65, `rgba(${LILAC}, 0.55)`);
+      halo.addColorStop(1, `rgba(${LILAC}, 0)`);
+      lctx.fillStyle = halo;
+      lctx.beginPath();
+      lctx.arc(0, 0, rc * 2.6, 0, TAU);
+      lctx.fill();
+      rays(rc, S * 0.8);
+    });
+    pass([173, 89], () => {
+      const core = lctx.createRadialGradient(0, 0, rc * 0.9, 0, 0, rc * 1.8);
+      core.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      core.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      lctx.fillStyle = core;
+      lctx.beginPath();
+      lctx.arc(0, 0, rc * 1.8, 0, TAU);
+      lctx.fill();
+    });
 
-    // Sparks: a few small square specks drifting in.
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const size = Math.max(2, Math.round(2 * dpr));
-    for (const s of sparks) {
-      const d = s.r * G;
-      if (d < r * 1.1) continue;
-      const x = (W / 2 + Math.cos(s.a) * d) * dpr;
-      const y = (H / 2 + Math.sin(s.a) * d * TALL) * dpr;
-      const k = smooth(clamp((s.r - r / G - 0.1) / 0.6)) * smooth(clamp((3.4 - s.r) / 0.5));
-      const twinkle = 0.6 + 0.4 * Math.sin(now * 0.003 + s.phase);
-      ctx.globalAlpha = k * twinkle * (mode === 'light' ? 0.7 : 0.85);
-      ctx.fillStyle = look.sparks[s.tone];
-      ctx.fillRect(Math.round(x), Math.round(y), size, size);
-    }
-    ctx.globalAlpha = 1;
+    // Strands behind, the light, strands in front.
+    strands(rings, false, 0.45, box);
+    centre();
+    light(rc, 1);
+    strands(rings, true, 1, box);
+    centre();
+
+    // Open, the light burns through the strands behind the box.
+    if (o > 0.01) light(rc, smooth(o));
   }
 
   function step(now) {
@@ -397,17 +485,7 @@ export function voidArt() {
     const g = clamp((now - gulpAt) / 700);
     const pull = g < 1 ? Math.sin(Math.PI * g) : 0;
     const calm = root.dataset.motion === 'calm' ? 0.35 : 1;
-    const boost = 1 + sweep * 9 + hunger * 3 + pull * 4;
-    spin += dt * 0.06 * boost * calm;
-    const inner = lerp(1, wideR(now) / R, open.o);
-    for (const s of sparks) {
-      s.a += (dt * s.w * (1 + sweep * 4 + hunger * 2) * calm) / Math.max(1, s.r);
-      s.r -= dt * (0.05 + pull * 0.9 + hunger * 0.12) * calm;
-      if (s.r < inner * 1.1) {
-        s.r = 2.6 + rand() * 0.8;
-        s.a = rand() * TAU;
-      }
-    }
+    spin += dt * 0.07 * (1 + sweep * 9 + hunger * 3 + pull * 4) * calm;
     draw(now);
     if (running) frame = requestAnimationFrame(step);
   }
@@ -434,22 +512,26 @@ export function voidArt() {
 
   return {
     el: canvas,
-    // Size the dark (radius r) and the canvas round it (w × h CSS pixels).
+    // Size the light (radius r) and the canvas round it (w × h CSS pixels).
     resize(r, w, hgt) {
+      shellTex ||= shell();
+      tile ||= stippleTile();
+      const same = r === R && Math.round(w) === W && Math.round(hgt) === H;
       R = r;
       W = Math.round(w);
       H = Math.round(hgt);
       dpr = Math.min(devicePixelRatio || 1, 1.5);
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
-      layer.width = canvas.width;
-      layer.height = canvas.height;
-      canvas.style.width = `${W}px`;
-      canvas.style.height = `${H}px`;
-      theme();
+      if (!same || !canvas.width) {
+        for (const c of [canvas, layer, ink]) {
+          c.width = Math.round(W * dpr);
+          c.height = Math.round(H * dpr);
+        }
+        canvas.style.width = `${W}px`;
+        canvas.style.height = `${H}px`;
+      }
       draw(performance.now());
     },
-    // Open (1) or closed (0); r is how wide the dark should get to hold the box.
+    // Open (1) or closed (0); r is how wide the light should get to hold the box.
     setOpen(to, r) {
       const now = performance.now();
       if (r != null && r !== wide.to) {
@@ -469,7 +551,7 @@ export function voidArt() {
     radius() {
       const now = performance.now();
       openness(now);
-      return lerp(R, wideR(now), open.o);
+      return lerp(R * 0.9, wideR(now), open.o);
     },
     hungry(on) { hungry = on; if (!running) { hunger = on ? 1 : 0; draw(performance.now()); } },
     gulp() { gulpAt = performance.now(); },

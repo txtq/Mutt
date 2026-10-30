@@ -16,18 +16,6 @@ function inline(text) {
   return out.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[Number(i)]}</code>`);
 }
 
-// Markdown with the markup removed, for tiny previews.
-export function plain(src = '') {
-  return src
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/^\s{0,3}(#{1,6}|>|[-*•]|\d+[.)])\s+/gm, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/(\*\*|__|~~|`)/g, '')
-    .replace(/(^|\W)[*_](\S[^*_]*)[*_](?=\W|$)/g, '$1$2')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 export function markdown(src = '') {
   const lines = src.replace(/\r\n?/g, '\n').split('\n');
   const html = [];

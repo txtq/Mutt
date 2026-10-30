@@ -40,10 +40,6 @@ export function guessKind(file) {
   return 'other';
 }
 
-export function showsImage(block) {
-  return block.kind === 'image' && (block.thumb || WEB_IMAGE.has(block.ext || ''));
-}
-
 export function imageSrc(block) {
   if (block.kind === 'image' && (block.ext === 'gif' || block.ext === 'svg')) return block.file;
   return block.thumb || (block.kind === 'image' && WEB_IMAGE.has(block.ext || '') ? block.file : null);
@@ -58,10 +54,4 @@ export function displayTitle(block) {
   if (block.kind === 'link') return block.meta?.domain || block.content;
   if (block.fileName) return block.fileName;
   return '';
-}
-
-export function countKinds(blocks) {
-  const counts = {};
-  for (const b of blocks) counts[b.kind] = (counts[b.kind] || 0) + 1;
-  return counts;
 }

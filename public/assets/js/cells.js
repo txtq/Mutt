@@ -1,7 +1,7 @@
 // How a block looks in a grid cell (and in small previews).
 
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
-import { markdown, plain } from './md.js';
+import { markdown } from './md.js';
 import { tintFor } from './theme.js';
 import { fmtBytes, fmtDuration, h } from './util.js';
 
@@ -161,18 +161,4 @@ export function updatePending(cell, item) {
     cap.replaceChildren(h('span', { class: 'cell-error' }, item.error || 'Upload failed'), ' · ',
       h('button', { type: 'button', class: 'link', dataset: { act: 'retry' } }, 'Retry'));
   }
-}
-
-// Tiny square previews used in drawer rows.
-export function miniFace(block) {
-  const src = imageSrc(block);
-  if (src) {
-    const el = h('img', { src, alt: '', loading: 'lazy', decoding: 'async', draggable: false });
-    el.addEventListener('error', () => el.replaceWith(h('div', { class: 'mini mini-file' }, extLabel(block))), { once: true });
-    return el;
-  }
-  if (block.kind === 'video' && block.file) return h('video', { src: `${block.file}#t=0.5`, preload: 'metadata', muted: true, playsInline: true });
-  if (block.kind === 'text') return h('div', { class: 'mini mini-text' }, plain(block.content.slice(0, 400)).slice(0, 180));
-  if (block.kind === 'link') return h('div', { class: 'mini mini-text' }, block.title || block.content);
-  return h('div', { class: 'mini mini-file' }, extLabel(block));
 }

@@ -39,11 +39,8 @@
   --label-shadow: 0 1px 2px rgba(0, 0, 16, 0.85), 0 0 10px rgba(0, 0, 24, 0.5);
   --bar-fill: linear-gradient(180deg, rgba(2, 5, 18, 0.66), rgba(4, 8, 26, 0.4));
   --bar-ink: #f2f5fc;
-  --void-ring: 0 0 0 1px rgba(236, 240, 255, 0.55), 0 0 14px 1px rgba(190, 205, 255, 0.32), inset 0 0 10px rgba(190, 205, 255, 0.22);
-  --void-lens: rgba(190, 205, 255, 0.09);
   --paper: linear-gradient(180deg, #fcfbf7, #f2f0e9);
   --paper-ink: #262a34;
-  --paper-mute: #8a8678;
   color-scheme: dark;
 
   /* the sky (Vita) */
@@ -96,8 +93,6 @@ html[data-mode="light"] {
   --label-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
   --bar-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.55));
   --bar-ink: #1b2440;
-  --void-ring: 0 0 0 1px rgba(10, 16, 40, 0.65), 0 0 16px 2px rgba(20, 30, 70, 0.22), inset 0 0 10px rgba(160, 175, 220, 0.25);
-  --void-lens: rgba(20, 30, 70, 0.07);
   color-scheme: light;
 
   --sky-top: #f4f7fd; --sky-deep: #e9eff9; --sky-mid: #dbe5f6; --sky-low: #b9cdf0;
@@ -162,7 +157,7 @@ body {
 
 /* ------------------------------------------------------------------ glass & controls */
 
-.glass, .sheet, .dialog, .pop, .liv-head, .toast, .tray, .login-box, .fx-chip {
+.sheet, .dialog, .pop, .liv-head, .toast, .tray, .login-box, .fx-chip {
   background: var(--glass-fill);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-shadow);
@@ -1258,7 +1253,7 @@ html:not([data-mode="light"]) .toast button { color: #8cc0ff; }
 
 /* ------------------------------------------------------------------ calmer motion */
 
-html[data-motion="calm"] html[data-motion="calm"] .uvg-spin, html[data-motion="calm"] .uvg-sys::before { animation-duration: 180s; }
+html[data-motion="calm"] .uvg-spin, html[data-motion="calm"] .uvg-sys::before { animation-duration: 180s; }
 html[data-motion="calm"] .sky-ribbon, html[data-motion="calm"] .sky-nebula { animation-play-state: paused; }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation-play-state: paused !important; transition-duration: 0.01ms !important; }
 

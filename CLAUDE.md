@@ -53,9 +53,9 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - `bus` carries app events: `block:*`, `upload:done`, `drawer:changed`, `stats:changed`, `universe`.
 - `router.js` maps paths to views (registered in `main.js`). A view is `{ load(params), create(params, data) }`, and `create` returns an instance with:
   - `el`, `title`, `chrome`, `who`
-  - `home` (shows the corner spaceship home), `goHome`
+  - `home` (shows the corner back arrow), `goHome`
   - `dropTarget()`, `pasteText()`, `mounted()`, `destroy()`
-- `statusbar.js` reads the view instance in `update(inst)`. It also owns the account/settings sheet, search, and the corner "home" spaceship (`SHIP` and `launch()`), which points at the wordmark and flies off along a curve when tapped.
+- `statusbar.js` reads the view instance in `update(inst)`. It also owns the account/settings sheet, search, and the faint back arrow in the corner that takes you home.
 - `views/galaxy.js` is the main page: a sticky galaxy section followed by a scroll "runway". Scroll progress drives the zoom out into the universe stage (`track()`), and `/universe` opens already scrolled out.
 - `planets.js` builds each planet: its kind (`LOOKS`, with `lookOf()` picking one from the id when the owner hasn't), palette, moons, and a texture of its files. `planetgl.js` paints them: one shared off-screen WebGL2 canvas draws every planet's sphere (ground, weather and light in one shader, branching on the kind) and copies it onto the planet's own canvas, about 30 times a second each. Without WebGL2 (or with `?flat=1`) the older 2D painter takes over.
 - Planet positions: `drawers.x`/`y` are offsets from the void in desktop pixels (empty means "scatter it"), saved by `PUT /api/galaxy/layout`. `scatter()` in `views/galaxy.js` places the saved ones first, then scatters the rest; `movable()` in `drag.js` does the dragging.

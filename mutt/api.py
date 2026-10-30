@@ -1,4 +1,4 @@
-"""HTTP API: accounts, settings, galaxies, community, drawers (planets), files (blocks), connections."""
+"""HTTP API: accounts, settings, galaxies, drawers (planets), files (blocks), connections."""
 import json
 import os
 import random
@@ -16,11 +16,9 @@ from .web import HttpError, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '512')) * 1024 * 1024)
 MAX_THUMB = 8 * 1024 * 1024
-MAX_FONT = 5 * 1024 * 1024
 UNLOCK_TTL = 12 * 60 * 60
 ALLOW_SIGNUPS = os.environ.get('MUTT_ALLOW_SIGNUPS', '1').lower() not in ('0', 'false', 'no', 'off')
 
-ICON_SIZE = 9
 ICON_RE = re.compile(r'^[0-3]{81}$')
 COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
@@ -30,25 +28,12 @@ PLANET_LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'rock', 'stor
 LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
 
 PREF_CHOICES = {
-    'font': {'geist', 'inter', 'instrument', 'grotesk', 'plex', 'fraunces', 'newsreader', 'mono', 'pixel', 'custom'},
     'size': {'s', 'm', 'l'},
-    'corners': {'square', 'soft', 'round'},
-    'density': {'tight', 'normal', 'airy'},
-    'captions': {'show', 'hover', 'hide'},
     'motion': {'fluid', 'calm', 'off'},
-    'paper': {'white', 'warm', 'cool', 'blush', 'mint'},
     'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
     'sky': {'vita', 'nebula', 'aurora', 'dusk'},
     'mode': {'auto', 'light', 'dark'},
 }
-FONT_TYPES = {
-    b'wOF2': ('woff2', 'font/woff2'),
-    b'wOFF': ('woff', 'font/woff'),
-    b'\x00\x01\x00\x00': ('ttf', 'font/ttf'),
-    b'true': ('ttf', 'font/ttf'),
-    b'OTTO': ('otf', 'font/otf'),
-}
-FONT_MIME = {ext: mime for ext, mime in FONT_TYPES.values()}
 
 
 def now():
@@ -511,52 +496,9 @@ def update_prefs(req):
             if body[key] not in allowed:
                 raise HttpError(400, 'That setting could not be saved.')
             prefs[key] = body[key]
-    if 'accent' in body:
-        if not COLOR_RE.match(str(body['accent'])):
-            raise HttpError(400, 'That colour could not be saved.')
-        prefs['accent'] = body['accent'].upper()
-    for key in ('colorful', 'autosort'):
-        if key in body:
-            prefs[key] = bool(body[key])
-    if prefs.get('font') == 'custom' and not prefs.get('fontFile'):
-        prefs['font'] = 'geist'
+    if 'autosort' in body:
+        prefs['autosort'] = bool(body['autosort'])
     return json_response({'prefs': save_prefs(req, prefs)})
-
-
-@route('POST', r'/api/me/font')
-def upload_font(req):
-    data = req.read_bytes(MAX_FONT)
-    found = FONT_TYPES.get(data[:4])
-    if not found:
-        raise HttpError(400, "That doesn't look like a font file (woff2, woff, ttf or otf).")
-    ext, _ = found
-    key = f'font_{secrets.token_hex(8)}.{ext}'
-    with open(os.path.join(db.user_files_dir(req.user['id']), key), 'wb') as f:
-        f.write(data)
-    prefs = user_prefs(req.user)
-    remove_block_files(req.user['id'], prefs.get('fontFile'))
-    name = re.sub(r'[^\w .-]', '', os.path.splitext(req.arg('name') or 'Your font')[0])[:60] or 'Your font'
-    prefs.update({'font': 'custom', 'fontFile': key, 'fontName': name})
-    return json_response({'prefs': save_prefs(req, prefs)})
-
-
-@route('DELETE', r'/api/me/font')
-def delete_font(req):
-    prefs = user_prefs(req.user)
-    remove_block_files(req.user['id'], prefs.pop('fontFile', None))
-    prefs.pop('fontName', None)
-    if prefs.get('font') == 'custom':
-        prefs['font'] = 'geist'
-    return json_response({'prefs': save_prefs(req, prefs)})
-
-
-@route('GET', r'/api/me/font')
-def serve_font(req):
-    key = user_prefs(req.user).get('fontFile')
-    if not key:
-        raise HttpError(404, 'No font uploaded.')
-    path = os.path.join(db.user_files_dir(req.user['id']), key)
-    return file_response(req, path, FONT_MIME.get(key.rsplit('.', 1)[-1], 'application/octet-stream'))
 
 
 # ---------------------------------------------------------------- users
@@ -599,70 +541,6 @@ def drawers_of(req, user_id, with_previews, owner=None):
         'FROM drawers d WHERE d.user_id = ? ORDER BY d.updated_at DESC', (user_id,)).fetchall()
     return [drawer_json(r, r['n'], drawer_previews(req, r['id'], owner=owner) if with_previews else None)
             for r in rows]
-
-
-@route('GET', r'/api/users')
-def list_users(req):
-    rows = req.db.execute(
-        'SELECT u.id, u.username, u.created_at, '
-        '(SELECT COUNT(*) FROM blocks b WHERE b.user_id = u.id) AS files, '
-        '(SELECT COUNT(*) FROM drawers d WHERE d.user_id = u.id) AS drawers '
-        'FROM users u ORDER BY u.created_at').fetchall()
-    users = []
-    for row in rows:
-        users.append({
-            'username': row['username'], 'createdAt': ms(row['created_at']),
-            'files': row['files'], 'drawers': row['drawers'],
-            'you': row['id'] == req.user['id'],
-            'unlocked': is_unlocked(req, row['id']),
-        })
-    return json_response({'users': users})
-
-
-def user_page(req, owner):
-    open_ = is_unlocked(req, owner['id'])
-    return {
-        'user': {**user_json(owner), **user_stats(req.db, owner['id']), 'you': owner['id'] == req.user['id']},
-        'unlocked': open_,
-        'drawers': drawers_of(req, owner['id'], open_, owner=owner['username']),
-        'shared': mark_saved(req, [block_json(r, mine=owner['id'] == req.user['id'], owner=owner['username']) for r in req.db.execute(
-            f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.shared_at IS NOT NULL '
-            'ORDER BY b.shared_at DESC LIMIT 60', (owner['id'],))]),
-    }
-
-
-@route('GET', r'/api/users/' + USERNAME_PATH)
-def get_user(req, username):
-    return json_response(user_page(req, find_user(req, username)))
-
-
-@route('POST', r'/api/users/' + USERNAME_PATH + r'/unlock')
-def unlock_user(req, username):
-    owner = find_user(req, username)
-    if owner['id'] != req.user['id']:
-        pin_gate(req, owner, str(req.json().get('pin') or ''), wrong_status=403)
-        req.db.execute('INSERT OR REPLACE INTO unlocks (session_hash, owner_id, expires_at) VALUES (?, ?, ?)',
-                       (auth.session_key(req.session_token), owner['id'], now() + UNLOCK_TTL))
-    return json_response(user_page(req, owner))
-
-
-@route('GET', r'/api/users/' + USERNAME_PATH + r'/drawers/(?P<drawer_id>[\w-]+)')
-def get_user_drawer(req, username, drawer_id):
-    owner = find_user(req, username)
-    if not is_unlocked(req, owner['id']):
-        raise HttpError(403, 'Locked.', locked=True)
-    row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND user_id = ?', (drawer_id, owner['id'])).fetchone()
-    if not row:
-        raise HttpError(404, 'That drawer does not exist.')
-    mine = owner['id'] == req.user['id']
-    blocks = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS} FROM connections c JOIN blocks b ON b.id = c.block_id '
-        'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
-    return json_response({
-        'owner': user_json(owner),
-        'drawer': drawer_json(row, len(blocks)),
-        'blocks': [block_json(b, mine=mine, owner=None if mine else owner['username']) for b in blocks],
-    })
 
 
 # ---------------------------------------------------------------- galaxies
@@ -1047,20 +925,6 @@ def icon_arg(value):
 
 # ---------------------------------------------------------------- files (blocks)
 
-@route('GET', r'/api/blocks')
-def list_blocks(req):
-    kind = req.arg('kind')
-    params = [req.user['id']]
-    where = 'b.user_id = ?'
-    if kind:
-        if kind not in kinds.KINDS:
-            raise HttpError(400, 'Unknown kind.')
-        where += ' AND b.kind = ?'
-        params.append(kind)
-    rows = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE {where} '
-                          'ORDER BY b.created_at DESC LIMIT 5000', params).fetchall()
-    return json_response({'blocks': [block_json(r) for r in rows]})
-
 
 def save_thumb(req, block_id, data, ext):
     key = f't_{secrets.token_hex(10)}.{ext}'
@@ -1369,42 +1233,6 @@ def remove_connection(req, block_id, drawer_id):
         'connections': block_connections(req, block_id),
         'position': found['position'] if found else None,
     })
-
-
-# ---------------------------------------------------------------- community
-
-@route('GET', r'/api/community')
-def community(req):
-    rows = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
-        'WHERE b.shared_at IS NOT NULL ORDER BY b.shared_at DESC LIMIT 600').fetchall()
-    me_id = req.user['id']
-    return json_response({'blocks': mark_saved(req, [
-        block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
-        for r in rows])})
-
-
-def community_drawer_json(req, row, count, previews=None):
-    return {**drawer_json(row, count, previews), 'owner': row['owner_name'], 'mine': row['user_id'] == req.user['id']}
-
-
-@route('GET', r'/api/community/drawers')
-def community_drawers(req):
-    rows = req.db.execute(
-        'SELECT d.*, u.username AS owner_name, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-        'FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 ORDER BY d.updated_at DESC').fetchall()
-    return json_response({'drawers': [community_drawer_json(req, r, r['n'], drawer_previews(req, r['id'])) for r in rows]})
-
-
-@route('GET', r'/api/community/drawers/(?P<drawer_id>[\w-]+)')
-def community_drawer(req, drawer_id):
-    row = req.db.execute(
-        'SELECT d.*, u.username AS owner_name FROM drawers d JOIN users u ON u.id = d.user_id '
-        'WHERE d.id = ? AND d.community = 1', (drawer_id,)).fetchone()
-    if not row:
-        raise HttpError(404, 'That drawer does not exist.')
-    blocks = blocks_in_drawer(req, drawer_id, community=True)
-    return json_response({'drawer': community_drawer_json(req, row, len(blocks)), 'blocks': blocks})
 
 
 # ---------------------------------------------------------------- search

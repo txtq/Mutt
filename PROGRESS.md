@@ -7,8 +7,11 @@ The handoff note between sessions. Read it first; update it after every task
 This is the one shared copy, at `/Users/edan/Mutt/PROGRESS.md`. Sessions in a
 worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
-## Where things stand (2026-10-29)
+## Where things stand (2026-10-30)
 
+- **Smoother zoom out and detailed universe galaxies (not merged yet)**: on branch `claude/galaxy-universe-scroll-animation-0ee24a` (91e59c0), made from the back-arrow commit. Needs merging into `galaxy` and deploying. It touches `views/galaxy.js` like the caged-light branch does (different parts), so expect an easy merge.
+- **The void is now a caged light (live)**: `claude/black-hole-center-visual-0dae27` (4068d78) is merged into `galaxy` and `main` and deployed. The middle is a smaller stippled print of a white light caged by webbed, sinewy strands, sitting straight on the sky, with the add box opening in the light.
+- **A back arrow replaces the spaceship**: `claude/back-arrow-galaxy-nav-ac6ea4` is merged into `galaxy` and `main` (71efa5a) and deployed. Northflank ignored the first push to `main`; a second push (the notes commit) set off the build within two minutes. If a deploy seems stuck, push again.
 - **The spaceship home is live**: `claude/black-hole-go-home-alt-43cebc` is merged into `galaxy` and `main` (bcfeda6) and deployed. Away from your galaxy, a little ship in the top-left corner flies you home; it replaced the corner black hole.
 - **The black hole void is live**: `claude/black-hole-center-visual-0dae27` is merged into `galaxy` and `main` and deployed. The middle of the galaxy is a big, grainy, smoky black hole, and clicking it opens a flat, Are.na-style add box inside the dark.
 - **New login screen is live**: `claude/mutt-login-screen-d7c6db` is merged into `galaxy` and `main` and deployed. It has the "Are you new to Mutt?" question, a low pixel horizon, a warm light from the top right, and is always night.
@@ -25,11 +28,38 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 1. Try it on a real phone. In particular:
    - hold and drag a planet (only checked with a mouse so far);
    - check that typing in the void with the keyboard open doesn't slide the page into the universe (the open add box is about 320px tall on a phone).
-   - tap the corner spaceship and watch the flight (only checked in the desktop browser and its phone-size view);
-   - see how smoothly the black hole turns on an older phone; it builds its textures on first load and on each light/dark switch, which takes a moment.
+   - see how smoothly the black hole turns on an older phone; it builds its texture once on first load, which takes a moment.
 2. Test suites for users, sharing, saving and community drawers were lost with an earlier scratch folder. Only `smoke`, `galaxy` and `preview` exist in `tests/`; rewrite the others if needed.
 
 ## Done
+
+### 2026-10-30: a longer, smoother trip to the universe, and detailed galaxies (branch `claude/galaxy-universe-scroll-animation-0ee24a`, not merged)
+- The user asked for the galaxy → universe scroll to feel more satisfying and take more scrolling, and for the universe's galaxies to be larger and more detailed.
+- The scroll: about twice as far (2.2 screens instead of about 1). The picture follows the scroll with a little weight instead of stepping, the galaxy leans back as it pulls away, and the other galaxies arrive nearest first after yours has taken its place. Letting go only finishes the trip once you're 40% of the way (it used to be 10%).
+- The galaxies: about 1.5× larger on screen (packed closer, with a pass that stops names overlapping, spread to the screen's shape so phones use their height). Each is a grainy spiral painted once on a canvas (`uvart.js`) in its owner's planet colours: dust arms, bright knots, dark lanes, a warm middle, faint orbit lines; planets are lit from the galaxy's middle. The glow round the core is gone.
+- Checked in the browser: desktop dark and light, phone width, the in-between frames, snapping, opening another galaxy from the universe. Not checked on a real phone.
+- Testing tip: test servers on other ports of `127.0.0.1` share its cookies and sign the preview out; a name like `uvtest.localhost:<port>` gets its own. Check a port is free first (`lsof -iTCP:<port>`): this session's setup accidentally wrote to the void session's test server on 8131 and left an empty `edan` test account there.
+
+### 2026-10-30: the void becomes a caged light print (deployed)
+- The user asked to remove the orange from the black hole and redraw it from a new reference: a black-and-white stippled print of a bright white light caged by dark, twisting strands in a sphere, with grey stippled lobes, thin cross lines of light and fine stars.
+- Their answers: bright light in the middle, with the add box sitting in it; keep only a faint mauve tint; no figure; in light mode the same print as a dark patch of night on the pale page.
+- `voidart.js` is redrawn: a night patch with print stars, stippled lobes that darken near the strands, eight wandering-width strands that turn in 3D (the back half behind the light, the front half crossing in front), the white light, and cross lines. The orange embers, smoky dust and square sparks are gone, and both modes use one look.
+- When it opens, the light widens and the add box sits on clean white, so the box is light (white with dark ink) in both modes, and "+ Add" and other people's names are dark ink (`galaxy.css`).
+- Star notes start just outside the cage. On a phone the spiral of star notes is squeezed to fit the width and grows taller, so none hang off the side (`views/galaxy.js`).
+- Checked in the browser: desktop dark and light, open and closed, typing and adding, phone dark and light with no sideways scroll, someone else's galaxy, and that it holds still in the universe. Test suites read normally.
+- Second pass, after the user asked for it smaller, with no black halo, and closer to the reference's style:
+  - It's about three quarters the size (`voidRadius`), so it sits in proportion with the planets.
+  - The night patch and its own stars are gone; the ball sits straight on the sky, with a dark stippled body only inside its outline.
+  - Strands flare into each other where they cross, like webbed sinew, and are speckled like ink.
+  - Cells are bright at their rims and dim in the middle, with faint rays from the light.
+  - Bright places get more dots: the bright parts are stippled as extra layers of dots on top of the cells.
+  - It runs at 60 frames a second on desktop.
+- The user then asked to remove the white crosshair lines through the middle; they're gone.
+
+### 2026-10-30: a plain back arrow replaces the spaceship (deployed)
+- The user said the rocket animation "looks very AI" and asked for a semi-transparent back arrow in the top-left corner instead.
+- Away from your galaxy, a simple line arrow sits in the same corner spot, faint until you hover it. Tapping it goes straight home, with no flight. The ship drawing, its flight and trail are all removed (`statusbar.js`, `galaxy.css`); the arrow is a new `back` icon in `glyph()`.
+- Checked in the browser: dark desktop, phone width dark and light, tapping it lands on your galaxy and the arrow hides there.
 
 ### 2026-10-29: the void becomes a grainy, smoky black hole (deployed)
 - The user wanted the middle to look like a real void, big and tall, opening with a sweep into an add box. A first version (a realistic glowing disk and arcs, like Interstellar) was rejected as "too realistic and painted, ribbons of light", with an add box that "looked super AI and fake". They asked for something artsy and textured like their other two reference pictures: a smoky dust swirl, and a grainy ink print.
@@ -121,6 +151,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 - PS Vita style, skeuomorphic where it helps and minimal elsewhere. Not cartoony, no AI-style graphics, clean, with light and dark modes.
 - Work and files stay at the centre of the site.
+- No showy "AI-looking" animations for simple controls (the flying spaceship home was rejected for that); plain and quiet wins.
 - Pixel art only as an accent (the login horizon: trees, cottage, mutt), with warm touches. Not "too Stardew": no pixel fonts, pixel frames, pixel moon or stars. Mutt and Vita looks (rounded glass, Red Hat type, fluid motion) come first. Login is always night.
 - Keep a backup of the previous design before big redesigns.
 - Use a PROGRESS.md handoff, updated after each task.

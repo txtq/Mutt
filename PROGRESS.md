@@ -9,7 +9,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Where things stand (2026-10-30)
 
-- **Light mode removed (not merged yet)**: on branch `claude/remove-light-mode-16b469` (0a88a3b). Needs merging into `galaxy` and deploying. The universe-scroll branch was checked in light mode too; after both merge, nothing should refer to light mode (search for `data-mode`).
+- **Light mode is gone (live)**: `claude/remove-light-mode-16b469` is merged into `galaxy` (395d103) and `main` and deployed, on top of the universe update. Nothing in the code refers to light mode any more.
 - **Universe update is live**: `claude/galaxy-universe-scroll-animation-0ee24a` is merged into `galaxy` and `main` (70a26a8) and deployed. The trip out to the universe takes about twice the scrolling and glides; each galaxy there is a true miniature of its owner's planets, bigger than before.
 - **The void is now a caged light (live)**: `claude/black-hole-center-visual-0dae27` (4068d78) is merged into `galaxy` and `main` and deployed. The middle is a smaller stippled print of a white light caged by webbed, sinewy strands, sitting straight on the sky, with the add box opening in the light.
 - **A back arrow replaces the spaceship**: `claude/back-arrow-galaxy-nav-ac6ea4` is merged into `galaxy` and `main` (71efa5a) and deployed. Northflank ignored the first push to `main`; a second push (the notes commit) set off the build within two minutes. If a deploy seems stuck, push again.
@@ -34,7 +34,7 @@ worktree read and edit this path, not the stale `PROGRESS.md` in their worktree.
 
 ## Done
 
-### 2026-10-30: light mode removed (branch `claude/remove-light-mode-16b469`, not merged)
+### 2026-10-30: light mode removed (deployed)
 - The user asked to remove light mode from the site entirely.
 - Gone: the Mode row (Auto/Light/Dark) in the account sheet, the light colours in `galaxy.css`, the sky's daytime star colours (`sky.js`), the day colours in `SKIES` and the login's hold-night switch (`theme.js`, `login.js`). The page always says it is dark to the browser.
 - People who had saved Light or Auto just get dark. The server no longer accepts a mode and drops an old one the next time settings are saved.

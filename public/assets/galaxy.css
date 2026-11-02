@@ -481,13 +481,14 @@ body.no-chrome #view { padding: 0; }
 .void.is-open .void-mid { opacity: 0; }
 
 /* the add box, held in the middle of the opened dark: flat and plain, like
-   Are.na's. A bordered square to type in, with the choices as plain text. */
+   Are.na's. The writing sits straight on the light with no frame; one thin
+   rule, then a single quiet line of controls. */
 .vf {
   position: absolute;
   left: 50%;
   top: 50%;
   z-index: 3;
-  width: min(420px, calc(100vw - 40px));
+  width: min(440px, calc(100vw - 40px));
   color: var(--vf-ink);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.92);
@@ -501,34 +502,26 @@ body.no-chrome #view { padding: 0; }
   transition: transform 0.6s var(--ease) 0.3s, opacity 0.4s ease 0.3s;
 }
 .void.is-swallowing .vf { transform: translate(-50%, -50%) scale(0.2); transition-duration: 0.35s; }
-.vf-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
-.vf-tab { font-size: 13px; color: var(--vf-mute); }
-.vf-close { font-size: 13px; color: var(--vf-mute); }
-.vf-close:hover { color: var(--vf-ink); }
-.vf-field {
-  position: relative;
-  border: 1px solid var(--vf-line);
-  border-radius: 2px;
-  background: var(--vf-fill);
-  transition: border-color 0.2s;
-}
+.vf-field { position: relative; border-bottom: 1px solid var(--vf-line); transition: border-color 0.2s; }
 .vf-field:focus-within { border-color: var(--vf-line-on); }
 .vf-input {
   display: block;
   width: 100%;
-  height: calc(24px * 9 + 36px);
-  padding: 18px 20px;
+  min-height: calc(28px * 5 + 8px);
+  max-height: calc(28px * 11 + 8px);
+  padding: 0 2px 8px;
   resize: none;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--vf-ink);
-  font: 400 16px/24px var(--sans);
+  font: 400 18px/28px var(--sans);
+  caret-color: var(--vf-ink);
 }
 .vf-input::placeholder { color: var(--vf-mute); }
 .vf-drop {
   position: absolute;
-  inset: 8px;
+  inset: 0 0 8px;
   display: grid;
   place-items: center;
   border: 1px dashed var(--vf-line-on);
@@ -540,37 +533,40 @@ body.no-chrome #view { padding: 0; }
   transition: opacity 0.2s;
 }
 .void.is-open.is-hungry .vf-drop { opacity: 1; }
-.vf-dest { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 14px; }
-.vf-label { font-size: 13px; color: var(--vf-mute); }
-.vf-modes { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.vf-mode, .vf-planet { padding: 2px 0; font-size: 13px; color: var(--vf-mute); text-decoration: underline transparent; text-underline-offset: 4px; transition: color 0.2s, text-decoration-color 0.2s; }
-.vf-mode:hover, .vf-planet:hover { color: var(--vf-ink); }
-.vf-mode[aria-pressed="true"], .vf-planet[aria-selected="true"] { color: var(--vf-ink); text-decoration-color: currentColor; }
-.vf-planets { display: flex; flex-wrap: wrap; gap: 4px 14px; flex-basis: 100%; }
-.vf-planet { display: inline-flex; align-items: center; gap: 6px; }
-.vf-planet-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-.vf-none { font-size: 13px; color: var(--vf-mute); }
+.vf-foot { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+.vf-upload, .vf-where { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border-radius: 2px; font-size: 13px; color: var(--vf-mute); transition: color 0.2s, background 0.2s; }
+.vf-upload { margin-left: -8px; }
+.vf-upload:hover, .vf-where:hover, .vf-where[aria-expanded="true"] { color: var(--vf-ink); background: rgba(18, 20, 32, 0.05); }
+.vf-where { min-width: 0; }
+.vf-where-to { opacity: 0.75; }
+.vf-where-text { color: var(--vf-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16ch; }
+.vf-where-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.vf-where-dot[hidden] { display: none; }
 .vf-name {
-  flex-basis: 100%;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--vf-line);
-  border-radius: 2px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--vf-line);
+  border-radius: 0;
   outline: none;
-  background: var(--vf-fill);
+  background: transparent;
   color: var(--vf-ink);
   font-size: 16px;
 }
 .vf-name:focus { border-color: var(--vf-line-on); }
 .vf-name::placeholder { color: var(--vf-mute); }
-.vf-planets[hidden], .vf-name[hidden] { display: none; }
-.vf-hint { flex-basis: 100%; font-size: 12.5px; line-height: 1.45; color: var(--vf-mute); }
-.vf-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
-.vf-upload { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--vf-mute); }
-.vf-upload:hover { color: var(--vf-ink); }
+.vf-name[hidden] { display: none; }
+.vf-name.is-wanted { border-color: #c2412d; animation: vf-nudge 0.32s var(--ease); }
+@keyframes vf-nudge { 30% { transform: translateX(-4px); } 65% { transform: translateX(3px); } }
 .vf .vf-go, .vf .vf-go:hover {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   height: 32px;
-  padding: 0 18px;
+  margin-left: auto;
+  padding: 0 14px;
   border: 1px solid var(--vf-line);
   border-radius: 2px;
   background: transparent;
@@ -583,7 +579,31 @@ body.no-chrome #view { padding: 0; }
   pointer-events: none;
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
+.vf-keys { font: 400 11px/1 var(--sans); opacity: 0.6; }
 .vf.has-text .vf-go { border-color: var(--vf-ink); background: var(--vf-ink); color: var(--vf-on-ink); pointer-events: auto; }
+@media (hover: none) { .vf-keys { display: none; } }
+/* where it goes: a short flat list over the writing, just above its button */
+.vf-list {
+  position: absolute;
+  left: 22px;
+  bottom: 44px;
+  z-index: 2;
+  width: min(280px, 100% - 22px);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--vf-line-on);
+  border-radius: 2px;
+  background: #fff;
+}
+.vf-list[hidden] { display: none; }
+.vf-opt { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 2px; font-size: 13.5px; color: var(--vf-ink); text-align: left; }
+.vf-opt .vf-where-dot { align-self: center; }
+.vf-opt:hover, .vf-opt:focus-visible { background: rgba(18, 20, 32, 0.06); outline: none; }
+.vf-opt[aria-selected="true"] .vf-opt-label { text-decoration: underline; text-underline-offset: 4px; }
+.vf-opt-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vf-opt-hint { margin-left: auto; font-size: 12px; color: var(--vf-mute); white-space: nowrap; }
+.vf-sep { height: 1px; margin: 4px 10px; background: var(--vf-line); }
 
 /* ------------------------------------------------------------------ files as small faces */
 
@@ -1318,7 +1338,7 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .search-grid { --cols: 2; }
   .sheet { border-radius: 18px; padding: 16px; }
   .sheet .set-row { grid-template-columns: 1fr; gap: 8px; }
-  .vf-input { height: calc(24px * 6 + 36px); }
+  .vf-input { min-height: calc(28px * 4 + 8px); max-height: calc(28px * 7 + 8px); }
   .uv-sub { display: none; }
   .uvg-name { font-size: 12px; }
   /* only names out in the universe: a phone has no room for the counts */

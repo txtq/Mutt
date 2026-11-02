@@ -88,13 +88,6 @@ function logoPicker() {
   return wrap;
 }
 
-function autosortSwitch() {
-  const input = h('input', { type: 'checkbox', role: 'switch', checked: !!current().autosort });
-  input.addEventListener('change', () => save({ autosort: input.checked }));
-  return h('label', { class: 'vswitch' }, input, h('span', { class: 'vswitch-track' }, h('span', { class: 'vswitch-knob' })),
-    h('span', { class: 'set-note' }, 'New things find their own planet'));
-}
-
 // Forget where you put your planets; they find their own places again.
 async function tidyPlanets() {
   const ok = await confirmDialog({
@@ -123,7 +116,6 @@ function settingsBody(close) {
         : null),
     row('Sky', skyPicker()),
     row('Logo', logoPicker()),
-    row('Autosort', autosortSwitch()),
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     h('div', { class: 'sheet-actions' },

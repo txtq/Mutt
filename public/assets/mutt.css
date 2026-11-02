@@ -35,9 +35,10 @@
 
 html {
   background: var(--bg);
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
   -webkit-text-size-adjust: 100%;
 }
+html::-webkit-scrollbar { display: none; }
 html.has-viewer { overflow: hidden; }
 
 body {

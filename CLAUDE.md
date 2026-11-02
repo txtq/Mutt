@@ -35,7 +35,7 @@ No dependencies, no build step, and no Node in this environment. The browser is 
 python3 server.py                                    # http://localhost:8080, data in ./data
 MUTT_DATA_DIR=/some/dir PORT=8123 python3 server.py   # separate data folder / port
 tests/run.sh                                         # all API suites, each on a fresh server (port 8099)
-tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview
+tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout
 ```
 
 The suites are curl scripts that **print** what the API returned; nothing asserts. Read the output for wrong values, and `run.sh` dumps any server Traceback. Mutating requests need the `X-Mutt: 1` header (CSRF guard), as the scripts show.

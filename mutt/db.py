@@ -161,6 +161,17 @@ def migrate(conn):
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'PRIMARY KEY (drawer_id, user_id))')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_access_user ON drawer_access(user_id)')
+    # Wrong codes, by account and (hashed) source; replaces users.failed/locked_until,
+    # which only the classic site still uses.
+    conn.execute('CREATE TABLE IF NOT EXISTS login_failures ('
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'source TEXT NOT NULL, at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_failures_user ON login_failures(user_id, at)')
+    # Browsers that have signed in to an account; they skip its account-wide lock.
+    conn.execute('CREATE TABLE IF NOT EXISTS devices ('
+                 'device_hash TEXT NOT NULL, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'seen_at REAL NOT NULL, PRIMARY KEY (device_hash, user_id))')
 
 
 @contextmanager

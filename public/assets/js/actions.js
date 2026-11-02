@@ -191,6 +191,98 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
   return pop;
 }
 
+// ---------------------------------------------------------------- after autosort
+
+// "Sent to Recipes · Move": one tap to fix a wrong guess.
+export function sortedToast(block, { planet, created }) {
+  toast(created ? `Sent to a new planet, ${planet.title}` : `Sent to ${planet.title}`, {
+    duration: 6000,
+    action: { label: 'Move', stay: true, run: (anchor, done) => openMove(anchor, block, planet, { created, onClose: done }) },
+  });
+}
+
+// Take a file off the planet autosort chose and put it somewhere else (or back
+// among the stars). A planet autosort made just for it goes if it's left empty.
+export async function openMove(anchor, block, from, { created = false, onClose } = {}) {
+  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
+  const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
+  const pop = openPopover(anchor, h('div', { class: 'cx' },
+    h('div', { class: 'cx-head' }, h('span', null, 'Move to'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
+    input, list), { width: 320, align: 'end', className: 'pop-cx', onClose });
+  requestAnimationFrame(() => input.focus());
+
+  let drawers = [];
+  try {
+    ({ drawers } = await api.get('/api/drawers?lite=1&community=1'));
+    drawers = drawers.filter((d) => d.id !== from.id);
+  } catch (err) {
+    list.replaceChildren(h('div', { class: 'cx-note' }, err.message));
+    return pop;
+  }
+
+  const move = async (drawer) => {
+    pop.close();
+    try {
+      if (drawer) {
+        const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: drawer.id });
+        bus.emit('block:connected', { block: res.block, drawerId: drawer.id, connections: res.connections });
+      }
+      const res = await api.del(`/api/blocks/${block.id}/connections/${from.id}`);
+      bus.emit('block:disconnected', { block: res.block, drawerId: from.id, connections: res.connections });
+      if (created) {
+        const left = (await api.get('/api/drawers?lite=1')).drawers.find((d) => d.id === from.id);
+        if (left && !left.count) {
+          await api.del(`/api/drawers/${from.id}`);
+          bus.emit('drawer:changed', null);
+        }
+      }
+      toast(drawer ? `Moved to ${drawer.title}` : 'Kept as a star');
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+
+  const create = async (title) => {
+    try {
+      const { drawer } = await api.post('/api/drawers', { title });
+      move(drawer);
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+
+  const render = () => {
+    const q = input.value.trim().toLowerCase();
+    const rows = [];
+    if (!q) {
+      rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => move(null) },
+        h('span', { class: 'cx-plus' }, '✦'), h('span', { class: 'cx-title' }, 'Keep as a star')));
+    }
+    for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
+      rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => move(d) },
+        planetDot(d), h('span', { class: 'cx-title' }, d.title, owned(d)), h('span', { class: 'cx-count' }, d.count ?? '')));
+    }
+    if (q && !drawers.some((d) => d.title.toLowerCase() === q)) {
+      rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
+        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
+    }
+    list.replaceChildren(...rows);
+    pop.place();
+  };
+  input.addEventListener('input', render);
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const q = input.value.trim().toLowerCase();
+    if (!q) return;
+    const match = drawers.find((d) => d.title.toLowerCase() === q) || drawers.find((d) => d.title.toLowerCase().includes(q));
+    if (match) move(match);
+    else create(input.value.trim());
+  });
+  render();
+  return pop;
+}
+
 // ---------------------------------------------------------------- remove / delete
 
 export async function removeFromDrawer(block, drawerId, drawerTitle) {

@@ -4,7 +4,7 @@
 // files on it. Keep scrolling down and the galaxy shrinks away into the
 // universe, where everyone else's galaxies are.
 
-import { blockMenu, openConnect } from '../actions.js';
+import { blockMenu, openConnect, sortedToast } from '../actions.js';
 import { api, session } from '../api.js';
 import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
@@ -777,7 +777,7 @@ class Galaxy {
       try {
         const res = await api.post(`/api/blocks/${block.id}/autosort`, {});
         this.forgetStar(block.id);
-        await this.launch(res.block, res.sortedInto);
+        await this.launch(res.block, res.sortedInto, { sorted: true });
         bus.emit('block:connected', { block: res.block, drawerId: res.sortedInto.planet.id });
       } catch (err) {
         toast(err.message);
@@ -834,7 +834,7 @@ class Galaxy {
       const { block, sortedInto, planet } = await request;
       if (session.stats) session.stats.files += 1;
       bus.emit('stats:changed', session.stats);
-      if (sortedInto) await this.launch(block, sortedInto);
+      if (sortedInto) await this.launch(block, sortedInto, { sorted: true });
       else if (planet) await this.launch(block, { planet: { ...planet, count: (planet.count || 0) + 1, previews: [block, ...(planet.previews || [])] }, created: planet.isNew });
       else await this.birth(block);
     } catch (err) {
@@ -905,7 +905,7 @@ class Galaxy {
   }
 
   // Out of the void to the planet it went onto: the file itself, flying.
-  async launch(block, { planet, created }) {
+  async launch(block, { planet, created }, { sorted = false } = {}) {
     this.setPlanet(planet);
     let el = this.planetEls.get(planet.id);
     if (!el) {
@@ -922,7 +922,8 @@ class Galaxy {
     el.gulp();
     el.bump(1);
     burst(to, { color: 'rgba(255,255,255,0.8)', count: 5, reach: 20 });
-    toast(created ? `New planet: ${planet.title}` : `Added to ${planet.title}`);
+    if (sorted) sortedToast(block, { planet, created });
+    else toast(created ? `New planet: ${planet.title}` : `Added to ${planet.title}`);
     this.setHint();
     this.refresh();
   }
@@ -972,7 +973,7 @@ class Galaxy {
     this.off.push(
       bus.on('upload:done', (item) => {
         if (item.ctx.galaxy) {
-          if (item.sortedInto) this.launch(item.block, item.sortedInto);
+          if (item.sortedInto) this.launch(item.block, item.sortedInto, { sorted: true });
           else if (item.ctx.drawerId) {
             const p = this.data.planets.find((x) => x.id === item.ctx.drawerId);
             if (p) this.launch(item.block, { planet: { ...p, count: (p.count || 0) + 1, previews: [item.block, ...(p.previews || [])] }, created: false });

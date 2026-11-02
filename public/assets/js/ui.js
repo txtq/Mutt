@@ -67,15 +67,28 @@ export function toast(message, { action, duration = 3600 } = {}) {
   const el = h('div', { class: 'toast', style: { '--toast-color': PALETTE[toastCount++ % PALETTE.length] } },
     h('span', null, message));
   let timer;
+  let held = false;
   const close = () => { clearTimeout(timer); exit(el); };
   if (action) {
-    el.append(h('button', { type: 'button', onclick: () => { close(); action.run(); } }, action.label));
+    // An action that opens something (`stay`) keeps the toast up to anchor it, and closes it when done.
+    const button = h('button', {
+      type: 'button',
+      onclick: () => {
+        if (action.stay) {
+          if (el.classList.contains('is-leaving')) return; // nothing left to anchor to
+          held = true;
+          clearTimeout(timer);
+        } else close();
+        action.run(button, close);
+      },
+    }, action.label);
+    el.append(button);
   }
   toastHost.append(el);
   while (toastHost.children.length > 3) toastHost.firstElementChild.remove();
   timer = setTimeout(close, duration);
   el.addEventListener('pointerenter', () => clearTimeout(timer));
-  el.addEventListener('pointerleave', () => { timer = setTimeout(close, 1800); });
+  el.addEventListener('pointerleave', () => { if (!held) timer = setTimeout(close, 1800); });
   return { close };
 }
 

@@ -835,7 +835,7 @@ class Galaxy {
       if (session.stats) session.stats.files += 1;
       bus.emit('stats:changed', session.stats);
       if (sortedInto) await this.launch(block, sortedInto);
-      else if (planet) await this.launch(block, { planet: { ...planet, count: (planet.count || 0) + 1, previews: [block, ...(planet.previews || [])] }, created: planet.isNew });
+      else if (planet) await this.launch(block, { planet: { ...planet, count: (planet.count || 0) + 1, previews: [block, ...(planet.previews || [])], recent: [block, ...(planet.recent || [])] }, created: planet.isNew });
       else await this.birth(block);
     } catch (err) {
       toast(err.message);
@@ -975,7 +975,7 @@ class Galaxy {
           if (item.sortedInto) this.launch(item.block, item.sortedInto);
           else if (item.ctx.drawerId) {
             const p = this.data.planets.find((x) => x.id === item.ctx.drawerId);
-            if (p) this.launch(item.block, { planet: { ...p, count: (p.count || 0) + 1, previews: [item.block, ...(p.previews || [])] }, created: false });
+            if (p) this.launch(item.block, { planet: { ...p, count: (p.count || 0) + 1, previews: [item.block, ...(p.previews || [])], recent: [item.block, ...(p.recent || [])] }, created: false });
           } else this.birth(item.block);
         } else if (item.ctx.drawerId && this.planetEls.has(item.ctx.drawerId)) {
           this.planetEls.get(item.ctx.drawerId).bump(1);

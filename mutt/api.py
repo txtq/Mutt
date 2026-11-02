@@ -513,11 +513,12 @@ def find_user(req, username):
     return row
 
 
-def drawer_previews(req, drawer_id, limit=8, owner=None):
+def drawer_previews(req, drawer_id, limit=8, owner=None, newest=False):
+    order = 'c.connected_at DESC, c.position' if newest else 'c.position, c.connected_at DESC'
     rows = req.db.execute(
         'SELECT b.*, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
         'JOIN users u ON u.id = b.user_id '
-        'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC LIMIT ?', (drawer_id, limit)).fetchall()
+        f'WHERE c.drawer_id = ? ORDER BY {order} LIMIT ?', (drawer_id, limit)).fetchall()
     me_id = req.user['id']
     return [block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
             for r in rows]
@@ -556,6 +557,9 @@ def planet_people(req, drawer_id):
 
 def planet_json(req, row, count, previews=None, locked=False):
     data = drawer_json(row, count, previews)
+    if previews is not None:
+        # The peek on hover shows what was put here last.
+        data['recent'] = drawer_previews(req, row['id'], limit=4, newest=True) if previews else []
     data['mine'] = row['user_id'] == req.user['id']
     if data['mine'] and row['visibility'] == 'people':
         data['people'] = planet_people(req, row['id'])

@@ -28,7 +28,7 @@ def on_mounted_disk(path):
 
 
 def _data_dir():
-    chosen = os.environ.get('MUTT_DATA_DIR') or os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
+    chosen = os.environ.get('MUTT_DATA_DIR')
     if chosen:
         return chosen
     # Hosts like Northflank or Fly just mount a volume; /data is the conventional spot.

@@ -113,13 +113,9 @@ your data is on the volume.
    build type **Dockerfile** (repo root).
 3. Under networking, make port **8080** **HTTP** and **Public**.
 4. On the service, **Volumes → Add volume**, container mount path `/data`.
-5. The public address is shown at the top of the service page.
-
-### Railway
-
-**New Project → Deploy from GitHub repo**, attach a volume (any mount path),
-then **Settings → Networking → Generate Domain**. `railway.json` handles the
-rest.
+5. On the service, **Health checks → Add health check**: HTTP, port **8080**,
+   path `/api/health`.
+6. The public address is shown at the top of the service page.
 
 ### Any Docker host
 

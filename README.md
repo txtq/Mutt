@@ -10,11 +10,12 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **The void** in the middle is how you add things: a stippled black and
   white print of a bright light caged by dark, sinewy strands that turn
   slowly round it, with stippled cells and faint rays between them.
-  Click it and the light widens, and a plain add box sits in the light: type a note,
-  paste a link, upload or drop a file, and pick where it goes: **Star**
-  (loose, by the void), **Autosort**, a **Planet** you choose, or a **New
-  planet** you name right there. You can also drop files straight onto the
-  void.
+  Click it and the light widens, and a plain add box sits in the light: write
+  a note (Return starts a new line, ⌘/Ctrl+Return adds it), paste a link,
+  upload or drop a file. One "To" choice under the text says where it goes:
+  **Star** (loose, by the void), **Autosort**, one of your planets, or a **New
+  planet** you name right there; it remembers Star or Autosort for next time.
+  You can also drop files straight onto the void.
 - **Planets** are collections (drawers, in the code). Each one is a slowly
   turning world with your files laid across its surface, bigger the more it
   holds; full ones get thin rings, and some have small moons. Hover for a
@@ -58,7 +59,7 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   so the link's address is sent there); YouTube and Vimeo play inline; PDFs
   scroll inside Mutt, drawn with pdf.js. One file can sit on many planets.
 - **Settings**: sky (Vita, Nebula, Aurora,
-  Dusk), logo, autosort, text size, and motion (Lively, Calm or Still).
+  Dusk), logo, text size, and motion (Lively, Calm or Still).
   Mutt also respects your system's reduce-motion setting.
 
 The pre-galaxy Mutt is kept on the `classic` branch and the `classic-v1`

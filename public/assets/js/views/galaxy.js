@@ -11,6 +11,7 @@ import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
 import { fileFace, glyph, holdPlanets, planetEl, planetSize, worldPicture } from '../planets.js';
+import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
@@ -339,7 +340,9 @@ class Galaxy {
     this.planetEls = new Map();
     this.stars = data.stars || [];
     this.showAll = false;
-    this.list = list;
+    this.list = list || [ownEntry(data)];
+    // Already here when the page opens out in the universe.
+    this.uvLoading = list ? Promise.resolve() : null;
     this.off = [];
     this.p = 0;
 
@@ -384,7 +387,7 @@ class Galaxy {
     this.cue = h('button', { type: 'button', class: 'gx-cue', onclick: () => this.goOut() }, h('span', null, 'Universe'), glyph('down', 12));
     this.el = h('div', { class: 'world' }, this.webLayer, this.stage, this.runway, this.cue);
 
-    for (const p of data.planets) this.addPlanet(p);
+    together(() => { for (const p of data.planets) this.addPlanet(p); });
     this.renderStars();
     this.layout();
     this.setHint();
@@ -401,6 +404,7 @@ class Galaxy {
     this.refresh = debounce(() => this.reload(), 450);
     this.lastY = 0;
     this.onScroll = () => {
+      if (!this.uvLoading) this.loadUniverse();
       if (scrollY !== this.lastY) this.heading = scrollY > this.lastY ? 1 : -1;
       this.lastY = scrollY;
       cancelAnimationFrame(this.scrollFrame);
@@ -550,14 +554,14 @@ class Galaxy {
     this.art.style.transform = `translate(${cx}px, ${cy}px)`;
     // The canvas covers the page's width and a bit more than a screen tall.
     this.void.size(m.hole, width + 40, Math.max(viewH * 1.5, m.ry * 2.6));
-    this.data.planets.forEach((p, i) => {
+    together(() => this.data.planets.forEach((p, i) => {
       const el = this.planetEls.get(p.id);
       const spot = spots[i];
       if (!el || !spot) return;
       el.update(p, { size: spot.size });
       if (el.classList.contains('is-moving')) return;
       el.style.transform = `translate(${cx + spot.x}px, ${cy + spot.y}px)`;
-    });
+    }));
     [...this.starsEl.children].forEach((el, i) => {
       const at = starAt[i];
       if (at) el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
@@ -984,10 +988,12 @@ class Galaxy {
     if (key === this.uvKey) return;
     this.uvKey = key;
     this.homeAt = Math.max(0, this.list.findIndex((g) => (this.mine ? g.you : g.username === this.owner)));
-    this.uvEls = this.list.map((g, i) => {
-      const el = miniGalaxy(g, galaxyPlan(g, width, viewH), i === this.homeAt);
-      el.addEventListener('click', () => this.visit(g, el));
-      return el;
+    together(() => {
+      this.uvEls = this.list.map((g, i) => {
+        const el = miniGalaxy(g, galaxyPlan(g, width, viewH), i === this.homeAt);
+        el.addEventListener('click', () => this.visit(g, el));
+        return el;
+      });
     });
     // The nearest few pass close by the camera on the way out.
     this.uvNear.replaceChildren();
@@ -995,7 +1001,24 @@ class Galaxy {
     this.uvField.replaceChildren(...this.uvEls);
   }
 
+  // Everyone's galaxies load once the page is up: when it has a quiet
+  // moment, or as soon as you start scrolling out, whichever comes first.
+  // Until then the universe holds only this one.
+  loadUniverse() {
+    this.uvLoading ||= api.get('/api/galaxies').then(({ galaxies }) => {
+      if (!this.el.isConnected) return;
+      this.list = withOwner(galaxies, this.data);
+      this.uvKey = null;
+      if (this.size && this.homePlan) {
+        this.placeUniverse(this.size.width, this.size.viewH, this.m, this.homePlan);
+        this.render(this.p);
+      }
+    }).catch(() => { this.uvLoading = null; });
+    return this.uvLoading;
+  }
+
   placeUniverse(width, viewH, m, home) {
+    this.homePlan = home;
     this.snapVoid(m);
     this.renderUniverse(width, viewH);
     const plans = this.uvEls.map((el, i) => (i === this.homeAt ? home : el.plan));
@@ -1247,6 +1270,10 @@ class Galaxy {
           requestAnimationFrame(() => requestAnimationFrame(() => this.el.classList.remove('is-far')));
         } else if (!moved) this.entrance();
         arriving = false;
+        if (!this.uvLoading) {
+          if (window.requestIdleCallback) requestIdleCallback(() => this.loadUniverse(), { timeout: 2000 });
+          else setTimeout(() => this.loadUniverse(), 800);
+        }
       },
       destroy: () => {
         removeEventListener('resize', this.relayout);
@@ -1264,18 +1291,28 @@ class Galaxy {
   }
 }
 
+// The galaxy on this page, as the universe lists it.
+const ownEntry = (data) => ({ username: data.user.username, you: !!data.user.you, planets: data.planets.length, open: data.planets.length, files: 0, worlds: [] });
+
+// Everyone's galaxies, with the one on this page among them.
+function withOwner(galaxies, data) {
+  if (!data.user.you && !galaxies.some((g) => g.username === data.user.username)) galaxies.push(ownEntry(data));
+  return galaxies;
+}
+
+// The universe below waits until the page is up (loadUniverse()), unless
+// the page opens out there.
+async function loadGalaxy(username, universe) {
+  const mine = !username || username === session.user.username;
+  const [data, everyone] = await Promise.all([
+    api.get(mine ? '/api/galaxy' : `/api/galaxy/${encodeURIComponent(username)}`),
+    universe ? api.get('/api/galaxies') : null,
+  ]);
+  return { data, list: everyone && withOwner(everyone.galaxies, data) };
+}
+
 export const galaxyView = {
-  async load([username]) {
-    const mine = !username || username === session.user.username;
-    const [data, { galaxies }] = await Promise.all([
-      api.get(mine ? '/api/galaxy' : `/api/galaxy/${encodeURIComponent(username)}`),
-      api.get('/api/galaxies'),
-    ]);
-    if (!mine && !galaxies.some((g) => g.username === data.user.username)) {
-      galaxies.push({ username: data.user.username, you: false, planets: data.planets.length, open: data.planets.length, files: 0, worlds: [] });
-    }
-    return { data, list: galaxies };
-  },
+  load: ([username]) => loadGalaxy(username, false),
 
   create(params, { data, list }) {
     if (data.user.you && params[0]) queueMicrotask(() => nav.go('/', { replace: true }));
@@ -1286,7 +1323,7 @@ export const galaxyView = {
 
 // The universe is your galaxy, scrolled all the way out.
 export const universeView = {
-  load: () => galaxyView.load([]),
+  load: () => loadGalaxy(null, true),
   create(params, loaded) {
     startOut = true;
     return galaxyView.create([], loaded);

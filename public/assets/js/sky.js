@@ -2,7 +2,7 @@
 // little as you move, bend round the void, and get tugged toward it when it
 // eats something. Further out, in the universe, it goes dark and still.
 
-import { h, reducedMotion } from './util.js';
+import { h, onMotionChange, reducedMotion } from './util.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const smoothstep = (t) => { const c = Math.max(0, Math.min(1, t)); return c * c * (3 - 2 * c); };
@@ -212,6 +212,8 @@ export function createSky() {
   }
 
   function loop(time) {
+    // Switched to Still: one last picture, then rest.
+    if (reducedMotion()) { draw(time); frame = 0; return; }
     frame = requestAnimationFrame(loop);
     // Twinkling alone is fine at ~30fps, but while the page scrolls or the
     // stars are being pushed about, every frame, so they don't judder.
@@ -239,6 +241,7 @@ export function createSky() {
     if (document.hidden) cancelAnimationFrame(frame);
     else start();
   });
+  onMotionChange(() => { if (!document.hidden) start(); });
   addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
     lean.tx = (e.clientX / width - 0.5) * 2;

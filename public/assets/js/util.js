@@ -36,6 +36,12 @@ const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 // The system setting, or Motion: Off in Mutt's own settings.
 export const reducedMotion = () => motionQuery.matches || document.documentElement.dataset.motion === 'off';
 
+// Calls `fn` whenever either of those changes.
+export function onMotionChange(fn) {
+  motionQuery.addEventListener('change', fn);
+  new MutationObserver(fn).observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] });
+}
+
 // The colours planets (and a few touches like toasts) are picked from.
 export const PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240'];
 

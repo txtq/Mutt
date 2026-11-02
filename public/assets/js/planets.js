@@ -409,7 +409,9 @@ function lookupFor(size) {
 // One loop turns every planet on screen. They turn slowly and by fractions
 // of a pixel, so each is repainted about 30 times a second, on a steady beat:
 // half of them on one frame, half on the next (more turns on faster screens).
+// Planets being spun by hand (or still coasting) are painted every frame.
 const turning = new Set();
+const spinning = new Set();
 let frame = 0;
 let held = false;
 let beat = 0;
@@ -417,15 +419,23 @@ let lastNow = 0;
 let gap = 16.7;
 function tick(now) {
   // Held or Still: every planet keeps its picture, so the loop rests until wake().
-  if (held || reducedMotion()) { frame = 0; lastNow = 0; return; }
+  const resting = held || reducedMotion();
+  if (resting && !spinning.size) { frame = 0; lastNow = 0; return; }
   frame = turning.size ? requestAnimationFrame(tick) : 0;
-  if (lastNow) gap += (Math.min(100, now - lastNow) - gap) * 0.05;
+  const dt = lastNow ? Math.min(100, now - lastNow) : 16.7;
+  if (lastNow) gap += (dt - gap) * 0.05;
   lastNow = now;
   const turns = Math.max(1, Math.round(33 / gap));
   beat += 1;
   let i = 0;
   together(() => {
+    for (const globe of spinning) {
+      if (!globe.step(dt)) spinning.delete(globe);
+      globe.draw(now, true);
+    }
+    if (resting) return;
     for (const globe of turning) {
+      if (spinning.has(globe)) continue;
       // Planets that have left the page stop turning.
       if (!globe.canvas.isConnected && globe.born < now - 2000) { turning.delete(globe); watcher?.unobserve(globe.canvas); continue; }
       if ((i++ + beat) % turns === 0) globe.draw(now);
@@ -433,7 +443,7 @@ function tick(now) {
   });
 }
 function wake() {
-  if (turning.size && !frame && !document.hidden && !held && !reducedMotion()) frame = requestAnimationFrame(tick);
+  if (turning.size && !frame && !document.hidden && (spinning.size || (!held && !reducedMotion()))) frame = requestAnimationFrame(tick);
 }
 function startTurning(globe) {
   turning.add(globe);
@@ -453,12 +463,27 @@ export function holdPlanets(on) {
   wake();
 }
 
+// Flicks: the speed is measured over the last FLICK_MS before letting go,
+// capped at MAX_SPIN turns a millisecond (5 a second); RUB is the steady friction.
+const FLICK_MS = 90;
+const MAX_SPIN = 0.005;
+const RUB = 2e-7;
+
 function makeGlobe(canvas, rand) {
   const period = (80 + rand() * 70) * 1000;
   const offset = rand() * period;
   const seed = [rand() * 97, rand() * 97, rand() * 97];
   const live = canPaint();
   let size = 0;
+  let cssSize = 0;
+  // A hand's spin on top of its own slow turn: extra turn (a fraction of a
+  // whole one), how fast it's coasting (turns a millisecond) and a tip forward.
+  let spin = 0;
+  let vel = 0;
+  let tip = 0;
+  let tipVel = 0;
+  let grabbed = false;
+  const flick = [];
   let image = null;
   let out = null;
   let table = null;
@@ -476,6 +501,7 @@ function makeGlobe(canvas, rand) {
     canvas,
     born: performance.now(),
     setSize(css) {
+      cssSize = css;
       // At most 1.5 pixels a point: sharper costs far more to paint for little to see.
       const next = Math.max(32, Math.min(live ? 420 : 300, Math.round(css * Math.min(devicePixelRatio || 1, 1.5))));
       if (next === size) return;
@@ -504,9 +530,11 @@ function makeGlobe(canvas, rand) {
       if (!tex || !size || (!visible && !force)) return;
       const still = reducedMotion();
       if (!force && drawn && (still || held)) return;
-      const turn = still ? offset / period : ((now + offset) % period) / period;
+      const own = still ? offset / period : ((now + offset) % period) / period;
+      const turn = (((own + spin) % 1) + 1) % 1;
       job.source = tex;
       job.turn = turn;
+      job.lean = 0.3 + tip;
       job.time = still ? 0 : now / 1000;
       if (live && world && paint(ctx, size, job)) {
         drawn = true;
@@ -527,11 +555,116 @@ function makeGlobe(canvas, rand) {
       visible = on;
       if (on) globe.draw(performance.now(), true);
     },
+    // Spinning by hand, like a fidget spinner: the surface follows the
+    // pointer sideways (a whole turn is the distance round its middle) and,
+    // let go, keeps the speed and direction it was flicked with, coasting
+    // down slowly. Up/down tips it a little; it bounces back level.
+    grab() {
+      grabbed = true;
+      vel = 0;
+      flick.length = 0;
+      spinning.add(globe);
+      wake();
+    },
+    drag(dx, dy, t) {
+      // Its own turn carries the surface leftward, so a drag right is a negative turn.
+      const step = -dx / (Math.PI * Math.max(1, cssSize));
+      spin += step;
+      flick.push({ step, t });
+      while (flick.length > 1 && t - flick[0].t > FLICK_MS) flick.shift();
+      tip = 0.45 * Math.tanh((dy / Math.max(1, cssSize)) * 1.4);
+      tipVel = 0;
+    },
+    // The speed of the last moments before letting go: a pause first means no spin.
+    release(t, cancelled = false) {
+      grabbed = false;
+      const recent = flick.filter((f) => t - f.t <= FLICK_MS);
+      const span = recent.length ? Math.max(16, t - recent[0].t + 8) : 0;
+      vel = cancelled || reducedMotion() || !span ? 0 : recent.reduce((sum, f) => sum + f.step, 0) / span;
+      vel = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, vel));
+      flick.length = 0;
+    },
+    // Coasts down and bounces the tip back; false once it has settled.
+    step(dt) {
+      if (grabbed) return true;
+      spin += vel * dt;
+      // Slows like a bearing: a little drag that grows with speed, plus a
+      // steady rub that brings it to a clean stop.
+      const slowed = Math.abs(vel) * Math.exp(-dt / 2600) - RUB * dt;
+      vel = slowed > 0 ? Math.sign(vel) * slowed : 0;
+      for (let left = dt; left > 0; left -= 16) {
+        const d = Math.min(16, left);
+        tipVel += (-tip * 2.5e-4 - tipVel * 0.012) * d;
+        tip += tipVel * d;
+      }
+      if (vel || Math.abs(tip) > 0.002 || Math.abs(tipVel) > 1e-5) return true;
+      tip = 0;
+      tipVel = 0;
+      return false;
+    },
   };
   canvas.globe = globe;
   watcher?.observe(canvas);
   startTurning(globe);
   return globe;
+}
+
+// Grab the globe and drag sideways to spin it; let go and it coasts. With a
+// mouse it follows at once. On touch only a sideways swipe spins: an upward
+// one scrolls the page, and holding still picks the planet up (drag.js).
+function spinnable(el, globe) {
+  const ball = el.ball;
+  let spun = false;
+  ball.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.isPrimary === false) return;
+    const pid = e.pointerId;
+    const start = { x: e.clientX, y: e.clientY };
+    let last = { x: e.clientX };
+    let on = false;
+    spun = false;
+
+    const begin = () => {
+      on = true;
+      el.classList.add('is-spinning');
+      globe.grab();
+      try { ball.setPointerCapture(pid); } catch { /* already gone */ }
+    };
+    const move = (ev) => {
+      if (ev.pointerId !== pid) return;
+      if (document.body.classList.contains('is-carrying')) { end(ev.timeStamp, true); return; }
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      if (!on) {
+        if (Math.hypot(dx, dy) < 6) return;
+        if (Math.abs(dx) < Math.abs(dy) * 1.2) { end(ev.timeStamp, true); return; } // a scroll
+        begin();
+      }
+      if (Math.hypot(dx, dy) > 4) spun = true;
+      globe.drag(ev.clientX - last.x, dy, ev.timeStamp);
+      last = { x: ev.clientX };
+    };
+    const up = (ev) => {
+      if (ev.pointerId === pid) end(ev.timeStamp, ev.type === 'pointercancel');
+    };
+    function end(t, cancelled) {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      if (on) { globe.release(t, cancelled); el.classList.remove('is-spinning'); }
+      on = false;
+    }
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+    if (e.pointerType === 'mouse') begin();
+  });
+  // A spin isn't a click: don't open the planet.
+  el.addEventListener('click', (e) => {
+    if (!spun) return;
+    spun = false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
 }
 
 // ---------------------------------------------------------------- the planet
@@ -627,6 +760,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   });
   el.ball = ball;
   el.body = body;
+  spinnable(el, globeApi);
 
   // The Vita notification bubble: "+2" after things land here.
   let bumped = 0;

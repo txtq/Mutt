@@ -22,6 +22,7 @@ uniform vec2 uOrigin;
 uniform float uTurn;
 uniform float uTime;
 uniform float uTilt;
+uniform float uLean;
 uniform int uLook;
 uniform vec3 uSeed;
 uniform vec3 uC0;
@@ -108,8 +109,7 @@ void main() {
   float tc = cos(uTilt);
   float ts = sin(uTilt);
   vec3 n = vec3(tc * v.x - ts * v.y, ts * v.x + tc * v.y, v.z);
-  const float LEAN = 0.3;
-  n = vec3(n.x, cos(LEAN) * n.y + sin(LEAN) * n.z, -sin(LEAN) * n.y + cos(LEAN) * n.z);
+  n = vec3(n.x, cos(uLean) * n.y + sin(uLean) * n.z, -sin(uLean) * n.y + cos(uLean) * n.z);
 
   float ang = uTurn * 2.0 * PI;
   vec3 p = rotY(n, -ang);
@@ -255,7 +255,7 @@ void main() {
   outColor = vec4(c * alpha, alpha);
 }`;
 
-const UNIFORMS = ['uSize', 'uOrigin', 'uTurn', 'uTime', 'uTilt', 'uLook', 'uSeed', 'uC0', 'uC1', 'uC2', 'uC3', 'uTex'];
+const UNIFORMS = ['uSize', 'uOrigin', 'uTurn', 'uTime', 'uTilt', 'uLean', 'uLook', 'uSeed', 'uC0', 'uC1', 'uC2', 'uC3', 'uTex'];
 const MAX_TEXTURES = 24;
 const SHEET = 1024;
 
@@ -378,7 +378,7 @@ let batching = 0;
 
 // Paints one planet onto `ctx` (its own 2D canvas, `size` pixels square).
 // Inside together() the copy waits for the rest of the frame's planets.
-// `world`: { source: { canvas, version }, look, tilt, turn, time, seed, colors: [[r,g,b] ×4] }
+// `world`: { source: { canvas, version }, look, tilt, lean?, turn, time, seed, colors: [[r,g,b] ×4] }
 export function paint(ctx, size, world) {
   const s = init();
   if (!s || s.lost) return false;
@@ -391,6 +391,7 @@ export function paint(ctx, size, world) {
   gl.uniform1f(loc.uTurn, world.turn);
   gl.uniform1f(loc.uTime, world.time);
   gl.uniform1f(loc.uTilt, world.tilt);
+  gl.uniform1f(loc.uLean, world.lean ?? 0.3);
   gl.uniform1i(loc.uLook, world.look);
   gl.uniform3fv(loc.uSeed, world.seed);
   gl.uniform3fv(loc.uC0, world.colors[0]);

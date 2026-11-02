@@ -154,11 +154,11 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
 // copy of it. Same feel as picking up a star: a mouse moves it once you've
 // dragged a little, a finger after holding for a moment. `onMove` gets the
 // pointer on every frame; `limits()` says how far the page may scroll.
-export function movable(el, { enabled = () => true, onStart, onMove, onEnd, limits = () => ({ top: 0, bottom: Infinity }) }) {
+export function movable(el, { enabled = () => true, from = () => true, onStart, onMove, onEnd, limits = () => ({ top: 0, bottom: Infinity }) }) {
   let blockClick = false;
 
   const down = (e) => {
-    if (e.button !== 0 || e.isPrimary === false || !enabled()) return;
+    if (e.button !== 0 || e.isPrimary === false || !enabled() || !from(e)) return;
     const pid = e.pointerId;
     const touch = e.pointerType !== 'mouse';
     const start = { x: e.clientX, y: e.clientY };

@@ -472,6 +472,7 @@ class Galaxy {
   // Your own planets can be picked up and put somewhere else. Everyone who
   // opens your galaxy sees them where you left them.
   makeMovable(el) {
+    el.classList.add('is-movable');
     let grab = null;
     let at = null;
     let shown = null;
@@ -481,6 +482,8 @@ class Galaxy {
     };
     movable(el, {
       enabled: () => this.p < 0.02 && !!this.spots?.get(el.planet.id),
+      // With a mouse the globe itself spins (planets.js), so it's carried by its name.
+      from: (e) => e.pointerType !== 'mouse' || !el.ball.contains(e.target),
       limits: () => ({ top: 0, bottom: Math.max(0, this.size.height - this.size.viewH) }),
       onStart: (pointer) => {
         const spot = this.spots.get(el.planet.id);

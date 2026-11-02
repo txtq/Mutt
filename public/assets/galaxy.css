@@ -769,6 +769,10 @@ a.planet:hover .planet-body, .planet:focus-visible .planet-body { transform: sca
   background: var(--c-dark);
   box-shadow: 0 6px 18px -6px rgba(0, 0, 10, 0.55);
 }
+/* grab the globe to spin it (planets.js); your own planets are carried by their name */
+.planet-ball { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.planet.is-spinning .planet-ball { cursor: grabbing; }
+.gx-scene .planet.is-movable .planet-title { pointer-events: auto; cursor: move; }
 .planet-map { display: block; width: 100%; height: 100%; transform: rotate(var(--tilt)); }
 /* painted live: the canvas has its own tilt, light and soft edge */
 .planet.is-gl .planet-ball { background: transparent; }

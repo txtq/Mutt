@@ -37,20 +37,40 @@ function excerpt(text, n = 90) {
 
 const starTitle = (b) => b.title || (b.kind === 'text' ? excerpt(b.content || '', 40) : b.fileName) || 'Untitled';
 
-function metrics(width, viewH) {
+// `z` shrinks the void, planets and stars together so a full galaxy fits
+// the screen (see fitted()).
+function metrics(width, viewH, z = 1) {
   const narrow = width < 640;
   const mid = width < 1000;
-  const hole = voidRadius(width, viewH); // radius of the dark itself
+  const hole = Math.round(voidRadius(width, viewH) * z); // radius of the dark itself
   return {
     narrow,
-    scale: narrow ? 0.72 : mid ? 0.86 : 1,
+    z,
+    scale: (narrow ? 0.72 : mid ? 0.86 : 1) * z,
     hole,
     // The glow round it: a tall oval.
     rx: hole * REACH.x,
     ry: hole * REACH.y,
-    chip: narrow ? 30 : 38,
-    cell: narrow ? 37 : 47,
+    chip: Math.round((narrow ? 30 : 38) * Math.max(z, 0.75)),
+    cell: Math.round((narrow ? 37 : 47) * Math.max(z, 0.75)),
+    // Room round each planet, and across for its name, which stays one size.
+    gap: Math.round((narrow ? 10 : 22) * z),
+    wide: Math.round((narrow ? 104 : 140) * Math.max(z, 0.8)),
   };
+}
+
+// On a computer a galaxy fits the screen: when its planets would run past
+// the bottom, everything is drawn smaller until they don't. `place(m)` lays
+// it out and says how tall it came out. Phones scroll through theirs.
+const Z_MIN = 0.42;
+function fitted(width, viewH, place) {
+  let m = metrics(width, viewH);
+  let out = place(m);
+  for (let i = 0; i < 12 && !m.narrow && out.content > viewH && m.z > Z_MIN; i++) {
+    m = metrics(width, viewH, Math.max(Z_MIN, m.z * Math.min(0.96, (viewH / out.content) ** 1.2)));
+    out = place(m);
+  }
+  return { m, ...out };
 }
 
 // ---------------------------------------------------------------- layout
@@ -84,7 +104,7 @@ function ovalHitsRect(rx, ry, rect) {
 const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
 
 const placed = (p) => p.x != null && p.y != null;
-const footprint = (s, m) => Math.max(s, m.narrow ? 104 : 140);
+const footprint = (s, m) => Math.max(s, m.wide);
 // The room a planet and its name take up, round (x, y).
 const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 });
 
@@ -92,7 +112,7 @@ const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, 
 // it, the screen's sides and every rect in `taken`.
 function nearestFree(at, s, m, taken, inner, room) {
   const w = footprint(s, m);
-  const pad = m.narrow ? 10 : 22;
+  const pad = m.gap;
   const x0 = clamp(at.x, -room, room);
   for (let tries = 0, a = Math.atan2(at.y, at.x), d = 0; tries < 1500; tries++, a += 0.45, d += 1.6) {
     const x = clamp(x0 + Math.cos(a) * d, -room, room);
@@ -114,7 +134,7 @@ function scatter(planets, width, inner, m) {
   const half = width / 2 - (m.narrow ? 8 : 28);
   const ax = m.narrow ? 1 : 1.32;
   const ay = m.narrow ? 1 : 0.78;
-  const pad = m.narrow ? 10 : 22;
+  const pad = m.gap;
   const sizes = planets.map((p) => planetSize(p.count, m.scale));
   let fx = 1;
   planets.forEach((p, i) => {
@@ -165,12 +185,14 @@ function scatter(planets, width, inner, m) {
 
 // Someone's galaxy as their page lays it out on this screen (they have no
 // stars here: those are only on their owner's own page).
-function galaxyPlan(g, width, viewH, m) {
-  const gap = m.narrow ? 10 : 18;
-  const inner = { rx: m.rx * 0.72 + gap, ry: m.ry * 0.72 + gap };
+function galaxyPlan(g, width, viewH) {
   const planets = (g.worlds || []).map((w) => ({ id: w.id, count: w.n, x: w.x, y: w.y }));
-  const { spots, rects } = scatter(planets, width, inner, m);
-  return { spots, ...extent(rects, inner, viewH, m) };
+  return fitted(width, viewH, (m) => {
+    const gap = m.narrow ? 10 : 18;
+    const inner = { rx: m.rx * 0.72 + gap, ry: m.ry * 0.72 + gap };
+    const { spots, rects } = scatter(planets, width, inner, m);
+    return { spots, ...extent(rects, inner, viewH, m) };
+  });
 }
 
 // How far a galaxy reaches round its void, and where its page puts the void.
@@ -183,17 +205,17 @@ function extent(rects, inner, viewH, m) {
     bottom = Math.max(bottom, r.y1);
     reach = Math.max(reach, -r.x0, r.x1);
   }
-  const pad = m.narrow ? 36 : 56;
+  const pad = Math.round((m.narrow ? 36 : 56) * Math.max(m.z, 0.6));
   const content = bottom - top + pad * 2;
   const height = Math.max(viewH, content);
-  return { ex: reach + 12, ey: Math.max(-top, bottom) + 12, cy: pad - top + (height - content) / 2 };
+  return { content, ex: reach + 12, ey: Math.max(-top, bottom) + 12, cy: pad - top + (height - content) / 2 };
 }
 
 // A galaxy on the map: its void and its planets, painted once and held
 // still. `here` is the one whose page this is: the live galaxy shows
 // through, so only its name and a place to click are drawn.
-function miniGalaxy(g, plan, m, here) {
-  const { ex, ey } = plan;
+function miniGalaxy(g, plan, here) {
+  const { ex, ey, m } = plan;
   const res = Math.min(1, (devicePixelRatio || 1) * 0.6);
   const worlds = here ? [] : (g.worlds || []).map((w, i) => {
     const sp = plan.spots[i];
@@ -496,14 +518,16 @@ class Galaxy {
     const width = this.stage.clientWidth || innerWidth;
     const bar = this.barHeight();
     const viewH = innerHeight - bar;
-    const m = metrics(width, viewH);
+    const { m, starAt, inner, spots, rects, fx, stretch, ...home } = fitted(width, viewH, (m) => {
+      const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m, width);
+      // Planets keep clear of the dust and of the stars caught in it. The
+      // dust fades out well before its edge, so they may sit on its rim.
+      const gap = m.narrow ? 10 : 18;
+      const inner = { rx: Math.max(outer.x, m.rx * 0.72) + gap, ry: Math.max(outer.y, m.ry * 0.72) + gap };
+      const laid = scatter(this.data.planets, width, inner, m);
+      return { starAt, inner, ...laid, ...extent(laid.rects, inner, viewH, m) };
+    });
     this.m = m;
-    const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m, width);
-    // Planets keep clear of the dust and of the stars caught in it. The
-    // dust fades out well before its edge, so they may sit on its rim.
-    const gap = m.narrow ? 10 : 18;
-    const inner = { rx: Math.max(outer.x, m.rx * 0.72) + gap, ry: Math.max(outer.y, m.ry * 0.72) + gap };
-    const { spots, rects, fx, stretch } = scatter(this.data.planets, width, inner, m);
     this.inner = inner;
     this.fx = fx;
     this.stretch = stretch;
@@ -512,8 +536,7 @@ class Galaxy {
     let top = -inner.ry;
     let bottom = inner.ry;
     for (const r of rects) { top = Math.min(top, r.y0); bottom = Math.max(bottom, r.y1); }
-    const home = extent(rects, inner, viewH, m);
-    const pad = m.narrow ? 36 : 56;
+    const pad = Math.round((m.narrow ? 36 : 56) * Math.max(m.z, 0.6));
     const content = bottom - top + pad * 2;
     const height = Math.max(viewH, content);
     const cx = width / 2;
@@ -956,13 +979,13 @@ class Galaxy {
 
   // Each galaxy drawn at its true size for this screen. Only redrawn when
   // the screen's size changes, since painting the planets takes a moment.
-  renderUniverse(width, viewH, m) {
+  renderUniverse(width, viewH) {
     const key = `${width}×${viewH}`;
     if (key === this.uvKey) return;
     this.uvKey = key;
     this.homeAt = Math.max(0, this.list.findIndex((g) => (this.mine ? g.you : g.username === this.owner)));
     this.uvEls = this.list.map((g, i) => {
-      const el = miniGalaxy(g, galaxyPlan(g, width, viewH, m), m, i === this.homeAt);
+      const el = miniGalaxy(g, galaxyPlan(g, width, viewH), i === this.homeAt);
       el.addEventListener('click', () => this.visit(g, el));
       return el;
     });
@@ -974,7 +997,7 @@ class Galaxy {
 
   placeUniverse(width, viewH, m, home) {
     this.snapVoid(m);
-    this.renderUniverse(width, viewH, m);
+    this.renderUniverse(width, viewH);
     const plans = this.uvEls.map((el, i) => (i === this.homeAt ? home : el.plan));
     const here = this.uvEls[this.homeAt];
     Object.assign(here.plan, home);

@@ -6,12 +6,12 @@
 import { api, session } from './api.js';
 import { LOGOS, glitch, logo } from './logo.js';
 import { nav } from './nav.js';
-import { glyph, planetEl } from './planets.js';
+import { glyph } from './planets.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
-import { confirmDialog, segmented, toast } from './ui.js';
-import { bus, debounce, h, plural } from './util.js';
+import { closeTopLayer, confirmDialog, segmented, toast } from './ui.js';
+import { bus, h, plural } from './util.js';
 import { changePin, deleteAccount, signOut } from './account.js';
-import { renderCell } from './cells.js';
+import { searchBody } from './search.js';
 
 const current = () => ({ ...DEFAULTS, ...session.prefs });
 const save = (patch) => updatePrefs(patch, (err) => err && toast(err.message));
@@ -24,8 +24,9 @@ function sheet(className, build) {
   document.body.append(el);
   let open = false;
   let anchor = null;
-  const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target)) close(); };
-  const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  // Menus opened from a sheet sit outside it; using them keeps it open, and Escape closes them first.
+  const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target) && !e.target.closest?.('.pop')) close(); };
+  const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (!closeTopLayer()) close(); } };
   function show(from) {
     for (const s of sheets) if (s !== api_) s.close();
     anchor = from;
@@ -123,44 +124,6 @@ function settingsBody(close) {
       h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); changePin(); } }, 'Change code'),
       h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); signOut(); } }, 'Sign out'),
       h('button', { type: 'button', class: 'link is-danger', onclick: () => { close(); deleteAccount(); } }, 'Delete account')));
-}
-
-// ---------------------------------------------------------------- search
-
-function searchBody(close) {
-  const input = h('input', { class: 'sheet-search', type: 'search', placeholder: 'Search your planets and stars', 'aria-label': 'Search', autocomplete: 'off' });
-  const results = h('div', { class: 'search-results' });
-  let n = 0;
-  const run = debounce(async () => {
-    const q = input.value.trim();
-    const mine = ++n;
-    if (!q) { results.replaceChildren(); return; }
-    try {
-      const data = await api.get(`/api/search?q=${encodeURIComponent(q)}`);
-      if (mine !== n) return;
-      const planets = data.drawers.map((d) => {
-        const el = planetEl(d, { size: 40 });
-        el.classList.add('planet-mini');
-        el.addEventListener('click', close);
-        return el;
-      });
-      const files = data.blocks.slice(0, 60).map((b) => {
-        const cell = renderCell(b, { actions: false });
-        cell.addEventListener('click', () => { close(); nav.openBlock(b.id); });
-        return cell;
-      });
-      results.replaceChildren(
-        planets.length ? h('div', { class: 'search-planets' }, planets) : null,
-        files.length ? h('div', { class: 'grid search-grid' }, files) : null,
-        !planets.length && !files.length ? h('p', { class: 'search-none' }, 'Nothing out there by that name.') : null,
-      );
-    } catch (err) {
-      results.replaceChildren(h('p', { class: 'search-none' }, err.message));
-    }
-  }, 180);
-  input.addEventListener('input', run);
-  setTimeout(() => input.focus(), 60);
-  return h('div', { class: 'sheet-in' }, input, results);
 }
 
 // ---------------------------------------------------------------- the bar

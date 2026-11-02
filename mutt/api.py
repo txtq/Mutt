@@ -160,19 +160,36 @@ def clean_icon(value):
     return {'px': value['px'], 'c': value['c'].upper()}
 
 
+LOOK_COLORS = {'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'brown', 'black', 'white', 'grey'}
+LOOK_TAGS = {'bright', 'dark', 'warm', 'cool', 'vivid', 'muted', 'soft', 'mono', 'contrast', 'busy', 'minimal',
+             'tall', 'wide', 'square'}
+
+
 def clean_look(value):
-    """A file's colour summary, measured in the browser, used for sorting."""
+    """A file's colour summary, measured in the browser, used for sorting and search."""
     if not isinstance(value, dict) or not COLOR_RE.match(str(value.get('hex', ''))):
         raise HttpError(400, 'Could not read that colour.')
 
-    def number(key, high):
-        n = value.get(key)
+    def number(n, high):
         if isinstance(n, bool) or not isinstance(n, (int, float)) or not 0 <= n <= high:
             raise HttpError(400, 'Could not read that colour.')
         return round(float(n), 3)
 
-    return {'hex': value['hex'].upper(), 'h': number('h', 360), 's': number('s', 1),
-            'l': number('l', 1), 'c': number('c', 1)}
+    look = {'hex': value['hex'].upper(), 'h': number(value.get('h'), 360), 's': number(value.get('s'), 1),
+            'l': number(value.get('l'), 1), 'c': number(value.get('c'), 1)}
+    if 'v' in value:
+        look['v'] = int(number(value['v'], 100))
+    colors = value.get('colors')
+    if colors is not None:
+        if not isinstance(colors, dict) or len(colors) > 4 or not set(colors) <= LOOK_COLORS:
+            raise HttpError(400, 'Could not read that colour.')
+        look['colors'] = {name: number(share, 1) for name, share in colors.items()}
+    tags = value.get('tags')
+    if tags is not None:
+        if not isinstance(tags, list) or len(tags) > 12 or not set(tags) <= LOOK_TAGS:
+            raise HttpError(400, 'Could not read that colour.')
+        look['tags'] = list(dict.fromkeys(tags))
+    return look
 
 
 # ---------------------------------------------------------------- lookups
@@ -1244,26 +1261,88 @@ def remove_connection(req, block_id, drawer_id):
 
 # ---------------------------------------------------------------- search
 
+SEARCH_PAGE = 60
+SEARCH_SORTS = {
+    'new': 'b.created_at DESC',
+    'old': 'b.created_at ASC',
+    'size': "COALESCE(b.size, LENGTH(b.content)) DESC, b.created_at DESC",
+    'az': "LOWER(COALESCE(NULLIF(b.title, ''), NULLIF(b.file_name, ''), b.content)) ASC, b.created_at DESC",
+}
+
+
+def list_arg(req, name, allowed=None):
+    values = [v for v in (req.arg(name) or '').lower().split(',') if v][:12]
+    if allowed is not None and not set(values) <= allowed:
+        raise HttpError(400, f'Unknown {name}.')
+    return values
+
+
 @route('GET', r'/api/search')
 def search(req):
+    """Your planets and files, by words and/or kind, extension, date, colour and traits."""
     q = (req.arg('q') or '').strip()[:100]
-    if not q:
-        return json_response({'drawers': [], 'blocks': []})
-    pattern = '%' + q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
     uid = req.user['id']
-    drawers = req.db.execute(
-        "SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n FROM drawers d "
-        "WHERE d.user_id = ? AND (d.title LIKE ? ESCAPE '\\' OR d.description LIKE ? ESCAPE '\\') "
-        "ORDER BY d.updated_at DESC LIMIT 40", (uid, pattern, pattern)).fetchall()
+    where, params = ['b.user_id = ?'], [uid]
+    pattern = None
+    if q:
+        pattern = '%' + q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+        where.append("(b.title LIKE ? ESCAPE '\\' OR b.description LIKE ? ESCAPE '\\' OR "
+                     "b.content LIKE ? ESCAPE '\\' OR b.file_name LIKE ? ESCAPE '\\' OR json_remove(b.meta, '$.look') LIKE ? ESCAPE '\\')")
+        params += [pattern] * 5
+    kind_list = list_arg(req, 'kind', set(kinds.KINDS))
+    if kind_list:
+        where.append(f"b.kind IN ({','.join('?' * len(kind_list))})")
+        params += kind_list
+    exts = [e for e in list_arg(req, 'ext') if re.match(r'^[a-z0-9]{1,10}$', e)]
+    if exts:
+        where.append(f"b.ext IN ({','.join('?' * len(exts))})")
+        params += exts
+    for name, op in (('from', '>='), ('to', '<')):
+        value = int_arg(req.arg(name), 0, 10 ** 11)
+        if value is not None:
+            where.append(f'b.created_at {op} ?')
+            params.append(value)
+    color = req.arg('color')
+    if color:
+        if color not in LOOK_COLORS:
+            raise HttpError(400, 'Unknown colour.')
+        where.append(f"json_extract(b.meta, '$.look.colors.{color}') >= 0.08")
+    for tag in list_arg(req, 'vibe', LOOK_TAGS):
+        where.append("EXISTS (SELECT 1 FROM json_each(b.meta, '$.look.tags') WHERE value = ?)")
+        params.append(tag)
+    sort = req.arg('sort') or ''
+    if sort in SEARCH_SORTS:
+        order = SEARCH_SORTS[sort]
+    elif color:
+        order = f"json_extract(b.meta, '$.look.colors.{color}') DESC, b.created_at DESC"
+    else:
+        order = SEARCH_SORTS['new']
+    offset = int(int_arg(req.arg('offset'), 0, 100_000) or 0)
     blocks = req.db.execute(
-        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND ("
-        "b.title LIKE ? ESCAPE '\\' OR b.description LIKE ? ESCAPE '\\' OR "
-        "b.content LIKE ? ESCAPE '\\' OR b.file_name LIKE ? ESCAPE '\\' OR b.meta LIKE ? ESCAPE '\\') "
-        "ORDER BY b.created_at DESC LIMIT 400", (uid, pattern, pattern, pattern, pattern, pattern)).fetchall()
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?",
+        (*params, SEARCH_PAGE + 1, offset)).fetchall()
+    drawers = []
+    if pattern and not offset:
+        drawers = req.db.execute(
+            "SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n FROM drawers d "
+            "WHERE d.user_id = ? AND (d.title LIKE ? ESCAPE '\\' OR d.description LIKE ? ESCAPE '\\') "
+            "ORDER BY d.updated_at DESC LIMIT 40", (uid, pattern, pattern)).fetchall()
     return json_response({
         'drawers': [drawer_json(d, d['n'], drawer_previews(req, d['id'])) for d in drawers],
-        'blocks': [block_json(b) for b in blocks],
+        'blocks': [block_json(b) for b in blocks[:SEARCH_PAGE]],
+        'more': len(blocks) > SEARCH_PAGE,
     })
+
+
+@route('GET', r'/api/looks/todo')
+def looks_todo(req):
+    """Your files with a picture whose colours haven't been measured (the current way) yet."""
+    rows = req.db.execute(
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? "
+        "AND (b.thumb_key IS NOT NULL OR b.kind = 'image') "
+        "AND COALESCE(json_extract(b.meta, '$.look.v'), 0) < 2 "
+        "ORDER BY b.created_at DESC LIMIT 300", (req.user['id'],)).fetchall()
+    return json_response({'blocks': [block_json(b) for b in rows]})
 
 
 # ---------------------------------------------------------------- stored files

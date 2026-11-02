@@ -7,6 +7,16 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Your galaxy** is the whole app. A thin bar along the top says whose
   galaxy it is; tap your name for your account (files, planets and stars)
   and settings, or the magnifier (or press `/`) to search.
+- **Search** finds words in your planets and files. Under the box, a row of
+  options narrows it: **Kind**, **Added** (today, this week…), a row of
+  colour dots, **Vibe** (bright, dark, warm, cool, vivid, muted, pastel,
+  black & white, high contrast, busy, minimal, tall, wide, square) and
+  **Sort** (new, old, colour, A–Z, size). Typing a word it knows ("red",
+  "pdf", "last week", "warm") turns it into a chip in the box; Backspace
+  removes the last one, and quoting a word keeps it as plain words. Colours
+  and vibes are read from each picture's pixels in your browser (nothing is
+  sent anywhere), and older pictures are measured quietly the first time
+  you open search.
 - **The void** in the middle is how you add things: a stippled black and
   white print of a bright light caged by dark, sinewy strands that turn
   slowly round it, with stippled cells and faint rays between them.

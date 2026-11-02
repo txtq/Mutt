@@ -5,11 +5,17 @@
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
 import { nav } from '../nav.js';
-import { LOOKS, VISIBILITY, glyph, lookOf, planetEl } from '../planets.js';
+import { LOOKS, VISIBILITY, glyph, lookOf, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { PALETTE, autosize, bus, h, plural, timeAgo, wait } from '../util.js';
 
 const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer.owner}` : '/');
+
+// The planet's colours, which the page's glass, cards and buttons lean toward.
+function tintOf(drawer) {
+  const { tone, accent } = planetTone(drawer);
+  return { '--pc': tone, '--pa': accent };
+}
 
 // The people a planet is shared with, as removable chips plus a box to add more.
 function peoplePicker(names, onChange) {
@@ -58,7 +64,7 @@ function lockedPlanet(id, data) {
     },
   });
   const world = planetEl(drawer, { size: 120, href: null, label: false });
-  const el = h('div', { class: 'page liv liv-locked', style: { '--pc': drawer.icon?.c || '#2F6BFF' } },
+  const el = h('div', { class: 'page liv liv-locked' },
     h('header', { class: 'liv-head' },
       h('div', { class: 'liv-world' }, world),
       h('div', { class: 'liv-info' },
@@ -70,6 +76,7 @@ function lockedPlanet(id, data) {
     el,
     title: drawer.title,
     chrome: 'planet',
+    tint: tintOf(drawer),
     who: { username: data.owner, you: false },
     home: true,
     mounted: () => setTimeout(() => field.focus(), 200),
@@ -149,13 +156,18 @@ export const planetView = {
 
     // The planet's colour. It's kept with the old pixel icon, which the
     // classic site still reads, so only the colour changes.
+    function retint() {
+      inst.tint = tintOf(drawer);
+      for (const [k, v] of Object.entries(inst.tint)) document.body.style.setProperty(k, v);
+    }
+
     async function setColor(c) {
       if (c.toUpperCase() === drawer.icon?.c) return;
       try {
         ({ drawer } = await api.patch(`/api/drawers/${id}`, { icon: { ...drawer.icon, c } }));
         inst.drawer = drawer;
         world.update({ ...drawer, previews: world.planet?.previews });
-        el.style.setProperty('--pc', drawer.icon?.c || '#2F6BFF');
+        retint();
         bus.emit('drawer:changed', drawer);
       } catch (err) {
         toast(err.message);
@@ -182,6 +194,7 @@ export const planetView = {
         ({ drawer } = await api.patch(`/api/drawers/${id}`, { look }));
         inst.drawer = drawer;
         world.update({ ...drawer, previews: world.planet?.previews });
+        retint();
         bus.emit('drawer:changed', drawer);
       } catch (err) {
         toast(err.message);
@@ -328,7 +341,7 @@ export const planetView = {
     // Previews for the big planet's surface come from what's here.
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
-    const el = h('div', { class: 'page liv', style: { '--pc': drawer.icon?.c || '#2F6BFF' } },
+    const el = h('div', { class: 'page liv' },
       h('header', { class: 'liv-head' },
         h('div', { class: 'liv-world' }, world),
         h('div', { class: 'liv-info' },
@@ -342,6 +355,7 @@ export const planetView = {
       title: drawer.title,
       drawer,
       chrome: 'planet',
+      tint: tintOf(drawer),
       who: { username: mine ? session.user.username : drawer.owner, you: mine },
       home: true,
       list: () => collection.list(),

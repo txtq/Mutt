@@ -1112,6 +1112,40 @@ body.is-carrying, body.is-carrying * { cursor: grabbing !important; user-select:
 
 /* ------------------------------------------------------------------ a planet up close */
 
+/* On a planet's page everything leans a little toward the world's colour and
+   sits a touch lighter than the galaxy's glass: the header, cards, buttons,
+   menus and the file view opened from it. --pc is the world's colour, --pa
+   a deeper one for buttons (planetTone in planets.js, set by the router). */
+body[data-page="planet"] {
+  --pt: color-mix(in oklab, var(--pc, #3f7cf0), #dfe6fa 50%);  /* the tone, paled, for faint lines and fills */
+  --accent: var(--pa, #3f7cf0);
+  --accent-gloss: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent), #fff 30%) 0%, var(--accent) 49%,
+    color-mix(in srgb, var(--accent), #000 9%) 51%, color-mix(in srgb, var(--accent), #000 3%) 100%);
+  --line: color-mix(in srgb, var(--pt) 14%, transparent);
+  --line-2: color-mix(in srgb, var(--pt) 25%, transparent);
+  --tint: color-mix(in srgb, var(--pt) 9%, transparent);
+  --tint-2: color-mix(in srgb, var(--pt) 16%, transparent);
+  --glass-fill: linear-gradient(180deg,
+    color-mix(in srgb, color-mix(in oklab, var(--pc, #3f7cf0) 30%, rgb(40, 50, 90)) 76%, transparent),
+    color-mix(in srgb, color-mix(in oklab, var(--pc, #3f7cf0) 18%, rgb(17, 23, 50)) 84%, transparent));
+  --glass-edge: color-mix(in srgb, var(--pt) 22%, transparent);
+  --card-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025) 50%),
+    color-mix(in srgb, color-mix(in oklab, var(--pc, #3f7cf0) 24%, rgb(22, 29, 62)) 66%, transparent);
+  --card-edge: color-mix(in srgb, var(--pt) 19%, transparent);
+  --btn-fill: linear-gradient(180deg,
+    color-mix(in srgb, var(--pt) 19%, transparent), color-mix(in srgb, var(--pt) 6%, transparent) 50%,
+    color-mix(in srgb, var(--pt) 4%, transparent) 51%, color-mix(in srgb, var(--pt) 7%, transparent));
+  --btn-edge: color-mix(in srgb, var(--pt) 24%, transparent);
+}
+body[data-page="planet"] :is(.vbtn-blue, .btn-dark) { border-color: color-mix(in srgb, var(--accent), #000 40%); text-shadow: 0 1px 1px rgba(0, 0, 20, 0.35); }
+body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, #3f7cf0), #fff 45%); }
+body[data-page="planet"] .viewer {
+  background:
+    radial-gradient(120% 90% at 20% 110%, color-mix(in oklab, var(--pc, #3f7cf0) 22%, transparent), transparent 60%),
+    color-mix(in oklab, var(--pc, #3f7cf0) 7%, color-mix(in srgb, var(--sky-top) 92%, transparent));
+}
+
 .liv { position: relative; }
 .liv-head {
   display: grid;
@@ -1198,6 +1232,10 @@ body.is-carrying, body.is-carrying * { cursor: grabbing !important; user-select:
   backdrop-filter: blur(24px) saturate(1.2);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
 }
+/* A page-change snapshot can't carry the frosted blur: closing a file blurred
+   the whole planet page near the end, then it snapped sharp. Off while the
+   viewer comes and goes (it's nearly opaque, so it looks the same). */
+html[data-vt="viewer"] .viewer { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .vw-side { background: var(--tint); border-left-color: var(--line); }
 .vw-btn:hover { background: var(--tint-2); }
 .vw-codebox { background: var(--well); border-color: var(--line); }

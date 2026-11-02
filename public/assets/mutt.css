@@ -1196,6 +1196,13 @@ html[data-vt="viewer"]::view-transition-new(root) { animation: none; }
 ::view-transition-new(viewer) { animation: fade-in 0.38s ease both; }
 ::view-transition-old(viewer) { animation: fade-out 0.32s ease both; }
 ::view-transition-group(viewer) { animation: none; }
+/* Text, links and file cards look different open and on the planet (big
+   type on the sky vs a small glass card), so the one leaving goes quickly
+   rather than shrinking as a ghost over the one arriving. Pictures are the
+   same both ways and keep the even crossfade. */
+.vw-text, .vw-card, .vw-link, .vw-pdf, .vw-codebox, .face-text, .face-file, .face-link { view-transition-class: card; }
+html[data-vt="viewer"]::view-transition-old(*.card) { animation: fade-out 0.2s ease-out both; mix-blend-mode: normal; }
+html[data-vt="viewer"]::view-transition-new(*.card) { animation: fade-in 0.36s ease-out both; mix-blend-mode: normal; }
 
 html[data-vt="mode"]::view-transition-old(root) { animation: page-out 0.25s var(--ease-in) both; }
 html[data-vt="mode"]::view-transition-new(root) { animation: page-in 0.5s var(--ease) both; }

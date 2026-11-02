@@ -135,6 +135,9 @@ export async function render({ pop = false, motion = 'page' } = {}) {
   if (viewerOpen()) await closeViewer();
   const swap = () => {
     current?.inst.destroy?.();
+    // A page's own colours (a planet's), which its controls lean toward.
+    for (const k of Object.keys(current?.inst.tint || {})) document.body.style.removeProperty(k);
+    for (const [k, v] of Object.entries(inst.tint || {})) document.body.style.setProperty(k, v);
     current = { path: url.pathname, base, inst };
     root.replaceChildren(inst.el);
     document.title = inst.title ? `${inst.title} — Mutt` : 'Mutt';

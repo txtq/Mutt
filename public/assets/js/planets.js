@@ -144,23 +144,55 @@ export function lookOf(planet) {
 // More colourful: pushes a colour's saturation up and lifts it a touch.
 // Greys and whites barely move, so ice caps and clouds stay clean.
 function richer(hex, amount = 1.4) {
+  const [hue, s, l] = toHsl(hex);
+  if (!s) return hex;
+  return fromHsl(hue, Math.min(1, s * amount), Math.min(0.92, l + (1 - l) * 0.06));
+}
+
+// [hue 0–360, saturation, lightness]; greys have no saturation.
+function toHsl(hex) {
   const [r, g, b] = rgb(hex);
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
   const d = max - min;
-  if (!d) return hex;
+  if (!d) return [0, 0, l];
   const s = d / (1 - Math.abs(2 * l - 1));
-  let hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  hue = (hue * 60 + 360) % 360;
-  const s2 = Math.min(1, s * amount);
-  const l2 = Math.min(0.92, l + (1 - l) * 0.06);
-  const c = (1 - Math.abs(2 * l2 - 1)) * s2;
+  const hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(hue * 60 + 360) % 360, s, l];
+}
+
+function fromHsl(hue, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
   const [r1, g1, b1] = hue < 60 ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x] : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
-  const m = l2 - c / 2;
+  const m = l - c / 2;
   const to = (v) => Math.round((v + m) * 255);
   return `#${((1 << 24) | (to(r1) << 16) | (to(g1) << 8) | to(b1)).toString(16).slice(1)}`;
+}
+
+// How bright a colour looks (0 black, 1 white).
+function luminance(hex) {
+  const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const [r, g, b] = rgb(hex).map(lin);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// The colours a planet's page leans toward: `tone`, the world as it reads
+// from afar (its kind's main colour, not just the planet's own), and
+// `accent`, a livelier one for buttons, dark enough for white type (no
+// brighter than the galaxy's blue). Grey worlds keep a hint of that blue.
+export function planetTone(planet) {
+  const { base } = worldColors(planet);
+  const [hue, s, l] = toHsl(base);
+  const tone = fromHsl(hue, Math.min(s, 0.6), Math.max(0.36, Math.min(0.62, l)));
+  if (s < 0.12) return { tone, accent: shade('#3f7cf0', tone, 0.45) };
+  let accent;
+  for (let al = 0.54; al > 0.3; al -= 0.02) {
+    accent = fromHsl(hue, Math.max(0.5, Math.min(0.78, s * 1.15)), al);
+    if (luminance(accent) <= 0.22) break;
+  }
+  return { tone, accent };
 }
 
 // A world's colours: its kind's palette, leaning toward the planet's colour

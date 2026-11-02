@@ -47,6 +47,7 @@ function metrics(width, viewH, z = 1) {
   return {
     narrow,
     z,
+    viewH,
     scale: (narrow ? 0.72 : mid ? 0.86 : 1) * z,
     hole,
     // The glow round it: a tall oval.
@@ -60,9 +61,9 @@ function metrics(width, viewH, z = 1) {
   };
 }
 
-// On a computer a galaxy fits the screen: when its planets would run past
-// the bottom, everything is drawn smaller until they don't. `place(m)` lays
-// it out and says how tall it came out. Phones scroll through theirs.
+// A galaxy fits the screen: when its planets would run past the bottom,
+// everything is drawn smaller until they don't. `place(m)` lays it out and
+// says how tall it came out. Past the smallest size, the page scrolls.
 const Z_MIN = 0.42;
 
 // Out in the universe each void draws this much smaller beside its planets.
@@ -70,8 +71,10 @@ const VOID_UV = 0.5;
 function fitted(width, viewH, place) {
   let m = metrics(width, viewH);
   let out = place(m);
-  for (let i = 0; i < 12 && !m.narrow && out.content > viewH && m.z > Z_MIN; i++) {
-    m = metrics(width, viewH, Math.max(Z_MIN, m.z * Math.min(0.96, (viewH / out.content) ** 1.2)));
+  // A phone's rows reflow as things shrink, so it steps down gently and
+  // stops at the largest size that fits.
+  for (let i = 0; i < 30 && out.content > viewH && m.z > Z_MIN; i++) {
+    m = metrics(width, viewH, Math.max(Z_MIN, m.z * (m.narrow ? 0.97 : Math.min(0.96, (viewH / out.content) ** 1.2))));
     out = place(m);
   }
   return { m, ...out };
@@ -147,6 +150,7 @@ function scatter(planets, width, inner, m) {
     fx = Math.min(fx, room / Math.abs(p.x * m.scale));
   });
   const stretch = 1 / Math.sqrt(Math.max(fx, 0.1));
+  if (m.narrow) return { ...rows(planets, sizes, width, inner, m), fx, stretch };
   const rects = [];
   const spots = planets.map((p, i) => {
     if (!placed(p)) return null;
@@ -181,6 +185,96 @@ function scatter(planets, width, inner, m) {
   return { spots, rects, fx, stretch };
 }
 
+// Room kept above and below a galaxy: on a phone the bottom keeps clear of
+// the "Universe" button.
+function pads(m) {
+  if (m.narrow) return { top: Math.round(20 * Math.max(m.z, 0.6)), bottom: 64 };
+  const pad = Math.round(56 * Math.max(m.z, 0.6));
+  return { top: pad, bottom: pad };
+}
+
+// On a phone there's no room beside the void, so planets sit in loose rows
+// above and below it. Where you've put a planet decides its side and its
+// place in the order (top to bottom, then left to right); the rest fill
+// whichever side is shorter. Rows spread out to use the screen's height.
+function rows(planets, sizes, width, inner, m) {
+  const W = width - 16;
+  // A full planet's rings reach well past its sides.
+  const wide = (i) => Math.max(footprint(sizes[i], m), sizes[i] * ((planets[i].count || 0) >= 10 ? 1.6 : 1));
+  const tall = (s) => s + 58; // a planet with its name under it
+  const sides = { top: [], bottom: [] };
+  const order = planets.map((p, i) => i);
+  order.filter((i) => placed(planets[i]))
+    .sort((a, b) => planets[a].y - planets[b].y || planets[a].x - planets[b].x)
+    .forEach((i) => sides[planets[i].y < 0 ? 'top' : 'bottom'].push(i));
+  const load = (list) => list.reduce((t, i) => t + wide(i) * tall(sizes[i]), 0);
+  for (const i of order) {
+    if (placed(planets[i])) continue;
+    if (load(sides.top) <= load(sides.bottom)) sides.top.unshift(i);
+    else sides.bottom.push(i);
+  }
+  // Pack each side into rows that fit the width.
+  const pack = (list) => {
+    const out = [];
+    for (const i of list) {
+      const row = out[out.length - 1];
+      const used = row ? row.reduce((t, j) => t + wide(j) + m.gap, 0) : Infinity;
+      if (used + wide(i) <= W) row.push(i);
+      else out.push([i]);
+    }
+    // Within a row, the ones you've put somewhere keep their left-to-right order.
+    for (const row of out) {
+      const slots = row.map((i, k) => k).filter((k) => placed(planets[row[k]]));
+      const sorted = slots.map((k) => row[k]).sort((x, y) => planets[x].x - planets[y].x);
+      slots.forEach((k, n) => { row[k] = sorted[n]; });
+    }
+    return out;
+  };
+  const top = pack(sides.top);
+  const bottom = pack(sides.bottom);
+  const height = (row) => tall(Math.max(...row.map((i) => sizes[i])));
+  const spots = [];
+  // A row's planets spread across the width, its top edge at y0.
+  const lay = (row, y0, k) => {
+    const S = Math.max(...row.map((i) => sizes[i]));
+    const free = Math.max(0, W - row.reduce((t, i) => t + wide(i), 0));
+    const step = free / (row.length + 1);
+    // Every other row leans a little to one side, so it isn't a grid.
+    let x = -W / 2 + step + (row.length > 1 ? 0 : (k % 2 ? 1 : -1) * Math.min(step * 0.4, W * 0.12));
+    for (const i of row) {
+      const s = sizes[i];
+      const w = wide(i);
+      const rand = seeded(`row:${planets[i].id}`);
+      const y = y0 + 8 + S / 2 + (rand() - 0.5) * (S - s);
+      const cx = x + w / 2 + (rand() - 0.5) * step * 0.5;
+      spots[i] = { x: cx, y, size: s, rect: box(cx, y, s, w) };
+      x += w + step;
+    }
+  };
+  // The row next to the void tucks into the empty corners round it, as far
+  // as its planets clear the void and its stars.
+  const sink = (row, y0, dir, k) => {
+    let d = 0;
+    for (; d < inner.ry; d += 2) {
+      lay(row, y0 + dir * (d + 2), k);
+      if (row.some((i) => ovalHitsRect(inner.rx, inner.ry, spots[i].rect))) break;
+    }
+    return d;
+  };
+  const sinkTop = top.length ? sink(top[top.length - 1], -inner.ry - height(top[top.length - 1]), 1, 0) : 0;
+  const sinkBottom = bottom.length ? sink(bottom[0], inner.ry, -1, top.length) : 0;
+  // Spare height goes evenly between the rows and the void, up to a point.
+  const p = pads(m);
+  const used = [...top, ...bottom].reduce((t, r) => t + height(r), 0) + inner.ry * 2 - sinkTop - sinkBottom;
+  const gaps = top.length + bottom.length;
+  const spare = gaps ? clamp((m.viewH - p.top - p.bottom - used) / gaps, m.gap, m.viewH * 0.07) : 0;
+  let y = -inner.ry + sinkTop;
+  top.slice().reverse().forEach((row, k) => { y -= spare + height(row); lay(row, y, k); });
+  y = inner.ry - sinkBottom;
+  bottom.forEach((row, k) => { y += spare; lay(row, y, k + top.length); y += height(row); });
+  return { spots, rects: spots.map((s) => s.rect) };
+}
+
 // ---------------------------------------------------------------- the universe
 
 // The universe is one big map with every galaxy on it at its true size: the
@@ -209,10 +303,10 @@ function extent(rects, inner, viewH, m) {
     bottom = Math.max(bottom, r.y1);
     reach = Math.max(reach, -r.x0, r.x1);
   }
-  const pad = Math.round((m.narrow ? 36 : 56) * Math.max(m.z, 0.6));
-  const content = bottom - top + pad * 2;
+  const pad = pads(m);
+  const content = bottom - top + pad.top + pad.bottom;
   const height = Math.max(viewH, content);
-  return { content, ex: reach + 12, ey: Math.max(-top, bottom) + 12, cy: pad - top + (height - content) / 2 };
+  return { content, height, ex: reach + 12, ey: Math.max(-top, bottom) + 12, cy: pad.top - top + (height - content) / 2 };
 }
 
 // A galaxy on the map: its void and its planets, painted once and held
@@ -557,7 +651,7 @@ class Galaxy {
     const width = this.stage.clientWidth || innerWidth;
     const bar = this.barHeight();
     const viewH = innerHeight - bar;
-    const { m, starAt, inner, spots, rects, fx, stretch, ...home } = fitted(width, viewH, (m) => {
+    const { m, starAt, inner, spots, fx, stretch, ...home } = fitted(width, viewH, (m) => {
       const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m, width);
       // Planets keep clear of the dust and of the stars caught in it. The
       // dust fades out well before its edge, so they may sit on its rim.
@@ -572,14 +666,8 @@ class Galaxy {
     this.stretch = stretch;
     this.spots = new Map(this.data.planets.map((p, i) => [p.id, spots[i]]));
 
-    let top = -inner.ry;
-    let bottom = inner.ry;
-    for (const r of rects) { top = Math.min(top, r.y0); bottom = Math.max(bottom, r.y1); }
-    const pad = Math.round((m.narrow ? 36 : 56) * Math.max(m.z, 0.6));
-    const content = bottom - top + pad * 2;
-    const height = Math.max(viewH, content);
+    const { height, cy } = home;
     const cx = width / 2;
-    const cy = pad - top + (height - content) / 2;
     this.size = { width, height, viewH, bar, cx, cy };
 
     this.scene.style.height = `${height}px`;

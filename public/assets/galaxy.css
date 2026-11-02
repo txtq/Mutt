@@ -1273,7 +1273,8 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .vf-input { height: calc(24px * 6 + 36px); }
   .uv-sub { display: none; }
   .uvg-name { font-size: 12px; }
-  .uvg-meta { font-size: 9.5px; }
+  /* only names out in the universe: a phone has no room for the counts */
+  .uvg-meta { display: none; }
   .login { padding-bottom: 16vh; }
   .login-box { padding: 30px 24px 26px; }
   .login-q { font-size: 22px; }

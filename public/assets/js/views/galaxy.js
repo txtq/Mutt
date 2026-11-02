@@ -283,6 +283,30 @@ function blurCopy(el, voidPic) {
 // Where every galaxy sits on the map, round the one whose page this is
 // (`home`), and how far the camera pulls back to fit them all on screen.
 function universeLayout(plans, home, width, viewH) {
+  // Names stay one size however far out, so the spacing keeps room for
+  // them at the scale the map is drawn at: look for the largest scale at
+  // which the map, names and all, still fits the screen.
+  const size = width < 640 ? LABEL.narrow : LABEL.wide;
+  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k });
+  let lo = K_MIN;
+  let hi = K_MAX;
+  let best = at(lo);
+  for (let i = 0; i < 8; i++) {
+    const k = (lo + hi) / 2;
+    const out = at(k);
+    if (out.k >= k) { lo = k; best = out; } else hi = k;
+  }
+  return best;
+}
+
+const K_MIN = 0.03;
+const K_MAX = 0.34;
+
+// A galaxy's name and counts under it, in screen pixels (a phone shows
+// only the name).
+const LABEL = { wide: { x: 150, y: 46 }, narrow: { x: 96, y: 26 } };
+
+function spreadUniverse(plans, home, width, viewH, label) {
   const avg = plans.reduce((s, p) => s + p.ex, 0) / Math.max(1, plans.length);
   // Spread to the screen's shape: wide on a desktop, tall on a phone.
   const wide = clamp(Math.sqrt(width / viewH), 0.62, 1.5);
@@ -299,8 +323,8 @@ function universeLayout(plans, home, width, viewH) {
     let moved = false;
     for (let i = 0; i < spots.length; i++) {
       for (let j = i + 1; j < spots.length; j++) {
-        const across = (plans[i].ex + plans[j].ex) * 1.3;
-        const down = (plans[i].ey + plans[j].ey) * 1.42;
+        const across = Math.max((plans[i].ex + plans[j].ex) * 1.3, label.x);
+        const down = Math.max((plans[i].ey + plans[j].ey) * 1.42, plans[i].ey + plans[j].ey + label.y);
         const dx = spots[j].x - spots[i].x;
         const dy = spots[j].y - spots[i].y;
         const ox = across - Math.abs(dx);
@@ -309,7 +333,8 @@ function universeLayout(plans, home, width, viewH) {
         moved = true;
         // Slide apart along whichever way is the shorter way out; the home
         // galaxy stays put.
-        const move = ox / across < oy / down
+        // (on a tall screen they'd rather stack than sit side by side)
+        const move = ox / across < (oy / down) * Math.min(1, wide)
           ? { x: (dx < 0 ? -ox : ox) / 2, y: 0 }
           : { x: 0, y: (dy < 0 ? -oy : oy) / 2 };
         const kj = i === home ? 2 : j === home ? 0 : 1;
@@ -324,11 +349,15 @@ function universeLayout(plans, home, width, viewH) {
   // the names, which stay one size however far out.
   let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
   spots.forEach((s, i) => {
-    x0 = Math.min(x0, s.x - plans[i].ex); x1 = Math.max(x1, s.x + plans[i].ex);
-    y0 = Math.min(y0, s.y - plans[i].ey); y1 = Math.max(y1, s.y + plans[i].ey);
+    const half = Math.max(plans[i].ex, label.x / 2);
+    x0 = Math.min(x0, s.x - half); x1 = Math.max(x1, s.x + half);
+    y0 = Math.min(y0, s.y - plans[i].ey); y1 = Math.max(y1, s.y + plans[i].ey + label.y);
   });
-  const room = { x: (width - (width < 640 ? 120 : 80)) * 0.78, y: (viewH - (width < 640 ? 136 : 150)) * 0.78 };
-  const k = clamp(Math.min(room.x / (x1 - x0), room.y / (y1 - y0)), 0.03, 0.34);
+  // A phone has little room to spare; a computer keeps space round the map.
+  const narrow = width < 640;
+  const fill = narrow ? 0.95 : 0.78;
+  const room = { x: (width - (narrow ? 120 : 80)) * fill, y: (viewH - (narrow ? 136 : 150)) * fill };
+  const k = clamp(Math.min(room.x / (x1 - x0), room.y / (y1 - y0)), K_MIN, K_MAX);
   const mid = { x: width / 2 - k * (x0 + x1) / 2, y: viewH / 2 + 10 - k * (y0 + y1) / 2 };
   return { spots, k, mid };
 }

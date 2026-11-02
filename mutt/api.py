@@ -347,8 +347,11 @@ def health(req):
 def me(req):
     if not req.user:
         raise HttpError(401, 'Please sign in.', signups=ALLOW_SIGNUPS)
+    headers = []
+    if not auth.known_device(req.db, req.user['id'], req.cookie(auth.DEVICE_COOKIE)):
+        headers.append(auth.remember_device(req, req.db, req.user['id']))  # signed in before device cookies
     return json_response({'user': user_json(req.user), 'prefs': user_prefs(req.user),
-                          'stats': user_stats(req.db, req.user['id'])})
+                          'stats': user_stats(req.db, req.user['id'])}, headers=headers)
 
 
 @route('GET', r'/api/auth/available', auth=False)
@@ -388,10 +391,10 @@ def signup(req):
     auth.signups_by_ip.hit(ip)
     user = req.db.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
     return json_response({'user': user_json(user), 'prefs': {}, 'stats': {'files': 0, 'drawers': 0}},
-                         headers=[auth.cookie_header(req, token)])
+                         headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
 
-def pin_gate(req, user, pin, wrong_status=401):
+def pin_gate(req, user, pin, wrong_status=401, device=None):
     """Raise unless `pin` opens `user`'s account (counting toward its lockout).
 
     Unlocking someone else's drawers passes 403 for a wrong code, because a
@@ -403,7 +406,7 @@ def pin_gate(req, user, pin, wrong_status=401):
         raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
     if not auth.PIN_RE.match(pin):
         raise HttpError(400, 'Codes are 4 digits.')
-    failure = auth.try_pin(req.db, user, pin, ip)
+    failure = auth.try_pin(req.db, user, pin, ip, device)
     if failure:
         status, message, extra = failure
         raise HttpError(wrong_status if status == 401 else status, message, **extra)
@@ -423,7 +426,7 @@ def login(req):
         auth.login_failures_by_ip.hit(req.client_ip)
         raise HttpError(401, "That username and code don't match.")
     try:
-        pin_gate(req, user, pin)
+        pin_gate(req, user, pin, device=req.cookie(auth.DEVICE_COOKIE))
     except HttpError as err:
         if err.status == 401:
             err.message = "That username and code don't match."
@@ -433,7 +436,7 @@ def login(req):
         auth.prune_sessions(req.db)
     return json_response({'user': user_json(user), 'prefs': user_prefs(user),
                           'stats': user_stats(req.db, user['id'])},
-                         headers=[auth.cookie_header(req, token)])
+                         headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
 
 @route('POST', r'/api/auth/logout', auth=False)
@@ -641,9 +644,9 @@ def save_layout(req):
 
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
-    """The universe: everyone with something you could look at. You come
-    first, then people whose planets are open to you, then the ones you'd
-    need a code for, each A to Z."""
+    """The universe: everyone with something you could look at, you first,
+    then everyone else A to Z. Anyone's galaxy can be opened; a code is only
+    asked for on a locked planet."""
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
     out = []
     for user in users:
@@ -663,10 +666,10 @@ def list_galaxies(req):
         out.append({
             'username': user['username'], 'you': mine, 'planets': len(worlds),
             'files': sum(w['n'] for w in opened), 'open': len(opened),
-            'locked': bool(worlds) and not opened,
+            'locked': len(worlds) - len(opened),
             'worlds': worlds[:16],
         })
-    out.sort(key=lambda g: (not g['you'], g['locked'], g['username']))
+    out.sort(key=lambda g: (not g['you'], g['username']))
     return json_response({'galaxies': out})
 
 

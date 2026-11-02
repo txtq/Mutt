@@ -43,10 +43,11 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Who can see a planet**: Private (only you), Code (anyone who has your
   4-digit code, the default), People (the usernames you list) or Public
   (everyone signed in). A public planet can also let others add files.
-- **The universe**: keep scrolling down and your galaxy shrinks away into a
-  dark universe of everyone's galaxies (or go straight to `/universe`).
-  Click one to visit it. Planets you can't open yet look frosted; type
-  their code to thaw them. Wrong codes count toward the same lockout as
+- **The universe**: keep scrolling down and the camera pulls back from your
+  galaxy, past a few others drifting by, until it sits small among
+  everyone's galaxies on a faint web of dust (or go straight to `/universe`).
+  Click any galaxy and the camera dives into it. Planets you can't open yet
+  look frosted; click one and type its owner's code to thaw them. Wrong codes count toward the same lockout as
   signing in; changing your code locks everyone out again. **Save** a file
   you like to keep your own copy.
 - **Going home**: away from your galaxy, a faint back arrow in the top-left
@@ -78,6 +79,12 @@ Then open http://localhost:8080 and make an account.
 Everything lives in `data/`: `mutt.db` (SQLite), `files/` (uploads, one folder
 per user) and `secret.key`. Back up that folder to back up Mutt.
 
+Every night (at the first check after 3am, server time, or straight away if
+there are none yet) Mutt copies the database to `data/backups/mutt-YYYY-MM-DD.db`
+and keeps the last 7. The copy is taken safely while the site runs. It covers
+accounts, planets and notes; uploaded files stay in `files/`. To restore, stop
+Mutt and copy a backup over `mutt.db` (and delete `mutt.db-wal` and `mutt.db-shm`).
+
 ### Settings (environment variables)
 
 | Variable | Default | What it does |
@@ -88,6 +95,7 @@ per user) and `secret.key`. Back up that folder to back up Mutt.
 | `MUTT_MAX_UPLOAD_MB` | `512` | Largest single file. |
 | `MUTT_TRUST_PROXY` | off (on in the Docker image) | Trust the hosting proxy's headers, so cookies are marked Secure and client IPs are read correctly. Only turn on behind a proxy. |
 | `MUTT_SECRET` | from `data/secret.key` | Extra secret mixed into PIN hashes. Set it if your data folder isn't private. |
+| `MUTT_BACKUPS` | `1` | Set to `0` to stop the nightly database copies in `data/backups/`. |
 
 ## Put it online
 
@@ -106,13 +114,9 @@ your data is on the volume.
    build type **Dockerfile** (repo root).
 3. Under networking, make port **8080** **HTTP** and **Public**.
 4. On the service, **Volumes → Add volume**, container mount path `/data`.
-5. The public address is shown at the top of the service page.
-
-### Railway
-
-**New Project → Deploy from GitHub repo**, attach a volume (any mount path),
-then **Settings → Networking → Generate Domain**. `railway.json` handles the
-rest.
+5. On the service, **Health checks → Add health check**: HTTP, port **8080**,
+   path `/api/health`.
+6. The public address is shown at the top of the service page.
 
 ### Any Docker host
 
@@ -130,8 +134,13 @@ keep it closed.
 A 4-digit code only has 10,000 options, so Mutt slows guessing down hard:
 
 - Each PIN is hashed with scrypt plus a server-side secret.
-- After 5 wrong PINs an account locks for 30 seconds, then the lock doubles
-  with each miss (up to an hour). Guessing every PIN would take years.
+- After 5 wrong PINs from one place (IP address), that place is locked out of
+  the account for 30 seconds, then the lock doubles with each miss (up to an
+  hour). Guessing every PIN from one place would take over a year.
+- 40 misses in a day from everywhere together close the account to browsers
+  that have never signed in to it, so spreading guesses over many places
+  doesn't get far either. Browsers you've signed in with before keep working,
+  so someone guessing can't lock you out of your own account.
 - Each IP address also gets 30 misses per 15 minutes across all accounts.
 - Sessions are HttpOnly cookies; changing your PIN signs out other devices.
 
@@ -145,7 +154,7 @@ server.py            starts the server
 mutt/                Python: app, api, auth, db, links (link previews), kinds (bundles)
 public/index.html    the single page
 public/assets/       mutt.css + galaxy.css, and js/ (galaxy, planets, the void, sky, viewer…)
-tests/               API test suites: tests/run.sh [smoke|galaxy|preview]
+tests/               API test suites: tests/run.sh [smoke|galaxy|preview|lockout]
 ```
 
 Previews (image thumbnails, video posters, PDF first pages) are made in the

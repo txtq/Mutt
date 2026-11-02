@@ -1,12 +1,13 @@
 #!/bin/bash
 # Runs API test suites against a fresh server on port 8099 with a throwaway
-# data folder. Usage: tests/run.sh [smoke|galaxy|preview ...]  (default: all)
+# data folder. Usage: tests/run.sh [smoke|galaxy|preview|lockout ...]  (default: all)
+# MUTT_TRUST_PROXY lets the lockout suite pose as different IPs.
 # The suites print what the API answered; read the output for wrong values.
 cd "$(dirname "$0")/.." || exit 1
-SUITES=("$@"); [ ${#SUITES[@]} -eq 0 ] && SUITES=(smoke galaxy preview)
+SUITES=("$@"); [ ${#SUITES[@]} -eq 0 ] && SUITES=(smoke galaxy preview lockout)
 for N in "${SUITES[@]}"; do
   WORK=$(mktemp -d)
-  MUTT_DATA_DIR="$WORK/data" PORT=8099 python3 server.py > "$WORK/server.log" 2>&1 &
+  MUTT_TRUST_PROXY=1 MUTT_DATA_DIR="$WORK/data" PORT=8099 python3 server.py > "$WORK/server.log" 2>&1 &
   PID=$!
   for i in $(seq 1 30); do curl -s -o /dev/null localhost:8099/api/health && break; sleep 0.2; done
   echo "== $N"

@@ -463,6 +463,12 @@ export function holdPlanets(on) {
   wake();
 }
 
+// Flicks: the speed is measured over the last FLICK_MS before letting go,
+// capped at MAX_SPIN turns a millisecond (5 a second); RUB is the steady friction.
+const FLICK_MS = 90;
+const MAX_SPIN = 0.005;
+const RUB = 2e-7;
+
 function makeGlobe(canvas, rand) {
   const period = (80 + rand() * 70) * 1000;
   const offset = rand() * period;
@@ -475,7 +481,9 @@ function makeGlobe(canvas, rand) {
   let spin = 0;
   let vel = 0;
   let tip = 0;
+  let tipVel = 0;
   let grabbed = false;
+  const flick = [];
   let image = null;
   let out = null;
   let table = null;
@@ -547,36 +555,51 @@ function makeGlobe(canvas, rand) {
       visible = on;
       if (on) globe.draw(performance.now(), true);
     },
-    // Spinning by hand: the surface follows the pointer sideways (a whole
-    // turn is the distance round its middle), and up/down tips it a little.
+    // Spinning by hand, like a fidget spinner: the surface follows the
+    // pointer sideways (a whole turn is the distance round its middle) and,
+    // let go, keeps the speed and direction it was flicked with, coasting
+    // down slowly. Up/down tips it a little; it bounces back level.
     grab() {
       grabbed = true;
       vel = 0;
+      flick.length = 0;
       spinning.add(globe);
       wake();
     },
-    drag(dx, dy, dt) {
+    drag(dx, dy, t) {
       // Its own turn carries the surface leftward, so a drag right is a negative turn.
       const step = -dx / (Math.PI * Math.max(1, cssSize));
       spin += step;
-      if (dt > 0) vel += (step / Math.max(8, dt) - vel) * 0.5;
+      flick.push({ step, t });
+      while (flick.length > 1 && t - flick[0].t > FLICK_MS) flick.shift();
       tip = 0.45 * Math.tanh((dy / Math.max(1, cssSize)) * 1.4);
+      tipVel = 0;
     },
-    // `idle`: how long the pointer had stopped before letting go.
-    release(idle) {
+    // The speed of the last moments before letting go: a pause first means no spin.
+    release(t, cancelled = false) {
       grabbed = false;
-      if (idle > 90 || reducedMotion()) vel = 0;
-      vel = Math.max(-0.002, Math.min(0.002, vel));
+      const recent = flick.filter((f) => t - f.t <= FLICK_MS);
+      const span = recent.length ? Math.max(16, t - recent[0].t + 8) : 0;
+      vel = cancelled || reducedMotion() || !span ? 0 : recent.reduce((sum, f) => sum + f.step, 0) / span;
+      vel = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, vel));
+      flick.length = 0;
     },
-    // Coasts to a stop and springs the tip back; false once it has settled.
+    // Coasts down and bounces the tip back; false once it has settled.
     step(dt) {
       if (grabbed) return true;
       spin += vel * dt;
-      vel *= Math.exp(-dt / 750);
-      tip *= Math.exp(-dt / 140);
-      if (Math.abs(vel) > 2e-6 || Math.abs(tip) > 0.002) return true;
-      vel = 0;
+      // Slows like a bearing: a little drag that grows with speed, plus a
+      // steady rub that brings it to a clean stop.
+      const slowed = Math.abs(vel) * Math.exp(-dt / 2600) - RUB * dt;
+      vel = slowed > 0 ? Math.sign(vel) * slowed : 0;
+      for (let left = dt; left > 0; left -= 16) {
+        const d = Math.min(16, left);
+        tipVel += (-tip * 2.5e-4 - tipVel * 0.012) * d;
+        tip += tipVel * d;
+      }
+      if (vel || Math.abs(tip) > 0.002 || Math.abs(tipVel) > 1e-5) return true;
       tip = 0;
+      tipVel = 0;
       return false;
     },
   };
@@ -596,7 +619,7 @@ function spinnable(el, globe) {
     if (e.button !== 0 || e.isPrimary === false) return;
     const pid = e.pointerId;
     const start = { x: e.clientX, y: e.clientY };
-    let last = { x: e.clientX, t: e.timeStamp };
+    let last = { x: e.clientX };
     let on = false;
     spun = false;
 
@@ -608,26 +631,26 @@ function spinnable(el, globe) {
     };
     const move = (ev) => {
       if (ev.pointerId !== pid) return;
-      if (document.body.classList.contains('is-carrying')) { end(Infinity); return; }
+      if (document.body.classList.contains('is-carrying')) { end(ev.timeStamp, true); return; }
       const dx = ev.clientX - start.x;
       const dy = ev.clientY - start.y;
       if (!on) {
         if (Math.hypot(dx, dy) < 6) return;
-        if (Math.abs(dx) < Math.abs(dy) * 1.2) { end(Infinity); return; } // a scroll
+        if (Math.abs(dx) < Math.abs(dy) * 1.2) { end(ev.timeStamp, true); return; } // a scroll
         begin();
       }
       if (Math.hypot(dx, dy) > 4) spun = true;
-      globe.drag(ev.clientX - last.x, dy, ev.timeStamp - last.t);
-      last = { x: ev.clientX, t: ev.timeStamp };
+      globe.drag(ev.clientX - last.x, dy, ev.timeStamp);
+      last = { x: ev.clientX };
     };
     const up = (ev) => {
-      if (ev.pointerId === pid) end(ev.type === 'pointercancel' ? Infinity : ev.timeStamp - last.t);
+      if (ev.pointerId === pid) end(ev.timeStamp, ev.type === 'pointercancel');
     };
-    function end(idle) {
+    function end(t, cancelled) {
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
       removeEventListener('pointercancel', up);
-      if (on) { globe.release(idle); el.classList.remove('is-spinning'); }
+      if (on) { globe.release(t, cancelled); el.classList.remove('is-spinning'); }
       on = false;
     }
     addEventListener('pointermove', move);

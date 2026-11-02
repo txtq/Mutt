@@ -513,7 +513,7 @@ function renderSide() {
 
   fill(state.side,
     editable(block, 'title', { placeholder: 'Untitled', className: 'vw-title' }),
-    editable(block, 'description', { placeholder: 'Note', className: 'vw-desc' }),
+    editable(block, 'description', { placeholder: 'Add a note', className: 'vw-desc' }),
     actions,
     metaRows(block),
     h('section', { class: 'vw-conn-head' },

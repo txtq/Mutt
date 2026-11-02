@@ -12,10 +12,10 @@ import { h, isEditable } from './util.js';
 import { voidArt } from './voidart.js';
 
 const MODES = [
-  { value: 'star', label: 'Star', hint: 'Lands as a loose star by the void. Drag it onto a planet later.' },
-  { value: 'sort', label: 'Autosort', hint: 'Finds the planet it fits best, or starts a new one.' },
-  { value: 'planet', label: 'Planet', hint: 'Goes straight onto the planet you pick.' },
-  { value: 'new', label: 'New planet', hint: 'Starts a new planet with this as its first file.' },
+  { value: 'star', label: 'Star', hint: 'A loose star by the void' },
+  { value: 'sort', label: 'Autosort', hint: 'The planet it fits best' },
+  { value: 'planet', label: 'Planet' },
+  { value: 'new', label: 'New planet' },
 ];
 
 
@@ -61,25 +61,27 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   const label = v.text;
 
   // ---------------------------------------------------------------- the add box
+  // Writing comes first: the text sits straight on the light with no frame,
+  // and grows as you write. Under it, one quiet line: upload, where it goes
+  // (a single choice that opens a short list), and Add.
 
   const input = h('textarea', {
-    class: 'vf-input', rows: 6, placeholder: 'Type, paste a link, or drop a file', 'aria-label': 'A note or link', spellcheck: 'true',
+    class: 'vf-input', rows: 4, placeholder: 'Write something, or paste a link', 'aria-label': 'A note or link', spellcheck: 'true',
   });
   const picker = h('input', { type: 'file', multiple: true, hidden: true });
-  const modeBtns = MODES.map((m) => h('button', { type: 'button', class: 'vf-mode', dataset: { value: m.value }, 'aria-pressed': 'false' }, m.label));
-  const modes = h('div', { class: 'vf-modes', role: 'group', 'aria-label': 'Where it goes' }, modeBtns);
-  const planetRow = h('div', { class: 'vf-planets', role: 'listbox', 'aria-label': 'Planet' });
-  const nameInput = h('input', { class: 'vf-name', type: 'text', maxlength: '80', placeholder: 'Name the new planet', 'aria-label': 'New planet name', spellcheck: 'false' });
-  const hint = h('p', { class: 'vf-hint' });
-  const go = h('button', { type: 'button', class: 'vf-go' }, 'Add');
-  const upload = h('button', { type: 'button', class: 'vf-upload', onclick: () => picker.click() }, glyph('upload', 13), h('span', null, 'Upload'));
-  const closeBtn = h('button', { type: 'button', class: 'vf-close' }, 'Close');
+  const whereDot = h('span', { class: 'vf-where-dot' });
+  const whereText = h('span', { class: 'vf-where-text' });
+  const where = h('button', { type: 'button', class: 'vf-where', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', title: 'Where it goes' },
+    h('span', { class: 'vf-where-to' }, 'To'), whereDot, whereText, glyph('caret', 12));
+  const list = h('div', { class: 'vf-list', role: 'listbox', 'aria-label': 'Where it goes', hidden: true });
+  const nameInput = h('input', { class: 'vf-name', type: 'text', maxlength: '80', placeholder: 'Name it', 'aria-label': 'New planet name', spellcheck: 'false' });
+  const go = h('button', { type: 'button', class: 'vf-go' }, 'Add', h('kbd', { class: 'vf-keys' }, /Mac|iP/.test(navigator.platform) ? '⌘↵' : 'Ctrl ↵'));
+  const upload = h('button', { type: 'button', class: 'vf-upload', title: 'Upload files', 'aria-label': 'Upload files', onclick: () => picker.click() }, glyph('upload', 15));
   const field = h('div', { class: 'vf-field' }, input, h('div', { class: 'vf-drop' }, h('span', null, 'Drop to add')));
   const sheet = h('div', { class: 'vf', role: 'dialog', 'aria-label': 'Add something' },
-    h('header', { class: 'vf-head' }, h('span', { class: 'vf-tab' }, 'Add to the void'), closeBtn),
     field,
-    h('div', { class: 'vf-dest' }, h('span', { class: 'vf-label' }, 'Goes to'), modes, planetRow, nameInput, hint),
-    h('footer', { class: 'vf-foot' }, upload, go),
+    h('footer', { class: 'vf-foot' }, upload, where, nameInput, go),
+    list,
     picker);
   el.append(sheet);
 
@@ -87,39 +89,76 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   let planetId = null;
 
   const choices = () => planets().filter((p) => !p.locked);
-  function paintPlanets() {
-    const list = choices();
-    if (!list.some((p) => p.id === planetId)) planetId = list[0]?.id || null;
-    planetRow.replaceChildren(...(list.length ? list.map((p) => h('button', {
-      type: 'button', class: 'vf-planet', role: 'option', dataset: { id: p.id }, 'aria-selected': String(p.id === planetId),
-      style: { '--c': p.icon?.c || '#2F6BFF' },
-      onclick: () => { planetId = p.id; paintPlanets(); },
-    }, h('span', { class: 'vf-planet-dot' }), h('span', null, p.title))) : [h('span', { class: 'vf-none' }, 'No planets yet. Make one with New planet.')]));
-  }
-  function setMode(next, { save = true } = {}) {
-    mode = next;
-    for (const b of modeBtns) b.setAttribute('aria-pressed', String(b.dataset.value === mode));
-    planetRow.hidden = mode !== 'planet';
+  const chosen = () => choices().find((p) => p.id === planetId);
+
+  // The one button says where it's going; the planet's colour shows as a dot.
+  function paintWhere() {
+    const planet = mode === 'planet' ? chosen() : null;
+    whereText.textContent = planet ? planet.title : MODES.find((m) => m.value === mode).label;
+    whereDot.hidden = !planet;
+    if (planet) whereDot.style.setProperty('--c', planet.icon?.c || '#2F6BFF');
     nameInput.hidden = mode !== 'new';
-    hint.textContent = MODES.find((m) => m.value === mode).hint;
-    if (mode === 'planet') paintPlanets();
-    if (save) onMode?.(mode);
-    if (open) fit();
   }
-  for (const b of modeBtns) b.addEventListener('click', () => {
-    setMode(b.dataset.value);
-    if (mode === 'new') nameInput.focus();
+  function setMode(next, { save = true, planet } = {}) {
+    mode = next;
+    if (planet) planetId = planet;
+    if (mode === 'planet' && !chosen()) mode = 'star';
+    paintWhere();
+    if (save) onMode?.(mode);
+  }
+
+  // The short list of places: a star, autosort, each planet, or a new one.
+  function option(label, { hint: note, dot, selected, pick }) {
+    return h('button', {
+      type: 'button', class: 'vf-opt', role: 'option', 'aria-selected': String(selected),
+      onclick: () => { pick(); hideList(); },
+    }, dot ? h('span', { class: 'vf-where-dot', style: { '--c': dot } }) : null, h('span', { class: 'vf-opt-label' }, label), note ? h('span', { class: 'vf-opt-hint' }, note) : null);
+  }
+  function showList() {
+    const planetsHere = choices();
+    list.replaceChildren(
+      ...MODES.filter((m) => m.value !== 'planet' && m.value !== 'new').map((m) => option(m.label, { hint: m.hint, selected: mode === m.value, pick: () => setMode(m.value) })),
+      planetsHere.length ? h('div', { class: 'vf-sep' }) : null,
+      ...planetsHere.map((p) => option(p.title, { dot: p.icon?.c || '#2F6BFF', selected: mode === 'planet' && p.id === planetId, pick: () => setMode('planet', { planet: p.id }) })),
+      h('div', { class: 'vf-sep' }),
+      option('New planet…', { selected: mode === 'new', pick: () => { setMode('new'); nameInput.focus(); } }));
+    list.hidden = false;
+    where.setAttribute('aria-expanded', 'true');
+    (list.querySelector('[aria-selected="true"]') || list.querySelector('.vf-opt'))?.focus({ preventScroll: true });
+  }
+  function hideList({ refocus = false } = {}) {
+    if (list.hidden) return;
+    list.hidden = true;
+    where.setAttribute('aria-expanded', 'false');
+    if (refocus) where.focus({ preventScroll: true });
+  }
+  where.addEventListener('click', () => (list.hidden ? showList() : hideList()));
+  sheet.addEventListener('pointerdown', (e) => { if (!list.contains(e.target) && !where.contains(e.target)) hideList(); });
+  list.addEventListener('keydown', (e) => {
+    const opts = [...list.querySelectorAll('.vf-opt')];
+    const i = opts.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      opts[(i + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length]?.focus();
+    }
+    if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); hideList({ refocus: true }); }
   });
 
-  // Where this one is going, or null (with the reason shown) when it can't go yet.
+  // Where this one is going, or null when it can't go yet.
   function destination() {
     if (mode === 'planet') {
-      if (!planetId) { hint.textContent = 'Pick a planet first.'; return null; }
+      if (!chosen()) { setMode('star', { save: false }); showList(); return null; }
       return { mode, planetId };
     }
     if (mode === 'new') {
       const title = nameInput.value.trim();
-      if (!title) { nameInput.focus(); hint.textContent = 'Give the new planet a name.'; return null; }
+      if (!title) {
+        nameInput.focus();
+        nameInput.classList.remove('is-wanted');
+        void nameInput.offsetWidth;
+        nameInput.classList.add('is-wanted');
+        return null;
+      }
       return { mode, title };
     }
     return { mode };
@@ -128,9 +167,21 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   let open = false;
   // The dark opens just wide enough to hold the box.
   const fit = () => art.setOpen(1, Math.hypot(sheet.offsetWidth / 2, sheet.offsetHeight / 2) + 14);
-  const sync = () => sheet.classList.toggle('has-text', input.value.trim().length > 0);
+  // The text grows with what you write (up to a point, then it scrolls), and
+  // the light widens with it.
+  let tall = 0;
+  const grow = () => {
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight}px`;
+    if (open && input.offsetHeight !== tall) { tall = input.offsetHeight; fit(); }
+  };
+  const sync = () => {
+    sheet.classList.toggle('has-text', input.value.trim().length > 0);
+    grow();
+  };
   const outside = (e) => {
     if (el.contains(e.target) || e.target.closest?.('.toast, .scrim')) return;
+    if (!list.hidden) { hideList(); return; }
     close();
   };
   function show() {
@@ -139,15 +190,17 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     el.classList.add('is-open');
     el.closest('.gx')?.classList.add('is-adding');
     core.setAttribute('aria-expanded', 'true');
-    if (mode === 'planet') paintPlanets();
-    fit();
+    setMode(mode, { save: false });
     sync();
+    tall = input.offsetHeight;
+    fit();
     setTimeout(() => input.focus({ preventScroll: true }), 380);
     document.addEventListener('pointerdown', outside, true);
   }
   function close() {
     if (!open) return;
     open = false;
+    hideList();
     el.classList.remove('is-open', 'is-hungry');
     el.closest('.gx')?.classList.remove('is-adding');
     core.setAttribute('aria-expanded', 'false');
@@ -162,7 +215,12 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     close();
     setTimeout(() => el.classList.remove('is-swallowing'), 520);
   }
-  const reset = () => { input.value = ''; nameInput.value = ''; sync(); };
+  const reset = () => {
+    input.value = '';
+    // A new planet exists once it's sent; next time it's just that planet.
+    if (mode === 'new') { nameInput.value = ''; setMode('star', { save: false }); }
+    sync();
+  };
 
   const submit = () => {
     const value = input.value;
@@ -184,14 +242,15 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   };
 
   core.addEventListener('click', () => (open ? close() : show()));
-  closeBtn.addEventListener('click', close);
   go.addEventListener('click', submit);
   input.addEventListener('input', sync);
+  // Return starts a new line, so a longer note is easy to write; ⌘/Ctrl+Return adds.
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.isComposing) { e.preventDefault(); submit(); }
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
   });
   nameInput.addEventListener('keydown', (e) => {
+    nameInput.classList.remove('is-wanted');
     if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); input.value.trim() ? submit() : input.focus(); }
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
   });

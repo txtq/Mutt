@@ -185,7 +185,8 @@ export function createStatusbar() {
     who,
     h('div', { class: 'sb-right' }, searchBtn, clock));
 
-  // Home: a faint back arrow in the corner, back to your own galaxy.
+  // Home: a faint back arrow in the corner, back to your own galaxy. On
+  // someone else's galaxy it first pulls back into the universe round them.
   const home = h('button', { type: 'button', class: 'home-back', 'aria-label': 'Back to your galaxy', title: 'Your galaxy', hidden: true }, glyph('back', 20));
   document.body.append(home);
   let current = null;
@@ -193,13 +194,17 @@ export function createStatusbar() {
     if (current?.goHome) current.goHome();
     else nav.go('/');
   });
+  let out = false;
   const showHome = () => {
     home.hidden = !session.user || !current?.home;
+    const label = current?.chrome === 'galaxy' && !out ? 'Out to the universe' : 'Your galaxy';
+    home.title = label;
+    home.setAttribute('aria-label', label === 'Your galaxy' ? 'Back to your galaxy' : 'Back out to the universe');
   };
-  let out = false;
   bus.on('universe', (on) => {
     out = on;
     paintWho();
+    showHome();
   });
 
   const settings = sheet('sheet-settings', settingsBody);

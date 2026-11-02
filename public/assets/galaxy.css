@@ -904,6 +904,7 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .uv-runway { position: relative; z-index: 2; pointer-events: none; }
 .uv-stage {
   --lab: 0;
+  --head: 0;
   --ik: 1;
   --void-pic: none;
   position: sticky;
@@ -923,7 +924,18 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .uv-near { position: absolute; inset: 0; pointer-events: none; }
 .uv-near .uvg { will-change: transform; }
 .world.is-out .uv-near .uvg { pointer-events: auto; }
-.uv-head { position: absolute; top: 22px; left: 0; right: 0; z-index: 2; text-align: center; pointer-events: none; }
+.uv-head {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  text-align: center;
+  pointer-events: none;
+  /* comes in once the camera has pulled most of the way back */
+  opacity: var(--head);
+  transform: translateY(calc((1 - var(--head)) * 8px));
+}
 .uv-title { font: 500 12px/1 var(--mono); letter-spacing: 0.4em; text-transform: uppercase; color: rgba(225, 232, 250, 0.82); }
 .uv-sub { margin-top: 8px; font-size: 12.5px; color: rgba(200, 210, 235, 0.45); }
 

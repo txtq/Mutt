@@ -64,6 +64,9 @@ function metrics(width, viewH, z = 1) {
 // the bottom, everything is drawn smaller until they don't. `place(m)` lays
 // it out and says how tall it came out. Phones scroll through theirs.
 const Z_MIN = 0.42;
+
+// Out in the universe each void draws this much smaller beside its planets.
+const VOID_UV = 0.5;
 function fitted(width, viewH, place) {
   let m = metrics(width, viewH);
   let out = place(m);
@@ -229,7 +232,7 @@ function miniGalaxy(g, plan, here) {
   if (g.locked) meta.push(h('span', { class: 'uvg-locks' }, glyph('lock', 10), `${g.locked} locked`));
   else if (g.planets) meta.push(h('span', null, `· ${plural(g.files, 'file')}`));
   const sys = h('span', { class: 'uvg-sys' }, h('span', { class: 'uvg-center' },
-    here ? null : h('span', { class: 'uvg-core', style: { '--r': `${(m.hole * REACH.y * 1.05).toFixed(1)}px` } }),
+    here ? null : h('span', { class: 'uvg-core', style: { '--r': `${(m.hole * REACH.y * 1.05 * VOID_UV).toFixed(1)}px` } }),
     worlds));
   const el = h('button', {
     type: 'button',
@@ -324,8 +327,8 @@ function universeLayout(plans, home, width, viewH) {
     x0 = Math.min(x0, s.x - plans[i].ex); x1 = Math.max(x1, s.x + plans[i].ex);
     y0 = Math.min(y0, s.y - plans[i].ey); y1 = Math.max(y1, s.y + plans[i].ey);
   });
-  const room = { x: width - (width < 640 ? 120 : 80), y: viewH - (width < 640 ? 136 : 150) };
-  const k = clamp(Math.min(room.x / (x1 - x0), room.y / (y1 - y0)), 0.03, 0.6);
+  const room = { x: (width - (width < 640 ? 120 : 80)) * 0.78, y: (viewH - (width < 640 ? 136 : 150)) * 0.78 };
+  const k = clamp(Math.min(room.x / (x1 - x0), room.y / (y1 - y0)), 0.03, 0.34);
   const mid = { x: width / 2 - k * (x0 + x1) / 2, y: viewH / 2 + 10 - k * (y0 + y1) / 2 };
   return { spots, k, mid };
 }
@@ -1120,6 +1123,10 @@ class Galaxy {
     this.scene.style.transform = p ? `scale(${k.toFixed(5)})` : '';
     this.uvScene.style.transform = `scale(${k.toFixed(5)})`;
     this.uvStage.style.opacity = String(smooth(clamp(e / 0.05)));
+    // This galaxy's void shrinks to match the others' on the way out.
+    const { cx, cy } = this.size;
+    const vs = 1 - (1 - VOID_UV) * smooth(clamp(e / 0.7));
+    this.art.style.transform = `translate(${cx}px, ${cy}px)${vs < 1 ? ` scale(${vs.toFixed(4)})` : ''}`;
     // The ones passing close by: bigger than the map, sliding in from the
     // edges and sharpening as they settle into place.
     for (const n of this.near) {
@@ -1142,6 +1149,7 @@ class Galaxy {
     // Names stay a readable size, and come in once everyone's in place.
     const lab = smooth(clamp((e - 0.74) / 0.2));
     this.uvStage.style.setProperty('--lab', lab.toFixed(3));
+    this.uvStage.style.setProperty('--head', smooth(clamp((e - 0.55) / 0.3)).toFixed(3));
     if (lab) this.uvStage.style.setProperty('--ik', (1 / k).toFixed(3));
     this.el.classList.toggle('is-far', k < 0.55);
     this.cue.style.opacity = String(1 - clamp(p * 5));
@@ -1188,6 +1196,17 @@ class Galaxy {
     scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }
 
+  // The corner arrow on someone else's galaxy: first the camera pulls back
+  // into the universe round them, then from there it flies you home.
+  async back() {
+    if (this.p < 0.5) { this.goOut(); return; }
+    if (!this.uvLoading) this.loadUniverse();
+    await this.uvLoading;
+    const at = this.list.findIndex((g) => g.you);
+    if (at < 0 || !this.uvEls[at]) { nav.go('/'); return; }
+    this.visit(this.list[at], this.uvEls[at]);
+  }
+
   // Anyone's galaxy opens; a code is only asked for on a locked planet.
   async visit(g, el) {
     const here = this.mine ? g.you : g.username === this.owner;
@@ -1216,6 +1235,8 @@ class Galaxy {
       { transform: 'none' },
       { transform: `translate(${(to.x - g.x).toFixed(1)}px, ${(to.y - g.y).toFixed(1)}px) scale(${z.toFixed(4)})` },
     ], { duration, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
+    el.querySelector('.uvg-core')?.animate([{ transform: 'none' }, { transform: `scale(${1 / VOID_UV})` }],
+      { duration, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
     const fade = { duration: duration * 0.55, easing: 'ease-in', fill: 'forwards' };
     this.stage.animate([{ opacity: 1 }, { opacity: 0 }], fade);
     this.webLayer.animate([{ opacity: getComputedStyle(this.webLayer).opacity }, { opacity: 0 }], fade);
@@ -1251,7 +1272,7 @@ class Galaxy {
       chrome: 'galaxy',
       who: { username: this.owner, you: this.mine },
       home: !this.mine,
-      goHome: this.mine ? () => this.goHome() : null,
+      goHome: this.mine ? () => this.goHome() : () => this.back(),
       list: () => this.stars,
       dropTarget: () => this.dropTarget(),
       pasteText: (text) => { if (this.p < 0.5) this.hole?.focusText(text); },

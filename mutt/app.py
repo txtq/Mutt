@@ -1,13 +1,13 @@
 """The WSGI application: dispatch, sessions, static files, security headers."""
+import gzip
 import mimetypes
 import os
 import traceback
 import urllib.parse
-from email.utils import formatdate, parsedate_to_datetime
 
 from . import api  # noqa: F401  (registers routes)
-from . import auth, db
-from .web import HttpError, Request, Response, file_response, json_response, match, status_line
+from . import assets, auth, db
+from .web import HttpError, Request, Response, json_response, match, status_line
 
 APP_CSP = '; '.join([
     "default-src 'self'",
@@ -41,29 +41,16 @@ def check_origin(req):
 
 
 def static(req):
-    relative = req.path[len('/assets/'):]
-    root = os.path.join(db.PUBLIC_DIR, 'assets')
-    path = os.path.realpath(os.path.join(root, relative))
-    if not path.startswith(os.path.realpath(root) + os.sep) or not os.path.isfile(path):
+    relative = assets.find(req.path[len('/assets/'):])
+    if not relative:
         raise HttpError(404, 'Not found.')
-    content_type = mimetypes.guess_type(path)[0] or 'application/octet-stream'
-    if content_type.startswith('text/'):
-        content_type += '; charset=utf-8'
-    modified = os.stat(path).st_mtime
-    since = req.header('If-Modified-Since')
-    if since:
-        try:
-            if int(modified) <= parsedate_to_datetime(since).timestamp():
-                return Response(304, [('Cache-Control', 'no-cache')], b'')
-        except (TypeError, ValueError):
-            pass
-    return file_response(req, path, content_type, cache='no-cache',
-                         headers=[('Last-Modified', formatdate(modified, usegmt=True))])
+    status, headers, body = assets.serve(req, relative)
+    return Response(status, headers, body)
 
 
 def index(req):
-    with open(os.path.join(db.PUBLIC_DIR, 'index.html'), 'rb') as f:
-        body = f.read()
+    with open(os.path.join(db.PUBLIC_DIR, 'index.html'), encoding='utf-8') as f:
+        body = assets.page(f.read()).encode('utf-8')
     return Response(200, [
         ('Content-Type', 'text/html; charset=utf-8'),
         ('Content-Length', str(len(body))),
@@ -71,6 +58,23 @@ def index(req):
         ('Content-Security-Policy', APP_CSP),
         ('X-Frame-Options', 'DENY'),
     ], body)
+
+
+def compress(req, resp):
+    """Gzips a finished text response (the API's JSON, the page) when the browser can take it."""
+    # Streamed files (uploads, downloads) are left alone.
+    if not isinstance(resp.body, list) or len(resp.body) != 1 or len(resp.body[0]) < assets.MIN_GZIP or not assets.accepts_gzip(req):
+        return
+    names = {name.lower(): value for name, value in resp.headers}
+    if 'content-encoding' in names or not assets.compressible(names.get('content-type', '')):
+        return
+    body = gzip.compress(resp.body[0], 6)
+    resp.headers = [(n, v) for n, v in resp.headers if n.lower() != 'content-length'] + [
+        ('Content-Encoding', 'gzip'),
+        ('Content-Length', str(len(body))),
+        ('Vary', 'Accept-Encoding'),
+    ]
+    resp.body = [body]
 
 
 def dispatch(req):
@@ -111,6 +115,8 @@ def application(environ, start_response):
     finally:
         if req.db is not None:
             req.db.close()
+    if req.method != 'HEAD':
+        compress(req, resp)
     headers = resp.headers + req.extra_headers + [
         ('X-Content-Type-Options', 'nosniff'),
         ('Referrer-Policy', 'same-origin'),

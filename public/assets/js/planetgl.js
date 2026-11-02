@@ -2,6 +2,10 @@
 // planet in turn and the picture is copied onto that planet's own canvas.
 // One canvas for all of them because browsers only allow a handful.
 //
+// Planets due in the same frame are painted side by side on it, then all
+// copied out together: copying out costs about the same however much is on
+// it, so one copy-out a frame instead of one a planet.
+//
 // Every world is drawn fresh each frame on a real sphere: its kind of ground
 // (made from noise, so it never repeats), the files laid on it from a
 // texture, clouds or storms on their own wind, then sunlight from the upper
@@ -14,6 +18,7 @@ void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 const FRAG = `#version 300 es
 precision highp float;
 uniform float uSize;
+uniform vec2 uOrigin;
 uniform float uTurn;
 uniform float uTime;
 uniform float uTilt;
@@ -93,7 +98,7 @@ float crater(vec3 p, float depth, inout float rim) {
 }
 
 void main() {
-  vec2 q = (gl_FragCoord.xy / uSize) * 2.0 - 1.0;
+  vec2 q = ((gl_FragCoord.xy - uOrigin) / uSize) * 2.0 - 1.0;
   float r = length(q);
   float alpha = 1.0 - smoothstep(1.0 - 3.0 / uSize, 1.0, r);
   if (alpha <= 0.0) { outColor = vec4(0.0); return; }
@@ -250,8 +255,9 @@ void main() {
   outColor = vec4(c * alpha, alpha);
 }`;
 
-const UNIFORMS = ['uSize', 'uTurn', 'uTime', 'uTilt', 'uLook', 'uSeed', 'uC0', 'uC1', 'uC2', 'uC3', 'uTex'];
+const UNIFORMS = ['uSize', 'uOrigin', 'uTurn', 'uTime', 'uTilt', 'uLook', 'uSeed', 'uC0', 'uC1', 'uC2', 'uC3', 'uTex'];
 const MAX_TEXTURES = 24;
+const SHEET = 1024;
 
 let state = null;
 
@@ -289,15 +295,15 @@ function init() {
   // ?flat=1 shows the plain painter, to check the fallback.
   if (/[?&]flat=1/.test(location.search)) return state;
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
+  canvas.width = SHEET;
+  canvas.height = SHEET;
   const gl = canvas.getContext('webgl2', {
     alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'low-power',
   });
   if (!gl) return state;
   try {
-    const s = { gl, canvas, loc: build(gl), textures: new Map(), lost: false, clock: 0 };
-    canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); s.lost = true; s.textures.clear(); });
+    const s = { gl, canvas, loc: build(gl), textures: new Map(), lost: false, clock: 0, pending: [], x: 0, y: 0, row: 0 };
+    canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); s.lost = true; s.textures.clear(); s.pending.length = 0; });
     canvas.addEventListener('webglcontextrestored', () => {
       try { s.loc = build(gl); s.lost = false; } catch { /* stays lost: planets keep their last picture */ }
     });
@@ -336,18 +342,51 @@ function textureOf(s, source) {
   entry.used = ++s.clock;
 }
 
+// Copies every planet painted since the last copy-out onto its own canvas.
+function copyOut(s) {
+  const { canvas, pending } = s;
+  for (const { ctx, size, x, y } of pending) {
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(canvas, x, canvas.height - y - size, size, size, 0, 0, size, size);
+  }
+  pending.length = 0;
+  s.x = 0;
+  s.y = 0;
+  s.row = 0;
+}
+
+// Where on the sheet the next planet goes, in rows from the bottom left.
+function place(s, size) {
+  const { canvas } = s;
+  if (s.x + size > canvas.width) { s.x = 0; s.y += s.row; s.row = 0; }
+  if (s.y + size > canvas.height) {
+    copyOut(s);
+    if (size > canvas.width || size > canvas.height) {
+      canvas.width = Math.max(canvas.width, size);
+      canvas.height = Math.max(canvas.height, size);
+    }
+  }
+  const spot = { x: s.x, y: s.y };
+  // On even pixels, so the shader's 2×2 blocks fall the same as on a canvas of its own.
+  const step = size + (size & 1);
+  s.x += step;
+  s.row = Math.max(s.row, step);
+  return spot;
+}
+
+let batching = 0;
+
 // Paints one planet onto `ctx` (its own 2D canvas, `size` pixels square).
+// Inside together() the copy waits for the rest of the frame's planets.
 // `world`: { source: { canvas, version }, look, tilt, turn, time, seed, colors: [[r,g,b] ×4] }
 export function paint(ctx, size, world) {
   const s = init();
   if (!s || s.lost) return false;
-  const { gl, canvas, loc } = s;
-  if (canvas.width < size || canvas.height < size) {
-    canvas.width = Math.max(canvas.width, size);
-    canvas.height = Math.max(canvas.height, size);
-  }
+  const { gl, loc } = s;
+  const { x, y } = place(s, size);
   textureOf(s, world.source);
-  gl.viewport(0, 0, size, size);
+  gl.viewport(x, y, size, size);
+  gl.uniform2f(loc.uOrigin, x, y);
   gl.uniform1f(loc.uSize, size);
   gl.uniform1f(loc.uTurn, world.turn);
   gl.uniform1f(loc.uTime, world.time);
@@ -359,9 +398,21 @@ export function paint(ctx, size, world) {
   gl.uniform3fv(loc.uC2, world.colors[2]);
   gl.uniform3fv(loc.uC3, world.colors[3]);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
-  ctx.clearRect(0, 0, size, size);
-  ctx.drawImage(canvas, 0, canvas.height - size, size, size, 0, 0, size, size);
+  s.pending.push({ ctx, size, x, y });
+  if (!batching) copyOut(s);
   return true;
+}
+
+// Paints all the planets `fn` paints, then copies them out in one go.
+export function together(fn) {
+  batching += 1;
+  try {
+    fn();
+  } finally {
+    batching -= 1;
+    const s = state;
+    if (!batching && s && s.pending.length) copyOut(s);
+  }
 }
 
 // A planet's texture won't be needed again.

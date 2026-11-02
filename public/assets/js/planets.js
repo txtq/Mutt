@@ -3,8 +3,8 @@
 // onto a real sphere (a little canvas per planet), then lit from the upper
 // left with an atmosphere round the edge, with its name underneath.
 
-import { canPaint, forget, paint } from './planetgl.js';
-import { h, plural, reducedMotion, seeded } from './util.js';
+import { canPaint, forget, paint, together } from './planetgl.js';
+import { h, onMotionChange, plural, reducedMotion, seeded } from './util.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -396,31 +396,42 @@ let beat = 0;
 let lastNow = 0;
 let gap = 16.7;
 function tick(now) {
+  // Held or Still: every planet keeps its picture, so the loop rests until wake().
+  if (held || reducedMotion()) { frame = 0; lastNow = 0; return; }
   frame = turning.size ? requestAnimationFrame(tick) : 0;
   if (lastNow) gap += (Math.min(100, now - lastNow) - gap) * 0.05;
   lastNow = now;
   const turns = Math.max(1, Math.round(33 / gap));
   beat += 1;
   let i = 0;
-  for (const globe of turning) {
-    // Planets that have left the page stop turning.
-    if (!globe.canvas.isConnected && globe.born < now - 2000) { turning.delete(globe); watcher?.unobserve(globe.canvas); continue; }
-    if ((i++ + beat) % turns === 0) globe.draw(now);
-  }
+  together(() => {
+    for (const globe of turning) {
+      // Planets that have left the page stop turning.
+      if (!globe.canvas.isConnected && globe.born < now - 2000) { turning.delete(globe); watcher?.unobserve(globe.canvas); continue; }
+      if ((i++ + beat) % turns === 0) globe.draw(now);
+    }
+  });
+}
+function wake() {
+  if (turning.size && !frame && !document.hidden && !held && !reducedMotion()) frame = requestAnimationFrame(tick);
 }
 function startTurning(globe) {
   turning.add(globe);
-  if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
+  wake();
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastNow = 0; } else if (turning.size && !frame) frame = requestAnimationFrame(tick);
+  if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastNow = 0; } else wake();
 });
+onMotionChange(wake);
 const watcher = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
   for (const e of entries) e.target.globe?.setVisible(e.isIntersecting);
 }, { rootMargin: '120px' }) : null;
 
 // Planets stop (keeping their picture) while nobody can see them, such as out in the universe.
-export function holdPlanets(on) { held = on; }
+export function holdPlanets(on) {
+  held = on;
+  wake();
+}
 
 function makeGlobe(canvas, rand) {
   const period = (80 + rand() * 70) * 1000;
@@ -445,7 +456,8 @@ function makeGlobe(canvas, rand) {
     canvas,
     born: performance.now(),
     setSize(css) {
-      const next = Math.max(32, Math.min(live ? 560 : 300, Math.round(css * Math.min(devicePixelRatio || 1, live ? 2 : 1.5))));
+      // At most 1.5 pixels a point: sharper costs far more to paint for little to see.
+      const next = Math.max(32, Math.min(live ? 420 : 300, Math.round(css * Math.min(devicePixelRatio || 1, 1.5))));
       if (next === size) return;
       size = next;
       canvas.width = size;

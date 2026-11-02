@@ -641,9 +641,9 @@ def save_layout(req):
 
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
-    """The universe: everyone with something you could look at. You come
-    first, then people whose planets are open to you, then the ones you'd
-    need a code for, each A to Z."""
+    """The universe: everyone with something you could look at, you first,
+    then everyone else A to Z. Anyone's galaxy can be opened; a code is only
+    asked for on a locked planet."""
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
     out = []
     for user in users:
@@ -663,10 +663,10 @@ def list_galaxies(req):
         out.append({
             'username': user['username'], 'you': mine, 'planets': len(worlds),
             'files': sum(w['n'] for w in opened), 'open': len(opened),
-            'locked': bool(worlds) and not opened,
+            'locked': len(worlds) - len(opened),
             'worlds': worlds[:16],
         })
-    out.sort(key=lambda g: (not g['you'], g['locked'], g['username']))
+    out.sort(key=lambda g: (not g['you'], g['username']))
     return json_response({'galaxies': out})
 
 

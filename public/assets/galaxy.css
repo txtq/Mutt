@@ -898,12 +898,14 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .planet-mini .planet-name { font-size: 11px; }
 .planet-mini .planet-meta, .planet-mini .planet-peek, .planet-mini .planet-ring { display: none; }
 .liv-world .planet-ring { display: none !important; }
-.uvg-name { margin-top: -10px; }
 
 /* ------------------------------------------------------------------ the universe */
 
 .uv-runway { position: relative; z-index: 2; pointer-events: none; }
 .uv-stage {
+  --lab: 0;
+  --ik: 1;
+  --void-pic: none;
   position: sticky;
   top: var(--bar);
   overflow: hidden;
@@ -913,33 +915,35 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 }
 .world.is-out .uv-stage { pointer-events: auto; }
 /* while zooming, the moving parts get layers of their own */
-.world.is-zooming .gx-scene { will-change: transform, opacity; }
+.world.is-zooming .gx-scene { will-change: transform; }
 .world.is-zooming .uv-stage { will-change: opacity; }
 .uv-scene { position: absolute; inset: 0; will-change: transform; }
-.uv-field { position: absolute; left: 50%; top: calc(50% + 24px); width: 0; height: 0; }
+.uv-field { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+/* the few that pass close by the camera on the way out */
+.uv-near { position: absolute; inset: 0; pointer-events: none; }
+.uv-near .uvg { will-change: transform; }
+.world.is-out .uv-near .uvg { pointer-events: auto; }
 .uv-head { position: absolute; top: 22px; left: 0; right: 0; z-index: 2; text-align: center; pointer-events: none; }
 .uv-title { font: 500 12px/1 var(--mono); letter-spacing: 0.4em; text-transform: uppercase; color: rgba(225, 232, 250, 0.82); }
 .uv-sub { margin-top: 8px; font-size: 12.5px; color: rgba(200, 210, 235, 0.45); }
 
+/* the cosmic web, far behind */
+.uv-web-layer { position: fixed; left: 0; right: 0; top: var(--bar); bottom: 0; z-index: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+.uv-web { position: absolute; display: block; will-change: transform; }
+
+/* a galaxy on the map, at the size its own page draws it */
 .uvg {
-  --m: 128px;
   position: absolute;
-  left: calc(var(--m) / -2);
-  top: calc(var(--mh, var(--m)) / -2);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: var(--m);
+  display: block;
   color: #e9edf8;
   -webkit-tap-highlight-color: transparent;
 }
-.uvg-sys { position: relative; display: block; width: var(--m); height: var(--mh, var(--m)); transition: transform 0.6s var(--ease); }
-.uvg:hover .uvg-sys, .uvg:focus-visible .uvg-sys { transform: scale(1.08); }
+.uvg-sys { position: absolute; inset: 0; transition: transform 0.6s var(--ease); }
+.uvg:not(.is-here):hover .uvg-sys, .uvg:not(.is-here):focus-visible .uvg-sys { transform: scale(1.04); }
 .uvg:focus-visible { outline: none; }
 .uvg:focus-visible .uvg-name { text-decoration: underline; }
-.uvg-disk { position: absolute; inset: 0; }
-.uvg-spin { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.uvg-center { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.uvg-blur { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
 /* their planets, as their own page shows them */
 .uv-world {
   position: absolute;
@@ -964,24 +968,46 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
   transform: rotate(-14deg);
   pointer-events: none;
 }
-.uv-world.is-locked { filter: saturate(0.3) brightness(0.65); }
-/* the void in the middle, with a little of its dust round it */
+.uv-world.is-locked .uv-world-map { filter: saturate(0.3) brightness(0.65); }
+.uv-world-lock { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(235, 238, 250, 0.75); }
+.uv-world-lock .glyph { width: var(--g); height: var(--g); }
+/* their void: a still picture of the one on the page */
 .uvg-core {
-  --rim: rgba(205, 195, 225, 0.3);
+  position: absolute;
+  left: calc(var(--r) * -1);
+  top: calc(var(--r) * -1);
+  width: calc(var(--r) * 2);
+  height: calc(var(--r) * 2);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(245, 242, 252, 0.95), rgba(200, 190, 225, 0.25) 26%, rgba(12, 9, 17, 0.6) 45%, transparent 70%);
+}
+.uv-stage.has-void .uvg-core { background: var(--void-pic) center / 100% 100% no-repeat; }
+/* names stay one size however far out */
+.uvg-label {
   position: absolute;
   left: 50%;
-  top: 50%;
-  width: calc(var(--core, 14px) * 2.4);
-  height: calc(var(--core, 14px) * 2.4);
-  border-radius: 50%;
-  background: radial-gradient(closest-side, #04050b 40%, var(--rim) 41.5%, rgba(175, 165, 200, 0.14) 48%, rgba(175, 165, 200, 0.05) 72%, transparent);
-  transform: translate(-50%, -50%);
+  top: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  opacity: var(--lab);
+  transform: translateX(-50%) scale(var(--ik));
+  transform-origin: 50% 0;
+  white-space: nowrap;
+  pointer-events: none;
 }
-.uvg.is-you .uvg-core { --rim: rgba(150, 195, 255, 0.85); }
-.uvg-name { font-size: 13px; font-weight: 500; white-space: nowrap; }
+.uvg-name { font-size: 13px; font-weight: 500; }
 .uvg.is-you .uvg-name { color: #a9cdff; }
-.uvg-meta { display: inline-flex; align-items: center; gap: 4px; font: 400 10.5px/1.2 var(--mono); color: rgba(200, 210, 235, 0.5); white-space: nowrap; }
-.uvg.is-locked .uvg-sys { opacity: 0.6; }
+.uvg-meta { display: inline-flex; align-items: center; gap: 4px; font: 400 10.5px/1.2 var(--mono); color: rgba(200, 210, 235, 0.5); }
+.uvg-locks { display: inline-flex; align-items: center; gap: 3px; }
+/* far out, the planets' own names are too small to read */
+.planet-label { transition: opacity 0.4s var(--ease); }
+.world.is-far .gx-field .planet-label, .world.is-far .gx-hint { opacity: 0; }
+/* diving into a galaxy: everything else falls away */
+.uv-stage.is-diving { pointer-events: none !important; }
+.uv-stage.is-diving .uvg:not(.is-target), .uv-stage.is-diving .uvg-label, .uv-stage.is-diving .uv-head { opacity: 0; transition: opacity 0.45s ease-in; }
+.uv-stage.is-diving .is-target .uvg-sys { transform: none; }
 
 /* ------------------------------------------------------------------ effects */
 
@@ -1234,6 +1260,8 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .sheet .set-row { grid-template-columns: 1fr; gap: 8px; }
   .vf-input { height: calc(24px * 6 + 36px); }
   .uv-sub { display: none; }
+  .uvg-name { font-size: 12px; }
+  .uvg-meta { font-size: 9.5px; }
   .login { padding-bottom: 16vh; }
   .login-box { padding: 30px 24px 26px; }
   .login-q { font-size: 22px; }

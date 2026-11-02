@@ -627,8 +627,9 @@ export function planetDot(planet) {
 
 // A planet as it looks in its own galaxy, painted once and held still, for
 // the universe. It has no files on it (the universe doesn't load them).
+// `res` is how sharp it's painted, in pixels per pixel of `size`.
 let blank = null;
-export function worldPicture(world, size) {
+export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio || 1) * 1.5)) {
   const colors = worldColors(world);
   const look = lookOf(world);
   const el = h('span', {
@@ -636,6 +637,7 @@ export function worldPicture(world, size) {
     dataset: { look },
     style: { '--w': `${size}px`, '--c': colors.base, '--c-light': colors.light, '--c-dark': colors.dark },
   });
+  if (world.locked) el.append(h('span', { class: 'uv-world-lock', style: { '--g': `${Math.round(size * 0.3)}px` } }, glyph('lock', Math.max(6, Math.round(size * 0.3)))));
   if (!canPaint()) return el;
   // The same draws from the planet's id as planetEl() and makeGlobe(), so
   // it shows the same face, tilt and weather.
@@ -651,7 +653,7 @@ export function worldPicture(world, size) {
     canvas.height = 2;
     blank = { canvas };
   }
-  const px = Math.max(16, Math.round(size * Math.min(3, (devicePixelRatio || 1) * 1.5)));
+  const px = Math.max(16, Math.round(size * res));
   const canvas = h('canvas', { class: 'uv-world-map', width: px, height: px, 'aria-hidden': 'true' });
   const ok = paint(canvas.getContext('2d'), px, {
     source: blank,
@@ -664,7 +666,7 @@ export function worldPicture(world, size) {
   });
   if (ok) {
     el.classList.add('is-painted');
-    el.append(canvas);
+    el.prepend(canvas);
   }
   return el;
 }

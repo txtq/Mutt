@@ -16,16 +16,19 @@ import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
 import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, wait } from '../util.js';
+import { paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
 // Set by /universe, so the page opens already scrolled out.
 let startOut = false;
+// Set when the camera dived in from the universe, so the page doesn't play
+// its entrance on top.
+let arriving = false;
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const smooth = (t) => t * t * (3 - 2 * t);
-const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 function excerpt(text, n = 90) {
   const t = (text || '').trim().replace(/\s+/g, ' ');
@@ -156,88 +159,152 @@ function scatter(planets, width, inner, m) {
 
 // ---------------------------------------------------------------- the universe
 
-// Someone's galaxy in miniature: their planets laid out just as their own
-// page lays them out on a desktop screen, shrunk to fit `size`.
-const MINI = { width: 1280, height: 800 };
-// The box each one sits in is wide, like the galaxies themselves.
-const MINI_TALL = 0.66;
-function miniGalaxy(g, size) {
-  const m = metrics(MINI.width, MINI.height);
-  const inner = { rx: m.rx * 0.72 + 18, ry: m.ry * 0.72 + 18 };
+// The universe is one big map with every galaxy on it at its true size: the
+// size its own page draws it on this screen. Zooming out is a camera pulling
+// back from yours, so nothing is swapped on the way.
+
+// Someone's galaxy as their page lays it out on this screen (they have no
+// stars here: those are only on their owner's own page).
+function galaxyPlan(g, width, viewH, m) {
+  const gap = m.narrow ? 10 : 18;
+  const inner = { rx: m.rx * 0.72 + gap, ry: m.ry * 0.72 + gap };
   const planets = (g.worlds || []).map((w) => ({ id: w.id, count: w.n, x: w.x, y: w.y }));
-  const { spots } = scatter(planets, MINI.width, inner, m);
-  // One scale for everyone (about a screen's worth), so galaxies compare
-  // honestly; only a big spread-out one shrinks a little more to fit.
-  let rx = MINI.width * 0.42;
-  let ry = MINI.height * 0.42;
-  for (const sp of spots) {
-    rx = Math.max(rx, Math.abs(sp.x) + sp.size / 2);
-    ry = Math.max(ry, Math.abs(sp.y) + sp.size / 2);
+  const { spots, rects } = scatter(planets, width, inner, m);
+  return { spots, ...extent(rects, inner, viewH, m) };
+}
+
+// How far a galaxy reaches round its void, and where its page puts the void.
+function extent(rects, inner, viewH, m) {
+  let top = -inner.ry;
+  let bottom = inner.ry;
+  let reach = inner.rx;
+  for (const r of rects) {
+    top = Math.min(top, r.y0);
+    bottom = Math.max(bottom, r.y1);
+    reach = Math.max(reach, -r.x0, r.x1);
   }
-  const k = Math.min((size / 2) / rx, (size * MINI_TALL / 2) / ry);
-  const worlds = (g.worlds || []).map((w, i) => {
-    const sp = spots[i];
-    const dot = worldPicture(w, Math.max(7, sp.size * k));
-    dot.style.transform = `translate(${(sp.x * k).toFixed(1)}px, ${(sp.y * k).toFixed(1)}px)`;
+  const pad = m.narrow ? 36 : 56;
+  const content = bottom - top + pad * 2;
+  const height = Math.max(viewH, content);
+  return { ex: reach + 12, ey: Math.max(-top, bottom) + 12, cy: pad - top + (height - content) / 2 };
+}
+
+// A galaxy on the map: its void and its planets, painted once and held
+// still. `here` is the one whose page this is: the live galaxy shows
+// through, so only its name and a place to click are drawn.
+function miniGalaxy(g, plan, m, here) {
+  const { ex, ey } = plan;
+  const res = Math.min(1, (devicePixelRatio || 1) * 0.6);
+  const worlds = here ? [] : (g.worlds || []).map((w, i) => {
+    const sp = plan.spots[i];
+    const dot = worldPicture(w, sp.size, res);
+    dot.style.transform = `translate(${sp.x.toFixed(1)}px, ${sp.y.toFixed(1)}px)`;
+    dot.at = sp;
     return dot;
   });
-  const meta = g.locked
-    ? [glyph('lock', 10), h('span', null, plural(g.planets, 'planet'))]
-    : [h('span', null, `${plural(g.open, 'planet')} · ${plural(g.files, 'file')}`)];
+  const meta = [h('span', null, plural(g.planets, 'planet'))];
+  if (g.locked) meta.push(h('span', { class: 'uvg-locks' }, glyph('lock', 10), `${g.locked} locked`));
+  else if (g.planets) meta.push(h('span', null, `· ${plural(g.files, 'file')}`));
+  const sys = h('span', { class: 'uvg-sys' }, h('span', { class: 'uvg-center' },
+    here ? null : h('span', { class: 'uvg-core', style: { '--r': `${(m.hole * REACH.y * 1.05).toFixed(1)}px` } }),
+    worlds));
   const el = h('button', {
     type: 'button',
-    class: `uvg${g.you ? ' is-you' : ''}${g.locked ? ' is-locked' : ''}`,
+    class: `uvg${g.you ? ' is-you' : ''}${here ? ' is-here' : ''}`,
     dataset: { user: g.username },
-    style: { '--core': `${(m.hole * 2 * k).toFixed(1)}px` },
-    'aria-label': g.you ? 'Your galaxy' : `@${g.username}’s galaxy${g.locked ? ' (locked)' : ''}`,
+    style: { left: `${-ex}px`, top: `${-ey}px`, width: `${ex * 2}px`, height: `${ey * 2}px` },
+    'aria-label': g.you ? 'Your galaxy' : `@${g.username}’s galaxy`,
   },
-  h('span', { class: 'uvg-sys' },
-    h('span', { class: 'uvg-disk' }, h('span', { class: 'uvg-spin' }, worlds)),
-    h('span', { class: 'uvg-core' })),
-  h('span', { class: 'uvg-name' }, g.you ? 'You' : `@${g.username}`),
-  h('span', { class: 'uvg-meta' }, meta));
+  sys,
+  h('span', { class: 'uvg-label' },
+    h('span', { class: 'uvg-name' }, g.you ? 'You' : `@${g.username}`),
+    h('span', { class: 'uvg-meta' }, meta)));
   el.galaxy = g;
+  el.plan = plan;
+  el.sys = sys;
+  el.worlds = worlds;
   return el;
 }
 
-function universeLayout(list, width, height, m) {
-  const size = m.narrow ? 150 : 210;
+// A soft, out-of-focus copy of a galaxy, for when it passes close to the
+// camera: painted tiny and stretched, which blurs it for free.
+function blurCopy(el, voidPic) {
+  const { ex, ey } = el.plan;
+  const q = 0.07;
+  const canvas = h('canvas', { class: 'uvg-blur', width: Math.max(8, Math.round(ex * 2 * q)), height: Math.max(8, Math.round(ey * 2 * q)), 'aria-hidden': 'true' });
+  const ctx = canvas.getContext('2d');
+  if ('filter' in ctx) ctx.filter = 'blur(1.2px)';
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.scale(canvas.width / (ex * 2), canvas.height / (ey * 2));
+  if (voidPic) {
+    const r = voidPic.css;
+    ctx.drawImage(voidPic, -r, -r, r * 2, r * 2);
+  }
+  for (const dot of el.worlds) {
+    const { x, y, size } = dot.at;
+    const map = dot.querySelector('canvas');
+    if (map) ctx.drawImage(map, x - size / 2, y - size / 2, size, size);
+    else {
+      ctx.fillStyle = dot.style.getPropertyValue('--c') || '#7a8ab0';
+      ctx.beginPath();
+      ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  return canvas;
+}
+
+// Where every galaxy sits on the map, round the one whose page this is
+// (`home`), and how far the camera pulls back to fit them all on screen.
+function universeLayout(plans, home, width, viewH) {
+  const avg = plans.reduce((s, p) => s + p.ex, 0) / Math.max(1, plans.length);
   // Spread to the screen's shape: wide on a desktop, tall on a phone.
-  const wide = clamp(Math.sqrt(width / height), 0.62, 1.5);
-  const spots = list.map((g, i) => {
-    if (i === 0) return { x: 0, y: 0 };
-    const r = size * 0.62 * Math.sqrt(i + 0.35);
-    const a = i * GOLDEN - Math.PI / 2;
-    return { x: Math.cos(a) * r * wide, y: Math.sin(a) * r / wide };
+  const wide = clamp(Math.sqrt(width / viewH), 0.62, 1.5);
+  const order = plans.map((_, i) => i).sort((a, b) => (a === home ? -1 : b === home ? 1 : a - b));
+  const spots = plans.map(() => ({ x: 0, y: 0 }));
+  order.forEach((i, n) => {
+    if (!n) return;
+    const r = avg * 1.5 * Math.sqrt(n + 0.35);
+    const a = n * GOLDEN - Math.PI / 2;
+    spots[i] = { x: Math.cos(a) * r * wide, y: Math.sin(a) * r / wide };
   });
-  // Nudge apart any that crowd each other. Each one is a box with its
-  // name underneath, so they need more room up and down than across.
-  const across = size * 1.06;
-  const down = size * MINI_TALL + 46;
-  for (let pass = 0; pass < 80; pass++) {
+  // Nudge apart any that crowd each other, leaving room for the names.
+  for (let pass = 0; pass < 120; pass++) {
     let moved = false;
     for (let i = 0; i < spots.length; i++) {
       for (let j = i + 1; j < spots.length; j++) {
+        const across = (plans[i].ex + plans[j].ex) * 1.3;
+        const down = (plans[i].ey + plans[j].ey) * 1.42;
         const dx = spots[j].x - spots[i].x;
         const dy = spots[j].y - spots[i].y;
         const ox = across - Math.abs(dx);
         const oy = down - Math.abs(dy);
         if (ox <= 0 || oy <= 0) continue;
         moved = true;
-        // Slide apart along whichever way is the shorter way out.
+        // Slide apart along whichever way is the shorter way out; the home
+        // galaxy stays put.
         const move = ox / across < oy / down
           ? { x: (dx < 0 ? -ox : ox) / 2, y: 0 }
           : { x: 0, y: (dy < 0 ? -oy : oy) / 2 };
-        const k = i === 0 ? 2 : 1;
-        spots[j].x += move.x * k; spots[j].y += move.y * k;
-        if (i) { spots[i].x -= move.x; spots[i].y -= move.y; }
+        const kj = i === home ? 2 : j === home ? 0 : 1;
+        const ki = j === home ? 2 : i === home ? 0 : 1;
+        spots[j].x += move.x * kj; spots[j].y += move.y * kj;
+        spots[i].x -= move.x * ki; spots[i].y -= move.y * ki;
       }
     }
     if (!moved) break;
   }
-  const ext = spots.reduce((acc, s) => ({ x: Math.max(acc.x, Math.abs(s.x)), y: Math.max(acc.y, Math.abs(s.y)) }), { x: 0, y: 0 });
-  const fit = clamp(Math.min((width / 2 - 12) / (ext.x + size * 0.54), (height / 2 - 60) / (ext.y + size * MINI_TALL / 2 + 46)), 0.4, 1);
-  return { size, spots, fit };
+  // Fit the whole map, centred below the heading, with room round it for
+  // the names, which stay one size however far out.
+  let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+  spots.forEach((s, i) => {
+    x0 = Math.min(x0, s.x - plans[i].ex); x1 = Math.max(x1, s.x + plans[i].ex);
+    y0 = Math.min(y0, s.y - plans[i].ey); y1 = Math.max(y1, s.y + plans[i].ey);
+  });
+  const room = { x: width - (width < 640 ? 120 : 80), y: viewH - (width < 640 ? 136 : 150) };
+  const k = clamp(Math.min(room.x / (x1 - x0), room.y / (y1 - y0)), 0.03, 0.6);
+  const mid = { x: width / 2 - k * (x0 + x1) / 2, y: viewH / 2 + 10 - k * (y0 + y1) / 2 };
+  return { spots, k, mid };
 }
 
 // ---------------------------------------------------------------- the page
@@ -281,18 +348,22 @@ class Galaxy {
     // ------------------------------------------------------------ the universe below
     this.uvField = h('div', { class: 'uv-field' });
     this.uvScene = h('div', { class: 'uv-scene' }, this.uvField);
+    this.uvNear = h('div', { class: 'uv-near' });
     this.uvStage = h('section', { class: 'uv-stage', 'aria-label': 'Universe' },
       h('header', { class: 'uv-head' },
         h('h2', { class: 'uv-title' }, 'Universe'),
         h('p', { class: 'uv-sub' }, 'Everyone’s galaxies. Open one to look around.')),
-      this.uvScene);
+      this.uvScene, this.uvNear);
+    // The cosmic web, far behind everything.
+    this.web = h('canvas', { class: 'uv-web', 'aria-hidden': 'true' });
+    this.webLayer = h('div', { class: 'uv-web-layer' }, this.web);
+    this.near = [];
     this.runway = h('div', { class: 'uv-runway' }, this.uvStage);
     this.cue = h('button', { type: 'button', class: 'gx-cue', onclick: () => this.goOut() }, h('span', null, 'Universe'), glyph('down', 12));
-    this.el = h('div', { class: 'world' }, this.stage, this.runway, this.cue);
+    this.el = h('div', { class: 'world' }, this.webLayer, this.stage, this.runway, this.cue);
 
     for (const p of data.planets) this.addPlanet(p);
     this.renderStars();
-    this.renderUniverse();
     this.layout();
     this.setHint();
 
@@ -441,6 +512,7 @@ class Galaxy {
     let top = -inner.ry;
     let bottom = inner.ry;
     for (const r of rects) { top = Math.min(top, r.y0); bottom = Math.max(bottom, r.y1); }
+    const home = extent(rects, inner, viewH, m);
     const pad = m.narrow ? 36 : 56;
     const content = bottom - top + pad * 2;
     const height = Math.max(viewH, content);
@@ -455,7 +527,6 @@ class Galaxy {
     this.art.style.transform = `translate(${cx}px, ${cy}px)`;
     // The canvas covers the page's width and a bit more than a screen tall.
     this.void.size(m.hole, width + 40, Math.max(viewH * 1.5, m.ry * 2.6));
-    this.scene.style.transformOrigin = `${cx}px ${cy}px`;
     this.data.planets.forEach((p, i) => {
       const el = this.planetEls.get(p.id);
       const spot = spots[i];
@@ -475,7 +546,7 @@ class Galaxy {
     this.runway.style.height = `${this.travel + viewH}px`;
     this.runway.style.marginTop = `${-viewH}px`;
     this.uvStage.style.height = `${viewH}px`;
-    this.placeUniverse(width, viewH, m);
+    this.placeUniverse(width, viewH, m, home);
     this.track(true);
     // Only glide between spots once the first arrangement has landed.
     if (!this.scene.classList.contains('is-live')) requestAnimationFrame(() => requestAnimationFrame(() => this.scene.classList.add('is-live')));
@@ -491,9 +562,6 @@ class Galaxy {
       this.hint.textContent = empty ? 'Your galaxy is empty. Click the void to put something in.' : '';
     } else if (!this.data.planets.length) {
       this.hint.textContent = `@${this.owner} hasn’t shared any planets yet.`;
-    } else if (this.data.planets.some((p) => p.locked) && !this.data.unlocked) {
-      this.hint.replaceChildren(
-        h('button', { type: 'button', class: 'vbtn', onclick: () => this.unlock() }, glyph('lock', 12), h('span', null, `Enter @${this.owner}’s code to see the locked planets`)));
     } else this.hint.textContent = '';
     this.hint.hidden = !this.hint.textContent && !this.hint.children.length;
   }
@@ -868,33 +936,105 @@ class Galaxy {
 
   // ------------------------------------------------------------ out to the universe and back
 
-  renderUniverse(size = this.uvSize || 210) {
-    this.uvSize = size;
-    this.uvEls = this.list.map((g) => {
-      const el = miniGalaxy(g, size);
+  // A still picture of this page's void, for the galaxies out there. Taken
+  // whenever the void is drawn closed, so it matches.
+  snapVoid(m) {
+    if (this.hole?.isOpen()) return;
+    const src = this.void.art;
+    const css = parseFloat(src.style.width);
+    if (!src.width || !css) return;
+    const dpr = src.width / css;
+    const r = m.hole * REACH.y * 1.05;
+    const out = document.createElement('canvas');
+    out.width = out.height = Math.min(360, Math.round(r * 2 * dpr));
+    out.getContext('2d').drawImage(src, src.width / 2 - r * dpr, src.height / 2 - r * dpr, r * 2 * dpr, r * 2 * dpr, 0, 0, out.width, out.height);
+    out.css = r;
+    this.voidPic = out;
+    this.uvStage.style.setProperty('--void-pic', `url(${out.toDataURL()})`);
+    this.uvStage.classList.add('has-void');
+  }
+
+  // Each galaxy drawn at its true size for this screen. Only redrawn when
+  // the screen's size changes, since painting the planets takes a moment.
+  renderUniverse(width, viewH, m) {
+    const key = `${width}×${viewH}`;
+    if (key === this.uvKey) return;
+    this.uvKey = key;
+    this.homeAt = Math.max(0, this.list.findIndex((g) => (this.mine ? g.you : g.username === this.owner)));
+    this.uvEls = this.list.map((g, i) => {
+      const el = miniGalaxy(g, galaxyPlan(g, width, viewH, m), m, i === this.homeAt);
       el.addEventListener('click', () => this.visit(g, el));
       return el;
     });
+    // The nearest few pass close by the camera on the way out.
+    this.uvNear.replaceChildren();
+    this.near = [];
     this.uvField.replaceChildren(...this.uvEls);
   }
 
-  placeUniverse(width, viewH, m) {
-    const plan = universeLayout(this.list, width, viewH, m);
-    if (plan.size !== this.uvSize) this.renderUniverse(plan.size);
+  placeUniverse(width, viewH, m, home) {
+    this.snapVoid(m);
+    this.renderUniverse(width, viewH, m);
+    const plans = this.uvEls.map((el, i) => (i === this.homeAt ? home : el.plan));
+    const here = this.uvEls[this.homeAt];
+    Object.assign(here.plan, home);
+    Object.assign(here.style, { left: `${-home.ex}px`, top: `${-home.ey}px`, width: `${home.ex * 2}px`, height: `${home.ey * 2}px` });
+    const { spots, k, mid } = universeLayout(plans, this.homeAt, width, viewH);
+    const { height, cx, cy } = this.size;
+    // Everything zooms about one point, F, chosen so that at the end the map
+    // sits fitted on screen: a map point P ends at mid + k·P. At the start
+    // this galaxy is where its page draws it, at full size.
+    const at = { x: cx, y: viewH - height + cy };
+    const S = spots[this.homeAt];
+    const F = { x: (mid.x - k * at.x + k * S.x) / (1 - k), y: (mid.y - k * at.y + k * S.y) / (1 - k) };
+    this.uv = { k, mid, F, at, S, spots };
+    this.uvField.style.transform = `translate(${(at.x - S.x).toFixed(1)}px, ${(at.y - S.y).toFixed(1)}px)`;
+    this.uvScene.style.transformOrigin = `${F.x.toFixed(1)}px ${F.y.toFixed(1)}px`;
+    this.scene.style.transformOrigin = `${F.x.toFixed(1)}px ${(F.y - (viewH - height)).toFixed(1)}px`;
     this.uvEls.forEach((el, i) => {
-      el.style.setProperty('--m', `${plan.size}px`);
-      el.style.setProperty('--mh', `${Math.round(plan.size * MINI_TALL)}px`);
-      el.style.transform = `translate(${plan.spots[i].x}px, ${plan.spots[i].y}px)`;
+      el.style.transform = `translate(${spots[i].x.toFixed(1)}px, ${spots[i].y.toFixed(1)}px)`;
     });
-    this.uvField.style.transform = `scale(${plan.fit})`;
-    // Where this galaxy sits out there (yours is in the middle).
-    const i = Math.max(0, this.list.findIndex((g) => (this.mine ? g.you : g.username === this.owner)));
-    const spot = plan.spots[i] || { x: 0, y: 0 };
-    this.home = { x: spot.x * plan.fit, y: spot.y * plan.fit + 24, size: plan.size * plan.fit };
-    this.uvScene.style.transformOrigin = `calc(50% + ${this.home.x}px) calc(50% + ${this.home.y}px)`;
-    // The others arrive nearest first, so the universe opens out round you.
-    const far = Math.max(1, ...plan.spots.map((s) => Math.hypot(s.x - spot.x, s.y - spot.y)));
-    this.uvRank = plan.spots.map((s) => Math.hypot(s.x - spot.x, s.y - spot.y) / far);
+
+    // The nearest few start out between you and the camera, just past the
+    // edges of the screen, big and out of focus, and settle into their
+    // places as the camera pulls back past them.
+    const want = reducedMotion() ? 0 : m.narrow ? 2 : 4;
+    const near = this.uvEls.map((el, i) => i)
+      .filter((i) => i !== this.homeAt && this.uvEls[i].worlds.length)
+      .sort((a, b) => Math.hypot(spots[a].x - S.x, spots[a].y - S.y) - Math.hypot(spots[b].x - S.x, spots[b].y - S.y))
+      .slice(0, want);
+    for (const n of this.near) if (!near.includes(n.i)) { n.el.style.transform = `translate(${spots[n.i].x.toFixed(1)}px, ${spots[n.i].y.toFixed(1)}px)`; n.el.sys.style.opacity = ''; n.blur.remove(); this.uvField.append(n.el); }
+    const centre = { x: width / 2, y: viewH / 2 };
+    this.near = near.map((i, j) => {
+      const el = this.uvEls[i];
+      const old = this.near.find((n) => n.i === i);
+      const blur = old?.blur || blurCopy(el, this.voidPic);
+      if (!old) { el.append(blur); this.uvNear.append(el); }
+      el.style.transform = '';
+      const end = { x: mid.x + k * spots[i].x, y: mid.y + k * spots[i].y };
+      let dir = { x: end.x - centre.x, y: end.y - centre.y };
+      const len = Math.hypot(dir.x, dir.y) || 1;
+      dir = len > 1 ? { x: dir.x / len, y: dir.y / len } : { x: Math.cos(j * 2.4), y: Math.sin(j * 2.4) };
+      const s0 = 1.25 + 0.12 * j;
+      // Just past the edge, so its near side is where the screen ends.
+      const edge = Math.min(Math.abs(dir.x) > 1e-3 ? width / 2 / Math.abs(dir.x) : Infinity, Math.abs(dir.y) > 1e-3 ? viewH / 2 / Math.abs(dir.y) : Infinity);
+      const reach = Math.abs(dir.x) * el.plan.ex + Math.abs(dir.y) * el.plan.ey;
+      const start = { x: centre.x + dir.x * (edge + reach * s0 * 0.7), y: centre.y + dir.y * (edge + reach * s0 * 0.7) };
+      return { i, el, blur, s0, start, from: 0.04 + 0.06 * j, to: 0.62 + 0.07 * j, map: { x: at.x + spots[i].x - S.x, y: at.y + spots[i].y - S.y } };
+    });
+
+    // The web behind, drawn as it looks once you're all the way out.
+    const nodes = spots.map((s, i) => ({ x: mid.x + k * s.x, y: mid.y + k * s.y, r: k * Math.max(plans[i].ex, plans[i].ey) * 0.8 }));
+    const webKey = `${width}×${viewH}:${nodes.map((n) => `${Math.round(n.x)},${Math.round(n.y)}`).join(';')}`;
+    if (webKey !== this.webKey) {
+      this.webKey = webKey;
+      const M = 1.4;
+      const W = width * M;
+      const H = viewH * M;
+      const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
+      paintWeb(this.web, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), this.owner);
+      Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
+    }
   }
 
   // Scroll position → how far out we are (0 here, 1 in the universe). The
@@ -924,30 +1064,40 @@ class Galaxy {
   }
 
   render(p) {
-    const { height, viewH, width, cy, cx } = this.size;
     this.p = p;
-    const e = easeInOut(p);
-    // The galaxy leans back, turns away and shrinks into its place among
-    // the others. It starts slowly, so the first bit of scrolling just
-    // pulls the camera back.
-    const span = Math.max(width, height) * 0.92;
-    const k = 1 - (1 - (this.home.size * 1.1) / span) * e;
-    const dx = (width / 2 + this.home.x - cx) * e;
-    const dy = (viewH / 2 + this.home.y - (viewH - height + cy)) * e;
-    const lean = 38 * Math.sin(Math.PI * Math.min(1, p * 1.25));
-    this.scene.style.transform = p
-      ? `translate(${dx}px, ${dy}px) perspective(${Math.round(span * 1.4)}px) rotateX(${lean.toFixed(2)}deg) rotate(${(-30 * e).toFixed(2)}deg) scale(${k})`
-      : '';
-    this.scene.style.opacity = p ? String(1 - smooth(clamp((e - 0.6) / 0.35))) : '';
-    // The universe swings in from very close.
-    const z = 3.6 - 2.6 * e;
-    this.uvScene.style.transform = `rotate(${(24 * (1 - e)).toFixed(2)}deg) scale(${z})`;
-    this.uvStage.style.opacity = String(smooth(clamp((e - 0.25) / 0.3)));
-    this.uvEls.forEach((el, i) => {
-      const t = smooth(clamp((e - 0.55 - (this.uvRank?.[i] || 0) * 0.25) / 0.2));
-      el.style.opacity = t === 1 ? '' : String(t);
-      el.style.scale = t === 1 ? '' : String(0.55 + 0.45 * t);
-    });
+    // An even pull back: each bit of scrolling shrinks things by the same
+    // ratio, only softened at the very start and end.
+    const e = 0.4 * p + 0.6 * smooth(p);
+    const { k: kEnd, F } = this.uv;
+    const k = kEnd ** e;
+    // This galaxy and the map round it shrink as one, about F.
+    this.scene.style.transform = p ? `scale(${k.toFixed(5)})` : '';
+    this.uvScene.style.transform = `scale(${k.toFixed(5)})`;
+    this.uvStage.style.opacity = String(smooth(clamp(e / 0.05)));
+    // The ones passing close by: bigger than the map, sliding in from the
+    // edges and sharpening as they settle into place.
+    for (const n of this.near) {
+      const u = smooth(clamp((e - n.from) / (n.to - n.from)));
+      const s = Math.exp((1 - u) * Math.log(n.s0) + u * Math.log(k));
+      const w = Math.abs(n.s0 - k) > 1e-4 ? (n.s0 - s) / (n.s0 - k) : u;
+      const q = { x: F.x + k * (n.map.x - F.x), y: F.y + k * (n.map.y - F.y) };
+      const x = n.start.x + (q.x - n.start.x) * w;
+      const y = n.start.y + (q.y - n.start.y) * w;
+      n.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(5)})`;
+      const soft = smooth(clamp((s / k - 1.05) / 0.5));
+      const shown = smooth(clamp(u / 0.12)) * (u > 0 ? 1 : 0);
+      n.el.sys.style.opacity = (shown * (1 - soft)).toFixed(3);
+      n.blur.style.opacity = (shown * soft * 0.9).toFixed(3);
+      n.el.style.visibility = shown ? '' : 'hidden';
+    }
+    // The web is further off, so it moves more slowly.
+    this.web.style.transform = `scale(${((k / kEnd) ** 0.45).toFixed(4)})`;
+    this.webLayer.style.opacity = String(smooth(clamp((e - 0.12) / 0.5)));
+    // Names stay a readable size, and come in once everyone's in place.
+    const lab = smooth(clamp((e - 0.74) / 0.2));
+    this.uvStage.style.setProperty('--lab', lab.toFixed(3));
+    if (lab) this.uvStage.style.setProperty('--ik', (1 / k).toFixed(3));
+    this.el.classList.toggle('is-far', k < 0.55);
     this.cue.style.opacity = String(1 - clamp(p * 5));
     this.cue.style.pointerEvents = p > 0.1 ? 'none' : '';
     const out = p > 0.5;
@@ -992,23 +1142,46 @@ class Galaxy {
     scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }
 
+  // Anyone's galaxy opens; a code is only asked for on a locked planet.
   async visit(g, el) {
     const here = this.mine ? g.you : g.username === this.owner;
     if (here) { this.goHome(); return; }
-    const go = async () => {
-      if (!reducedMotion()) {
-        const r = el.getBoundingClientRect();
-        const s = this.uvStage.getBoundingClientRect();
-        this.uvScene.style.transformOrigin = `${r.left + r.width / 2 - s.left}px ${r.top + r.height / 2 - s.top}px`;
-        await this.uvScene.animate([
-          { transform: this.uvScene.style.transform || 'none', opacity: 1 },
-          { transform: 'scale(3.2)', opacity: 0 },
-        ], { duration: 520, easing: 'cubic-bezier(0.55, 0, 1, 0.45)', fill: 'forwards' }).finished.catch(() => {});
-      }
-      nav.go(g.you ? '/' : `/g/${g.username}`, { motion: 'none' });
+    if (this.diving) return;
+    this.diving = true;
+    if (!reducedMotion()) await this.dive(el);
+    arriving = true;
+    nav.go(g.you ? '/' : `/g/${g.username}`, { motion: 'none' });
+  }
+
+  // The camera dives into a galaxy until it's the size its page draws it,
+  // right where its page will put it, so the page takes over without a jump.
+  async dive(el) {
+    const stage = this.uvStage.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    const g = { x: box.left + box.width / 2 - stage.left, y: box.top + box.height / 2 - stage.top };
+    const z = (el.plan.ex * 2) / box.width;
+    const worldTop = this.el.getBoundingClientRect().top + scrollY;
+    const to = { x: this.size.width / 2, y: worldTop + el.plan.cy - stage.top };
+    el.classList.add('is-target');
+    this.uvStage.classList.add('is-diving');
+    this.uvStage.style.transformOrigin = `${g.x.toFixed(1)}px ${g.y.toFixed(1)}px`;
+    const duration = 950;
+    const anim = this.uvStage.animate([
+      { transform: 'none' },
+      { transform: `translate(${(to.x - g.x).toFixed(1)}px, ${(to.y - g.y).toFixed(1)}px) scale(${z.toFixed(4)})` },
+    ], { duration, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
+    const fade = { duration: duration * 0.55, easing: 'ease-in', fill: 'forwards' };
+    this.stage.animate([{ opacity: 1 }, { opacity: 0 }], fade);
+    this.webLayer.animate([{ opacity: getComputedStyle(this.webLayer).opacity }, { opacity: 0 }], fade);
+    // The sky comes back from the dark as you arrive.
+    const start = performance.now();
+    const night = () => {
+      const t = clamp((performance.now() - start) / duration);
+      theSky()?.setNight(1 - smooth(t));
+      if (t < 1 && this.diving) requestAnimationFrame(night);
     };
-    if (g.locked) this.unlock(g.username, go);
-    else go();
+    requestAnimationFrame(night);
+    await anim.finished.catch(() => {});
   }
 
   entrance() {
@@ -1045,13 +1218,19 @@ class Galaxy {
           return { ...this.void.center(), r: this.void.radius() };
         });
         if (startOut) { startOut = false; requestAnimationFrame(() => this.goOut(true)); }
-        if (!moved) this.entrance();
+        if (arriving) {
+          // The planets' names come in gently after the camera's dive.
+          this.el.classList.add('is-far');
+          requestAnimationFrame(() => requestAnimationFrame(() => this.el.classList.remove('is-far')));
+        } else if (!moved) this.entrance();
+        arriving = false;
       },
       destroy: () => {
         removeEventListener('resize', this.relayout);
         removeEventListener('scroll', this.onScroll);
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
+        this.diving = false;
         theSky()?.setLens(null);
         this.void.destroy();
         theSky()?.setNight(0);

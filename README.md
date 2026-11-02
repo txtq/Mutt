@@ -43,10 +43,11 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Who can see a planet**: Private (only you), Code (anyone who has your
   4-digit code, the default), People (the usernames you list) or Public
   (everyone signed in). A public planet can also let others add files.
-- **The universe**: keep scrolling down and your galaxy shrinks away into a
-  dark universe of everyone's galaxies (or go straight to `/universe`).
-  Click one to visit it. Planets you can't open yet look frosted; type
-  their code to thaw them. Wrong codes count toward the same lockout as
+- **The universe**: keep scrolling down and the camera pulls back from your
+  galaxy, past a few others drifting by, until it sits small among
+  everyone's galaxies on a faint web of dust (or go straight to `/universe`).
+  Click any galaxy and the camera dives into it. Planets you can't open yet
+  look frosted; click one and type its owner's code to thaw them. Wrong codes count toward the same lockout as
   signing in; changing your code locks everyone out again. **Save** a file
   you like to keep your own copy.
 - **Going home**: away from your galaxy, a faint back arrow in the top-left

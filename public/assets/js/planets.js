@@ -74,6 +74,26 @@ const kindWord = (block) => (block.kind === 'link'
   ? (block.meta?.domain || block.title || '?').replace(/^www\./, '').charAt(0).toUpperCase()
   : (block.ext || block.kind || '').slice(0, 4).toUpperCase());
 
+// Text as a tiny page: its first line as a heading, then the words after it.
+// A text file (notes, code) gets the same page in a typewriter face, with its
+// kind in the corner.
+function pageFace(block) {
+  const note = block.kind === 'text';
+  const raw = (note ? (block.content || block.title) : block.meta.excerpt) || '';
+  const lines = raw.split(/\n/).map((l) => l.replace(/^[#>*\-\s]+/, '').trim()).filter(Boolean);
+  let head;
+  if (!note) head = block.title || block.fileName || '';
+  else if (block.title && block.title !== block.content) head = block.title;
+  else head = lines.shift() || '';
+  const rest = lines.filter((l) => l !== head).join(' ');
+  // A note that's one longer line reads as a whole, not a cut-off heading.
+  const solo = note && !rest && head.length > 24;
+  return h('span', { class: `ff ff-text${note ? '' : ' is-file'}${solo ? ' is-solo' : ''}`, dataset: { kind: block.kind } },
+    h('span', { class: 'ff-head' }, excerpt(head, solo ? 90 : 60)),
+    rest ? h('span', { class: 'ff-body' }, excerpt(rest, 160)) : null,
+    note ? null : h('span', { class: 'ff-ext' }, kindWord(block)));
+}
+
 // A file as a small face: its picture, a scrap of its text, or what kind it is.
 export function fileFace(block, { lazy = false } = {}) {
   if (block.thumb) {
@@ -83,7 +103,7 @@ export function fileFace(block, { lazy = false } = {}) {
     img.addEventListener('error', () => face.replaceWith(fileFace({ ...block, thumb: null })), { once: true });
     return face;
   }
-  if (block.kind === 'text') return h('span', { class: 'ff ff-text' }, h('span', null, excerpt(block.title || block.content, 80)));
+  if (block.kind === 'text' || block.meta?.excerpt) return pageFace(block);
   return h('span', { class: 'ff ff-kind', dataset: { kind: block.kind } }, h('span', null, kindWord(block)));
 }
 
@@ -594,7 +614,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     bits.push(h('span', null, next.count ? plural(next.count, 'file') : 'empty'));
     meta.replaceChildren(...bits);
     if (peekRow) {
-      const pics = previews.slice(0, 4);
+      const pics = next.locked ? [] : (next.recent || previews).slice(0, 4);
       const sig = pics.map((b) => b.id).join();
       if (sig !== peekFor) { peekFor = sig; peekRow.replaceChildren(...pics.map((b) => fileFace(b, { lazy: true }))); }
     }

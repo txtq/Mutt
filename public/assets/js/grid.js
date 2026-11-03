@@ -271,8 +271,10 @@ export class Grid {
     document.body.append(ghost);
     cell.classList.add('is-placeholder');
     document.body.classList.add('is-dragging');
+    // Mid-drag the page doesn't scroll, and a phone doesn't open its long-press menu.
     const blockTouch = (te) => te.preventDefault();
     addEventListener('touchmove', blockTouch, { passive: false });
+    addEventListener('contextmenu', blockTouch);
     this.drag = {
       cell, ghost, blockTouch,
       dx: start.x - rect.left, dy: start.y - rect.top,
@@ -344,6 +346,7 @@ export class Grid {
     this.drag = null;
     cancelAnimationFrame(d.raf);
     removeEventListener('touchmove', d.blockTouch);
+    removeEventListener('contextmenu', d.blockTouch);
     document.body.classList.remove('is-dragging');
     this.suppressClick = true;
     setTimeout(() => { this.suppressClick = false; }, 60);

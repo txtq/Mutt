@@ -100,6 +100,21 @@ addEventListener('paste', (e) => {
   }
 });
 
+// ---------------------------------------------------------------- touch
+
+// Safari on a phone only shows a button being pressed if the page listens
+// for touches at all.
+addEventListener('touchstart', () => {}, { passive: true });
+
+// How much of the screen a phone's keyboard leaves showing, so sheets and
+// dialogs can stay above it (--seen in the stylesheets). Pinching in isn't
+// the keyboard, so it doesn't count.
+if (window.visualViewport) {
+  const seen = () => document.documentElement.style.setProperty('--seen', `${Math.round(visualViewport.height * visualViewport.scale)}px`);
+  visualViewport.addEventListener('resize', seen);
+  seen();
+}
+
 // ---------------------------------------------------------------- keys
 
 addEventListener('keydown', (e) => {

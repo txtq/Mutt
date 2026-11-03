@@ -9,7 +9,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { transition } from './transitions.js';
 import { toast } from './ui.js';
-import { autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, wait } from './util.js';
+import { autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, touchScreen, wait } from './util.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
 export function configureViewer(next) {
@@ -158,9 +158,43 @@ function mount() {
     else if (e.key === 'ArrowRight') step(1);
   };
   addEventListener('keydown', state.onKey);
+  swipeable(state.stage);
   document.body.append(state.el);
   renderStage();
   renderSide();
+}
+
+// On a phone, a quick sideways swipe across the file goes to the next or
+// previous one. Not when it starts on something that moves sideways itself
+// (a video's scrubber, a wide code box), nor while the page is pinched in.
+function swipeable(stage) {
+  let start = null;
+  stage.addEventListener('touchstart', (e) => {
+    start = null;
+    if (e.touches.length !== 1 || (window.visualViewport?.scale || 1) > 1.05) return;
+    if (e.target.closest('video, audio, iframe, input, textarea, select') || slides(e.target, stage)) return;
+    const t = e.touches[0];
+    start = { x: t.clientX, y: t.clientY, at: e.timeStamp };
+  }, { passive: true });
+  stage.addEventListener('touchmove', (e) => { if (e.touches.length > 1) start = null; }, { passive: true });
+  stage.addEventListener('touchcancel', () => { start = null; }, { passive: true });
+  stage.addEventListener('touchend', (e) => {
+    if (!start || !state) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    const quick = e.timeStamp - start.at < 700;
+    start = null;
+    if (quick && Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.6) step(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+
+// Whether anything between the finger and the stage scrolls sideways.
+function slides(el, stage) {
+  for (let n = el; n && n !== stage; n = n.parentElement) {
+    if (n.scrollWidth > n.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------- stage
@@ -292,7 +326,7 @@ function textStage(block) {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); area.blur(); }
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
     });
-    wrap.replaceChildren(area, h('div', { class: 'vw-hint' }, 'click away to save · esc to cancel'));
+    wrap.replaceChildren(area, h('div', { class: 'vw-hint' }, touchScreen() ? 'tap outside to save' : 'click away to save · esc to cancel'));
     autosize(area);
     area.focus();
     area.setSelectionRange(area.value.length, area.value.length);

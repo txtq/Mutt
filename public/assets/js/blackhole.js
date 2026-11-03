@@ -8,7 +8,7 @@
 import { center, shockwave } from './fx.js';
 import { glyph } from './planets.js';
 import { theSky } from './sky.js';
-import { h, isEditable } from './util.js';
+import { h, isEditable, touchScreen } from './util.js';
 import { voidArt } from './voidart.js';
 
 const MODES = [
@@ -55,7 +55,7 @@ export function stillVoid(name) {
   };
 }
 
-export function blackHole({ planets = () => [], onText, onFiles, mode: startMode = 'star', onMode } = {}) {
+export function blackHole({ planets = () => [], onText, onFiles, mode: startMode = 'star', onMode, onToggle } = {}) {
   const v = hole({ tag: 'button', label: 'Add', attrs: { type: 'button', 'aria-label': 'Add something', 'aria-expanded': 'false' } });
   const { core, el, art } = v;
   const label = v.text;
@@ -184,9 +184,45 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     if (!list.hidden) { hideList(); return; }
     close();
   };
+
+  // A phone's keyboard covers the bottom half of the screen. While it's up,
+  // the whole galaxy rises until the box sits just above it, but never so
+  // far that the box slips under the top bar.
+  const vv = window.visualViewport;
+  let lifted = 0;
+  let liftFrame = 0;
+  let lowering = 0;
+  const raise = (gx, by) => {
+    lifted = by;
+    gx.style.translate = by ? `0 ${-by}px` : '';
+  };
+  const lift = () => {
+    cancelAnimationFrame(liftFrame);
+    liftFrame = requestAnimationFrame(() => {
+      const gx = el.closest('.gx');
+      if (!gx || !open || !vv) return;
+      const now = getComputedStyle(gx).translate;
+      const moved = now === 'none' ? 0 : parseFloat(now.split(' ')[1]) || 0;
+      const r = sheet.getBoundingClientRect();
+      const mid = (r.top + r.bottom) / 2 - moved;
+      const half = sheet.offsetHeight / 2;
+      const bar = document.querySelector('.sb')?.offsetHeight || 0;
+      const want = Math.min(mid + half + 16 - (vv.offsetTop + vv.height), mid - half - (vv.offsetTop + bar + 12));
+      const by = Math.max(0, Math.round(want));
+      if (Math.abs(by - lifted) > 1) raise(gx, by);
+    });
+  };
+  const watchKeyboard = (on) => {
+    if (!vv) return;
+    const fn = on ? 'addEventListener' : 'removeEventListener';
+    vv[fn]('resize', lift);
+    vv[fn]('scroll', lift);
+  };
+
   function show() {
     if (open) return;
     open = true;
+    clearTimeout(lowering);
     el.classList.add('is-open');
     el.closest('.gx')?.classList.add('is-adding');
     core.setAttribute('aria-expanded', 'true');
@@ -194,8 +230,13 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     sync();
     tall = input.offsetHeight;
     fit();
-    setTimeout(() => input.focus({ preventScroll: true }), 380);
+    onToggle?.(true);
+    // A phone only brings up its keyboard for a field focused right on the tap.
+    if (touchScreen()) input.focus({ preventScroll: true });
+    else setTimeout(() => input.focus({ preventScroll: true }), 380);
     document.addEventListener('pointerdown', outside, true);
+    watchKeyboard(true);
+    lift();
   }
   function close() {
     if (!open) return;
@@ -206,7 +247,13 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     core.setAttribute('aria-expanded', 'false');
     art.setOpen(0);
     document.removeEventListener('pointerdown', outside, true);
+    watchKeyboard(false);
+    cancelAnimationFrame(liftFrame);
     if (sheet.contains(document.activeElement)) core.focus({ preventScroll: true });
+    onToggle?.(false);
+    // Something sent falls into the void first, then the galaxy settles back.
+    const gx = el.closest('.gx');
+    if (gx && lifted) lowering = setTimeout(() => raise(gx, 0), el.classList.contains('is-swallowing') ? 900 : 0);
   }
   setMode(mode, { save: false });
   // The box folds itself back into the dark once it's been sent.

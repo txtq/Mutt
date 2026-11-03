@@ -16,7 +16,7 @@ import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles } from '../uploads.js';
-import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, wait } from '../util.js';
+import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
 import { paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 
@@ -484,6 +484,7 @@ class Galaxy {
         },
         onText: (text, from, dest) => this.addText(text, from, dest),
         onFiles: (files, from, dest) => this.addFiles(files, from, dest),
+        onToggle: (open) => this.holdStill(open),
       });
       this.void = this.hole;
     } else {
@@ -521,16 +522,18 @@ class Galaxy {
     // On a phone, the address bar sliding in and out as you scroll changes
     // the height a little. Laying out again then would resize the void and
     // send every planet gliding mid-scroll, so only a real resize does.
+    // Nor does a keyboard coming up while you write in the void.
     this.relayout = debounce(() => {
       if (!this.el.isConnected) return; // the page went while it waited
       const s = this.size;
-      const coarse = matchMedia('(pointer: coarse)').matches;
-      if (coarse && s && (this.stage.clientWidth || innerWidth) === s.width && Math.abs(innerHeight - this.barHeight() - s.viewH) < 160) return;
+      const same = s && (this.stage.clientWidth || innerWidth) === s.width;
+      if (same && touchScreen() && (this.hole?.isOpen() || Math.abs(innerHeight - this.barHeight() - s.viewH) < 160)) return;
       this.layout();
     }, 120);
     this.refresh = debounce(() => this.reload(), 450);
     this.lastY = 0;
     this.onScroll = () => {
+      if (this.heldAt != null) return;
       if (!this.uvLoading) this.loadUniverse();
       if (scrollY !== this.lastY) this.heading = scrollY > this.lastY ? 1 : -1;
       this.lastY = scrollY;
@@ -711,7 +714,7 @@ class Galaxy {
   setHint() {
     if (this.mine) {
       const empty = !this.data.planets.length && !this.stars.length;
-      this.hint.textContent = empty ? 'Your galaxy is empty. Click the void to put something in.' : '';
+      this.hint.textContent = empty ? `Your galaxy is empty. ${touchScreen() ? 'Tap' : 'Click'} the void to put something in.` : '';
     } else if (!this.data.planets.length) {
       this.hint.textContent = `@${this.owner} hasn’t shared any planets yet.`;
     } else this.hint.textContent = '';
@@ -1300,6 +1303,16 @@ class Galaxy {
       else this.void.play();
     }
     theSky()?.setNight(e);
+  }
+
+  // While the void is open, a phone keyboard scrolls the page to show what
+  // you're typing. That isn't a trip out to the universe, so the picture
+  // holds still, and the page goes back to where it was once you're done.
+  holdStill(on) {
+    if (on) { if (touchScreen()) this.heldAt = scrollY; return; }
+    const y = this.heldAt;
+    this.heldAt = null;
+    if (y != null && Math.abs(scrollY - y) > 1) scrollTo(0, y);
   }
 
   // Let go between the two and it carries on the way you were going.

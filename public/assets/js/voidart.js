@@ -246,6 +246,7 @@ export function voidArt() {
   let frame = 0;
   let running = false;
   let wanted = false;
+  let gone = false;
   let onScreen = true;
   let last = 0;
   let spin = 0;
@@ -487,7 +488,12 @@ export function voidArt() {
   }
 
   function step(now) {
-    frame = 0;
+    frame = running ? requestAnimationFrame(step) : 0;
+    // At rest it turns by a fraction of a pixel a frame, so about 30 pictures
+    // a second look the same as 60 for half the work, like the sky and the
+    // planets. Opening, closing, hungry or gulping, it's drawn every frame.
+    const settling = openness(now) < 1 || now - wide.start < 450 || hungry || hunger > 0.001 || now - gulpAt < 700;
+    if (!settling && last && now - last < 32) return;
     const dt = Math.min(0.05, (now - (last || now)) / 1000);
     last = now;
     const t = openness(now);
@@ -498,7 +504,6 @@ export function voidArt() {
     const calm = root.dataset.motion === 'calm' ? 0.35 : 1;
     spin += dt * 0.07 * (1 + sweep * 9 + hunger * 3 + pull * 4) * calm;
     draw(now);
-    if (running) frame = requestAnimationFrame(step);
   }
 
   function sync() {
@@ -573,9 +578,11 @@ export function voidArt() {
     },
     hungry(on) { hungry = on; if (!running) { hunger = on ? 1 : 0; draw(performance.now()); } },
     gulp() { gulpAt = performance.now(); },
-    play() { wanted = true; sync(); },
+    // Once its page has gone it stays asleep: nothing is left to stop it.
+    play() { if (!gone) { wanted = true; sync(); } },
     pause() { wanted = false; sync(); },
     destroy() {
+      gone = true;
       wanted = false;
       sync();
       watch.disconnect();

@@ -317,10 +317,12 @@ def saved_from_ids(req):
 
 
 def mark_saved(req, blocks):
+    others = [b for b in blocks if not b['mine']]
+    if not others:
+        return blocks  # all your own: no need to look through everything you've saved
     saved = saved_from_ids(req)
-    for b in blocks:
-        if not b['mine']:
-            b['saved'] = b['id'] in saved
+    for b in others:
+        b['saved'] = b['id'] in saved
     return blocks
 
 

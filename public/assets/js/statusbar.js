@@ -119,6 +119,7 @@ function settingsBody(close) {
     row('Logo', logoPicker()),
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
+    row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
     h('div', { class: 'sheet-actions' },
       h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
       h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); changePin(); } }, 'Change code'),

@@ -220,7 +220,11 @@ const TEX_W = 1024;
 const TEX_H = 512;
 const KIND_TINT = { link: '#5d8fb8', pdf: '#b8775a', doc: '#b8946a', audio: '#4f9b85', video: '#9b5d82', code: '#7468a8', archive: '#7d8597', other: '#7d8597' };
 
+// The newest few hundred pictures are kept for painting planets; older ones
+// are let go, or a long visit would hold every picture it ever passed (the
+// browser keeps the files, so asking again later is quick).
 const imageCache = new Map();
+const MAX_IMAGES = 400;
 function loadImage(src) {
   if (!imageCache.has(src)) {
     imageCache.set(src, new Promise((resolve) => {
@@ -230,6 +234,7 @@ function loadImage(src) {
       img.onerror = () => resolve(null);
       img.src = src;
     }));
+    if (imageCache.size > MAX_IMAGES) imageCache.delete(imageCache.keys().next().value);
   }
   return imageCache.get(src);
 }
@@ -468,8 +473,7 @@ function tick(now) {
     if (resting) return;
     for (const globe of turning) {
       if (spinning.has(globe)) continue;
-      // Planets that have left the page stop turning.
-      if (!globe.canvas.isConnected && globe.born < now - 2000) { turning.delete(globe); watcher?.unobserve(globe.canvas); continue; }
+      if (gone(globe, now)) { letGo(globe); continue; }
       if ((i++ + beat) % turns === 0) globe.draw(now);
     }
   });
@@ -477,7 +481,16 @@ function tick(now) {
 function wake() {
   if (turning.size && !frame && !document.hidden && (spinning.size || (!held && !reducedMotion()))) frame = requestAnimationFrame(tick);
 }
+// Planets that have left the page stop turning. The loop lets them go as it
+// goes, but it rests while held or Still, so each new planet checks too.
+const gone = (globe, now) => !globe.canvas.isConnected && globe.born < now - 2000;
+function letGo(globe) {
+  turning.delete(globe);
+  watcher?.unobserve(globe.canvas);
+}
 function startTurning(globe) {
+  const now = performance.now();
+  for (const old of turning) if (gone(old, now)) letGo(old);
   turning.add(globe);
   wake();
 }

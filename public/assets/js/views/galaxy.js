@@ -522,6 +522,7 @@ class Galaxy {
     // the height a little. Laying out again then would resize the void and
     // send every planet gliding mid-scroll, so only a real resize does.
     this.relayout = debounce(() => {
+      if (!this.el.isConnected) return; // the page went while it waited
       const s = this.size;
       const coarse = matchMedia('(pointer: coarse)').matches;
       if (coarse && s && (this.stage.clientWidth || innerWidth) === s.width && Math.abs(innerHeight - this.barHeight() - s.viewH) < 160) return;
@@ -1089,7 +1090,9 @@ class Galaxy {
   // ------------------------------------------------------------ out to the universe and back
 
   // A still picture of this page's void, for the galaxies out there. Taken
-  // whenever the void is drawn closed, so it matches.
+  // whenever the void is drawn closed, so it matches. Turning the picture
+  // into an image is slow, so it's only taken again when the void's size
+  // changes, not every time the page lays itself out.
   snapVoid(m) {
     if (this.hole?.isOpen()) return;
     const src = this.void.art;
@@ -1097,6 +1100,9 @@ class Galaxy {
     if (!src.width || !css) return;
     const dpr = src.width / css;
     const r = m.hole * REACH.y * 1.05;
+    const key = `${r}×${dpr}`;
+    if (key === this.voidKey) return;
+    this.voidKey = key;
     const out = document.createElement('canvas');
     out.width = out.height = Math.min(360, Math.round(r * 2 * dpr));
     out.getContext('2d').drawImage(src, src.width / 2 - r * dpr, src.height / 2 - r * dpr, r * 2 * dpr, r * 2 * dpr, 0, 0, out.width, out.height);
@@ -1421,6 +1427,9 @@ class Galaxy {
       destroy: () => {
         removeEventListener('resize', this.relayout);
         removeEventListener('scroll', this.onScroll);
+        // A glide still under way would carry on after the page has gone,
+        // waking its void and dimming the sky over the next page.
+        cancelAnimationFrame(this.scrollFrame);
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
         this.diving = false;

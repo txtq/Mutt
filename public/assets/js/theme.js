@@ -7,7 +7,7 @@ import { burst } from './fx.js';
 import { PALETTE, debounce, reducedMotion, seeded } from './util.js';
 
 export const DEFAULTS = {
-  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false,
+  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false, music: 'on',
 };
 
 // Skies to live under. [deep, glow] for the picker;
@@ -30,6 +30,7 @@ export function applyPrefs(raw = {}) {
   root.dataset.motion = p.motion;
   root.dataset.logo = p.logo;
   root.dataset.sky = SKIES[p.sky] ? p.sky : 'vita';
+  root.dataset.music = p.music === 'off' ? 'off' : 'on';
   followLogo(p.logo);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', sky.theme);
   return p;

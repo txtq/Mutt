@@ -69,8 +69,13 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   so the link's address is sent there); YouTube and Vimeo play inline; PDFs
   scroll inside Mutt, drawn with pdf.js. One file can sit on many planets.
 - **Settings**: sky (Vita, Nebula, Aurora,
-  Dusk), logo, text size, and motion (Lively, Calm or Still).
-  Mutt also respects your system's reduce-motion setting.
+  Dusk), logo, text size, motion (Lively, Calm or Still) and music (On or
+  Off). Mutt also respects your system's reduce-motion setting.
+- **Music**: `public/assets/audio/music.mp3` plays quietly on a loop while
+  you're signed in, starting on your first tap or key (browsers don't allow
+  sound before that) and pausing when the tab is hidden. Without that file, a
+  slow bass loop made in the browser plays instead. Only use audio you have
+  the rights to put on a public site.
 
 The pre-galaxy Mutt is kept on the `classic` branch and the `classic-v1`
 tag. Both read the same database, so you can switch back and forth; the

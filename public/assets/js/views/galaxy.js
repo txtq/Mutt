@@ -545,7 +545,7 @@ class Galaxy {
 
   addPlanet(planet, { born = false } = {}) {
     const el = planetEl(planet, { peek: true });
-    el.ball.dataset.vt = `planet-${planet.id}`;
+    el.body.dataset.vt = `planet-${planet.id}`;
     if (planet.locked) {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(); });
     }
@@ -587,12 +587,13 @@ class Galaxy {
         shown = { ...at };
         el.classList.add('is-moving');
       },
-      onMove: (pointer) => {
+      onMove: (pointer, dt) => {
         const p = toScene(pointer);
         const half = this.size.width / 2;
         at = { x: clamp(p.x - grab.x, -half, half), y: p.y - grab.y };
-        // A little behind the pointer, as if it has some weight.
-        const k = reducedMotion() ? 1 : 0.3;
+        // A little behind the pointer, as if it has some weight (timed, so
+        // it's the same weight on a 120 Hz screen).
+        const k = reducedMotion() ? 1 : 1 - Math.exp(-dt / 47);
         shown = { x: shown.x + (at.x - shown.x) * k, y: shown.y + (at.y - shown.y) * k };
         el.style.transform = `translate(${this.size.cx + shown.x}px, ${this.size.cy + shown.y}px)`;
       },

@@ -248,6 +248,7 @@ export function voidArt() {
   let wanted = false;
   let onScreen = true;
   let last = 0;
+  let drawnAt = 0;
   let spin = 0;
   // Opening: o goes 0 → 1, eased, with a burst of speed on the way (the sweep).
   const open = { o: 0, from: 0, to: 0, start: 0, dur: 900 };
@@ -497,7 +498,14 @@ export function voidArt() {
     const pull = g < 1 ? Math.sin(Math.PI * g) : 0;
     const calm = root.dataset.motion === 'calm' ? 0.35 : 1;
     spin += dt * 0.07 * (1 + sweep * 9 + hunger * 3 + pull * 4) * calm;
-    draw(now);
+    // Resting, it only turns slowly, so ~30 pictures a second look the same
+    // as 60 (or 120) and cost far less. Opening, closing, hungry or
+    // gulping, it's drawn every frame.
+    const busy = t < 1 || g < 1 || hungry || hunger > 0.002 || now - wide.start < 450;
+    if (busy || now - drawnAt >= 32) {
+      drawnAt = now;
+      draw(now);
+    }
     if (running) frame = requestAnimationFrame(step);
   }
 

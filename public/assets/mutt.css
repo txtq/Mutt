@@ -193,7 +193,7 @@ body.no-chrome .topbar { display: none; }
 .logo.is-glitching .logo-word { overflow: visible; animation: logo-scan 0.9s steps(1, end) both; }
 .logo.is-glitching .logo-l { transform: translateX(var(--gx, 0)); }
 .logo-l.is-inv { background: var(--ink); color: var(--bg); }
-.logo-l.is-landed { animation: logo-land 0.42s var(--ease) both; }
+.logo-l.is-landed { animation: logo-land 0.42s var(--ease) backwards; }
 @keyframes logo-scan {
   0%, 100% { clip-path: none; }
   14% { clip-path: inset(0 0 58% 0); }
@@ -329,7 +329,10 @@ body.no-chrome #view { max-width: none; padding: 0; }
 .cell[data-id] { cursor: pointer; }
 .cell:focus-visible .cell-box { outline: 2px solid var(--ink); outline-offset: 4px; }
 
-.reveal { animation: rise 0.8s var(--ease) both; animation-delay: calc(min(var(--i, 0), 14) * 30ms); }
+/* Entrances fill `backwards`, never `both`: a held end state leaves a
+   blur(0)/translate(0) on the element for good, and that stops the glass
+   inside it from frosting (and gives it a layer of its own). */
+.reveal { animation: rise 0.8s var(--ease) backwards; animation-delay: calc(min(var(--i, 0), 14) * 30ms); }
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px); filter: blur(8px); }
 }
@@ -458,11 +461,11 @@ body.no-chrome #view { max-width: none; padding: 0; }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 30%, rgba(0, 0, 0, 0.045) 50%, transparent 70%);
-  background-size: 250% 100%;
+  background: linear-gradient(100deg, transparent, rgba(0, 0, 0, 0.045) 50%, transparent);
+  /* the band slides across rather than repainting each frame; same pass and pause as before */
   animation: shimmer 1.6s linear infinite;
 }
-@keyframes shimmer { from { background-position: 125% 0; } to { background-position: -125% 0; } }
+@keyframes shimmer { from { transform: translateX(-112.5%); } to { transform: translateX(262.5%); } }
 
 /* Dragging to reorder */
 .cell.is-placeholder .cell-box { background: var(--tint); border-radius: 2px; }
@@ -575,7 +578,7 @@ body.no-chrome #view { max-width: none; padding: 0; }
   grid-template-columns: minmax(0, 1fr) 380px;
   grid-template-rows: 64px minmax(0, 1fr);
   background: var(--bg);
-  animation: fade-in 0.3s ease both;
+  animation: fade-in 0.3s ease backwards;
 }
 html[data-vt] .viewer { animation: none; }
 html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
@@ -714,7 +717,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   padding: 72px 28px 40px;
   border-left: 1px solid var(--line);
   overflow-y: auto;
-  animation: side-in 0.7s var(--ease) both;
+  animation: side-in 0.7s var(--ease) backwards;
 }
 @keyframes side-in { from { opacity: 0; transform: translateX(14px); filter: blur(4px); } }
 .vw-title, .vw-desc {
@@ -759,7 +762,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   font-weight: 500;
 }
 .vw-conns { list-style: none; margin: 12px 0 0; padding: 0; }
-.vw-conns li { display: flex; align-items: center; gap: 4px; animation: rise 0.6s var(--ease) both; }
+.vw-conns li { display: flex; align-items: center; gap: 4px; animation: rise 0.6s var(--ease) backwards; }
 .vw-conn {
   flex: 1;
   min-width: 0;
@@ -790,7 +793,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   background: rgba(255, 255, 255, 0.62);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  animation: fade-in 0.35s ease both;
+  animation: fade-in 0.35s ease backwards;
 }
 .scrim.is-leaving { animation: fade-out 0.25s ease both; }
 .scrim.is-leaving .dialog { animation: dialog-out 0.25s var(--ease-in) both; }
@@ -803,7 +806,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   border-radius: 16px;
   background: var(--bg);
   box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.22);
-  animation: dialog-in 0.6s var(--ease) both;
+  animation: dialog-in 0.6s var(--ease) backwards;
 }
 .dialog-wide { width: min(560px, 100%); }
 .dialog-title { font-size: 18px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 10px; }
@@ -829,7 +832,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 18px 50px -14px rgba(0, 0, 0, 0.2);
   transform-origin: var(--origin, top left);
-  animation: pop-in 0.42s var(--ease) both;
+  animation: pop-in 0.42s var(--ease) backwards;
 }
 .pop.is-leaving { animation: pop-out 0.18s var(--ease-in) both; }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); filter: blur(4px); } }
@@ -935,7 +938,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   font-size: 13px;
   box-shadow: 0 12px 34px -10px rgba(0, 0, 0, 0.35);
   pointer-events: auto;
-  animation: toast-in 0.6s var(--ease) both;
+  animation: toast-in 0.6s var(--ease) backwards;
 }
 .toast button { font-weight: 500; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.4); }
 .toast.is-leaving { animation: toast-out 0.3s var(--ease-in) both; }
@@ -1033,9 +1036,9 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 
 .login { min-height: 100svh; display: grid; place-items: center; padding: 32px 20px 12vh; }
 .login-box { width: min(330px, 100%); }
-.login-mark { margin: 0; animation: letter-in 1s var(--ease) 0.1s both; }
+.login-mark { margin: 0; animation: letter-in 1s var(--ease) 0.1s backwards; }
 @keyframes letter-in { from { opacity: 0; transform: translateY(18px); filter: blur(10px); } }
-.login-form { margin-top: 42px; animation: rise 1s var(--ease) 0.52s both; }
+.login-form { margin-top: 42px; animation: rise 1s var(--ease) 0.52s backwards; }
 .login-label { display: block; margin-bottom: 10px; font-size: 12px; color: var(--ink-3); }
 .login-name-row {
   display: flex;
@@ -1101,7 +1104,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 }
 .login-msg.is-on { opacity: 1; transform: none; }
 .login-msg.is-error { color: var(--danger); }
-.login-switch { margin-top: 38px; font-size: 13px; color: var(--ink-3); animation: rise 1s var(--ease) 0.62s both; }
+.login-switch { margin-top: 38px; font-size: 13px; color: var(--ink-3); animation: rise 1s var(--ease) 0.62s backwards; }
 .login-switch .link { color: var(--ink); }
 
 /* PIN cells */

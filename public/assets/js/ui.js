@@ -49,8 +49,11 @@ function exit(el, className = 'is-leaving', fallback = 320) {
   return new Promise((resolve) => {
     if (reducedMotion()) { el.remove(); resolve(); return; }
     el.classList.add(className);
-    const done = () => { el.remove(); resolve(); };
-    el.addEventListener('animationend', done, { once: true });
+    const done = () => { el.removeEventListener('animationend', own); el.remove(); resolve(); };
+    // Only its own exit: a child's animation ending (a shake, a spinner)
+    // would otherwise cut it off halfway.
+    const own = (e) => { if (e.target === el) done(); };
+    el.addEventListener('animationend', own);
     setTimeout(done, fallback);
   });
 }

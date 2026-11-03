@@ -279,7 +279,9 @@ export class Grid {
       x: ev.clientX, y: ev.clientY,
       initial: this.keys().join(','),
     };
-    ghost.animate([{ transform: this.ghostTransform(1) }, { transform: this.ghostTransform(1.035) }], { duration: 260, easing: EASE });
+    // Lifts on top of wherever it's carried ('add'), so it follows the
+    // pointer from the start instead of sitting still until the lift ends.
+    ghost.animate([{ transform: `scale(${1 / 1.035})` }, { transform: 'scale(1)' }], { duration: 260, easing: EASE, composite: 'add' });
     this.dragMove(ev);
     this.scrollLoop();
   }
@@ -321,7 +323,7 @@ export class Grid {
     glide(rects, { duration: 420 });
   }
 
-  scrollLoop() {
+  scrollLoop(now, last) {
     const d = this.drag;
     if (!d) return;
     const edge = 90;
@@ -329,10 +331,11 @@ export class Grid {
     if (d.y < edge) speed = -((edge - d.y) / edge) * 18;
     else if (d.y > innerHeight - edge) speed = ((d.y - (innerHeight - edge)) / edge) * 18;
     if (speed) {
-      scrollBy(0, speed);
+      // speed is per 60th of a second, so a 120 Hz screen doesn't scroll twice as fast
+      scrollBy(0, speed * (last ? Math.min(now - last, 50) / 16.7 : 1));
       this.reposition();
     }
-    d.raf = requestAnimationFrame(() => this.scrollLoop());
+    d.raf = requestAnimationFrame((t) => this.scrollLoop(t, now));
   }
 
   dragEnd() {

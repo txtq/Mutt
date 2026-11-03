@@ -100,7 +100,7 @@ export const planetView = {
     const home = homeOf(drawer);
 
     const world = planetEl(drawer, { size: innerWidth < 640 ? 76 : 104, href: null, label: false });
-    world.ball.dataset.vt = `planet-${id}`;
+    world.body.dataset.vt = `planet-${id}`;
     world.classList.add('planet-big');
     if (mine) {
       world.classList.add('is-editable');

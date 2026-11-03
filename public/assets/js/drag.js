@@ -23,9 +23,11 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
     let armed = !touch;
     let g = null;
     let shown = { ...start };
+    let size = 1;
     let hovered = null;
     let list = [];
     let frame = 0;
+    let last = 0;
     const hold = touch ? setTimeout(() => {
       armed = true;
       navigator.vibrate?.(8);
@@ -57,11 +59,14 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
       return best;
     }
 
-    function tick() {
+    function tick(now) {
       frame = requestAnimationFrame(tick);
+      // Timed, not counted in frames, so it feels the same on a 120 Hz screen.
+      const dt = last ? Math.min(now - last, 50) : 16.7;
+      last = now;
       // Near an edge, carry on scrolling so far-off planets come into reach.
-      if (pos.y < EDGE) scrollBy(0, -Math.ceil((EDGE - pos.y) / 5));
-      else if (pos.y > innerHeight - EDGE) scrollBy(0, Math.ceil((pos.y - innerHeight + EDGE) / 5));
+      if (pos.y < EDGE) scrollBy(0, -Math.ceil(((EDGE - pos.y) / 5) * (dt / 16.7)));
+      else if (pos.y > innerHeight - EDGE) scrollBy(0, Math.ceil(((pos.y - innerHeight + EDGE) / 5) * (dt / 16.7)));
       const next = nearest();
       if (next !== hovered) {
         hovered?.el.classList.remove('is-target');
@@ -74,11 +79,15 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
       const aim = hovered
         ? { x: pos.x + (hovered.center.x - pos.x) * 0.38, y: pos.y + (hovered.center.y - pos.y) * 0.38 }
         : pos;
-      const k = reducedMotion() ? 1 : 0.32;
+      const still = reducedMotion();
+      const k = still ? 1 : 1 - Math.exp(-dt / 43);
       const vx = (aim.x - shown.x) * k;
       shown = { x: shown.x + vx, y: shown.y + (aim.y - shown.y) * k };
-      const tilt = Math.max(-24, Math.min(24, vx * 1.6));
-      g.style.transform = `translate(${shown.x}px, ${shown.y}px) translate(-50%, -50%) rotate(${tilt}deg) scale(${hovered ? 0.8 : 1.15})`;
+      // It leans with its speed, and settles into size (lifted, or tucked
+      // in over a planet) rather than jumping.
+      const tilt = Math.max(-24, Math.min(24, (vx / dt) * 27));
+      size += ((hovered ? 0.8 : 1.15) - size) * (still ? 1 : 1 - Math.exp(-dt / 70));
+      g.style.transform = `translate(${shown.x}px, ${shown.y}px) translate(-50%, -50%) rotate(${tilt}deg) scale(${size})`;
     }
 
     const move = (ev) => {
@@ -153,7 +162,8 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
 // Moving something itself (a planet round your galaxy) rather than carrying a
 // copy of it. Same feel as picking up a star: a mouse moves it once you've
 // dragged a little, a finger after holding for a moment. `onMove` gets the
-// pointer on every frame; `limits()` says how far the page may scroll.
+// pointer and the milliseconds since the last frame, on every frame;
+// `limits()` says how far the page may scroll.
 export function movable(el, { enabled = () => true, from = () => true, onStart, onMove, onEnd, limits = () => ({ top: 0, bottom: Infinity }) }) {
   let blockClick = false;
 
@@ -166,6 +176,7 @@ export function movable(el, { enabled = () => true, from = () => true, onStart, 
     let dragging = false;
     let armed = !touch;
     let frame = 0;
+    let last = 0;
     const hold = touch ? setTimeout(() => {
       armed = true;
       navigator.vibrate?.(8);
@@ -181,12 +192,14 @@ export function movable(el, { enabled = () => true, from = () => true, onStart, 
       frame = requestAnimationFrame(tick);
     }
 
-    function tick() {
+    function tick(now) {
       frame = requestAnimationFrame(tick);
+      const dt = last ? Math.min(now - last, 50) : 16.7;
+      last = now;
       const { top, bottom } = limits();
-      if (pos.y < EDGE && scrollY > top) scrollBy(0, -Math.min(scrollY - top, Math.ceil((EDGE - pos.y) / 5)));
-      else if (pos.y > innerHeight - EDGE && scrollY < bottom) scrollBy(0, Math.min(bottom - scrollY, Math.ceil((pos.y - innerHeight + EDGE) / 5)));
-      onMove?.(pos);
+      if (pos.y < EDGE && scrollY > top) scrollBy(0, -Math.min(scrollY - top, Math.ceil(((EDGE - pos.y) / 5) * (dt / 16.7))));
+      else if (pos.y > innerHeight - EDGE && scrollY < bottom) scrollBy(0, Math.min(bottom - scrollY, Math.ceil(((pos.y - innerHeight + EDGE) / 5) * (dt / 16.7))));
+      onMove?.(pos, dt);
     }
 
     const move = (ev) => {

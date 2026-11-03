@@ -9,7 +9,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { transition } from './transitions.js';
 import { toast } from './ui.js';
-import { autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural } from './util.js';
+import { autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, wait } from './util.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
 export function configureViewer(next) {
@@ -112,10 +112,19 @@ function step(delta) {
   if (index < 0 || list.length < 2) return;
   const next = list[(index + delta + list.length) % list.length];
   show(next);
-  state.stage.animate(
+  state.stepping?.cancel();
+  const slide = state.stage.animate(
     [{ opacity: 0, transform: `translateX(${delta * 14}px)`, filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
     { duration: 420, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
   );
+  state.stepping = slide;
+  // A picture that isn't ready waits a moment to slide in whole, rather
+  // than popping in halfway through.
+  const img = state.media.tagName === 'IMG' && !state.media.complete ? state.media : null;
+  if (img) {
+    slide.pause();
+    Promise.race([img.decode().catch(() => {}), wait(160)]).then(() => { if (state?.stepping === slide) slide.play(); });
+  }
   hooks.step(next.id);
 }
 

@@ -159,6 +159,8 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
       top = a.top - r.height - 8;
       origin = 'bottom';
     }
+    // Room on neither side (a phone on its side): keep it on the screen.
+    top = Math.max(12, Math.min(top, innerHeight - r.height - 12));
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
     el.style.setProperty('--origin', `${origin} ${align === 'end' ? 'right' : 'left'}`);

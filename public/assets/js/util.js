@@ -42,6 +42,10 @@ export function onMotionChange(fn) {
   new MutationObserver(fn).observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] });
 }
 
+// A finger rather than a mouse: things are tapped, not clicked.
+const touchQuery = matchMedia('(pointer: coarse)');
+export const touchScreen = () => touchQuery.matches;
+
 // The colours planets (and a few touches like toasts) are picked from.
 export const PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240'];
 

@@ -153,6 +153,8 @@ export function createStatusbar() {
   let out = false;
   const showHome = () => {
     home.hidden = !session.user || !current?.home;
+    // On a phone the arrow sits in the bar, so the bar makes room for it.
+    document.body.classList.toggle('has-home', !home.hidden);
     const label = current?.chrome === 'galaxy' && !out ? 'Out to the universe' : 'Your galaxy';
     home.title = label;
     home.setAttribute('aria-label', label === 'Your galaxy' ? 'Back to your galaxy' : 'Back out to the universe');

@@ -8,7 +8,9 @@
 import { session } from './api.js';
 
 const TRACK = '/assets/audio/music.mp3';
-const VOLUME = 0.16;
+const VOLUME = 0.112;
+// A gentle low-pass on everything, so the music sits back and sounds a bit muffled.
+const MUFFLE = 1800;
 const BPM = 64;
 const BEAT = 60 / BPM;
 
@@ -136,7 +138,11 @@ async function setup() {
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   master = ctx.createGain();
   master.gain.value = 0;
-  master.connect(ctx.destination);
+  const muffle = ctx.createBiquadFilter();
+  muffle.type = 'lowpass';
+  muffle.frequency.value = MUFFLE;
+  muffle.Q.value = 0.5;
+  master.connect(muffle).connect(ctx.destination);
   if (await hasTrack()) {
     track = new Audio(TRACK);
     track.loop = true;

@@ -32,6 +32,7 @@ PREF_CHOICES = {
     'motion': {'fluid', 'calm', 'off'},
     'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
     'sky': {'vita', 'nebula', 'aurora', 'dusk'},
+    'music': {'on', 'off'},
 }
 
 

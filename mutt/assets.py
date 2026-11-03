@@ -99,6 +99,19 @@ def find(relative):
     return os.path.relpath(path, os.path.realpath(ROOT))
 
 
+def byte_range(header, size):
+    """(start, end) for a single `bytes=a-b` range, or None to send it all."""
+    m = re.fullmatch(r'bytes=(\d*)-(\d*)', (header or '').strip())
+    if not m or not (m.group(1) or m.group(2)):
+        return None
+    if m.group(1):
+        start = int(m.group(1))
+        end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+    else:
+        start, end = max(0, size - int(m.group(2))), size - 1
+    return (start, end) if start <= end < size else None
+
+
 def serve(req, relative):
     """(status, headers, body) for one asset."""
     v = version()
@@ -118,6 +131,15 @@ def serve(req, relative):
     body = entry['gz'] if gz else entry['body']
     if gz:
         headers.append(('Content-Encoding', 'gzip'))
+    elif entry['type'].startswith(('audio/', 'video/')):
+        # Safari only plays media it can fetch in pieces.
+        headers.append(('Accept-Ranges', 'bytes'))
+        part = byte_range(req.header('Range'), len(body))
+        if part:
+            start, end = part
+            headers.append(('Content-Range', f'bytes {start}-{end}/{len(body)}'))
+            headers.append(('Content-Length', str(end - start + 1)))
+            return 206, headers, b'' if req.method == 'HEAD' else body[start:end + 1]
     headers.append(('Content-Length', str(len(body))))
     return 200, headers, b'' if req.method == 'HEAD' else body
 

@@ -6,6 +6,7 @@ import { currentView, redirect, route, startRouter } from './router.js';
 import { createSky } from './sky.js';
 import { closeSheets, createStatusbar } from './statusbar.js';
 import { closeTopLayer } from './ui.js';
+import { startMusic } from './music.js';
 import { h, isEditable } from './util.js';
 import { viewerOpen } from './viewer.js';
 import { bootPrefs, setPrefs } from './theme.js';
@@ -14,6 +15,7 @@ import { loginView } from './views/login.js';
 import { planetView } from './views/planet.js';
 
 bootPrefs();
+startMusic();
 
 route(/^\/login$/, loginView);
 route(/^\/$/, galaxyView);

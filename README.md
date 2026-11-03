@@ -47,10 +47,17 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Stars** are files that aren't on a planet yet. They sit as small
   thumbnails floating round the void, newest closest in. Click to open,
   drag onto a planet, or drag back into the void to autosort it.
-- **Autosort** sends new things to a planet by itself: one whose name
-  matches the words, one named after the kind of file (Images, Links,
-  Notes, Reading...), or one that's mostly that kind. If none fits, a new
-  planet is born.
+- **Autosort** sends new things to the planet they fit best, weighing
+  everything about the file against everything about each planet
+  (`mutt/sorting.py`, all on the server, nothing sent anywhere): the file's
+  name and note and what's inside it (typed text, text files, Word,
+  PowerPoint, spreadsheets, ePubs, RTF and most PDFs); what the planet is
+  called and what that means (a planet called "Food" wants recipes, "Japan
+  trip" wants Osaka); the files already on it (their words, kinds, websites
+  and colours, so moving a wrong guess teaches it); and how a note is written
+  (a checklist, a quote, a poem, a recipe, code, a diary). If nothing fits
+  well, a new planet is born, named after what the file is about ("Quotes",
+  "To do") or, failing that, its kind (Notes, Images...).
 - **Who can see a planet**: Private (only you), Code (anyone who has your
   4-digit code, the default), People (the usernames you list) or Public
   (everyone signed in). A public planet can also let others add files.

@@ -269,6 +269,8 @@ def inspect(url):
         info['description'] = _clip(description, 600)
     if meta.get('og:site_name'):
         info['siteName'] = _clip(meta['og:site_name'], 80)
+    if meta.get('keywords'):
+        info['keywords'] = _clip(meta['keywords'], 200)  # helps autosort
     image_url = (meta.get('og:image') or meta.get('og:image:url') or meta.get('og:image:secure_url')
                  or meta.get('twitter:image') or meta.get('twitter:image:src'))
     preview = None

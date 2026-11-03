@@ -11,7 +11,7 @@ import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, db, kinds, links
+from . import auth, db, kinds, links, sorting
 from .web import HttpError, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '512')) * 1024 * 1024)
@@ -872,71 +872,28 @@ def reorder_drawer(req, drawer_id):
 
 # ---------------------------------------------------------------- autosort
 
-KIND_GROUPS = {'image': 'Images', 'video': 'Videos', 'audio': 'Sounds', 'pdf': 'Reading', 'doc': 'Reading',
-               'link': 'Links', 'text': 'Notes', 'code': 'Code', 'archive': 'Files', 'other': 'Files'}
-WORD_RE = re.compile(r'[a-z0-9]+')
-STOP_WORDS = set("""
-the and for with from that this your you are was were but not all any can had her his its our out has have
-into about over just what when where which who why how com www http https net org html htm php
-jpg jpeg png gif webp heic mov mp4 pdf doc docx txt img image screenshot screen shot copy untitled final new
-""".split())
+def stored_text(user_id, block):
+    """What can be read inside a block's file, for sorting it."""
+    ext = block['ext'] or ''
+    if not block['file_key'] or not (ext in kinds.TEXTY or block['kind'] in ('doc', 'pdf') or ext == 'ipynb'):
+        return ''
+    return sorting.read_text(os.path.join(db.user_files_dir(user_id), block['file_key']), ext, ext in kinds.TEXTY)
 
 
-def words(text):
-    found = set()
-    for word in WORD_RE.findall((text or '').lower()):
-        if len(word) < 3 or word.isdigit() or word in STOP_WORDS:
-            continue
-        found.add(word[:-1] if len(word) > 3 and word.endswith('s') else word)
-    return found
-
-
-def pick_planet(req, block):
-    """Where a new file most likely belongs: (drawer id, created?)."""
-    uid = req.user['id']
-    group = KIND_GROUPS.get(block['kind'], 'Files')
-    meta = json.loads(block['meta'] or '{}')
-    about = words(' '.join([block['title'] or '', (block['content'] or '')[:300] if block['kind'] == 'text' else '',
-                            meta.get('domain') or '', meta.get('siteName') or '']))
-    planets = req.db.execute('SELECT id, title FROM drawers WHERE user_id = ? ORDER BY updated_at DESC',
-                             (uid,)).fetchall()
-    # 1. A planet named after something in the file.
-    best, best_score = None, 0
-    for planet in planets:
-        score = len(about & words(planet['title']))
-        if score > best_score:
-            best, best_score = planet['id'], score
-    if best:
-        return best, False
-    # 2. A planet named after its kind ("Images", "Links"…).
-    for planet in planets:
-        if planet['title'].strip().lower() == group.lower():
-            return planet['id'], False
-    # 3. A planet that's mostly this kind of thing already.
-    tally = {}
-    for row in req.db.execute('SELECT c.drawer_id, b.kind FROM connections c JOIN blocks b ON b.id = c.block_id '
-                              'JOIN drawers d ON d.id = c.drawer_id WHERE d.user_id = ?', (uid,)):
-        total, same = tally.get(row['drawer_id'], (0, 0))
-        tally[row['drawer_id']] = (total + 1, same + (KIND_GROUPS.get(row['kind']) == group))
-    fits = [(same / total, total, drawer_id) for drawer_id, (total, same) in tally.items()
-            if total >= 3 and same / total >= 0.6]
-    if fits:
-        return max(fits)[2], False
-    return None, True
-
-
-def autosort(req, block_id, icon=None):
-    """File a new block onto a planet, making one if nothing fits."""
+def autosort(req, block_id, icon=None, text=None):
+    """File a new block onto the planet it fits best, making one if nothing fits."""
     block = own_block(req, block_id)
-    drawer_id, created = pick_planet(req, block)
+    if text is None:
+        text = stored_text(req.user['id'], block)
+    drawer_id, title = sorting.pick(req.db, req.user['id'], block, text)
+    created = drawer_id is None
     if created:
         drawer_id = new_id()
         stamp = now()
         req.db.execute(
             'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility) '
             "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'pin')",
-            (drawer_id, req.user['id'], KIND_GROUPS.get(block['kind'], 'Files'),
-             json.dumps(icon or default_icon()), stamp, stamp))
+            (drawer_id, req.user['id'], title, json.dumps(icon or default_icon()), stamp, stamp))
     connect(req.db, block_id, drawer_id)
     row = own_drawer(req, drawer_id)
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
@@ -1095,6 +1052,11 @@ def upload(req):
         with open(path, 'rb') as f:
             head = f.read(8192).decode('utf-8', 'replace').replace('\x00', '')
         meta['excerpt'] = head[:1800]
+    text = ''
+    if size and (ext in kinds.TEXTY or kind in ('doc', 'pdf') or ext == 'ipynb'):
+        text = sorting.read_text(path, ext, ext in kinds.TEXTY)
+        if len(text) > len(meta.get('excerpt', '')):
+            meta['gist'] = sorting.gist(text)  # the rest, for sorting and search later
     title = os.path.splitext(name)[0] if ext else name
     shared = {'shared_at': now()} if req.arg('share') == '1' else {}
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
@@ -1103,7 +1065,7 @@ def upload(req):
     if drawer_id:
         connect(req.db, block_id, drawer_id)
     elif req.arg('autosort') == '1':
-        sorted_into = autosort(req, block_id, icon_arg(req.arg('icon')))
+        sorted_into = autosort(req, block_id, icon_arg(req.arg('icon')), text)
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
 
 

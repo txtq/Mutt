@@ -35,7 +35,7 @@ No dependencies, no build step, and no Node in this environment. The browser is 
 python3 server.py                                    # http://localhost:8080, data in ./data
 MUTT_DATA_DIR=/some/dir PORT=8123 python3 server.py   # separate data folder / port
 tests/run.sh                                         # all API suites, each on a fresh server (port 8099)
-tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout
+tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout | search | autosort
 ```
 
 The suites are curl scripts that **print** what the API returned; nothing asserts. Read the output for wrong values, and `run.sh` dumps any server Traceback. Mutating requests need the `X-Mutt: 1` header (CSRF guard), as the scripts show.
@@ -46,7 +46,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - Routes live in `mutt/api.py`, declared with `@route(method, regex)`. They return `json_response(...)` and fail with `HttpError(status, message)`.
 - Prefs are validated against `PREF_CHOICES`, so a new pref has to be added there and to `DEFAULTS` in `public/assets/js/theme.js`.
 - Who can see a planet: `drawer_visible`. `galaxy_of` builds `/api/galaxy[/user]`, including the owner's stars and stats. `list_galaxies` builds `/api/galaxies` (the universe).
-- Autosort, adding a file straight onto a planet (`drawer` in `POST /api/blocks` or `?drawer=` on upload) and link previews (`mutt/links.py`) are all server-side.
+- Autosort (`mutt/sorting.py`, scores every planet on name, topics, files already there, kinds and sites), adding a file straight onto a planet (`drawer` in `POST /api/blocks` or `?drawer=` on upload) and link previews (`mutt/links.py`) are all server-side.
 - Media previews (thumbnails, posters, PDF first pages) are made in the browser during upload; the server never decodes media.
 
 **Front end** (`public/index.html` + `public/assets/js`): vanilla ES modules.

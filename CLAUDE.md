@@ -27,6 +27,28 @@ Vocabulary, because the UI and the code use different words:
 | the void (formerly the black hole) | `blackhole.js`, where things are added |
 | universe | everyone's galaxies, below your galaxy on the same page |
 
+## Direction: features that appear when you need them (2026-11-05)
+
+Mutt is a file storage app at heart. On top of that it will grow many features, but each one stays hidden until what you're doing calls for it. At its base the app is extremely simple, and it only ever shows you what helps you do what you're already doing.
+
+Decided by the user:
+- **Features are earned by use, not chosen.** There's no feature list, store, settings switch or "try this" teaser. You don't know a feature exists until you need it.
+- **Most features belong to a planet** and depend on how that planet operates and what it's for. Some respond to what you're doing right now in a file.
+- **They switch on by themselves.** Examples the user gave:
+  - an art planet gets a **portfolio generator**;
+  - writing long paragraphs brings up a **writing mode**;
+  - making a list turns it into a **list mode**.
+- Future work will add features through this one mechanism. Build each new feature as a mode that waits for its trigger, never as an always-visible button.
+
+What already exists to read a planet's purpose (reuse it, don't start a second classifier):
+- `mutt/sorting.py`: `shape()` reads how a note is written (to do / list, quote, recipe, code, writing, journal, ideas, people); `topic_scores()` and `TOPICS` give what a file is about; `group_of()` gives its kind group (Images, Notes…); `look` colours and vibes come from pictures.
+- A planet's files, kinds and name are all on hand in `_members` / `galaxy_of`.
+
+Suggested shape for the mechanism (not yet agreed with the user; ask before building):
+- One registry of modes. Each has a test against a planet (or a file being edited) and what it adds when it's on.
+- Work out a planet's purpose from the share of its files with each kind, topic and shape, so one odd file doesn't switch a mode on. Use a higher bar to turn on than to stay on, so modes don't flicker.
+- When a mode first appears, say so once, quietly, in place. Let the owner turn it off for that planet, and remember that.
+
 ## Commands
 
 No dependencies, no build step, and no Node in this environment. The browser is the only JS syntax check.
@@ -81,6 +103,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, and dark only (no light mode).
 - **Pixel touches:** pixel art is welcome as an accent only, like the login's horizon of trees, cottage and mutt, with warm touches. Don't go "too Stardew Valley": no pixel fonts, pixel frames, pixel moon or stars. The Mutt and Vita look (rounded glass, Red Hat type, fluid motion) comes first. The login screen is always night.
 - **The void:** a stippled black-and-white print (from the user's reference picture): a bright white light caged by dark, sinewy strands that web together where they cross, turning in 3D; stippled cells, bright at their rims and dim in the middle; faint rays; only a faint mauve tint. No crosshair lines through it. Bright places are dotted more densely, like a print. Sized in proportion to the planets, sitting straight on the sky with no dark halo round it. No orange, no pixel sparks, not realistic or painted light. Add boxes are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
+- **Simple until needed:** the base app stays extremely simple. New features show up only when a planet's use (or what you're writing) calls for them; see Direction above. Don't add always-visible buttons, menus or settings for them.
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (desktop and phone width) before deploying, and keep the `classic` backup intact.
 - **Explanations:** write to the user in plain language, without code terms.

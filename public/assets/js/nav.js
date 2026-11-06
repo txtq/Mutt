@@ -4,6 +4,8 @@ export const nav = {
   go: (url, opts) => { location.href = url; },
   openBlock: (id) => {},
   current: () => new URL(location.href),
+  // Change the address without changing the page.
+  rename: (path) => { history.replaceState(history.state, '', path + location.search); },
 };
 
 // Every drawer is a planet now, whoever's it is.

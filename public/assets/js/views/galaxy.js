@@ -10,7 +10,7 @@ import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { fileFace, glyph, holdPlanets, planetEl, planetSize, worldPicture } from '../planets.js';
+import { fileFace, glyph, holdPlanets, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
 import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
@@ -27,6 +27,9 @@ let startOut = false;
 // Set when the camera dived in from the universe, so the page doesn't play
 // its entrance on top.
 let arriving = false;
+// Your galaxy and the universe, already fetched, for when someone else's
+// page hands the universe over to yours (see toMine()).
+let handoff = null;
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const smooth = (t) => t * t * (3 - 2 * t);
@@ -111,14 +114,15 @@ function ovalHitsRect(rx, ry, rect) {
 const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
 
 const placed = (p) => p.x != null && p.y != null;
-const footprint = (s, m) => Math.max(s, m.wide);
+// A planet with moons needs room for their orbits too.
+const footprint = (s, m, p) => Math.max(s, m.wide, p ? orbitReach(p, s) * 2 : 0);
 // The room a planet and its name take up, round (x, y).
 const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 });
 
 // The nearest spot to `at` where a planet clears the void, the stars round
 // it, the screen's sides and every rect in `taken`.
-function nearestFree(at, s, m, taken, inner, room) {
-  const w = footprint(s, m);
+function nearestFree(at, s, m, taken, inner, room, p) {
+  const w = footprint(s, m, p);
   const pad = m.gap;
   const x0 = clamp(at.x, -room, room);
   for (let tries = 0, a = Math.atan2(at.y, at.x), d = 0; tries < 1500; tries++, a += 0.45, d += 1.6) {
@@ -146,7 +150,7 @@ function scatter(planets, width, inner, m) {
   let fx = 1;
   planets.forEach((p, i) => {
     if (!placed(p) || !p.x) return;
-    const room = Math.max(0, half - footprint(sizes[i], m) / 2);
+    const room = Math.max(0, half - footprint(sizes[i], m, p) / 2);
     fx = Math.min(fx, room / Math.abs(p.x * m.scale));
   });
   const stretch = 1 / Math.sqrt(Math.max(fx, 0.1));
@@ -155,15 +159,15 @@ function scatter(planets, width, inner, m) {
   const spots = planets.map((p, i) => {
     if (!placed(p)) return null;
     const s = sizes[i];
-    const room = Math.max(0, half - footprint(s, m) / 2);
-    const spot = nearestFree({ x: p.x * m.scale * fx, y: p.y * m.scale * stretch }, s, m, rects, inner, room);
+    const room = Math.max(0, half - footprint(s, m, p) / 2);
+    const spot = nearestFree({ x: p.x * m.scale * fx, y: p.y * m.scale * stretch }, s, m, rects, inner, room, p);
     rects.push(spot.rect);
     return { ...spot, size: s };
   });
   planets.forEach((p, i) => {
     if (spots[i]) return;
     const s = sizes[i];
-    const w = footprint(s, m);
+    const w = footprint(s, m, p);
     const rand = seeded(`spot:${p.id}`);
     let a = i * GOLDEN * 1.7 - Math.PI * 0.62 + (rand() - 0.5) * 0.7;
     let d = inner.rx + s / 2 + 8 + rand() * 40;
@@ -200,7 +204,7 @@ function pads(m) {
 function rows(planets, sizes, width, inner, m) {
   const W = width - 16;
   // A full planet's rings reach well past its sides.
-  const wide = (i) => Math.max(footprint(sizes[i], m), sizes[i] * ((planets[i].count || 0) >= 10 ? 1.6 : 1));
+  const wide = (i) => Math.max(footprint(sizes[i], m, planets[i]), sizes[i] * ((planets[i].count || 0) >= 10 ? 1.6 : 1));
   const tall = (s) => s + 58; // a planet with its name under it
   const sides = { top: [], bottom: [] };
   const order = planets.map((p, i) => i);
@@ -374,8 +378,8 @@ function blurCopy(el, voidPic) {
   return canvas;
 }
 
-// Where every galaxy sits on the map, round the one whose page this is
-// (`home`), and how far the camera pulls back to fit them all on screen.
+// Where every galaxy sits on the map, round yours (`home`), and how far the
+// camera pulls back to fit them all on screen.
 function universeLayout(plans, home, width, viewH) {
   // Names stay one size however far out, so the spacing keeps room for
   // them at the scale the map is drawn at: look for the largest scale at
@@ -548,7 +552,7 @@ class Galaxy {
   // ------------------------------------------------------------ planets
 
   addPlanet(planet, { born = false } = {}) {
-    const el = planetEl(planet, { peek: true });
+    const el = planetEl(planet, { peek: true, orbit: true });
     el.body.dataset.vt = `planet-${planet.id}`;
     if (planet.locked) {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(el.planet); });
@@ -619,9 +623,9 @@ class Galaxy {
   freeSpot(planet, at) {
     const m = this.m;
     const s = planetSize(planet.count, m.scale);
-    const room = Math.max(0, this.size.width / 2 - (m.narrow ? 8 : 28) - footprint(s, m) / 2);
+    const room = Math.max(0, this.size.width / 2 - (m.narrow ? 8 : 28) - footprint(s, m, planet) / 2);
     const others = [...this.spots].filter(([id, spot]) => id !== planet.id && spot).map(([, spot]) => spot.rect);
-    return nearestFree(at, s, m, others, this.inner, room);
+    return nearestFree(at, s, m, others, this.inner, room, planet);
   }
 
   // Put a planet down and remember where. The first time, every planet's
@@ -861,6 +865,9 @@ class Galaxy {
     for (const [id, el] of this.planetEls) {
       if (el.planet.locked) continue;
       list.push({ kind: 'planet', id, el, measure: () => el.center() });
+      for (const moon of el.moonEls()) {
+        if (!moon.moon.locked) list.push({ kind: 'moon', id: moon.moon.id, el: moon, planet: el, measure: () => moon.center() });
+      }
     }
     if (this.hole) {
       list.push({ kind: 'hole', el: this.hole.el, measure: () => ({ ...this.hole.center(), r: this.hole.radius() }), onHover: (on) => this.hole.hover(on) });
@@ -883,14 +890,17 @@ class Galaxy {
       }
       return;
     }
-    const el = this.planetEls.get(target.id);
+    const el = target.kind === 'moon' ? target.el : this.planetEls.get(target.id);
     await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 620, turns: 0.5 });
     el?.gulp();
     try {
       const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: target.id });
       this.forgetStar(block.id);
-      el?.bump(1);
-      toast(`Moved to ${el?.planet.title || 'a planet'}`);
+      if (target.kind === 'moon') toast(`Moved to ${el.moon.title}`);
+      else {
+        el?.bump(1);
+        toast(`Moved to ${el?.planet.title || 'a planet'}`);
+      }
       bus.emit('block:connected', { block: res.block, drawerId: target.id });
       this.refresh();
     } catch (err) {
@@ -976,7 +986,8 @@ class Galaxy {
 
   // Into a planet straight from the sky (files dropped on it).
   addFilesTo(planetId, files, at) {
-    const el = this.planetEls.get(planetId);
+    const el = this.planetEls.get(planetId)
+      || [...this.planetEls.values()].flatMap((p) => p.moonEls()).find((m) => m.moon.id === planetId);
     files = withinLimit(files);
     if (!el || !files.length) return;
     files.slice(0, 6).forEach((file, i) => {
@@ -1033,6 +1044,16 @@ class Galaxy {
 
   hit(x, y) {
     let best = null;
+    // A moon close by wins over its bigger planet.
+    for (const el of this.planetEls.values()) {
+      for (const moon of el.moonEls()) {
+        if (moon.moon.locked) continue;
+        const c = moon.center();
+        const d = Math.hypot(x - c.x, y - c.y);
+        if (d < c.r * 1.3 + 8 && (!best || d < best.d)) best = { id: moon.moon.id, el: moon, d };
+      }
+    }
+    if (best) return best;
     for (const [id, el] of this.planetEls) {
       if (el.planet.locked) continue;
       const c = el.center();
@@ -1048,17 +1069,26 @@ class Galaxy {
       overlay: false,
       over: (e) => {
         const found = this.hole.isOpen() ? null : this.hit(e.clientX, e.clientY);
-        for (const el of this.planetEls.values()) el.classList.toggle('is-target', el === found?.el);
+        for (const el of this.planetEls.values()) {
+          el.classList.toggle('is-target', el === found?.el);
+          for (const moon of el.moonEls()) moon.classList.toggle('is-target', moon === found?.el);
+        }
         this.hole.hover(!found);
       },
       leave: () => {
-        for (const el of this.planetEls.values()) el.classList.remove('is-target');
+        for (const el of this.planetEls.values()) {
+          el.classList.remove('is-target');
+          for (const moon of el.moonEls()) moon.classList.remove('is-target');
+        }
         this.hole.hover(false);
       },
       drop: (files, e) => {
         const open = this.hole.isOpen();
         const found = e && !open ? this.hit(e.clientX, e.clientY) : null;
-        for (const el of this.planetEls.values()) el.classList.remove('is-target');
+        for (const el of this.planetEls.values()) {
+          el.classList.remove('is-target');
+          for (const moon of el.moonEls()) moon.classList.remove('is-target');
+        }
         this.hole.hover(false);
         // With the box open, files go wherever the box says.
         if (open) this.hole.takeFiles(files, e ? new DOMRect(e.clientX - 20, e.clientY - 20, 40, 40) : null);
@@ -1164,7 +1194,10 @@ class Galaxy {
     const here = this.uvEls[this.homeAt];
     Object.assign(here.plan, home);
     Object.assign(here.style, { left: `${-home.ex}px`, top: `${-home.ey}px`, width: `${home.ex * 2}px`, height: `${home.ey * 2}px` });
-    const { spots, k, mid } = universeLayout(plans, this.homeAt, width, viewH);
+    // The map is always laid out round you, whoever's page this is, so it's
+    // the same map wherever you zoom out from.
+    const you = this.list.findIndex((g) => g.you);
+    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH);
     const { height, cx, cy } = this.size;
     // Everything zooms about one point, F, chosen so that at the end the map
     // sits fitted on screen: a map point P ends at mid + k·P. At the start
@@ -1217,7 +1250,7 @@ class Galaxy {
       const W = width * M;
       const H = viewH * M;
       const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
-      paintWeb(this.web, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), this.owner);
+      paintWeb(this.web, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner);
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
     }
   }
@@ -1295,8 +1328,13 @@ class Galaxy {
       this.out = out;
       this.el.classList.toggle('is-out', out);
       if (out && !isEditable(document.activeElement)) this.hole?.close();
+      if (out && !this.mine && this.live) this.mineData = api.get('/api/galaxy').catch(() => null);
+      // Back in from the universe, you're home: say so, so a refresh or
+      // coming back to this page doesn't open it zoomed out again.
+      if (!out && this.mine && this.live && location.pathname === '/universe') nav.rename('/');
       bus.emit('universe', out);
     }
+    if (p === 1 && !this.mine && this.live) this.toMine();
     // Once it starts to zoom, the planets and the black hole hold still
     // (keeping their picture), so each frame only moves finished layers.
     const moving = p > 0.01;
@@ -1342,8 +1380,26 @@ class Galaxy {
     scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }
 
-  // The corner arrow on someone else's galaxy: first the camera pulls back
-  // into the universe round them, then from there it flies you home.
+  // Out in the universe from someone else's galaxy, the page quietly becomes
+  // yours, scrolled all the way out, so zooming back in always lands home.
+  // The map is the same on both, so nothing moves when it swaps.
+  async toMine() {
+    if (this.swapping || this.diving) return;
+    this.swapping = true;
+    const data = await (this.mineData ||= api.get('/api/galaxy').catch(() => null));
+    if (!data || !this.el.isConnected || this.p < 1 || this.diving) {
+      // Not ready, or you've started back in: try again next time out.
+      if (!data) this.mineData = null;
+      this.swapping = false;
+      return;
+    }
+    handoff = { data, list: this.list };
+    nav.go('/universe', { replace: true, motion: 'none' });
+  }
+
+  // The corner arrow on someone else's galaxy: the camera pulls back into
+  // the universe, where the page becomes yours (toMine()). Pressed again
+  // before that, it flies you home.
   async back() {
     if (this.p < 0.5) { this.goOut(); return; }
     if (!this.uvLoading) this.loadUniverse();
@@ -1430,7 +1486,12 @@ class Galaxy {
           if (this.p > 0.02 || !this.el.isConnected) return null;
           return { ...this.void.center(), r: this.void.radius() };
         });
-        if (startOut) { startOut = false; requestAnimationFrame(() => this.goOut(true)); }
+        // Straight out, before anything is drawn, so a handover from
+        // someone else's universe doesn't flash your galaxy up close.
+        if (startOut) { startOut = false; this.goOut(true); this.track(true); }
+        // Only now does the scroll say where you are on this page (before,
+        // it was the old page's, then the top while it was put in place).
+        this.live = true;
         if (arriving) {
           // The planets' names come in gently after the camera's dive.
           this.el.classList.add('is-far');
@@ -1451,6 +1512,7 @@ class Galaxy {
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
         this.diving = false;
+        this.live = false;
         theSky()?.setLens(null);
         this.void.destroy();
         theSky()?.setNight(0);
@@ -1493,7 +1555,11 @@ export const galaxyView = {
 
 // The universe is your galaxy, scrolled all the way out.
 export const universeView = {
-  load: () => loadGalaxy(null, true),
+  load: () => {
+    const ready = handoff;
+    handoff = null;
+    return ready || loadGalaxy(null, true);
+  },
   create(params, loaded) {
     startOut = true;
     return galaxyView.create([], loaded);

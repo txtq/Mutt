@@ -62,17 +62,29 @@ function exit(el, className = 'is-leaving', fallback = 320) {
 
 let toastHost;
 let toastCount = 0;
-export function toast(message, { action, duration = 3600 } = {}) {
+export function toast(message, { action, duration } = {}) {
   if (!toastHost) {
     toastHost = h('div', { class: 'toasts', 'aria-live': 'polite' });
     document.body.append(toastHost);
   }
+  // A note with a button (Undo, Move) stays long enough to reach it.
+  duration ??= action ? 8000 : 3600;
   const el = h('div', { class: 'toast', style: { '--toast-color': PALETTE[toastCount++ % PALETTE.length] } },
     h('span', null, message));
   let timer;
   let held = false;
+  let fired = false;
   const close = () => { clearTimeout(timer); exit(el); };
+  // Time spent in another tab or app doesn't count: the note waits for you.
+  const wait = (ms) => {
+    clearTimeout(timer);
+    timer = setTimeout(function expire() {
+      if (!document.hidden) { close(); return; }
+      document.addEventListener('visibilitychange', () => { timer = setTimeout(expire, 2400); }, { once: true });
+    }, ms);
+  };
   if (action) {
+    el.classList.add('has-action');
     // An action that opens something (`stay`) keeps the toast up to anchor it, and closes it when done.
     const button = h('button', {
       type: 'button',
@@ -81,17 +93,30 @@ export function toast(message, { action, duration = 3600 } = {}) {
           if (el.classList.contains('is-leaving')) return; // nothing left to anchor to
           held = true;
           clearTimeout(timer);
-        } else close();
-        action.run(button, close);
+          action.run(button, close);
+          return;
+        }
+        // Once only: a double tap (or a tap as it fades) mustn't undo twice.
+        if (fired) return;
+        fired = true;
+        close();
+        Promise.resolve()
+          .then(() => action.run(button, close))
+          .catch((err) => toast(err?.message || 'That didn’t work. Try again.'));
       },
     }, action.label);
     el.append(button);
   }
   toastHost.append(el);
-  while (toastHost.children.length > 3) toastHost.firstElementChild.remove();
-  timer = setTimeout(close, duration);
+  // Keep at most three. Plain notes make way first, so a newer message
+  // doesn't push an Undo off the screen before you can reach it.
+  while (toastHost.children.length > 3) {
+    const kids = [...toastHost.children];
+    (kids.find((t) => !t.classList.contains('has-action') && t !== el) || kids[0]).remove();
+  }
+  wait(duration);
   el.addEventListener('pointerenter', () => clearTimeout(timer));
-  el.addEventListener('pointerleave', () => { if (!held) timer = setTimeout(close, 1800); });
+  el.addEventListener('pointerleave', () => { if (!held && !fired) wait(2400); });
   return { close };
 }
 

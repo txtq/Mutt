@@ -3,6 +3,7 @@
 // onto a real sphere (a little canvas per planet), then lit from the upper
 // left with an atmosphere round the edge, with its name underneath.
 
+import { nav } from './nav.js';
 import { canPaint, forget, paint, together } from './planetgl.js';
 import { h, onMotionChange, plural, reducedMotion, seeded } from './util.js';
 
@@ -121,7 +122,24 @@ export const LOOKS = [
   { id: 'rock', label: 'Moon rock' },
   { id: 'storm', label: 'Storm' },
 ];
-const LOOK_INDEX = Object.fromEntries(LOOKS.map((l, i) => [l.id, i]));
+
+// Moons are modelled on real ones. Each has its own colours, how long it
+// takes to go round (seconds), how fast it turns on its own axis (Luna not
+// at all: it always shows its planet the same face), and how far out it sits.
+export const MOON_LOOKS = [
+  { id: 'luna', label: 'Luna', note: 'Earth', period: 26, rate: 0, reach: 0 },
+  { id: 'io', label: 'Io', note: 'Jupiter', period: 18, rate: 1, reach: 0 },
+  { id: 'europa', label: 'Europa', note: 'Jupiter', period: 22, rate: 1, reach: 0.04 },
+  { id: 'titan', label: 'Titan', note: 'Saturn', period: 34, rate: 0.6, reach: 0.06 },
+  { id: 'enceladus', label: 'Enceladus', note: 'Saturn', period: 16, rate: 1, reach: -0.02 },
+  { id: 'triton', label: 'Triton', note: 'Neptune, backwards', period: 24, rate: 1, reach: 0.02, backwards: true },
+  { id: 'phobos', label: 'Phobos', note: 'Mars', period: 9, rate: 1.4, reach: -0.1 },
+  { id: 'hyperion', label: 'Hyperion', note: 'Saturn, tumbling', period: 30, rate: 2.2, reach: 0.04 },
+  { id: 'iapetus', label: 'Iapetus', note: 'Saturn', period: 46, rate: 0.7, reach: 0.14 },
+  { id: 'callisto', label: 'Callisto', note: 'Jupiter', period: 40, rate: 0.5, reach: 0.1 },
+];
+const MOON_BY_ID = Object.fromEntries(MOON_LOOKS.map((m) => [m.id, m]));
+const LOOK_INDEX = Object.fromEntries([...LOOKS, ...MOON_LOOKS].map((l, i) => [l.id, i]));
 
 // Four colours each (what they're for depends on the kind), and how far each
 // one leans toward the planet's own colour.
@@ -135,8 +153,29 @@ const PALETTES = {
   rock: { colors: ['#3f3d3e', '#7a7674', '#a19c97', '#e9e4dc'], tint: [0.2, 0.2, 0.15, 0] },
   storm: { colors: ['#1b1433', '#47336f', '#a593cf', '#cfd8ff'], tint: [0.18, 0.2, 0.12, 0] },
 };
+// Moons keep their real colours, whatever their planet's.
+const MOON_PALETTES = {
+  luna: ['#46464b', '#8d8a86', '#b9b5ae', '#efebe4'],
+  io: ['#2a1d12', '#e3c957', '#d38834', '#f2ecc0'],
+  europa: ['#8a4a2e', '#e9dcc4', '#cdbca1', '#ffffff'],
+  titan: ['#a5642a', '#d69d4c', '#e8c27a', '#7fa9d8'],
+  enceladus: ['#7fa4c4', '#f4f6f8', '#dde6ee', '#e8f2ff'],
+  triton: ['#5e4a4a', '#d8b4a6', '#bfa294', '#f1d7d0'],
+  phobos: ['#3a3532', '#6b625b', '#958a80', '#c8beb2'],
+  hyperion: ['#2e2620', '#b29e84', '#8d7b66', '#e2d6c2'],
+  iapetus: ['#1d1814', '#8e8579', '#e6e1d8', '#c9c2b6'],
+  callisto: ['#2f2a25', '#5a4d40', '#8c7e6c', '#d9d2c4'],
+};
+
+// A moon (a drawer with a planet, or one of a planet's `moons`) is one of
+// the real moons: its own pick, or one from its id.
+export function moonLookOf(moon) {
+  if (moon.look && MOON_PALETTES[moon.look]) return moon.look;
+  return MOON_LOOKS[Math.floor(seeded(`moon:${moon.id}`)() * MOON_LOOKS.length)].id;
+}
 
 export function lookOf(planet) {
+  if (planet.parentId) return moonLookOf(planet);
   if (planet.look && PALETTES[planet.look]) return planet.look;
   return LOOKS[Math.floor(seeded(`look:${planet.id}`)() * LOOKS.length)].id;
 }
@@ -198,6 +237,11 @@ export function planetTone(planet) {
 // A world's colours: its kind's palette, leaning toward the planet's colour
 // (which is bright; worlds are a little dustier), then made more colourful.
 function worldColors(planet, look = lookOf(planet)) {
+  if (MOON_PALETTES[look]) {
+    const colors = MOON_PALETTES[look];
+    const base = look === 'iapetus' ? shade(colors[0], colors[2], 0.5) : colors[1];
+    return { colors, base, light: shade(base, '#f4f1ea', 0.38), dark: shade(base, '#070a16', 0.5) };
+  }
   const tint = shade(planet.icon?.c || planet.c || '#2F6BFF', '#6f7891', 0.15);
   const pal = PALETTES[look];
   // Lava stays dark and hot rather than taking on the planet's colour.
@@ -495,9 +539,9 @@ function startTurning(globe) {
   wake();
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastNow = 0; } else wake();
+  if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastNow = 0; } else { wake(); wakeOrbits(); }
 });
-onMotionChange(wake);
+onMotionChange(() => { wake(); wakeOrbits(); });
 const watcher = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
   for (const e of entries) e.target.globe?.setVisible(e.isIntersecting);
 }, { rootMargin: '120px' }) : null;
@@ -506,6 +550,7 @@ const watcher = 'IntersectionObserver' in window ? new IntersectionObserver((ent
 export function holdPlanets(on) {
   held = on;
   wake();
+  wakeOrbits();
 }
 
 // Flicks: the speed is measured over the last FLICK_MS before letting go,
@@ -514,7 +559,7 @@ const FLICK_MS = 90;
 const MAX_SPIN = 0.005;
 const RUB = 2e-7;
 
-function makeGlobe(canvas, rand) {
+function makeGlobe(canvas, rand, rate = 1) {
   const period = (80 + rand() * 70) * 1000;
   const offset = rand() * period;
   const seed = [rand() * 97, rand() * 97, rand() * 97];
@@ -575,7 +620,7 @@ function makeGlobe(canvas, rand) {
       if (!tex || !size || (!visible && !force)) return;
       const still = reducedMotion();
       if (!force && drawn && (still || held)) return;
-      const own = still ? offset / period : ((now + offset) % period) / period;
+      const own = still || !rate ? offset / period : (((now * rate) + offset) % period) / period;
       const turn = (((own + spin) % 1) + 1) % 1;
       job.source = tex;
       job.turn = turn;
@@ -714,13 +759,14 @@ function spinnable(el, globe) {
 
 // ---------------------------------------------------------------- the planet
 
-export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true, tag = href ? 'a' : 'div', peek = false } = {}) {
+export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true, tag = href ? 'a' : 'div', peek = false, orbit = false } = {}) {
   const rand = seeded(planet.id);
   const tilt = Math.round((rand() - 0.5) * 36);
   const ringTilt = Math.round((rand() - 0.5) * 24);
+  const isMoon = !!planet.parentId;
 
   const canvas = h('canvas', { class: 'planet-map', 'aria-hidden': 'true' });
-  const globeApi = makeGlobe(canvas, rand);
+  const globeApi = makeGlobe(canvas, rand, isMoon ? MOON_BY_ID[moonLookOf(planet)].rate : 1);
 
   const ball = h('span', { class: 'planet-ball' },
     canvas,
@@ -732,32 +778,43 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const name = h('span', { class: 'planet-name' });
   const meta = h('span', { class: 'planet-meta' });
   const peekRow = peek ? h('span', { class: 'planet-peek', 'aria-hidden': 'true' }) : null;
-  // Small moons on tilted orbits, passing in front and behind.
-  const moons = [];
-  const moonCount = rand() < 0.5 ? 0 : rand() < 0.7 ? 1 : 2;
-  for (let i = 0; i < moonCount; i++) {
-    const orbit = (24 + rand() * 30) * (1 + i * 0.5);
-    const start = -rand() * orbit;
-    moons.push(h('span', {
-      class: 'planet-moon',
-      style: {
-        '--mo': (0.62 + rand() * 0.12 + i * 0.14).toFixed(3),
-        '--mz': (0.045 + rand() * 0.03).toFixed(3),
-        '--mtilt': `${Math.round((rand() - 0.5) * 34)}deg`,
-        '--mt': `${orbit.toFixed(1)}s`,
-        '--mh': `${(orbit / 2).toFixed(2)}s`,
-        '--md': `${start.toFixed(2)}s`,
-        '--mq': `${(start - orbit / 4).toFixed(2)}s`,
-      },
-    }, h('span', { class: 'planet-moon-x' }, h('span', { class: 'planet-moon-y' }, h('span', { class: 'planet-moon-ball' })))));
-  }
-  const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, ...moons, bubble);
-  const el = h(tag, { class: `planet${canPaint() ? ' is-gl' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
+  const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, bubble);
+  const el = h(tag, { class: `planet${canPaint() ? ' is-gl' : ''}${isMoon ? ' is-moon' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
     body,
     label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta, peekRow) : null);
 
   el.style.setProperty('--tilt', `${tilt}deg`);
   el.style.setProperty('--ring-tilt', `${ringTilt}deg`);
+
+  // Its moons, going round it (on the galaxy only).
+  const host = { size: 0, hovered: false };
+  let orbits = [];
+  let moonSig = '';
+  el.moonEls = () => orbits.map((o) => o.el);
+  function setMoons(list, s) {
+    host.size = s;
+    const sig = list.map((m) => `${m.id}:${m.look || ''}:${m.locked ? 1 : 0}:${m.title}`).join();
+    if (sig !== moonSig) {
+      moonSig = sig;
+      for (const o of orbits) { o.el.remove(); orbiting.delete(o); }
+      orbits = list.map((m, i) => {
+        const me = moonEl(m, { size: moonSize(s, m.count) });
+        me.classList.add('is-orbiting');
+        bubble.before(me);
+        return makeOrbit(me, host, i);
+      });
+      wakeOrbits();
+    }
+    for (const o of orbits) { o.el.resize(moonSize(s, o.el.moon.count)); place(o); }
+    el.classList.toggle('has-moons', orbits.length > 0);
+  }
+  if (orbit) {
+    const hover = (on) => (e) => { if (e.pointerType !== 'touch') { host.hovered = on; wakeOrbits(); } };
+    el.addEventListener('pointerenter', hover(true));
+    el.addEventListener('pointerleave', hover(false));
+    el.addEventListener('focusin', () => { host.hovered = true; wakeOrbits(); });
+    el.addEventListener('focusout', () => { host.hovered = false; wakeOrbits(); });
+  }
 
   let peekFor = '';
   let shownWorld = '';
@@ -778,9 +835,10 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     el.style.setProperty('--c-light', colors.light);
     el.style.setProperty('--c-dark', colors.dark);
     el.classList.toggle('is-locked', !!next.locked);
-    el.classList.toggle('has-rings', (next.count || 0) >= 10);
+    el.classList.toggle('has-rings', !isMoon && (next.count || 0) >= 10);
     el.classList.toggle('is-empty', !next.count);
     globeApi.setSize(s);
+    if (orbit) setMoons(next.locked ? [] : (next.moons || []), s);
     const previews = next.locked ? [] : (next.previews || []).slice(0, 12);
     const tex = textureFor(next, previews, () => globeApi.setTexture(textures.get(tex.key) || tex));
     globeApi.setTexture(tex);
@@ -830,6 +888,173 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   return el;
 }
 
+// ---------------------------------------------------------------- moons
+
+// A moon is about a quarter of its planet's width, a little bigger as it
+// fills up, never more than a third.
+export function moonSize(planetPx, count = 0) {
+  return Math.round(Math.max(12, Math.min(planetPx / 3, planetPx * 0.25 + Math.sqrt(count || 0) * 1.5)));
+}
+
+const ORBIT_FLAT = 0.32;
+const orbitRadius = (slot, look) => 0.6 + slot * 0.09 + (MOON_BY_ID[look]?.reach || 0);
+
+// How far a planet's moons reach out sideways from its middle, for laying
+// out the galaxy (0 when it has none).
+export function orbitReach(planet, s) {
+  const list = planet.locked ? [] : planet.moons || [];
+  return list.reduce((most, m, i) => Math.max(most, s * orbitRadius(i, moonLookOf(m)) + moonSize(s, m.count) / 2), 0);
+}
+
+let blankTex = null;
+function blankTexture() {
+  if (!blankTex) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 4;
+    canvas.height = 2;
+    blankTex = { key: 'blank', version: 0, canvas };
+  }
+  return blankTex;
+}
+
+// A moon as a small painted world, showing just its real-moon look.
+// Clicking opens it. (A span, not a link: on the galaxy it sits inside its
+// planet's link.)
+export function moonEl(moon, { size = 28, link = true } = {}) {
+  const look = moonLookOf(moon);
+  const kind = MOON_BY_ID[look];
+  const rand = seeded(moon.id);
+  const tilt = (rand() - 0.5) * 30;
+  const ball = h('span', { class: 'moon-ball' });
+  const el = h('span', {
+    class: `moon${moon.locked ? ' is-locked' : ''}`,
+    dataset: { id: moon.id, look, vt: `moon-${moon.id}` },
+    style: { '--m': `${size}px` },
+    ...(link ? { role: 'link', tabindex: '0', 'aria-label': `${moon.title}, moon` } : { 'aria-hidden': 'true' }),
+  }, ball, h('span', { class: 'moon-fx', 'aria-hidden': 'true' }), link ? h('span', { class: 'moon-name' }, moon.title) : null);
+  el.moon = moon;
+  if (canPaint()) {
+    const canvas = h('canvas', { class: 'moon-map', 'aria-hidden': 'true' });
+    ball.append(canvas);
+    const globe = makeGlobe(canvas, rand, kind.rate);
+    globe.setSize(size);
+    globe.setWorld({ look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: MOON_PALETTES[look].map(rgb) });
+    globe.setTexture(blankTexture());
+    el.globe = globe;
+    el.classList.add('is-gl');
+  }
+  el.resize = (px) => {
+    el.style.setProperty('--m', `${px}px`);
+    el.globe?.setSize(px);
+  };
+  el.center = () => {
+    const r = ball.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+  };
+  el.gulp = () => {
+    el.classList.remove('is-gulping');
+    void el.offsetWidth;
+    el.classList.add('is-gulping');
+    setTimeout(() => el.classList.remove('is-gulping'), 900);
+  };
+  if (link) {
+    const open = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      nav.go(`/p/${moon.id}`);
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); });
+  }
+  return el;
+}
+
+// Orbits: each moon goes round on a tilted, flattened circle, in front of its
+// planet in the near half and behind it in the far half. Hovering the planet
+// eases them to a stop, but only once they've come round to the front, so
+// they can always be clicked. Under Still they rest in front, right and left.
+const orbiting = new Set();
+let orbitFrame = 0;
+let orbitLast = 0;
+
+function makeOrbit(el, host, slot) {
+  const look = el.dataset.look;
+  const kind = MOON_BY_ID[look];
+  const rand = seeded(`orbit:${el.moon.id}`);
+  const speed = ((Math.PI * 2) / (kind.period * 1000)) * (kind.backwards ? -1 : 1);
+  const o = {
+    el,
+    host,
+    slot,
+    radius: orbitRadius(slot, look),
+    tilt: (rand() - 0.5) * 0.5,
+    speed,
+    phase: rand() * Math.PI * 2 + performance.now() * speed,
+    rate: 1,
+    front: null,
+    born: performance.now(),
+  };
+  orbiting.add(o);
+  return o;
+}
+
+// Where a moon rests when nothing moves: in front, first right then left.
+// The inner pair sit lower and closer in, the outer pair further out, so they don't overlap.
+const restPhase = (slot) => {
+  const a = slot >> 1 ? 0.1 : 0.8;
+  return slot % 2 ? Math.PI - a : a;
+};
+
+function place(o) {
+  const r = o.host.size * o.radius;
+  const x0 = Math.cos(o.phase) * r;
+  const y0 = Math.sin(o.phase) * r * ORBIT_FLAT;
+  const c = Math.cos(o.tilt);
+  const sn = Math.sin(o.tilt);
+  const depth = Math.sin(o.phase);
+  o.el.style.transform = `translate(${(x0 * c - y0 * sn).toFixed(1)}px, ${(x0 * sn + y0 * c).toFixed(1)}px) scale(${(1 + depth * 0.08).toFixed(3)})`;
+  const front = depth > 0;
+  if (front !== o.front) {
+    o.front = front;
+    o.el.classList.toggle('is-behind', !front);
+  }
+}
+
+function orbitTick(now) {
+  orbitFrame = 0;
+  const dt = orbitLast ? Math.min(100, now - orbitLast) : 16.7;
+  orbitLast = now;
+  const carrying = document.body.classList.contains('is-carrying');
+  let moving = false;
+  for (const o of orbiting) {
+    if (!o.el.isConnected) {
+      if (o.born < now - 2000) orbiting.delete(o);
+      continue;
+    }
+    const want = (o.host.hovered && Math.sin(o.phase) > 0.25) || carrying ? 0 : 1;
+    o.rate += (want - o.rate) * (1 - Math.exp(-dt / 220));
+    if (Math.abs(o.rate - want) < 0.003) o.rate = want;
+    if (o.rate) {
+      o.phase += o.speed * o.rate * dt;
+      place(o);
+    }
+    if (o.rate || want) moving = true;
+  }
+  if (moving && !document.hidden && !held) orbitFrame = requestAnimationFrame(orbitTick);
+  else orbitLast = 0;
+}
+
+function wakeOrbits() {
+  if (reducedMotion()) {
+    cancelAnimationFrame(orbitFrame);
+    orbitFrame = 0;
+    orbitLast = 0;
+    for (const o of orbiting) { o.phase = restPhase(o.slot); place(o); }
+    return;
+  }
+  if (!orbitFrame && orbiting.size && !document.hidden && !held) orbitFrame = requestAnimationFrame(orbitTick);
+}
+
 // A tiny painted world for the universe: no files, just colour and light.
 // A planet's colour as a small dot, for lists of planets.
 export function planetDot(planet) {
@@ -847,6 +1072,10 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
     class: `uv-world${world.locked ? ' is-locked' : ''}${(world.n || 0) >= 10 ? ' has-rings' : ''}`,
     dataset: { look },
     style: { '--w': `${size}px`, '--c': colors.base, '--c-light': colors.light, '--c-dark': colors.dark },
+  });
+  (world.moons || []).slice(0, 4).forEach((m, i) => {
+    const look = moonLookOf(m);
+    el.append(h('span', { class: 'uv-moon', style: { '--mc': MOON_PALETTES[look][1], '--side': i % 2 ? -1 : 1, '--lv': i >> 1 } }));
   });
   if (world.locked) el.append(h('span', { class: 'uv-world-lock', style: { '--g': `${Math.round(size * 0.3)}px` } }, glyph('lock', Math.max(6, Math.round(size * 0.3)))));
   if (!canPaint()) return el;

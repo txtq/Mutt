@@ -519,11 +519,13 @@ export class ListView {
     });
   }
 
-  // Put a block in the list after another (or at the end of the open items).
-  insertBlock(block, after) {
+  // Put a block in the list after another, before another, or at the end of the open items.
+  insertBlock(block, after, { before = null } = {}) {
     const at = after ? this.blocks.findIndex((b) => b.id === after) : -1;
+    const ahead = before ? this.blocks.findIndex((b) => b.id === before) : -1;
     let i;
     if (at >= 0) i = at + 1;
+    else if (ahead >= 0) i = ahead;
     else if (this.ticking() && this.opts.doneLast && !block.checked) i = this.blocks.map((b) => !!b.checked).lastIndexOf(false) + 1;
     else i = this.blocks.length;
     this.blocks.splice(i, 0, block);
@@ -625,23 +627,17 @@ export class ListView {
     const block = this.find(id);
     if (!block) return;
     if (isTmp(id)) { this.forget(id); return; }
-    const index = this.blocks.indexOf(block);
-    const prevId = this.blocks[index - 1]?.id || null;
+    const gone = this.leaving(block);
     this.forget(id);
-    // A note made for this list goes for good; a file that's elsewhere too just leaves this planet.
-    const only = block.kind === 'text' && block.mine !== false && (block.connectionCount ?? 1) <= 1;
     try {
-      let position = null;
-      if (only) await api.del(`/api/blocks/${id}`);
-      else ({ position } = await api.del(`/api/blocks/${id}/connections/${this.drawer.id}`));
-      if (only) bus.emit('block:deleted', { id });
+      await this.takeAway(gone);
       if (quiet && !block.content) return;
-      toast(only ? 'Item removed' : 'Taken off this list', {
-        action: { label: 'Undo', run: () => this.restore([{ block, prevId, only, position }]) },
+      toast(gone.only ? 'Item removed' : 'Taken off this list', {
+        action: { label: 'Undo', run: () => this.restore([gone]) },
       });
     } catch (err) {
       toast(err.message);
-      this.restoreLocal(block, prevId);
+      this.restoreLocal(block, gone.prevId);
     }
   }
 
@@ -649,46 +645,87 @@ export class ListView {
     this.insertBlock(block, prevId);
   }
 
+  // What Undo needs to put an item back: its neighbours in the list's own
+  // order (the server's) and, once it's gone, where it sat on the server.
+  leaving(block) {
+    const order = this.blocks;
+    const i = order.indexOf(block);
+    const near = (step) => {
+      for (let j = i + step; j >= 0 && j < order.length; j += step) if (!isTmp(order[j].id)) return order[j].id;
+      return null;
+    };
+    return {
+      block, prevId: near(-1), nextId: near(1), position: null,
+      // A note made for this list goes for good; a file that's elsewhere too just leaves this planet.
+      only: block.kind === 'text' && block.mine !== false && (block.connectionCount ?? 1) <= 1,
+    };
+  }
+
+  async takeAway(g) {
+    if (g.only) {
+      const res = await api.del(`/api/blocks/${g.block.id}`);
+      g.position = res.positions?.[this.drawer.id] ?? null;
+      bus.emit('block:deleted', { id: g.block.id });
+    } else {
+      ({ position: g.position } = await api.del(`/api/blocks/${g.block.id}/connections/${this.drawer.id}`));
+    }
+  }
+
+  // Undo. Each item goes back where it was, both on screen and on the server.
+  // A note made again gets a new id, so later items placed beside it look it up.
   async restore(gone) {
-    for (const { block, prevId, only, position } of gone) {
+    const renamed = new Map();
+    const here = (id) => {
+      const now = renamed.get(id) || id;
+      return now && this.find(now) ? now : null;
+    };
+    let failed = null;
+    for (const { block, prevId, nextId, only, position } of gone) {
       try {
+        let back;
         if (only) {
           const body = { content: block.content, drawer: this.drawer.id };
-          if (prevId && this.find(prevId)) body.after = prevId;
+          if (typeof position === 'number') body.position = position;
+          else if (here(prevId)) body.after = here(prevId);
           else body.end = true;
-          const { block: back } = await api.post('/api/blocks', body);
-          if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: back.id, checked: true });
-          this.insertBlock({ ...back, checked: block.checked }, prevId && this.find(prevId) ? prevId : null);
+          ({ block: back } = await api.post('/api/blocks', body));
+          renamed.set(block.id, back.id);
         } else {
-          await api.post(`/api/blocks/${block.id}/connections`, { drawer: this.drawer.id, position });
-          if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: block.id, checked: true });
-          this.insertBlock({ ...block }, prevId && this.find(prevId) ? prevId : null);
+          const body = { drawer: this.drawer.id };
+          if (typeof position === 'number') body.position = position;
+          ({ block: back } = await api.post(`/api/blocks/${block.id}/connections`, body));
         }
+        if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: back.id, checked: true });
+        if (this.find(back.id)) continue; // already back (arrived another way)
+        const item = { ...block, ...back, checked: block.checked };
+        if (here(prevId)) this.insertBlock(item, here(prevId));
+        else if (here(nextId)) this.insertBlock(item, null, { before: here(nextId) });
+        else this.insertBlock(item, null);
       } catch (err) {
-        toast(err.message);
+        failed = err;
       }
     }
+    if (failed) throw failed;
   }
 
   async clearTicked() {
     const ticked = this.blocks.filter((b) => b.checked);
     if (!ticked.length) return;
-    const gone = ticked.map((block) => ({
-      block, prevId: this.blocks[this.blocks.indexOf(block) - 1]?.id || null,
-      only: block.kind === 'text' && block.mine !== false && (block.connectionCount ?? 1) <= 1,
-      position: null,
-    }));
+    // In list order, so each goes back beside the one before it.
+    const gone = ticked.map((block) => this.leaving(block));
     // Fold them away one after another, quickly.
     ticked.forEach((b, i) => setTimeout(() => this.forget(b.id), Math.min(i, 10) * 40));
+    const done = [];
     for (const g of gone) {
       try {
-        if (g.only) await api.del(`/api/blocks/${g.block.id}`);
-        else ({ position: g.position } = await api.del(`/api/blocks/${g.block.id}/connections/${this.drawer.id}`));
+        await this.takeAway(g);
+        done.push(g);
       } catch (err) {
         toast(err.message);
       }
     }
-    toast(`Cleared ${plural(gone.length, 'ticked item')}`, { action: { label: 'Undo', run: () => this.restore(gone) } });
+    if (!done.length) return;
+    toast(`Cleared ${plural(done.length, 'ticked item')}`, { action: { label: 'Undo', run: () => this.restore(done) } });
   }
 
   // ------------------------------------------------------------ reordering

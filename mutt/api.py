@@ -1209,7 +1209,11 @@ def create_block(req):
 
     sorted_into = None
     if drawer_id:
-        connect(req.db, block_id, drawer_id, place_in(req.db, drawer_id, body.get('after'), body.get('end')))
+        # `position` puts a note back exactly where it was (Undo); `after` and `end` place a new one.
+        position = body.get('position')
+        if not isinstance(position, (int, float)) or isinstance(position, bool):
+            position = place_in(req.db, drawer_id, body.get('after'), body.get('end'))
+        connect(req.db, block_id, drawer_id, float(position) if position is not None else None)
     elif body.get('autosort'):
         sorted_into = autosort(req, block_id, icon_arg(body.get('icon')))
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
@@ -1384,9 +1388,12 @@ def update_block(req, block_id):
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)')
 def delete_block(req, block_id):
     row = own_block(req, block_id)
+    # Where it sat on each planet, so an Undo can put it back in the same place.
+    positions = {r['drawer_id']: r['position'] for r in req.db.execute(
+        'SELECT drawer_id, position FROM connections WHERE block_id = ?', (block_id,))}
     req.db.execute('DELETE FROM blocks WHERE id = ?', (block_id,))
     remove_block_files(req.user['id'], row['file_key'], row['thumb_key'])
-    return json_response({'ok': True})
+    return json_response({'ok': True, 'positions': positions})
 
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/connections')

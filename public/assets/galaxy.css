@@ -1316,6 +1316,11 @@ body[data-page="planet"] .viewer {
 .liv-label { margin-bottom: 9px; font: 500 10.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .liv-share-hint { margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
 .liv-people { margin-top: 10px; }
+.liv-code { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
+.liv-code > svg { flex: none; color: var(--ink-3); }
+.liv-code-text { flex: 1; min-width: 0; }
+.liv-code-btn { flex: none; height: 28px; padding: 0 12px; font-size: 12.5px; }
+.liv-code[hidden] { display: none; }
 .liv-open { margin-top: 12px; }
 .liv-hint { margin-bottom: 12px; color: var(--ink-2); }
 .liv-unlock { margin-top: 16px; }

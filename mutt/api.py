@@ -89,6 +89,7 @@ def drawer_json(row, count=None, previews=None):
         'x': row['x'] if 'x' in row.keys() else None,
         'y': row['y'] if 'y' in row.keys() else None,
         'modes': drawer_modes(row),
+        'hasCode': bool(row['share_hash']) if 'share_hash' in row.keys() else False,
     }
     if count is not None:
         data['count'] = count
@@ -278,12 +279,15 @@ def own_block(req, block_id):
     return row
 
 
-def is_unlocked(req, owner_id):
-    if owner_id == req.user['id']:
+def is_unlocked(req, row):
+    """Has this session opened a Code planet with the planet's own code?"""
+    if row['user_id'] == req.user['id']:
         return True
+    if not row['share_hash']:
+        return False
     return bool(req.db.execute(
-        'SELECT 1 FROM unlocks WHERE session_hash = ? AND owner_id = ? AND expires_at > ?',
-        (auth.session_key(req.session_token), owner_id, now())).fetchone())
+        'SELECT 1 FROM drawer_unlocks WHERE session_hash = ? AND drawer_id = ? AND expires_at > ?',
+        (auth.session_key(req.session_token), row['id'], now())).fetchone())
 
 
 def drawer_visible(req, row):
@@ -296,7 +300,7 @@ def drawer_visible(req, row):
     if visibility == 'people':
         return bool(req.db.execute('SELECT 1 FROM drawer_access WHERE drawer_id = ? AND user_id = ?',
                                    (row['id'], req.user['id'])).fetchone())
-    return visibility == 'pin' and is_unlocked(req, row['user_id'])
+    return visibility == 'pin' and is_unlocked(req, row)
 
 
 def writable_drawer(req, drawer_id):
@@ -554,7 +558,7 @@ def login(req):
 @route('POST', r'/api/auth/logout', auth=False)
 def logout(req):
     if req.session_token:
-        req.db.execute('DELETE FROM unlocks WHERE session_hash = ?', (auth.session_key(req.session_token),))
+        req.db.execute('DELETE FROM drawer_unlocks WHERE session_hash = ?', (auth.session_key(req.session_token),))
     auth.end_session(req.db, req.session_token)
     return json_response({'ok': True}, headers=[auth.clear_cookie_header(req)])
 
@@ -574,12 +578,20 @@ def change_pin(req):
     new_pin = str(body.get('next') or '')
     if not auth.PIN_RE.match(new_pin):
         raise HttpError(400, 'Your new code needs to be 4 digits.')
+    if uses_planet_code(req, new_pin):
+        raise HttpError(400, "That's the code for one of your planets. Pick a different one.")
     pin_hash, salt = auth.new_pin_hash(new_pin)
     req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?', (pin_hash, salt, req.user['id']))
     auth.end_other_sessions(req.db, req.user['id'], req.session_token)
-    # Anyone who unlocked your drawers with the old code loses access.
-    req.db.execute('DELETE FROM unlocks WHERE owner_id = ?', (req.user['id'],))
     return json_response({'ok': True})
+
+
+def uses_planet_code(req, code):
+    """Is `code` the code of one of your planets? A sign-in code and a planet
+    code must never be the same, or sharing a planet would hand out your account."""
+    digest = auth.share_hash(req.user['id'], code)
+    return any(bytes(r[0]) == digest for r in req.db.execute(
+        'SELECT share_hash FROM drawers WHERE user_id = ? AND share_hash IS NOT NULL', (req.user['id'],)))
 
 
 @route('POST', r'/api/me/delete')
@@ -698,7 +710,6 @@ def galaxy_of(req, owner):
     data = {
         'user': {**user_json(owner), 'you': mine},
         'planets': planets,
-        'unlocked': is_unlocked(req, owner['id']),
     }
     if mine:
         stars = req.db.execute(
@@ -722,12 +733,57 @@ def get_galaxy(req, username):
 
 @route('POST', r'/api/galaxy/' + USERNAME_PATH + r'/unlock')
 def unlock_galaxy(req, username):
+    """Open someone's Code planets with a planet's code (never their sign-in
+    code). Every one of their planets with that code opens, for 12 hours.
+    `drawer` names the planet being opened, so a missing code can be said."""
     owner = find_user(req, username)
+    opened = []
     if owner['id'] != req.user['id']:
-        pin_gate(req, owner, str(req.json().get('pin') or ''), wrong_status=403)
-        req.db.execute('INSERT OR REPLACE INTO unlocks (session_hash, owner_id, expires_at) VALUES (?, ?, ?)',
-                       (auth.session_key(req.session_token), owner['id'], now() + UNLOCK_TTL))
-    return json_response(galaxy_of(req, owner))
+        body = req.json()
+        code = str(body.get('pin') or body.get('code') or '')
+        wanted = str(body.get('drawer') or '')
+        if wanted:
+            row = req.db.execute("SELECT share_hash FROM drawers WHERE id = ? AND user_id = ? AND visibility = 'pin'",
+                                 (wanted, owner['id'])).fetchone()
+            if not row:
+                raise HttpError(404, 'That planet does not exist.')
+            if not row['share_hash']:
+                raise HttpError(403, f"@{owner['username']} hasn't given this planet a code yet.", noCode=True)
+        wait = auth.login_failures_by_ip.retry_after(req.client_ip)
+        if wait:
+            raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
+        if not auth.PIN_RE.match(code):
+            raise HttpError(400, 'Codes are 4 digits.')
+        failure, opened = auth.try_share_code(req.db, owner, code, req.client_ip)
+        if failure:
+            # 403, not 401: a 401 means *your* session has ended and would sign you out.
+            status, message, extra = failure
+            raise HttpError(403 if status == 401 else status, message, **extra)
+        session = auth.session_key(req.session_token)
+        for drawer_id in opened:
+            req.db.execute('INSERT OR REPLACE INTO drawer_unlocks (session_hash, drawer_id, expires_at) '
+                           'VALUES (?, ?, ?)', (session, drawer_id, now() + UNLOCK_TTL))
+    return json_response({**galaxy_of(req, owner), 'opened': opened})
+
+
+@route('PUT', r'/api/drawers/(?P<drawer_id>[\w-]+)/code')
+def set_planet_code(req, drawer_id):
+    """The owner picks the code people need to look inside a Code planet.
+    Changing it closes the planet again to everyone who had the old one."""
+    own_drawer(req, drawer_id)
+    code = str(req.json().get('code') or '')
+    if not auth.PIN_RE.match(code):
+        raise HttpError(400, 'The code needs to be 4 digits.')
+    if auth.check_pin(code, req.user['pin_salt'], req.user['pin_hash']):
+        raise HttpError(400, "That's your sign-in code. Pick a different one, so sharing this planet "
+                             "doesn't share your account.")
+    with db.transaction(req.db):
+        req.db.execute('UPDATE drawers SET share_hash = ?, updated_at = ? WHERE id = ?',
+                       (auth.share_hash(req.user['id'], code), now(), drawer_id))
+        req.db.execute('DELETE FROM drawer_unlocks WHERE drawer_id = ?', (drawer_id,))
+    row = own_drawer(req, drawer_id)
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count)})
 
 
 @route('PUT', r'/api/galaxy/layout')
@@ -877,6 +933,8 @@ def update_drawer(req, drawer_id):
         if body['visibility'] not in VISIBILITY:
             raise HttpError(400, 'That sharing setting could not be saved.')
         updates['visibility'] = body['visibility']
+        # Whoever had opened it with its code has to ask again.
+        req.db.execute('DELETE FROM drawer_unlocks WHERE drawer_id = ?', (drawer_id,))
     if 'look' in body:
         if body['look'] is not None and body['look'] not in PLANET_LOOKS:
             raise HttpError(400, 'That kind of planet does not exist.')

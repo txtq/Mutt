@@ -41,16 +41,78 @@ function peoplePicker(names, onChange) {
   return chips;
 }
 
+// The owner picks the code they'll give people, typed twice. It can't be
+// their sign-in code (the server checks), or sharing would hand out the account.
+function pickCode(drawer) {
+  return new Promise((resolve) => {
+    let first = null;
+    let result = null;
+    const text = h('p', { class: 'dialog-text' });
+    const msg = h('p', { class: 'dialog-msg' });
+    const step = (again) => {
+      text.textContent = again ? 'Type it again.' : 'People type this to look inside. Don’t use your sign-in code.';
+    };
+    const field = pinField({
+      autocomplete: 'off',
+      label: 'Planet code',
+      onComplete: async (code) => {
+        msg.textContent = '';
+        if (first === null) {
+          first = code;
+          field.clear();
+          step(true);
+          return;
+        }
+        if (code !== first) {
+          field.state('error');
+          msg.textContent = 'Those didn’t match. Try again.';
+          first = null;
+          await wait(420);
+          field.state('');
+          field.clear();
+          step(false);
+          field.focus();
+          return;
+        }
+        field.state('busy');
+        try {
+          ({ drawer: result } = await api.put(`/api/drawers/${drawer.id}/code`, { code }));
+          field.state('ok');
+          await wait(380);
+          dialog.close();
+        } catch (err) {
+          field.state('error');
+          msg.textContent = err.message;
+          first = null;
+          await wait(420);
+          field.state('');
+          field.clear();
+          step(false);
+          field.focus();
+        }
+      },
+    });
+    step(false);
+    const dialog = openDialog({
+      title: drawer.hasCode ? 'New code for this planet' : 'Pick a code for this planet',
+      className: 'dialog-code',
+      body: h('div', { class: 'pin-dialog' }, text, field.el, msg),
+      onClose: () => resolve(result),
+    });
+    setTimeout(() => field.focus(), 60);
+  });
+}
+
 function lockedPlanet(id, data) {
   const drawer = data.drawer;
   const msg = h('p', { class: 'dialog-msg' });
   const field = pinField({
     autocomplete: 'off',
-    label: `${data.owner}'s code`,
+    label: 'Planet code',
     onComplete: async (pin) => {
       field.state('busy');
       try {
-        await api.post(`/api/galaxy/${encodeURIComponent(data.owner)}/unlock`, { pin });
+        await api.post(`/api/galaxy/${encodeURIComponent(data.owner)}/unlock`, { pin, drawer: id });
         field.state('ok');
         await wait(380);
         nav.go(`/p/${id}`, { replace: true });
@@ -72,7 +134,9 @@ function lockedPlanet(id, data) {
         h('p', { class: 'liv-owner' }, `@${data.owner}’s planet`),
         h('h1', { class: 'liv-title-static' }, drawer.title),
         h('p', { class: 'liv-meta' }, glyph('lock', 11), h('span', null, `Locked · ${plural(drawer.count, 'file')}`)),
-        h('div', { class: 'liv-unlock' }, h('p', { class: 'liv-hint' }, `Enter @${data.owner}’s code to look inside.`), field.el, msg))));
+        h('div', { class: 'liv-unlock' }, drawer.hasCode
+          ? [h('p', { class: 'liv-hint' }, `Enter the code @${data.owner} gave you for this planet.`), field.el, msg]
+          : h('p', { class: 'liv-hint' }, `@${data.owner} hasn’t given this planet a code yet.`)))));
   return {
     el,
     title: drawer.title,
@@ -80,7 +144,7 @@ function lockedPlanet(id, data) {
     tint: tintOf(drawer),
     who: { username: data.owner, you: false },
     home: true,
-    mounted: () => setTimeout(() => field.focus(), 200),
+    mounted: () => { if (drawer.hasCode) setTimeout(() => field.focus(), 200); },
   };
 }
 
@@ -255,10 +319,27 @@ export const planetView = {
       const openBox = h('input', { type: 'checkbox', role: 'switch', checked: !!drawer.community });
       const openRow = h('label', { class: 'vswitch liv-open' },
         openBox, h('span', { class: 'vswitch-track' }, h('span', { class: 'vswitch-knob' })), h('span', null, 'Others can add files'));
+      const codeText = h('span', { class: 'liv-code-text' });
+      const codeBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass liv-code-btn' });
+      const codeRow = h('div', { class: 'liv-code' }, glyph('pin', 12), codeText, codeBtn);
+      const chooseCode = async () => {
+        sharePop?.close();
+        const next = await pickCode(drawer);
+        if (!next) return;
+        drawer = next;
+        inst.drawer = drawer;
+        paint();
+        bus.emit('drawer:changed', drawer);
+        toast(`Give people the code to open “${drawer.title}”`);
+      };
+      codeBtn.addEventListener('click', chooseCode);
       const paint = () => {
         hint.textContent = drawer.community ? 'Everyone can look inside and add to it.' : VISIBILITY[drawer.visibility].hint;
         people.hidden = drawer.visibility !== 'people';
         openRow.hidden = drawer.visibility !== 'public' && !drawer.community;
+        codeRow.hidden = drawer.visibility !== 'pin' || drawer.community;
+        codeText.textContent = drawer.hasCode ? 'It has a code.' : 'No code yet, so only you can look inside.';
+        codeBtn.textContent = drawer.hasCode ? 'Change code' : 'Pick a code';
         world.update({ ...drawer, previews: world.planet?.previews });
         setMeta(drawer.count);
         sharePop?.place();
@@ -273,6 +354,7 @@ export const planetView = {
           openBox.checked = !!drawer.community;
           paint();
           bus.emit('drawer:changed', drawer);
+          if (value === 'pin' && !drawer.hasCode) chooseCode();
         } catch (err) {
           seg.set(drawer.visibility);
           toast(err.message);
@@ -306,7 +388,7 @@ export const planetView = {
       paint();
       sharing = h('div', { class: 'liv-share' },
         h('p', { class: 'liv-label' }, 'Who can see it'),
-        seg.el, hint, people, openRow);
+        seg.el, hint, codeRow, people, openRow);
     }
     const shareBtn = mine ? h('button', { type: 'button', class: 'vbtn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
     shareBtn?.addEventListener('click', () => {

@@ -22,7 +22,7 @@ export function planetSize(count, scale = 1) {
 
 export const VISIBILITY = {
   private: { label: 'Private', hint: 'Only you can see inside.' },
-  pin: { label: 'Code', hint: 'Anyone who knows your code can look inside.' },
+  pin: { label: 'Code', hint: 'Anyone you give this planet’s code to can look inside.' },
   people: { label: 'People', hint: 'Only the people you pick.' },
   public: { label: 'Public', hint: 'Everyone on Mutt can look inside.' },
 };

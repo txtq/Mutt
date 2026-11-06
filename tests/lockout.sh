@@ -24,3 +24,15 @@ for f in x.html x.svg; do
   ID=$(curl -s "${O[@]}" -H X-Mutt:1 -H 'Content-Type: text/html' --data-binary @"$SP/$f" "$B/api/upload?name=$f" | python3 -c "import json,sys; print(json.load(sys.stdin)['block']['id'])")
   echo "$f served as: $(curl -s -D - -o /dev/null "${O[@]}" "$B/f/$ID" | grep -i -E '^(content-type|content-security-policy):' | tr -d '\r' | tr '\n' ' ')"
 done
+# Planet codes: guessing one is limited the same way, but counted apart, so it
+# never locks the owner out of signing in.
+P=(-b "$SP/p.txt" -c "$SP/p.txt"); G=(-b "$SP/g.txt" -c "$SP/g.txt"); rm -f "$SP/p.txt" "$SP/g.txt"
+curl -s -o /dev/null "${P[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"sharer","pin":"5555"}'
+curl -s -o /dev/null "${G[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"guesser","pin":"6666"}'
+PL=$(curl -s "${P[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Shared"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['drawer']['id'])")
+curl -s -o /dev/null "${P[@]}" "${J[@]}" -X PUT $B/api/drawers/$PL/code -d '{"code":"7070"}'
+guess() { curl -s "${G[@]}" "${J[@]}" -H "X-Forwarded-For: $1" -X POST $B/api/galaxy/sharer/unlock -d "{\"pin\":\"$2\",\"drawer\":\"$PL\"}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error') or d.get('opened'))"; }
+for i in 1 2 3 4 5 6; do echo "planet code miss $i: $(guess 5.5.5.5 0000)"; done
+echo "right planet code after misses (expect wait): $(guess 5.5.5.5 7070)"
+echo "other place, right planet code: $(guess 6.6.6.6 7070)"
+echo "sharer signs in from the guessing place (expect 200): $(curl -s -o /dev/null -w '%{http_code}' "${J[@]}" -H 'X-Forwarded-For: 5.5.5.5' -X POST $B/api/auth/login -d '{"username":"sharer","pin":"5555"}')"

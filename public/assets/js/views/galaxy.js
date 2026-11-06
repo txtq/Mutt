@@ -551,7 +551,7 @@ class Galaxy {
     const el = planetEl(planet, { peek: true });
     el.body.dataset.vt = `planet-${planet.id}`;
     if (planet.locked) {
-      el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(); });
+      el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(el.planet); });
     }
     else if (this.mine) this.makeMovable(el);
     this.planetEls.set(planet.id, el);
@@ -758,21 +758,24 @@ class Galaxy {
     else this.data.planets.push(planet);
   }
 
-  async unlock(owner = this.owner, after = null) {
+  // A locked planet opens with its own code, which its owner gives out
+  // (never their sign-in code). Their other planets with the same code open too.
+  async unlock(planet, owner = this.owner) {
+    if (!planet.hasCode) { toast(`@${owner} hasn’t given this planet a code yet.`); return; }
     const msg = h('p', { class: 'dialog-msg' });
     const field = pinField({
       autocomplete: 'off',
-      label: `${owner}'s code`,
+      label: 'Planet code',
       onComplete: async (pin) => {
         msg.textContent = '';
         field.state('busy');
         try {
-          const data = await api.post(`/api/galaxy/${encodeURIComponent(owner)}/unlock`, { pin });
+          const data = await api.post(`/api/galaxy/${encodeURIComponent(owner)}/unlock`, { pin, drawer: planet.id });
           field.state('ok');
           await wait(380);
           dialog.close();
-          if (after) { after(); return; }
-          for (const el of this.planetEls.values()) if (el.planet.locked) el.classList.add('is-thawing');
+          const opened = new Set(data.opened || []);
+          for (const el of this.planetEls.values()) if (opened.has(el.planet.id)) el.classList.add('is-thawing');
           await wait(reducedMotion() ? 0 : 420);
           this.apply(data);
           for (const el of this.planetEls.values()) el.classList.remove('is-thawing');
@@ -787,9 +790,9 @@ class Galaxy {
       },
     });
     const dialog = openDialog({
-      title: `@${owner}’s code`,
+      title: `“${planet.title}” is locked`,
       className: 'dialog-code',
-      body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, 'Their locked planets open for you for 12 hours.'), field.el, msg),
+      body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, `Enter the code @${owner} gave you. It stays open for you for 12 hours.`), field.el, msg),
     });
     setTimeout(() => field.focus(), 60);
   }

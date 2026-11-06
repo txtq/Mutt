@@ -155,6 +155,23 @@ def migrate(conn):
     if 'modes' not in drawer_columns:
         # Features a planet has switched on (list mode and its options), as JSON.
         conn.execute("ALTER TABLE drawers ADD COLUMN modes TEXT NOT NULL DEFAULT '{}'")
+    if 'share_hash' not in drawer_columns:
+        # The planet's own code for "Code" sharing, set by its owner (never their sign-in code).
+        conn.execute('ALTER TABLE drawers ADD COLUMN share_hash BLOB')
+    # Who has opened which planet with its code, and until when. (The older
+    # `unlocks` table opened a whole galaxy with its owner's sign-in code; it's
+    # no longer read.)
+    conn.execute('CREATE TABLE IF NOT EXISTS drawer_unlocks ('
+                 'session_hash TEXT NOT NULL, '
+                 'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'expires_at REAL NOT NULL, PRIMARY KEY (session_hash, drawer_id))')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_drawer_unlocks_drawer ON drawer_unlocks(drawer_id)')
+    # Wrong planet codes, by owner and (hashed) source. Kept apart from
+    # login_failures so guessing a planet's code can't lock its owner out.
+    conn.execute('CREATE TABLE IF NOT EXISTS share_failures ('
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'source TEXT NOT NULL, at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_share_failures_user ON share_failures(user_id, at)')
     connection_columns = {row[1] for row in conn.execute('PRAGMA table_info(connections)')}
     if 'checked' not in connection_columns:
         conn.execute('ALTER TABLE connections ADD COLUMN checked REAL')  # ticked off on a list planet

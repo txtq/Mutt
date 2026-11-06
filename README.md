@@ -90,15 +90,21 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   (prints, photos of climbing, jazz songs, payslips, the cameras used). Nothing shows it yet; it's
   there for features that appear when a planet needs them, and owners can
   read it at `GET /api/drawers/<id>/purpose`.
-- **Who can see a planet**: Private (only you), Code (anyone who has your
-  4-digit code, the default), People (the usernames you list) or Public
-  (everyone signed in). A public planet can also let others add files.
+- **Who can see a planet**: Private (only you), Code (anyone you give the
+  planet's own 4-digit code to, the default), People (the usernames you list)
+  or Public (everyone signed in). A public planet can also let others add files.
+  A Code planet's code is picked by its owner in Share, and can never be their
+  sign-in code (in either direction), so sharing a planet never shares the
+  account. Until it has one, only the owner can look inside.
 - **The universe**: keep scrolling down and the camera pulls back from your
   galaxy, past a few others drifting by, until it sits small among
   everyone's galaxies on a faint web of dust (or go straight to `/universe`).
   Click any galaxy and the camera dives into it. Planets you can't open yet
-  look frosted; click one and type its owner's code to thaw them. Wrong codes count toward the same lockout as
-  signing in; changing your code locks everyone out again. **Save** a file
+  look frosted; click one and type the code its owner gave you to thaw it
+  (their other planets with the same code thaw too, for 12 hours). Wrong
+  planet codes are limited like sign-in codes but counted apart, so they never
+  lock the owner out; changing a planet's code, or who can see it, locks
+  everyone out of it again. **Save** a file
   you like to keep your own copy.
 - **Going home**: away from your galaxy, a faint back arrow in the top-left
   corner takes you home.

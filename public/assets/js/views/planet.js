@@ -10,7 +10,7 @@ import { nav } from '../nav.js';
 import { ShelfView, readingOffer } from '../reading.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
+import { EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, timeAgo, wait } from '../util.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
@@ -20,37 +20,6 @@ const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer
 function tintOf(drawer) {
   const { tone, accent } = planetTone(drawer);
   return { '--pc': tone, '--pa': accent };
-}
-
-// How far apart two words are, in letters changed, added, dropped or swapped.
-function editDistance(a, b) {
-  let before = null;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const row = [i];
-    for (let j = 1; j <= b.length; j++) {
-      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      if (before && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], before[j - 2] + 1);
-    }
-    before = prev;
-    prev = row;
-  }
-  return prev[b.length];
-}
-
-// How well a username answers what's typed: lower is better, null is no match.
-// Starts with it, then has it, then has its letters in order, then a near miss
-// (a typo or two), so "jmes" still finds @james.
-function nameMatch(name, q) {
-  if (!q) return 0;
-  if (name.startsWith(q)) return 0;
-  if (name.includes(q)) return 1;
-  let i = 0;
-  for (const c of name) if (c === q[i]) i++;
-  if (i === q.length && q.length > 1) return 2;
-  const room = q.length < 3 ? 0 : q.length < 6 ? 1 : 2;
-  const d = Math.min(editDistance(q, name), editDistance(q, name.slice(0, q.length)));
-  return d <= room ? 3 + d : null;
 }
 
 const loadEveryone = () => api.get('/api/users').then((r) => r.users);
@@ -110,7 +79,7 @@ function peoplePicker(names, onChange) {
         id: `${results.id}-${i}`, 'aria-selected': String(on), tabindex: '-1',
         onpointerdown: (e) => e.preventDefault(),
         onclick: () => { active = i; toggle(name); input.focus({ preventScroll: true }); },
-      }, h('span', { class: 'pp-dot', style: { '--c': PALETTE[Math.floor(seedOf(name) * PALETTE.length)] } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
+      }, h('span', { class: 'pp-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
       return row;
     }));
     if (active >= 0 && shown.length) input.setAttribute('aria-activedescendant', `${results.id}-${active}`);

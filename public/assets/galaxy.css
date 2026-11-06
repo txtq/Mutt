@@ -452,6 +452,18 @@ body.no-chrome .sb { display: none; }
 .search-try:hover { color: var(--ink); }
 .search-more { display: flex; justify-content: center; padding: 22px 0 6px; }
 .search-planets { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 22px 8px 30px; }
+/* People: other galaxies to jump to, by username. */
+.search-people { padding: 18px 6px 4px; }
+.search-label { margin: 0 2px 9px; font: 500 10.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.search-people-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.search-person { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px 0 12px; border-radius: 999px; background: var(--well); box-shadow: var(--well-shadow); font-size: 13.5px; color: var(--ink); transition: background 0.15s; }
+.search-person:hover, .search-person:focus-visible { background: var(--tint); }
+.search-person-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent); }
+.search-person-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-person-go { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; color: var(--ink-3); }
+.search-person:hover .search-person-go { color: var(--ink-2); }
+.search-people + .search-planets { padding-top: 14px; }
+@media (pointer: coarse) { .search-person { height: 40px; } }
 .search-grid { --cols: 4; column-gap: 14px; row-gap: 20px; margin-top: 8px; }
 .search-none { padding: 26px 6px 8px; color: var(--ink-3); }
 

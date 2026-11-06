@@ -22,27 +22,135 @@ function tintOf(drawer) {
   return { '--pc': tone, '--pa': accent };
 }
 
-// The people a planet is shared with, as removable chips plus a box to add more.
+// How far apart two words are, in letters changed, added, dropped or swapped.
+function editDistance(a, b) {
+  let before = null;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (before && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], before[j - 2] + 1);
+    }
+    before = prev;
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+// How well a username answers what's typed: lower is better, null is no match.
+// Starts with it, then has it, then has its letters in order, then a near miss
+// (a typo or two), so "jmes" still finds @james.
+function nameMatch(name, q) {
+  if (!q) return 0;
+  if (name.startsWith(q)) return 0;
+  if (name.includes(q)) return 1;
+  let i = 0;
+  for (const c of name) if (c === q[i]) i++;
+  if (i === q.length && q.length > 1) return 2;
+  const room = q.length < 3 ? 0 : q.length < 6 ? 1 : 2;
+  const d = Math.min(editDistance(q, name), editDistance(q, name.slice(0, q.length)));
+  return d <= room ? 3 + d : null;
+}
+
+const loadEveryone = () => api.get('/api/users').then((r) => r.users);
+
+// The people a planet is shared with: chips for who's on it, a box to search,
+// and everyone else's username below to pick from (a tap adds or takes off).
 function peoplePicker(names, onChange) {
   let list = [...names];
+  let users = [];
+  let shown = [];
+  let active = -1;
+  let busy = false;
+  let failed = false;
   const chips = h('div', { class: 'chips' });
-  const input = h('input', { class: 'chip-input', type: 'text', placeholder: list.length ? 'Add someone' : '@username', 'aria-label': 'Add a person by username', autocapitalize: 'none', spellcheck: 'false' });
-  const render = () => {
-    chips.replaceChildren(...list.map((name) => h('span', { class: 'chip' }, `@${name}`,
-      h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove @${name}`, onclick: () => { list = list.filter((n) => n !== name); render(); onChange(list); } }, '×'))), input);
-    input.placeholder = list.length ? 'Add someone' : '@username';
-  };
-  input.addEventListener('keydown', async (e) => {
-    if (e.key === 'Backspace' && !input.value && list.length) { list = list.slice(0, -1); render(); onChange(list); return; }
-    if (e.key !== 'Enter' && e.key !== ',' && e.key !== ' ') return;
-    e.preventDefault();
-    const name = input.value.trim().replace(/^@/, '').toLowerCase();
-    if (!name || list.includes(name)) { input.value = ''; return; }
-    const ok = await onChange([...list, name]);
-    if (ok !== false) { list.push(name); input.value = ''; render(); input.focus(); }
+  const input = h('input', {
+    class: 'chip-input', type: 'text', placeholder: 'Search usernames', role: 'combobox',
+    'aria-label': 'Search for a person by username', 'aria-autocomplete': 'list', 'aria-expanded': 'true',
+    autocapitalize: 'none', autocomplete: 'off', spellcheck: 'false',
   });
-  render();
-  return chips;
+  const results = h('div', { class: 'pp-list', role: 'listbox', 'aria-label': 'People', 'aria-multiselectable': 'true' });
+  input.setAttribute('aria-controls', results.id = `pp-${Math.random().toString(36).slice(2, 8)}`);
+  const note = h('p', { class: 'pp-note' });
+
+  const query = () => input.value.trim().replace(/^@/, '').toLowerCase();
+  const save = async (next) => {
+    if (busy) return false;
+    busy = true;
+    const ok = await onChange(next);
+    busy = false;
+    if (ok !== false) list = next;
+    renderChips();
+    renderList();
+    return ok !== false;
+  };
+  const toggle = (name) => save(list.includes(name) ? list.filter((n) => n !== name) : [...list, name]);
+
+  // The chips go in front of the search box without moving it, so it keeps focus.
+  const renderChips = () => {
+    chips.querySelectorAll('.chip').forEach((c) => c.remove());
+    if (input.parentNode !== chips) chips.append(input);
+    input.before(...list.map((name) => h('span', { class: 'chip' }, `@${name}`,
+      h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove @${name}`, onclick: () => { save(list.filter((n) => n !== name)); input.focus({ preventScroll: true }); } }, '×'))));
+  };
+
+  const renderList = () => {
+    const q = query();
+    shown = users.map((name) => ({ name, score: nameMatch(name, q) }))
+      .filter((u) => u.score !== null)
+      .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name))
+      .map((u) => u.name);
+    if (active >= shown.length) active = shown.length - 1;
+    if (q && active < 0 && shown.length) active = 0;
+    results.replaceChildren(...shown.map((name, i) => {
+      const on = list.includes(name);
+      const row = h('button', {
+        type: 'button', class: `pp-row${on ? ' is-on' : ''}${i === active ? ' is-active' : ''}`, role: 'option',
+        id: `${results.id}-${i}`, 'aria-selected': String(on), tabindex: '-1',
+        onpointerdown: (e) => e.preventDefault(),
+        onclick: () => { active = i; toggle(name); input.focus({ preventScroll: true }); },
+      }, h('span', { class: 'pp-dot', style: { '--c': PALETTE[Math.floor(seedOf(name) * PALETTE.length)] } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
+      return row;
+    }));
+    if (active >= 0 && shown.length) input.setAttribute('aria-activedescendant', `${results.id}-${active}`);
+    else input.removeAttribute('aria-activedescendant');
+    results.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' });
+    const near = q && shown.length && nameMatch(shown[0], q) >= 3;
+    note.textContent = failed ? 'Couldn’t load people. Type a username and press Enter.'
+      : !users.length ? 'No one else is here yet.'
+      : !shown.length ? `No one called @${q}.`
+      : near ? `No exact match. Did you mean @${shown[0]}?` : '';
+    note.hidden = !note.textContent;
+    results.hidden = !shown.length;
+  };
+
+  input.addEventListener('input', () => { active = -1; renderList(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!shown.length) return;
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+      renderList();
+      return;
+    }
+    if (e.key === 'Backspace' && !input.value && list.length) { save(list.slice(0, -1)); return; }
+    if (e.key !== 'Enter' && e.key !== ',') return;
+    e.preventDefault();
+    const q = query();
+    const pick = shown[active] ?? (users.includes(q) || (failed && q) ? q : null);
+    if (!pick) { if (q) toast(`No one here is called @${q}.`); return; }
+    const clear = () => { input.value = ''; active = -1; renderList(); };
+    // Typing a name only ever adds; picking with the arrows (nothing typed) can take someone off.
+    if (q && list.includes(pick)) { clear(); return; }
+    toggle(pick).then((ok) => { if (ok && q) clear(); });
+  });
+
+  renderChips();
+  note.textContent = 'Loading people…';
+  results.hidden = true;
+  loadEveryone().then((all) => { users = all; renderList(); }).catch(() => { failed = true; renderList(); });
+  return h('div', { class: 'pp' }, chips, results, note);
 }
 
 // The owner picks the code they'll give people, typed twice. It can't be

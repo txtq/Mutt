@@ -847,6 +847,13 @@ def save_layout(req):
     return json_response({'ok': True})
 
 
+@route('GET', r'/api/users')
+def list_users(req):
+    """Everyone else's username, A to Z, for picking who to share a planet with."""
+    rows = req.db.execute('SELECT username FROM users WHERE id != ? ORDER BY username', (req.user['id'],))
+    return json_response({'users': [r[0] for r in rows]})
+
+
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
     """The universe: everyone with something you could look at, you first,

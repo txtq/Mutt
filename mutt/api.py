@@ -25,6 +25,8 @@ USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
 PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240']
 VISIBILITY = ('private', 'pin', 'people', 'public')
 PLANET_LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'rock', 'storm')
+MOON_LOOKS = ('luna', 'io', 'europa', 'titan', 'enceladus', 'triton', 'phobos', 'hyperion', 'iapetus', 'callisto')
+MAX_MOONS = 4
 LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
 
 PREF_CHOICES = {
@@ -88,7 +90,9 @@ def drawer_json(row, count=None, previews=None):
         'look': row['look'] if 'look' in row.keys() else None,
         'x': row['x'] if 'x' in row.keys() else None,
         'y': row['y'] if 'y' in row.keys() else None,
+        'parentId': row['parent_id'] if 'parent_id' in row.keys() else None,
         'modes': drawer_modes(row),
+        'hasCode': bool(row['share_hash']) if 'share_hash' in row.keys() else False,
     }
     if count is not None:
         data['count'] = count
@@ -278,17 +282,28 @@ def own_block(req, block_id):
     return row
 
 
-def is_unlocked(req, owner_id):
-    if owner_id == req.user['id']:
+def is_unlocked(req, row):
+    """Has this session opened a Code planet with the planet's own code?"""
+    if row['user_id'] == req.user['id']:
         return True
+    if not row['share_hash']:
+        return False
     return bool(req.db.execute(
-        'SELECT 1 FROM unlocks WHERE session_hash = ? AND owner_id = ? AND expires_at > ?',
-        (auth.session_key(req.session_token), owner_id, now())).fetchone())
+        'SELECT 1 FROM drawer_unlocks WHERE session_hash = ? AND drawer_id = ? AND expires_at > ?',
+        (auth.session_key(req.session_token), row['id'], now())).fetchone())
 
 
 def drawer_visible(req, row):
-    """Can the signed-in person look inside this drawer (planet)?"""
-    if row['user_id'] == req.user['id'] or row['community']:
+    """Can the signed-in person look inside this drawer (planet)? A moon is
+    never more open than its planet: both have to let you in."""
+    if row['user_id'] == req.user['id']:
+        return True
+    parent_id = row['parent_id'] if 'parent_id' in row.keys() else None
+    if parent_id:
+        parent = req.db.execute('SELECT * FROM drawers WHERE id = ?', (parent_id,)).fetchone()
+        if not parent or not drawer_visible(req, parent):
+            return False
+    if row['community']:
         return True
     visibility = row['visibility']
     if visibility == 'public':
@@ -296,7 +311,7 @@ def drawer_visible(req, row):
     if visibility == 'people':
         return bool(req.db.execute('SELECT 1 FROM drawer_access WHERE drawer_id = ? AND user_id = ?',
                                    (row['id'], req.user['id'])).fetchone())
-    return visibility == 'pin' and is_unlocked(req, row['user_id'])
+    return visibility == 'pin' and is_unlocked(req, row)
 
 
 def writable_drawer(req, drawer_id):
@@ -428,7 +443,7 @@ def link_file(from_user, to_user, key):
 
 def user_stats(conn, user_id):
     files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ?', (user_id,)).fetchone()[0]
-    drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ?', (user_id,)).fetchone()[0]
+    drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ? AND parent_id IS NULL', (user_id,)).fetchone()[0]
     stars = conn.execute(
         'SELECT COUNT(*) FROM blocks b WHERE b.user_id = ? AND NOT EXISTS '
         '(SELECT 1 FROM connections c WHERE c.block_id = b.id)', (user_id,)).fetchone()[0]
@@ -544,7 +559,7 @@ def login(req):
 @route('POST', r'/api/auth/logout', auth=False)
 def logout(req):
     if req.session_token:
-        req.db.execute('DELETE FROM unlocks WHERE session_hash = ?', (auth.session_key(req.session_token),))
+        req.db.execute('DELETE FROM drawer_unlocks WHERE session_hash = ?', (auth.session_key(req.session_token),))
     auth.end_session(req.db, req.session_token)
     return json_response({'ok': True}, headers=[auth.clear_cookie_header(req)])
 
@@ -564,12 +579,20 @@ def change_pin(req):
     new_pin = str(body.get('next') or '')
     if not auth.PIN_RE.match(new_pin):
         raise HttpError(400, 'Your new code needs to be 4 digits.')
+    if uses_planet_code(req, new_pin):
+        raise HttpError(400, "That's the code for one of your planets. Pick a different one.")
     pin_hash, salt = auth.new_pin_hash(new_pin)
     req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?', (pin_hash, salt, req.user['id']))
     auth.end_other_sessions(req.db, req.user['id'], req.session_token)
-    # Anyone who unlocked your drawers with the old code loses access.
-    req.db.execute('DELETE FROM unlocks WHERE owner_id = ?', (req.user['id'],))
     return json_response({'ok': True})
+
+
+def uses_planet_code(req, code):
+    """Is `code` the code of one of your planets? A sign-in code and a planet
+    code must never be the same, or sharing a planet would hand out your account."""
+    digest = auth.share_hash(req.user['id'], code)
+    return any(bytes(r[0]) == digest for r in req.db.execute(
+        'SELECT share_hash FROM drawers WHERE user_id = ? AND share_hash IS NOT NULL', (req.user['id'],)))
 
 
 @route('POST', r'/api/me/delete')
@@ -645,7 +668,7 @@ def blocks_in_drawer(req, drawer_id, community=False):
 def drawers_of(req, user_id, with_previews, owner=None):
     rows = req.db.execute(
         'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-        'FROM drawers d WHERE d.user_id = ? ORDER BY d.updated_at DESC', (user_id,)).fetchall()
+        'FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL ORDER BY d.updated_at DESC', (user_id,)).fetchall()
     return [drawer_json(r, r['n'], drawer_previews(req, r['id'], owner=owner) if with_previews else None)
             for r in rows]
 
@@ -658,8 +681,26 @@ def planet_people(req, drawer_id):
         'WHERE a.drawer_id = ? ORDER BY u.username', (drawer_id,))]
 
 
+def moons_of(req, planet_id):
+    """A planet's moons as this person may see them; a pin moon not yet
+    unlocked shows locked."""
+    rows = req.db.execute(
+        'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+        'FROM drawers d WHERE d.parent_id = ? ORDER BY d.created_at', (planet_id,)).fetchall()
+    out = []
+    for r in rows:
+        open_ = drawer_visible(req, r)
+        if not open_ and r['visibility'] != 'pin':
+            continue
+        out.append({'id': r['id'], 'title': r['title'], 'look': r['look'], 'count': r['n'],
+                    'visibility': r['visibility'], 'locked': not open_})
+    return out
+
+
 def planet_json(req, row, count, previews=None, locked=False):
     data = drawer_json(row, count, previews)
+    if not data['parentId']:
+        data['moons'] = [] if locked else moons_of(req, row['id'])
     if previews is not None:
         # The peek on hover shows what was put here last.
         data['recent'] = drawer_previews(req, row['id'], limit=4, newest=True) if previews else []
@@ -677,7 +718,7 @@ def galaxy_of(req, owner):
     mine = owner['id'] == req.user['id']
     rows = req.db.execute(
         'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-        'FROM drawers d WHERE d.user_id = ? ORDER BY d.created_at', (owner['id'],)).fetchall()
+        'FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL ORDER BY d.created_at', (owner['id'],)).fetchall()
     planets = []
     for r in rows:
         if mine or drawer_visible(req, r):
@@ -688,7 +729,6 @@ def galaxy_of(req, owner):
     data = {
         'user': {**user_json(owner), 'you': mine},
         'planets': planets,
-        'unlocked': is_unlocked(req, owner['id']),
     }
     if mine:
         stars = req.db.execute(
@@ -712,12 +752,57 @@ def get_galaxy(req, username):
 
 @route('POST', r'/api/galaxy/' + USERNAME_PATH + r'/unlock')
 def unlock_galaxy(req, username):
+    """Open someone's Code planets with a planet's code (never their sign-in
+    code). Every one of their planets with that code opens, for 12 hours.
+    `drawer` names the planet being opened, so a missing code can be said."""
     owner = find_user(req, username)
+    opened = []
     if owner['id'] != req.user['id']:
-        pin_gate(req, owner, str(req.json().get('pin') or ''), wrong_status=403)
-        req.db.execute('INSERT OR REPLACE INTO unlocks (session_hash, owner_id, expires_at) VALUES (?, ?, ?)',
-                       (auth.session_key(req.session_token), owner['id'], now() + UNLOCK_TTL))
-    return json_response(galaxy_of(req, owner))
+        body = req.json()
+        code = str(body.get('pin') or body.get('code') or '')
+        wanted = str(body.get('drawer') or '')
+        if wanted:
+            row = req.db.execute("SELECT share_hash FROM drawers WHERE id = ? AND user_id = ? AND visibility = 'pin'",
+                                 (wanted, owner['id'])).fetchone()
+            if not row:
+                raise HttpError(404, 'That planet does not exist.')
+            if not row['share_hash']:
+                raise HttpError(403, f"@{owner['username']} hasn't given this planet a code yet.", noCode=True)
+        wait = auth.login_failures_by_ip.retry_after(req.client_ip)
+        if wait:
+            raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
+        if not auth.PIN_RE.match(code):
+            raise HttpError(400, 'Codes are 4 digits.')
+        failure, opened = auth.try_share_code(req.db, owner, code, req.client_ip)
+        if failure:
+            # 403, not 401: a 401 means *your* session has ended and would sign you out.
+            status, message, extra = failure
+            raise HttpError(403 if status == 401 else status, message, **extra)
+        session = auth.session_key(req.session_token)
+        for drawer_id in opened:
+            req.db.execute('INSERT OR REPLACE INTO drawer_unlocks (session_hash, drawer_id, expires_at) '
+                           'VALUES (?, ?, ?)', (session, drawer_id, now() + UNLOCK_TTL))
+    return json_response({**galaxy_of(req, owner), 'opened': opened})
+
+
+@route('PUT', r'/api/drawers/(?P<drawer_id>[\w-]+)/code')
+def set_planet_code(req, drawer_id):
+    """The owner picks the code people need to look inside a Code planet.
+    Changing it closes the planet again to everyone who had the old one."""
+    own_drawer(req, drawer_id)
+    code = str(req.json().get('code') or '')
+    if not auth.PIN_RE.match(code):
+        raise HttpError(400, 'The code needs to be 4 digits.')
+    if auth.check_pin(code, req.user['pin_salt'], req.user['pin_hash']):
+        raise HttpError(400, "That's your sign-in code. Pick a different one, so sharing this planet "
+                             "doesn't share your account.")
+    with db.transaction(req.db):
+        req.db.execute('UPDATE drawers SET share_hash = ?, updated_at = ? WHERE id = ?',
+                       (auth.share_hash(req.user['id'], code), now(), drawer_id))
+        req.db.execute('DELETE FROM drawer_unlocks WHERE drawer_id = ?', (drawer_id,))
+    row = own_drawer(req, drawer_id)
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count)})
 
 
 @route('PUT', r'/api/galaxy/layout')
@@ -726,7 +811,7 @@ def save_layout(req):
     placed for you."""
     body = req.json()
     if body.get('reset'):
-        req.db.execute('UPDATE drawers SET x = NULL, y = NULL WHERE user_id = ?', (req.user['id'],))
+        req.db.execute('UPDATE drawers SET x = NULL, y = NULL WHERE user_id = ? AND parent_id IS NULL', (req.user['id'],))
         return json_response({'ok': True})
     spots = body.get('planets')
     if not isinstance(spots, list) or not spots or len(spots) > 2000:
@@ -744,7 +829,7 @@ def save_layout(req):
         rows.append((*xy, str(spot.get('id') or ''), req.user['id']))
     with db.transaction(req.db):
         for row in rows:
-            if not req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ?', row).rowcount:
+            if not req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ? AND parent_id IS NULL', row).rowcount:
                 raise HttpError(404, 'One of those planets is not yours.')
     return json_response({'ok': True})
 
@@ -760,13 +845,14 @@ def list_galaxies(req):
         mine = user['id'] == req.user['id']
         rows = req.db.execute(
             'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-            'FROM drawers d WHERE d.user_id = ? ORDER BY d.created_at', (user['id'],)).fetchall()
+            'FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL ORDER BY d.created_at', (user['id'],)).fetchall()
         worlds = []
         for r in rows:
             open_ = mine or drawer_visible(req, r)
             if open_ or r['visibility'] == 'pin':
                 worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': r['n'], 'locked': not open_,
-                               'look': r['look'], 'x': r['x'], 'y': r['y']})
+                               'look': r['look'], 'x': r['x'], 'y': r['y'],
+                               'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
         if not worlds and not mine:
             continue
         opened = [w for w in worlds if not w['locked']]
@@ -789,7 +875,7 @@ def list_drawers(req):
     if req.arg('community') == '1':
         others = req.db.execute(
             'SELECT d.*, u.username AS owner_name, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-            'FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 AND d.user_id != ? '
+            'FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 AND d.parent_id IS NULL AND d.user_id != ? '
             'ORDER BY d.updated_at DESC', (req.user['id'],)).fetchall()
         drawers += [{**drawer_json(r, r['n']), 'owner': r['owner_name']} for r in others]
     stats = user_stats(req.db, req.user['id'])
@@ -810,14 +896,33 @@ def create_drawer(req):
     visibility = body.get('visibility') or 'pin'
     if visibility not in VISIBILITY:
         raise HttpError(400, 'That sharing setting could not be saved.')
+    parent_id = body.get('parent') or None
+    people = []
+    if parent_id is not None:
+        parent = own_drawer(req, str(parent_id))
+        if parent['parent_id']:
+            raise HttpError(400, "Moons can't have moons.")
+        moons = req.db.execute('SELECT COUNT(*) FROM drawers WHERE parent_id = ?', (parent['id'],)).fetchone()[0]
+        if moons >= MAX_MOONS:
+            raise HttpError(400, f'A planet can have up to {MAX_MOONS} moons.')
+        if body.get('community'):
+            raise HttpError(400, 'Moons can only be added to by their owner.')
+        visibility = body.get('visibility') or parent['visibility']
+        if 'visibility' not in body and parent['visibility'] == 'people':
+            people = [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (parent['id'],))]
+        if visibility not in VISIBILITY:
+            raise HttpError(400, 'That sharing setting could not be saved.')
+        parent_id = parent['id']
     drawer_id = new_id()
     stamp = now()
     with db.transaction(req.db):
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, parent_id) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp,
-             1 if body.get('community') else 0, visibility))
+             1 if body.get('community') else 0, visibility, parent_id))
+        for user_id in people:
+            req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
         position = 0
         for block_id in block_ids:
             owned = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND user_id = ?',
@@ -844,12 +949,16 @@ def get_drawer(req, drawer_id):
     drawer = planet_json(req, row, len(blocks))
     if not drawer['mine']:
         drawer['owner'] = row['owner_name']
+    if row['parent_id']:
+        parent = req.db.execute('SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
+                                'FROM drawers d WHERE d.id = ?', (row['parent_id'],)).fetchone()
+        drawer['parent'] = planet_json(req, parent, parent['n'], drawer_previews(req, parent['id'], limit=12))
     return json_response({'drawer': drawer, 'blocks': blocks})
 
 
 @route('PATCH', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def update_drawer(req, drawer_id):
-    own_drawer(req, drawer_id)
+    moon = bool(own_drawer(req, drawer_id)['parent_id'])
     body = req.json()
     updates = {}
     title = text_field(body, 'title', 80, 'Drawer name')
@@ -867,12 +976,16 @@ def update_drawer(req, drawer_id):
         if body['visibility'] not in VISIBILITY:
             raise HttpError(400, 'That sharing setting could not be saved.')
         updates['visibility'] = body['visibility']
+        # Whoever had opened it with its code has to ask again.
+        req.db.execute('DELETE FROM drawer_unlocks WHERE drawer_id = ?', (drawer_id,))
     if 'look' in body:
-        if body['look'] is not None and body['look'] not in PLANET_LOOKS:
-            raise HttpError(400, 'That kind of planet does not exist.')
+        if body['look'] is not None and body['look'] not in (MOON_LOOKS if moon else PLANET_LOOKS):
+            raise HttpError(400, 'That kind of moon does not exist.' if moon else 'That kind of planet does not exist.')
         updates['look'] = body['look']
     if 'people' in body:
         set_planet_people(req, drawer_id, body['people'])
+    if 'community' in body and moon and body['community']:
+        raise HttpError(400, 'Moons can only be added to by their owner.')
     if 'modes' in body:
         current = drawer_modes(own_drawer(req, drawer_id))
         updates['modes'] = json.dumps(clean_modes(body['modes'], current))
@@ -908,15 +1021,18 @@ def set_planet_people(req, drawer_id, names):
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
 
 
+# Your files that live only on this planet or its moons.
 ORPHANS_SQL = (
-    'SELECT b.id, b.file_key, b.thumb_key FROM connections c JOIN blocks b ON b.id = c.block_id '
-    'WHERE c.drawer_id = ? AND b.user_id = ? AND (SELECT COUNT(*) FROM connections c2 WHERE c2.block_id = b.id) = 1')
+    'SELECT DISTINCT b.id, b.file_key, b.thumb_key FROM connections c JOIN blocks b ON b.id = c.block_id '
+    'JOIN drawers d ON d.id = c.drawer_id WHERE (d.id = :d OR d.parent_id = :d) AND b.user_id = :u '
+    'AND NOT EXISTS (SELECT 1 FROM connections c2 JOIN drawers d2 ON d2.id = c2.drawer_id '
+    'WHERE c2.block_id = b.id AND d2.id != :d AND (d2.parent_id IS NULL OR d2.parent_id != :d))')
 
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/orphans')
 def drawer_orphans(req, drawer_id):
     own_drawer(req, drawer_id)
-    return json_response({'count': len(req.db.execute(ORPHANS_SQL, (drawer_id, req.user['id'])).fetchall())})
+    return json_response({'count': len(req.db.execute(ORPHANS_SQL, {'d': drawer_id, 'u': req.user['id']}).fetchall())})
 
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/purpose')
@@ -993,11 +1109,27 @@ def check_item(req, drawer_id):
 
 @route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def delete_drawer(req, drawer_id):
-    own_drawer(req, drawer_id)
-    orphans = req.db.execute(ORPHANS_SQL, (drawer_id, req.user['id'])).fetchall() if req.arg('blocks') == 'orphans' else []
+    row = own_drawer(req, drawer_id)
+    if row['parent_id']:
+        # A moon's files fall to its planet.
+        with db.transaction(req.db):
+            high = req.db.execute('SELECT MAX(position) FROM connections WHERE drawer_id = ?',
+                                  (row['parent_id'],)).fetchone()[0]
+            high = high if high is not None else -1
+            moved = 0
+            for c in req.db.execute('SELECT block_id FROM connections WHERE drawer_id = ? '
+                                    'ORDER BY position, connected_at DESC', (drawer_id,)).fetchall():
+                moved += 1
+                req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
+                               'VALUES (?, ?, ?, ?)', (c['block_id'], row['parent_id'], high + moved, now()))
+            req.db.execute('DELETE FROM drawers WHERE id = ?', (drawer_id,))
+            req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), row['parent_id']))
+        return json_response({'ok': True, 'deletedBlocks': 0, 'movedBlocks': moved})
+    orphans = req.db.execute(ORPHANS_SQL, {'d': drawer_id, 'u': req.user['id']}).fetchall() if req.arg('blocks') == 'orphans' else []
     with db.transaction(req.db):
         for orphan in orphans:
             req.db.execute('DELETE FROM blocks WHERE id = ?', (orphan['id'],))
+        req.db.execute('DELETE FROM drawers WHERE parent_id = ?', (drawer_id,))
         req.db.execute('DELETE FROM drawers WHERE id = ?', (drawer_id,))
     for orphan in orphans:
         remove_block_files(req.user['id'], orphan['file_key'], orphan['thumb_key'])
@@ -1188,7 +1320,11 @@ def create_block(req):
 
     sorted_into = None
     if drawer_id:
-        connect(req.db, block_id, drawer_id, place_in(req.db, drawer_id, body.get('after'), body.get('end')))
+        # `position` puts a note back exactly where it was (Undo); `after` and `end` place a new one.
+        position = body.get('position')
+        if not isinstance(position, (int, float)) or isinstance(position, bool):
+            position = place_in(req.db, drawer_id, body.get('after'), body.get('end'))
+        connect(req.db, block_id, drawer_id, float(position) if position is not None else None)
     elif body.get('autosort'):
         sorted_into = autosort(req, block_id, icon_arg(body.get('icon')))
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
@@ -1363,9 +1499,12 @@ def update_block(req, block_id):
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)')
 def delete_block(req, block_id):
     row = own_block(req, block_id)
+    # Where it sat on each planet, so an Undo can put it back in the same place.
+    positions = {r['drawer_id']: r['position'] for r in req.db.execute(
+        'SELECT drawer_id, position FROM connections WHERE block_id = ?', (block_id,))}
     req.db.execute('DELETE FROM blocks WHERE id = ?', (block_id,))
     remove_block_files(req.user['id'], row['file_key'], row['thumb_key'])
-    return json_response({'ok': True})
+    return json_response({'ok': True, 'positions': positions})
 
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/connections')

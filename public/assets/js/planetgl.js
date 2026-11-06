@@ -68,6 +68,12 @@ float fbm3(vec3 p) {
 // Thin lines where noise crosses its middle: cracks, seams, crevasses.
 float ridge(vec3 p) { return 1.0 - abs(noise(p) * 2.0 - 1.0); }
 
+vec3 rotX(vec3 p, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
+}
+
 vec3 rotY(vec3 p, float a) {
   float c = cos(a);
   float s = sin(a);
@@ -100,6 +106,11 @@ float crater(vec3 p, float depth, inout float rim) {
 
 void main() {
   vec2 q = ((gl_FragCoord.xy - uOrigin) / uSize) * 2.0 - 1.0;
+  // Phobos and Hyperion are lumps, not balls: their outline dents a little.
+  if (uLook == 14 || uLook == 15) {
+    float a = atan(q.y, q.x);
+    q *= 1.05 + 0.05 * sin(2.0 * a + uSeed.x) * cos(3.0 * a + uSeed.y);
+  }
   float r = length(q);
   float alpha = 1.0 - smoothstep(1.0 - 3.0 / uSize, 1.0, r);
   if (alpha <= 0.0) { outColor = vec4(0.0); return; }
@@ -110,6 +121,8 @@ void main() {
   float ts = sin(uTilt);
   vec3 n = vec3(tc * v.x - ts * v.y, ts * v.x + tc * v.y, v.z);
   n = vec3(n.x, cos(uLean) * n.y + sin(uLean) * n.z, -sin(uLean) * n.y + cos(uLean) * n.z);
+  // Hyperion tumbles: its axis wanders instead of holding still.
+  if (uLook == 15) n = rotX(n, 0.55 * sin(uTime * 0.11 + uSeed.x) + 0.3 * sin(uTime * 0.047 + uSeed.z));
 
   float ang = uTurn * 2.0 * PI;
   vec3 p = rotY(n, -ang);
@@ -220,7 +233,7 @@ void main() {
     col += uC3 * rim * 0.16;
     atmo = 0.0;
     hard = 1.0;
-  } else {
+  } else if (uLook == 7) {
     // storm: violet clouds curling over each other, and now and then lightning
     vec3 cp = rotY(n, -ang * 1.15) + uSeed;
     vec3 w = vec3(fbm3(cp * 2.0 + vec3(0.0, 0.0, t * 0.02)), fbm3(cp * 2.0 + vec3(5.2, 1.3, t * 0.02)), fbm3(cp * 2.0 + vec3(1.7, 9.2, -t * 0.02)));
@@ -236,6 +249,111 @@ void main() {
     glow = uC3 * on * near * flick * (0.5 + h * 0.6);
     atmo = 0.5;
     atmoC = uC1;
+
+  } else if (uLook == 8) {
+    // Luna: grey highlands, dark seas, craters; it always shows the same face
+    float h = fbm(sp * 2.2);
+    col = mix(uC1, uC2, smoothstep(0.3, 0.72, h));
+    col = mix(col, uC0, smoothstep(0.5, 0.6, fbm3(sp * 1.3 + 2.0)) * 0.8);
+    float rim = 0.0;
+    float bowl = crater(sp * 4.0, 1.0, rim) + crater(sp * 9.0 + 3.3, 0.5, rim);
+    col *= 1.0 - bowl * 0.22;
+    col += uC3 * rim * 0.18;
+    atmo = 0.0;
+    hard = 1.0;
+  } else if (uLook == 9) {
+    // Io: sulphur yellows and oranges, black calderas, hot spots that glow now and then
+    float h = fbm(sp * 2.6);
+    col = mix(uC1, uC2, smoothstep(0.35, 0.72, h));
+    col = mix(col, uC3, smoothstep(0.62, 0.8, fbm3(sp * 4.0 + 1.0)) * 0.6);
+    vec2 c = cells(sp * 5.0);
+    float pit = smoothstep(0.24, 0.12, c.x) * step(0.62, c.y);
+    col = mix(col, uC0, pit * 0.85);
+    float pulse = 0.5 + 0.5 * sin(t * 0.6 + c.y * 40.0);
+    glow = vec3(1.0, 0.42, 0.1) * smoothstep(0.14, 0.04, c.x) * step(0.62, c.y) * pulse * pulse * 0.7;
+    atmo = 0.0;
+    hard = 1.0;
+  } else if (uLook == 10) {
+    // Europa: cream ice crossed by rust-red cracks; a soft glint drifts over
+    float h = fbm(sp * 2.0);
+    col = mix(uC1, uC2, smoothstep(0.3, 0.7, h));
+    float lines = smoothstep(0.93, 0.99, ridge(sp * 3.0 + fbm3(sp * 2.0) * 0.5))
+      + smoothstep(0.95, 0.995, ridge(sp * 6.5 + 1.3)) * 0.7;
+    col = mix(col, uC0, clamp(lines, 0.0, 1.0) * 0.75);
+    col = mix(col, uC0 * 1.2, smoothstep(0.62, 0.8, fbm3(sp * 3.0 + 4.0)) * 0.25);
+    spec = 0.3 + 0.25 * sin(t * 0.25 + h * 6.0);
+    atmo = 0.0;
+    hard = 1.0;
+  } else if (uLook == 11) {
+    // Titan: thick orange haze, no ground; bands drift; a blue rim of haze
+    vec3 hp = rotY(n, -ang * 0.6) + uSeed;
+    float b = n.y * 3.2 + (fbm3(vec3(hp.x * 1.5, hp.y * 5.0, hp.z * 1.5) + vec3(t * 0.006, 0.0, 0.0)) - 0.5) * 0.9;
+    col = mix(uC0, uC1, 0.5 + 0.5 * sin(b * PI * 0.6));
+    col = mix(col, uC2, smoothstep(0.55, 0.85, n.y) * 0.5);
+    atmo = 1.4;
+    atmoC = uC3;
+    limb = 1.0;
+  } else if (uLook == 12) {
+    // Enceladus: the brightest ice; blue "tiger stripes" at its south pole
+    float h = fbm(sp * 2.4);
+    col = mix(uC1, uC2, smoothstep(0.3, 0.7, h));
+    float south = smoothstep(-0.5, -0.82, p.y);
+    float stripes = smoothstep(0.9, 0.985, ridge(vec3(p.x * 7.0, p.y * 1.5, p.z * 7.0) + uSeed));
+    col = mix(col, uC0, stripes * south * 0.8);
+    float rim = 0.0;
+    col *= 1.0 - crater(sp * 6.0, 0.5, rim) * 0.12 * (1.0 - south);
+    spec = 0.45;
+    atmo = 0.25;
+    atmoC = uC3;
+  } else if (uLook == 13) {
+    // Triton: pinkish "cantaloupe" ice, a bright southern cap with dark streaks
+    vec2 c = cells(sp * 6.0);
+    col = mix(uC1, uC2, smoothstep(0.15, 0.55, c.x) * 0.55 + (fbm3(sp * 3.0) - 0.5) * 0.4);
+    float cap = smoothstep(-0.05, -0.35, p.y + (fbm3(sp * 2.0) - 0.5) * 0.3);
+    col = mix(col, uC3, cap * 0.8);
+    float streak = smoothstep(0.7, 0.9, noise(vec3(p.x * 16.0, p.y * 2.5, p.z * 16.0) + uSeed));
+    col = mix(col, uC0, streak * cap * 0.55);
+    atmo = 0.2;
+    atmoC = vec3(0.7, 0.82, 1.0);
+  } else if (uLook == 14) {
+    // Phobos: a dark lump with one huge crater and long grooves
+    float h = fbm(sp * 2.8);
+    col = mix(uC0, uC1, smoothstep(0.3, 0.75, h));
+    float d = distance(p, normalize(vec3(0.75, 0.15, 0.6))) / 0.5;
+    col *= 1.0 - smoothstep(1.0, 0.55, d) * 0.3;
+    col += uC2 * smoothstep(0.8, 1.0, d) * smoothstep(1.25, 1.0, d) * 0.25;
+    col *= 1.0 - smoothstep(0.93, 0.99, ridge(vec3(p.x * 10.0, p.y * 2.0, p.z * 10.0) + uSeed)) * 0.22;
+    float rim = 0.0;
+    col *= 1.0 - crater(sp * 7.0, 0.6, rim) * 0.2;
+    col += uC2 * rim * 0.1;
+    atmo = 0.0;
+    hard = 1.0;
+  } else if (uLook == 15) {
+    // Hyperion: a sponge, deep dark pits with bright rims
+    vec2 c = cells(sp * 7.0);
+    col = mix(uC1, uC2, smoothstep(0.3, 0.7, fbm3(sp * 2.0)));
+    col = mix(col, uC0, smoothstep(0.42, 0.12, c.x) * 0.85);
+    col += uC3 * smoothstep(0.38, 0.48, c.x) * smoothstep(0.58, 0.48, c.x) * 0.25;
+    atmo = 0.0;
+    hard = 1.0;
+  } else if (uLook == 16) {
+    // Iapetus: one side coal-black, the other bright, a ridge round its middle
+    float dark = smoothstep(-0.12, 0.12, p.z + (fbm3(sp * 3.0) - 0.5) * 0.5);
+    col = mix(mix(uC2, uC3, smoothstep(0.4, 0.7, fbm(sp * 2.5))), uC0, dark);
+    col = mix(col, uC1, exp(-pow(p.y / 0.045, 2.0)) * 0.55);
+    float rim = 0.0;
+    col *= 1.0 - crater(sp * 5.0, 0.6, rim) * 0.18;
+    atmo = 0.0;
+    hard = 1.0;
+  } else if (uLook == 17) {
+    // Callisto: old dark ground peppered with bright little craters
+    col = mix(uC0, uC1, smoothstep(0.3, 0.7, fbm(sp * 2.4)));
+    vec2 c = cells(sp * 11.0);
+    col = mix(col, uC3, smoothstep(0.17, 0.05, c.x) * step(0.55, c.y) * 0.9);
+    float ring = abs(distance(p, normalize(vec3(-0.4, 0.3, 0.85))) - 0.3);
+    col = mix(col, uC2, smoothstep(0.04, 0.0, ring) * 0.35);
+    atmo = 0.0;
+    hard = 1.0;
   }
 
   // Files sit on top of the ground; clouds part round them so they stay readable.

@@ -47,7 +47,10 @@ function rememberScroll() {
 }
 
 // motion: 'none' when the page has already animated itself away (galaxy swipes).
-export function go(url, { replace = false, viewer = false, motion = 'page' } = {}) {
+// fresh: build the page again even when it's the one already showing (a
+// locked planet that has just been opened).
+export function go(url, { replace = false, viewer = false, motion = 'page', fresh = false } = {}) {
+  if (fresh && current) current.path = null;
   const target = new URL(url, location.href);
   const path = target.pathname + target.search;
   if (!replace) rememberScroll();
@@ -174,6 +177,10 @@ export function startRouter({ rootEl, topbar }) {
   chrome = topbar;
   nav.go = go;
   nav.current = () => new URL(location.href);
+  nav.rename = (path) => {
+    history.replaceState(history.state, '', path + location.search);
+    if (current) current.path = new URL(location.href).pathname;
+  };
   nav.openBlock = (id) => {
     const u = new URL(location.href);
     u.searchParams.set('b', id);

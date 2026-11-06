@@ -196,7 +196,6 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
 // "Sent to Recipes · Move": one tap to fix a wrong guess.
 export function sortedToast(block, { planet, created }) {
   toast(created ? `Sent to a new planet, ${planet.title}` : `Sent to ${planet.title}`, {
-    duration: 6000,
     action: { label: 'Move', stay: true, run: (anchor, done) => openMove(anchor, block, planet, { created, onClose: done }) },
   });
 }

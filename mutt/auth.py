@@ -10,6 +10,10 @@ A 4-digit PIN only has 10,000 possibilities, so every guess is expensive
   Browsers that have signed in to the account before carry a device cookie
   and skip this one, so the owner isn't locked out by someone else's guessing.
 - per source across all accounts (in memory).
+
+A planet shared with "Code" has its own code, set by its owner and never
+their sign-in code. Wrong planet codes follow the same rules, counted
+separately (share_failures), so they can't lock the owner out.
 """
 import collections
 import hashlib
@@ -157,39 +161,71 @@ def try_pin(conn, user, pin, ip, device=None):
     """Check a PIN against an account with the shared lockout rules.
 
     Returns None on success, else (status, message, extra) for an HttpError.
-    Used for signing in and for unlocking someone's drawers, so guessing a
-    code through either door counts toward the same limits. `device` is the
-    browser's device cookie when signing in to this account.
+    `device` is the browser's device cookie when signing in to this account.
     """
+    ok = lambda: check_pin(pin, user['pin_salt'], user['pin_hash'])
+    failure, _ = _guarded(conn, 'login_failures', user['id'], ip, ok, device)
+    return failure
+
+
+def share_salt(owner_id):
+    """Every planet of one owner hashes its code with the same salt, so one
+    guess is one hash however many planets they have. The pepper is what
+    keeps these 4 digits from being looked up."""
+    return hashlib.sha256(f'mutt-planet-code:{int(owner_id)}'.encode()).digest()[:16]
+
+
+def share_hash(owner_id, code):
+    return hash_pin(code, share_salt(owner_id))
+
+
+def try_share_code(conn, owner, code, ip):
+    """Check a planet code against all of `owner`'s Code planets, with the
+    same kind of limits as signing in but counted apart, so guessing a
+    planet's code can't lock its owner out of their account.
+
+    Returns (failure, ids): failure as in `try_pin`, ids the planets it opens.
+    """
+    def opens():
+        digest = share_hash(owner['id'], code)
+        rows = conn.execute("SELECT id, share_hash FROM drawers WHERE user_id = ? AND visibility = 'pin' "
+                            'AND share_hash IS NOT NULL', (owner['id'],)).fetchall()
+        return [r['id'] for r in rows if hmac.compare_digest(bytes(r['share_hash']), digest)]
+    return _guarded(conn, 'share_failures', owner['id'], ip, opens)
+
+
+def _guarded(conn, table, user_id, ip, check, device=None):
+    """Run `check` (truthy when the code is right) under the lockout rules,
+    counting misses in `table` (login_failures or share_failures)."""
     source = source_key(ip)
-    with _account_locks[user['id'] % len(_account_locks)]:
+    with _account_locks[user_id % len(_account_locks)]:
         now = time.time()
         cutoff = now - FAILURE_WINDOW
         failed, last = conn.execute(
-            'SELECT COUNT(*), MAX(at) FROM login_failures WHERE user_id = ? AND source = ? AND at > ?',
-            (user['id'], source, cutoff)).fetchone()
+            f'SELECT COUNT(*), MAX(at) FROM {table} WHERE user_id = ? AND source = ? AND at > ?',
+            (user_id, source, cutoff)).fetchone()
         wait = last + lock_seconds(failed) - now if failed else 0
-        if wait <= 0 and not known_device(conn, user['id'], device):
+        if wait <= 0 and not known_device(conn, user_id, device):
             recent = conn.execute(
-                'SELECT at FROM login_failures WHERE user_id = ? AND at > ? ORDER BY at DESC LIMIT ?',
-                (user['id'], cutoff, ACCOUNT_LIMIT)).fetchall()
+                f'SELECT at FROM {table} WHERE user_id = ? AND at > ? ORDER BY at DESC LIMIT ?',
+                (user_id, cutoff, ACCOUNT_LIMIT)).fetchall()
             if len(recent) >= ACCOUNT_LIMIT:
                 wait = recent[-1][0] + FAILURE_WINDOW - now
         if wait > 0:
             wait = int(wait) + 1
-            return 429, f'Too many wrong codes. Try again in {format_wait(wait)}.', {'retryAfter': wait}
-        if not check_pin(pin, user['pin_salt'], user['pin_hash']):
-            conn.execute('INSERT INTO login_failures (user_id, source, at) VALUES (?, ?, ?)',
-                         (user['id'], source, now))
+            return (429, f'Too many wrong codes. Try again in {format_wait(wait)}.', {'retryAfter': wait}), None
+        result = check()
+        if not result:
+            conn.execute(f'INSERT INTO {table} (user_id, source, at) VALUES (?, ?, ?)', (user_id, source, now))
             login_failures_by_ip.hit(ip)
             failed += 1
             lock = lock_seconds(failed)
             if lock:
-                return 429, f'Too many wrong codes. Try again in {format_wait(lock)}.', {'retryAfter': lock}
+                return (429, f'Too many wrong codes. Try again in {format_wait(lock)}.', {'retryAfter': lock}), None
             left = FREE_ATTEMPTS - failed
-            return 401, "That code isn't right.", {'attemptsLeft': left if left <= 2 else None}
-        conn.execute('DELETE FROM login_failures WHERE user_id = ? AND source = ?', (user['id'], source))
-    return None
+            return (401, "That code isn't right.", {'attemptsLeft': left if left <= 2 else None}), None
+        conn.execute(f'DELETE FROM {table} WHERE user_id = ? AND source = ?', (user_id, source))
+    return None, result
 
 
 def known_device(conn, user_id, token):
@@ -261,6 +297,8 @@ def end_other_sessions(conn, user_id, keep_token):
 def prune_sessions(conn):
     conn.execute('DELETE FROM sessions WHERE expires_at < ?', (time.time(),))
     conn.execute('DELETE FROM unlocks WHERE expires_at < ?', (time.time(),))
+    conn.execute('DELETE FROM drawer_unlocks WHERE expires_at < ?', (time.time(),))
+    conn.execute('DELETE FROM share_failures WHERE at < ?', (time.time() - FAILURE_WINDOW,))
     conn.execute('DELETE FROM login_failures WHERE at < ?', (time.time() - FAILURE_WINDOW,))
     conn.execute('DELETE FROM devices WHERE seen_at < ?', (time.time() - DEVICE_TTL,))
 

@@ -18,7 +18,8 @@ export class Collection {
   // sort: 'manual' keeps the given order (drawers); anything else is a SORTS value.
   // share: files added here go straight to the community. keep: which files belong here.
   // moderate: a community drawer you made, so other people's files can be taken out.
-  constructor({ blocks, drawer = null, entry = false, sortable = false, sort = 'manual', readOnly = false, share = false, moderate = false, keep, empty, onChange } = {}) {
+  // targets: worlds (moons, or the planet) files can be dragged onto to move them there.
+  constructor({ blocks, drawer = null, entry = false, sortable = false, sort = 'manual', readOnly = false, share = false, moderate = false, keep, empty, onChange, targets } = {}) {
     this.blocks = blocks;
     this.drawer = drawer;
     this.ctx = drawer ? { drawerId: drawer.id } : share ? { share: true } : {};
@@ -38,6 +39,8 @@ export class Collection {
       onOpen: (id) => nav.openBlock(id),
       onAction: (act, id, btn) => this.action(act, id, btn),
       onReorder: (ids) => this.saveOrder(ids),
+      targets,
+      onDropTo: (target, id) => this.moveTo(target, id),
       empty,
     });
     this.grid.renderOpts.moderate = moderate;
@@ -216,6 +219,27 @@ export class Collection {
       this.drop(block.id);
       toast('Removed');
     } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  // A file dragged onto one of the worlds beside this one moves there.
+  async moveTo(target, id) {
+    const block = this.blocks.find((b) => b.id === id);
+    if (!block || !this.drawer || target.id === this.drawer.id) { this.render('flip'); return; }
+    this.drop(id);
+    target.el.gulp?.();
+    try {
+      const res = await api.post(`/api/blocks/${id}/connections`, { drawer: target.id });
+      bus.emit('block:connected', { block: res.block, drawerId: target.id, connections: res.connections });
+      const out = await api.del(`/api/blocks/${id}/connections/${this.drawer.id}`);
+      bus.emit('block:disconnected', { block: out.block, drawerId: this.drawer.id, connections: out.connections });
+      target.onMoved?.();
+      toast(`Moved to ${target.title}`);
+    } catch (err) {
+      this.blocks.unshift(block);
+      this.render('flip');
+      this.onChange?.(this.blocks);
       toast(err.message);
     }
   }

@@ -1,6 +1,6 @@
 // A planet up close: a slim header (the world, its name and note, who can
 // see it) and then what matters, everything on it. The arrow in the corner
-// takes you back to your galaxy.
+// takes you back to the galaxy it belongs to (yours, or its owner's).
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
@@ -80,6 +80,9 @@ function lockedPlanet(id, data) {
     tint: tintOf(drawer),
     who: { username: data.owner, you: false },
     home: true,
+    // Back to the galaxy it belongs to, and from there out to the universe.
+    homeLabel: `@${data.owner}’s galaxy`,
+    goHome: () => nav.go(`/g/${encodeURIComponent(data.owner)}`),
     mounted: () => setTimeout(() => field.focus(), 200),
   };
 }
@@ -455,6 +458,10 @@ export const planetView = {
       tint: tintOf(drawer),
       who: { username: mine ? session.user.username : drawer.owner, you: mine },
       home: true,
+      // Someone else's planet goes back to their galaxy first; from there the
+      // arrow pulls out to the universe.
+      homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
+      goHome: () => nav.go(home),
       list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : collection.list()),
       dropTarget: () => view().dropTarget(),
       pasteText: (text) => view().pasteText(text),

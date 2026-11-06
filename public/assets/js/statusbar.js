@@ -1,7 +1,8 @@
 // The thin bar along the top, like the Vita's: the wordmark on the left,
 // whose galaxy this is in the middle (tap it for your account and settings),
 // and search and the time on the right. Away from home, a faint back arrow
-// in the top corner takes you back to your own galaxy.
+// in the top corner takes you back: from someone else's planet to their
+// galaxy, from their galaxy out to the universe, and from there home.
 
 import { api, session } from './api.js';
 import { LOGOS, glitch, logo } from './logo.js';
@@ -155,9 +156,9 @@ export function createStatusbar() {
     home.hidden = !session.user || !current?.home;
     // On a phone the arrow sits in the bar, so the bar makes room for it.
     document.body.classList.toggle('has-home', !home.hidden);
-    const label = current?.chrome === 'galaxy' && !out ? 'Out to the universe' : 'Your galaxy';
+    const label = current?.chrome === 'galaxy' && !out ? 'Out to the universe' : current?.homeLabel || 'Your galaxy';
     home.title = label;
-    home.setAttribute('aria-label', label === 'Your galaxy' ? 'Back to your galaxy' : 'Back out to the universe');
+    home.setAttribute('aria-label', label === 'Out to the universe' ? 'Back out to the universe' : `Back to ${label === 'Your galaxy' ? 'your galaxy' : label}`);
   };
   bus.on('universe', (on) => {
     out = on;

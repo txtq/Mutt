@@ -47,7 +47,10 @@ function rememberScroll() {
 }
 
 // motion: 'none' when the page has already animated itself away (galaxy swipes).
-export function go(url, { replace = false, viewer = false, motion = 'page' } = {}) {
+// fresh: build the page again even when it's the one already showing (a
+// locked planet that has just been opened).
+export function go(url, { replace = false, viewer = false, motion = 'page', fresh = false } = {}) {
+  if (fresh && current) current.path = null;
   const target = new URL(url, location.href);
   const path = target.pathname + target.search;
   if (!replace) rememberScroll();

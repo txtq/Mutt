@@ -962,34 +962,188 @@ body.no-chrome #view { padding: 0; }
 .planet-ring-back { z-index: 1; opacity: 0.75; }
 .planet-ring-front { z-index: 3; clip-path: inset(50% 0 0 0); }
 
-/* moons: across in front, then back behind */
-.planet-moon {
+/* ------------------------------------------------------------------ moons */
+/* Small worlds that belong to a planet, each one modelled on a real moon
+   (planets.js). On the galaxy they orbit (moved from planets.js); beside a
+   planet on its page they drift; in pickers they sit still. */
+.moon {
+  --m: 28px;
+  --mc: #8d8a86;
+  position: relative;
+  display: block;
+  width: var(--m);
+  height: var(--m);
+  border-radius: 50%;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.moon[data-look="io"] { --mc: #e3c957; }
+.moon[data-look="europa"] { --mc: #e9dcc4; }
+.moon[data-look="titan"] { --mc: #d69d4c; }
+.moon[data-look="enceladus"] { --mc: #f4f6f8; }
+.moon[data-look="triton"] { --mc: #d8b4a6; }
+.moon[data-look="phobos"] { --mc: #6b625b; }
+.moon[data-look="hyperion"] { --mc: #b29e84; }
+.moon[data-look="iapetus"] { --mc: #8e8579; }
+.moon[data-look="callisto"] { --mc: #5a4d40; }
+.moon-ball {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  /* without WebGL: a plain lit ball in the moon's colour */
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--mc) 55%, #fff) 0%, var(--mc) 42%, color-mix(in srgb, var(--mc) 25%, #05060c) 92%);
+  box-shadow: 0 2px 6px -2px rgba(0, 0, 10, 0.6);
+  transition: box-shadow 0.25s;
+}
+.moon[data-look="iapetus"]:not(.is-gl) .moon-ball { background: linear-gradient(100deg, #e6e1d8 48%, #1d1814 52%); }
+.moon.is-gl .moon-ball { background: transparent; box-shadow: none; }
+.moon-map { display: block; width: 100%; height: 100%; }
+/* Phobos and Hyperion are lumps: the painter dents their outline */
+.moon[role="link"] { cursor: pointer; }
+.moon:focus-visible .moon-ball { box-shadow: 0 0 0 2px #7fb3ff; }
+.moon.is-locked { opacity: 0.55; filter: saturate(0.4); }
+.moon.is-target::after {
+  content: "";
+  position: absolute;
+  inset: -32%;
+  border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 60%, transparent);
+  animation: spin 9s linear infinite;
+  pointer-events: none;
+}
+.moon.is-gulping .moon-ball { animation: moon-gulp 0.9s var(--ease); }
+@keyframes moon-gulp { 25% { filter: brightness(1.7); } }
+.moon-name {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-top: 5px;
+  translate: -50% 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 10, 0.85);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+@media (hover: hover) {
+  .moon[role="link"]:hover .moon-name { opacity: 0.92; }
+  .moon[role="link"]:hover .moon-ball { filter: brightness(1.12); }
+}
+.moon:focus-visible .moon-name { opacity: 0.92; }
+
+/* what each one does, quietly, beyond its painted ground */
+.moon-fx { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+/* Io: now and then a volcanic plume puffs up at its edge */
+.moon[data-look="io"] .moon-fx::before {
+  content: "";
+  position: absolute;
+  left: 58%;
+  top: -16%;
+  width: 26%;
+  height: 26%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 238, 180, 0.7), rgba(255, 220, 140, 0.2) 60%, transparent);
+  opacity: 0;
+  animation: io-plume 7s ease-out infinite;
+}
+@keyframes io-plume {
+  0%, 68% { opacity: 0; transform: translateY(40%) scale(0.3); }
+  78% { opacity: 0.85; }
+  100% { opacity: 0; transform: translateY(-25%) scale(1.15); }
+}
+/* Enceladus: a faint spray from its south pole */
+.moon[data-look="enceladus"] .moon-fx::before {
+  content: "";
+  position: absolute;
+  left: 40%;
+  top: 92%;
+  width: 20%;
+  height: 40%;
+  border-radius: 50%;
+  background: linear-gradient(to bottom, rgba(225, 238, 255, 0.6), transparent);
+  filter: blur(0.6px);
+  transform-origin: 50% 0;
+  animation: geyser 5s ease-in-out infinite;
+}
+@keyframes geyser { 0%, 100% { opacity: 0.2; transform: scaleY(0.6); } 50% { opacity: 0.65; transform: scaleY(1.1); } }
+/* Titan: a thin blue haze outside its orange one */
+.moon[data-look="titan"] .moon-fx { box-shadow: 0 0 0 1.5px rgba(140, 185, 240, 0.3), 0 0 6px rgba(140, 185, 240, 0.18); }
+@media (prefers-reduced-motion: reduce) { .moon-fx::before { animation: none !important; opacity: 0 !important; } }
+
+/* going round its planet on the galaxy (transform set by planets.js) */
+.moon.is-orbiting {
   position: absolute;
   left: 50%;
   top: 50%;
   z-index: 4;
-  width: 0;
-  height: 0;
-  transform: rotate(var(--mtilt));
-  animation: moon-z var(--mt) linear var(--md) infinite;
-  pointer-events: none;
+  margin: calc(var(--m) / -2) 0 0 calc(var(--m) / -2);
+  will-change: transform;
 }
-.planet-moon-x { position: absolute; animation: moon-x var(--mh) ease-in-out var(--md) infinite alternate; }
-.planet-moon-y { position: absolute; animation: moon-y var(--mh) ease-in-out var(--mq) infinite alternate; }
-.planet-moon-ball {
+.moon.is-orbiting.is-behind { z-index: 0; }
+.moon.is-orbiting.is-behind .moon-name { display: none; }
+.planet.is-moving .moon-name { display: none; }
+/* on a phone they go round for show; the planet's page is where you open them */
+@media (pointer: coarse) { .gx-scene .moon.is-orbiting { pointer-events: none; } }
+
+/* beside the planet in its page's header: first right, then left, drifting */
+.liv-world { position: relative; }
+.liv-world { --pr: 0px; }
+.liv-world.has-moons { --pr: calc(var(--bs) + 22px); padding-right: var(--pr); }
+.liv-world.has-parent { --pr: calc(var(--ws) * 0.46 + 18px); padding-right: var(--pr); }
+.liv-world.has-left { padding-left: var(--pr); }
+.moon.is-beside {
   position: absolute;
-  left: calc(var(--s) * var(--mz) * -1);
-  top: calc(var(--s) * var(--mz) * -1);
-  width: calc(var(--s) * var(--mz) * 2);
-  height: calc(var(--s) * var(--mz) * 2);
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--c-light) 22%, #e4e0d8) 0%, color-mix(in srgb, var(--c-light) 18%, #8f8a83) 48%, #2a2a34 92%);
-  box-shadow: 0 1px 3px rgba(0, 0, 12, 0.4);
+  left: calc(50% - var(--pr) / 2);
+  top: 50%;
+  z-index: 3;
+  margin: calc(var(--m) / -2) 0 0 calc(var(--m) / -2);
+  translate:
+    calc(var(--side) * (var(--ws) / 2 + var(--m) / 2 + 12px + var(--lv) * 6px))
+    calc(var(--ws) * (var(--lv) * 0.6 - 0.24));
+  animation: moon-bob 6s ease-in-out var(--bob, 0s) infinite alternate;
 }
-@keyframes moon-x { from { transform: translateX(calc(var(--s) * var(--mo) * -1)); } to { transform: translateX(calc(var(--s) * var(--mo))); } }
-@keyframes moon-y { from { transform: translateY(calc(var(--s) * var(--mo) * -0.28)); } to { transform: translateY(calc(var(--s) * var(--mo) * 0.28)); } }
-@keyframes moon-z { 0%, 49.9% { z-index: 4; } 50%, 100% { z-index: 0; } }
-.planet-mini .planet-moon { display: none; }
+.liv-world.has-left .moon.is-beside { left: 50%; }
+@keyframes moon-bob { from { transform: translateY(-3px); } to { transform: translateY(3px); } }
+.moon.is-beside.is-born { animation: moon-born 0.8s var(--ease) backwards, moon-bob 6s ease-in-out var(--bob, 0s) infinite alternate; }
+@keyframes moon-born { from { opacity: 0; transform: scale(0.2); } }
+/* on a moon's page, its planet sits beside it, small */
+.liv-world .planet.liv-parent {
+  position: absolute;
+  left: calc(50% - var(--pr) / 2);
+  top: 50%;
+  z-index: 3;
+  margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+  translate: calc(var(--ws) / 2 + var(--s) / 2 + 10px) calc(var(--ws) * -0.18);
+  animation: moon-bob 7s ease-in-out infinite alternate;
+}
+.liv-world .planet.liv-parent .planet-bubble { display: none; }
+.liv-world .planet.liv-parent.is-target .planet-body { transform: scale(1.15); }
+.planet.is-moon .planet-atmo { display: none; }
+.planet.is-moon[data-look="titan"] .planet-atmo, .planet.is-moon[data-look="triton"] .planet-atmo, .planet.is-moon[data-look="enceladus"] .planet-atmo { display: block; }
+/* the moon type picker */
+.look-moon { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 8px; }
+.look-moon .moon-name { display: none; }
+
+/* in the universe: tiny, still, beside their planet */
+.uv-moon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2px, calc(var(--w) * 0.22));
+  height: max(2px, calc(var(--w) * 0.22));
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--mc) 60%, #fff), var(--mc) 50%, color-mix(in srgb, var(--mc) 30%, #05060c));
+  translate:
+    calc(-50% + var(--side) * var(--w) * (0.72 + var(--lv) * 0.16))
+    calc(-50% + var(--w) * (var(--lv) * 0.36 - 0.14));
+}
 
 /* Vita notification bubble */
 .planet-bubble {
@@ -1316,6 +1470,11 @@ body[data-page="planet"] .viewer {
 .liv-label { margin-bottom: 9px; font: 500 10.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .liv-share-hint { margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
 .liv-people { margin-top: 10px; }
+.liv-code { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
+.liv-code > svg { flex: none; color: var(--ink-3); }
+.liv-code-text { flex: 1; min-width: 0; }
+.liv-code-btn { flex: none; height: 28px; padding: 0 12px; font-size: 12.5px; }
+.liv-code[hidden] { display: none; }
 .liv-open { margin-top: 12px; }
 .liv-hint { margin-bottom: 12px; color: var(--ink-2); }
 .liv-unlock { margin-top: 16px; }
@@ -1556,6 +1715,8 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   .planet-label { width: max(104px, calc(var(--s) + 16px)); top: calc(100% + 8px); }
   .liv-head { grid-template-columns: auto minmax(0, 1fr); gap: 14px; margin-left: 0; padding: 12px 14px; }
   .liv-tools { grid-column: 1 / -1; justify-content: flex-end; }
+  /* a locked planet stacks, so all four code boxes fit */
+  .liv-locked .liv-head { grid-template-columns: minmax(0, 1fr); }
   .liv-title, .liv-title-static { font-size: 20px; }
   .search-grid { --cols: 2; }
   .search-swatches:not(.is-pop) { display: none; }
@@ -1752,12 +1913,12 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-divider { display: flex; align-items: center; gap: 12px; padding: 14px 6px 2px; list-style: none; font-size: 13.5px; font-weight: 500; color: var(--ink-3); }
 .lm-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
-/* add an item: an empty row waiting to be typed into */
+/* add an item: an empty row at the top, waiting to be typed into */
 .lm-new {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin: 6px 14px 0;
+  margin: 0 14px 10px;
   padding: 13px 10px 13px 20px;
   border-radius: 12px;
   box-shadow: inset 0 0 0 1px var(--line);
@@ -1841,5 +2002,5 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   .lm-offer { grid-template-columns: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px; }
   .lm-offer-btns { grid-column: 1 / -1; justify-content: flex-end; }
   .lm-items { padding: 0 8px; }
-  .lm-new { margin: 6px 8px 0; padding-left: 14px; }
+  .lm-new { margin: 0 8px 8px; padding-left: 14px; }
 }

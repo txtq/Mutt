@@ -7,7 +7,9 @@ import { EASE, EASE_IN, h, inViewport, reducedMotion } from './util.js';
 const nearby = (els) => [...els].filter((el) => el.isConnected && inViewport(el, 300));
 
 export class Grid {
-  constructor({ entry = null, sortable = false, onOpen, onAction, onReorder, empty } = {}) {
+  // targets(): worlds a file can be dragged onto ([{ el, id, measure() → { x, y, r } }]);
+  // onDropTo(target, id) is called instead of reordering when one is let go over.
+  constructor({ entry = null, sortable = false, onOpen, onAction, onReorder, targets, onDropTo, empty } = {}) {
     this.el = h('div', { class: 'grid' });
     this.entry = entry;
     if (entry) this.el.append(entry);
@@ -17,6 +19,8 @@ export class Grid {
     this.onOpen = onOpen;
     this.onAction = onAction;
     this.onReorder = onReorder;
+    this.targets = targets;
+    this.onDropTo = onDropTo;
     this.emptyEl = empty ? h('div', { class: 'grid-empty' }, empty) : null;
     this.drag = null;
     this.suppressClick = false;
@@ -280,6 +284,8 @@ export class Grid {
       dx: start.x - rect.left, dy: start.y - rect.top,
       x: ev.clientX, y: ev.clientY,
       initial: this.keys().join(','),
+      list: this.targets?.() || [],
+      over: null,
     };
     // Lifts on top of wherever it's carried ('add'), so it follows the
     // pointer from the start instead of sitting still until the lift ends.
@@ -290,15 +296,36 @@ export class Grid {
 
   ghostTransform(scale = 1.035) {
     const d = this.drag;
-    return `translate(${d.x - d.dx}px, ${d.y - d.dy}px) scale(${scale})`;
+    // Shrunk over a world, it stays under the pointer where it was picked up.
+    const k = scale < 1 ? scale : 1;
+    return `translate(${d.x - d.dx * k}px, ${d.y - d.dy * k}px) scale(${scale})`;
   }
 
   dragMove(ev) {
     const d = this.drag;
     if (!d) return;
     if (ev) { d.x = ev.clientX; d.y = ev.clientY; }
-    d.ghost.style.transform = this.ghostTransform();
-    this.reposition();
+    const over = this.targetAt(d.x, d.y);
+    if (over !== d.over) {
+      d.over?.el.classList.remove('is-target');
+      over?.el.classList.add('is-target');
+      d.over = over;
+      d.ghost.classList.toggle('is-over-target', !!over);
+    }
+    d.ghost.style.transform = this.ghostTransform(over ? 0.6 : 1.035);
+    if (!over) this.reposition();
+  }
+
+  // The world (a moon, or the planet) under the pointer, if any.
+  targetAt(x, y) {
+    let best = null;
+    let bestD = Infinity;
+    for (const t of this.drag?.list || []) {
+      const c = t.measure();
+      const d = Math.hypot(x - c.x, y - c.y);
+      if (d < c.r * 1.25 + 14 && d < bestD) { best = t; bestD = d; }
+    }
+    return best;
   }
 
   reposition() {
@@ -330,7 +357,8 @@ export class Grid {
     if (!d) return;
     const edge = 90;
     let speed = 0;
-    if (d.y < edge) speed = -((edge - d.y) / edge) * 18;
+    if (d.over) speed = 0;
+    else if (d.y < edge) speed = -((edge - d.y) / edge) * 18;
     else if (d.y > innerHeight - edge) speed = ((d.y - (innerHeight - edge)) / edge) * 18;
     if (speed) {
       // speed is per 60th of a second, so a 120 Hz screen doesn't scroll twice as fast
@@ -350,6 +378,26 @@ export class Grid {
     document.body.classList.remove('is-dragging');
     this.suppressClick = true;
     setTimeout(() => { this.suppressClick = false; }, 60);
+    if (d.over) {
+      // Let go over a moon (or the planet): it shrinks into that world.
+      const target = d.over;
+      target.el.classList.remove('is-target');
+      const c = target.measure();
+      const done = () => d.ghost.remove();
+      d.cell.classList.remove('is-placeholder');
+      if (reducedMotion()) done();
+      else {
+        const w = d.ghost.offsetWidth;
+        const hgt = d.ghost.offsetHeight;
+        d.ghost.animate(
+          [{ transform: d.ghost.style.transform, opacity: 1 },
+            { transform: `translate(${c.x - w * 0.05}px, ${c.y - hgt * 0.05}px) scale(0.1)`, opacity: 0 }],
+          { duration: 420, easing: EASE_IN, fill: 'forwards' },
+        ).finished.then(done, done);
+      }
+      this.onDropTo?.(target, d.cell.dataset.id);
+      return;
+    }
     const to = d.cell.getBoundingClientRect();
     const finish = () => {
       d.ghost.remove();

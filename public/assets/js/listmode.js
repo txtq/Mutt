@@ -96,6 +96,7 @@ export class ListView {
     this.onChange = onChange;
     this.rows = new Map();
     this.saving = new Map();
+    this.queue = Promise.resolve();
 
     this.ol = h('ol', { class: 'lm-items' });
     this.countEl = h('span', { class: 'lm-count' });
@@ -115,7 +116,7 @@ export class ListView {
       this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }), this.input, this.left);
       this.wireAdder();
     }
-    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.ol, this.adder || null);
+    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.adder || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.applyOptions();
     this.render({ entrance: true });
@@ -319,7 +320,10 @@ export class ListView {
     this.guard(input, left);
     input.addEventListener('input', () => this.counter(input, left));
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      if (e.key === 'ArrowDown' && input.selectionStart === input.value.length) {
+        const first = this.order()[0];
+        if (first) { e.preventDefault(); this.focusItem(first.id, 'end'); }
+      } else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         const value = input.value.trim();
         if (!value) return;
@@ -353,15 +357,16 @@ export class ListView {
         e.preventDefault();
         const prev = this.neighbour(id, -1);
         this.remove(id, { quiet: true });
-        this.focusItem(prev, 'end');
+        if (prev) this.focusItem(prev, 'end');
+        else this.input?.focus();
       } else if (e.key === 'ArrowUp' && at === 0 && text.selectionEnd === 0) {
         const prev = this.neighbour(id, -1);
-        if (prev) { e.preventDefault(); this.focusItem(prev, 'end'); }
-      } else if (e.key === 'ArrowDown' && atEnd) {
         e.preventDefault();
-        const next = this.neighbour(id, 1);
-        if (next) this.focusItem(next, 'end');
+        if (prev) this.focusItem(prev, 'end');
         else this.input?.focus();
+      } else if (e.key === 'ArrowDown' && atEnd) {
+        const next = this.neighbour(id, 1);
+        if (next) { e.preventDefault(); this.focusItem(next, 'end'); }
       } else if (e.key === 'Escape') {
         text.value = this.find(id)?.content || '';
         text.blur();
@@ -420,7 +425,7 @@ export class ListView {
   }
 
   // The row just above one in the list's saved order: new rows are saved
-  // after it, so quick adds can't overtake each other.
+  // after it (or at the top when there's none).
   above(block) {
     return this.blocks[this.blocks.indexOf(block) - 1]?.id || null;
   }
@@ -432,13 +437,15 @@ export class ListView {
     return id && this.find(id) ? id : null;
   }
 
-  // Save a new row's words as a note on the planet, after another row.
+  // Save a new row's words as a note on the planet, after another row or at
+  // the top. Saves go one after another, so quick adds keep their order.
   save(temp, content, afterId) {
+    const waitTurn = this.queue;
     const job = (async () => {
+      await waitTurn;
       const after = await this.anchorOf(afterId);
       const body = { content, drawer: this.drawer.id };
       if (after) body.after = after;
-      else body.end = true;
       const { block } = await api.post('/api/blocks', body);
       if (!this.find(temp.id)) {
         // Removed while it was being saved.
@@ -449,13 +456,15 @@ export class ListView {
       return block.id;
     })();
     this.saving.set(temp.id, job);
+    this.queue = job.catch(() => {});
     job.catch((err) => { this.forget(temp.id); toast(err.message); })
       .finally(() => setTimeout(() => this.saving.delete(temp.id), 0));
     return job;
   }
 
-  // Items in order, each placed after the one before (or at the end). Rows
-  // appear at once; saving happens behind them.
+  // Items in order, each placed after the one before (the first at the top,
+  // just under the add box, unless given a row to follow). Rows appear at
+  // once; saving happens behind them.
   add(texts, { after = null, focus = false, caretStart = false } = {}) {
     let prev = after;
     let first = true;
@@ -511,21 +520,21 @@ export class ListView {
         e.preventDefault();
         settled = true;
         this.forget(temp.id);
-        this.focusItem(prevId, 'end');
+        if (prevId) this.focusItem(prevId, 'end');
+        else this.input?.focus();
       } else if (e.key === 'ArrowUp' && text.selectionStart === 0) {
         e.preventDefault();
-        this.focusItem(prevId, 'end');
+        if (prevId) this.focusItem(prevId, 'end');
+        else this.input?.focus();
       }
     });
   }
 
-  // Put a block in the list after another (or at the end of the open items).
-  insertBlock(block, after) {
+  // Put a block in the list after another, before another, or at the top.
+  insertBlock(block, after, { before = null } = {}) {
     const at = after ? this.blocks.findIndex((b) => b.id === after) : -1;
-    let i;
-    if (at >= 0) i = at + 1;
-    else if (this.ticking() && this.opts.doneLast && !block.checked) i = this.blocks.map((b) => !!b.checked).lastIndexOf(false) + 1;
-    else i = this.blocks.length;
+    const ahead = before ? this.blocks.findIndex((b) => b.id === before) : -1;
+    const i = at >= 0 ? at + 1 : ahead >= 0 ? ahead : 0;
     this.blocks.splice(i, 0, block);
     const li = this.row(block);
     if (block.pending) li.classList.add('is-pending');
@@ -567,7 +576,7 @@ export class ListView {
   }
 
   // Something added to the planet another way (a dropped file, say) joins
-  // the list at the bottom, like a typed item.
+  // the list at the top, like a typed item.
   arrive(block) {
     if (this.find(block.id)) return;
     this.insertBlock({ ...block, checked: null }, null);
@@ -625,23 +634,17 @@ export class ListView {
     const block = this.find(id);
     if (!block) return;
     if (isTmp(id)) { this.forget(id); return; }
-    const index = this.blocks.indexOf(block);
-    const prevId = this.blocks[index - 1]?.id || null;
+    const gone = this.leaving(block);
     this.forget(id);
-    // A note made for this list goes for good; a file that's elsewhere too just leaves this planet.
-    const only = block.kind === 'text' && block.mine !== false && (block.connectionCount ?? 1) <= 1;
     try {
-      let position = null;
-      if (only) await api.del(`/api/blocks/${id}`);
-      else ({ position } = await api.del(`/api/blocks/${id}/connections/${this.drawer.id}`));
-      if (only) bus.emit('block:deleted', { id });
+      await this.takeAway(gone);
       if (quiet && !block.content) return;
-      toast(only ? 'Item removed' : 'Taken off this list', {
-        action: { label: 'Undo', run: () => this.restore([{ block, prevId, only, position }]) },
+      toast(gone.only ? 'Item removed' : 'Taken off this list', {
+        action: { label: 'Undo', run: () => this.restore([gone]) },
       });
     } catch (err) {
       toast(err.message);
-      this.restoreLocal(block, prevId);
+      this.restoreLocal(block, gone.prevId);
     }
   }
 
@@ -649,46 +652,86 @@ export class ListView {
     this.insertBlock(block, prevId);
   }
 
+  // What Undo needs to put an item back: its neighbours in the list's own
+  // order (the server's) and, once it's gone, where it sat on the server.
+  leaving(block) {
+    const order = this.blocks;
+    const i = order.indexOf(block);
+    const near = (step) => {
+      for (let j = i + step; j >= 0 && j < order.length; j += step) if (!isTmp(order[j].id)) return order[j].id;
+      return null;
+    };
+    return {
+      block, prevId: near(-1), nextId: near(1), position: null,
+      // A note made for this list goes for good; a file that's elsewhere too just leaves this planet.
+      only: block.kind === 'text' && block.mine !== false && (block.connectionCount ?? 1) <= 1,
+    };
+  }
+
+  async takeAway(g) {
+    if (g.only) {
+      const res = await api.del(`/api/blocks/${g.block.id}`);
+      g.position = res.positions?.[this.drawer.id] ?? null;
+      bus.emit('block:deleted', { id: g.block.id });
+    } else {
+      ({ position: g.position } = await api.del(`/api/blocks/${g.block.id}/connections/${this.drawer.id}`));
+    }
+  }
+
+  // Undo. Each item goes back where it was, both on screen and on the server.
+  // A note made again gets a new id, so later items placed beside it look it up.
   async restore(gone) {
-    for (const { block, prevId, only, position } of gone) {
+    const renamed = new Map();
+    const here = (id) => {
+      const now = renamed.get(id) || id;
+      return now && this.find(now) ? now : null;
+    };
+    let failed = null;
+    for (const { block, prevId, nextId, only, position } of gone) {
       try {
+        let back;
         if (only) {
           const body = { content: block.content, drawer: this.drawer.id };
-          if (prevId && this.find(prevId)) body.after = prevId;
-          else body.end = true;
-          const { block: back } = await api.post('/api/blocks', body);
-          if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: back.id, checked: true });
-          this.insertBlock({ ...back, checked: block.checked }, prevId && this.find(prevId) ? prevId : null);
+          if (typeof position === 'number') body.position = position;
+          else if (here(prevId)) body.after = here(prevId);
+          ({ block: back } = await api.post('/api/blocks', body));
+          renamed.set(block.id, back.id);
         } else {
-          await api.post(`/api/blocks/${block.id}/connections`, { drawer: this.drawer.id, position });
-          if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: block.id, checked: true });
-          this.insertBlock({ ...block }, prevId && this.find(prevId) ? prevId : null);
+          const body = { drawer: this.drawer.id };
+          if (typeof position === 'number') body.position = position;
+          ({ block: back } = await api.post(`/api/blocks/${block.id}/connections`, body));
         }
+        if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: back.id, checked: true });
+        if (this.find(back.id)) continue; // already back (arrived another way)
+        const item = { ...block, ...back, checked: block.checked };
+        if (here(prevId)) this.insertBlock(item, here(prevId));
+        else if (here(nextId)) this.insertBlock(item, null, { before: here(nextId) });
+        else this.insertBlock(item, null);
       } catch (err) {
-        toast(err.message);
+        failed = err;
       }
     }
+    if (failed) throw failed;
   }
 
   async clearTicked() {
     const ticked = this.blocks.filter((b) => b.checked);
     if (!ticked.length) return;
-    const gone = ticked.map((block) => ({
-      block, prevId: this.blocks[this.blocks.indexOf(block) - 1]?.id || null,
-      only: block.kind === 'text' && block.mine !== false && (block.connectionCount ?? 1) <= 1,
-      position: null,
-    }));
+    // In list order, so each goes back beside the one before it.
+    const gone = ticked.map((block) => this.leaving(block));
     // Fold them away one after another, quickly.
     ticked.forEach((b, i) => setTimeout(() => this.forget(b.id), Math.min(i, 10) * 40));
+    const done = [];
     for (const g of gone) {
       try {
-        if (g.only) await api.del(`/api/blocks/${g.block.id}`);
-        else ({ position: g.position } = await api.del(`/api/blocks/${g.block.id}/connections/${this.drawer.id}`));
+        await this.takeAway(g);
+        done.push(g);
       } catch (err) {
         toast(err.message);
       }
     }
-    toast(`Cleared ${plural(gone.length, 'ticked item')}`, { action: { label: 'Undo', run: () => this.restore(gone) } });
+    if (!done.length) return;
+    toast(`Cleared ${plural(done.length, 'ticked item')}`, { action: { label: 'Undo', run: () => this.restore(done) } });
   }
 
   // ------------------------------------------------------------ reordering

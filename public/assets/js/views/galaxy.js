@@ -10,7 +10,7 @@ import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { fileFace, glyph, holdPlanets, planetEl, planetSize, worldPicture } from '../planets.js';
+import { fileFace, glyph, holdPlanets, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
 import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
@@ -114,14 +114,15 @@ function ovalHitsRect(rx, ry, rect) {
 const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
 
 const placed = (p) => p.x != null && p.y != null;
-const footprint = (s, m) => Math.max(s, m.wide);
+// A planet with moons needs room for their orbits too.
+const footprint = (s, m, p) => Math.max(s, m.wide, p ? orbitReach(p, s) * 2 : 0);
 // The room a planet and its name take up, round (x, y).
 const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 });
 
 // The nearest spot to `at` where a planet clears the void, the stars round
 // it, the screen's sides and every rect in `taken`.
-function nearestFree(at, s, m, taken, inner, room) {
-  const w = footprint(s, m);
+function nearestFree(at, s, m, taken, inner, room, p) {
+  const w = footprint(s, m, p);
   const pad = m.gap;
   const x0 = clamp(at.x, -room, room);
   for (let tries = 0, a = Math.atan2(at.y, at.x), d = 0; tries < 1500; tries++, a += 0.45, d += 1.6) {
@@ -149,7 +150,7 @@ function scatter(planets, width, inner, m) {
   let fx = 1;
   planets.forEach((p, i) => {
     if (!placed(p) || !p.x) return;
-    const room = Math.max(0, half - footprint(sizes[i], m) / 2);
+    const room = Math.max(0, half - footprint(sizes[i], m, p) / 2);
     fx = Math.min(fx, room / Math.abs(p.x * m.scale));
   });
   const stretch = 1 / Math.sqrt(Math.max(fx, 0.1));
@@ -158,15 +159,15 @@ function scatter(planets, width, inner, m) {
   const spots = planets.map((p, i) => {
     if (!placed(p)) return null;
     const s = sizes[i];
-    const room = Math.max(0, half - footprint(s, m) / 2);
-    const spot = nearestFree({ x: p.x * m.scale * fx, y: p.y * m.scale * stretch }, s, m, rects, inner, room);
+    const room = Math.max(0, half - footprint(s, m, p) / 2);
+    const spot = nearestFree({ x: p.x * m.scale * fx, y: p.y * m.scale * stretch }, s, m, rects, inner, room, p);
     rects.push(spot.rect);
     return { ...spot, size: s };
   });
   planets.forEach((p, i) => {
     if (spots[i]) return;
     const s = sizes[i];
-    const w = footprint(s, m);
+    const w = footprint(s, m, p);
     const rand = seeded(`spot:${p.id}`);
     let a = i * GOLDEN * 1.7 - Math.PI * 0.62 + (rand() - 0.5) * 0.7;
     let d = inner.rx + s / 2 + 8 + rand() * 40;
@@ -203,7 +204,7 @@ function pads(m) {
 function rows(planets, sizes, width, inner, m) {
   const W = width - 16;
   // A full planet's rings reach well past its sides.
-  const wide = (i) => Math.max(footprint(sizes[i], m), sizes[i] * ((planets[i].count || 0) >= 10 ? 1.6 : 1));
+  const wide = (i) => Math.max(footprint(sizes[i], m, planets[i]), sizes[i] * ((planets[i].count || 0) >= 10 ? 1.6 : 1));
   const tall = (s) => s + 58; // a planet with its name under it
   const sides = { top: [], bottom: [] };
   const order = planets.map((p, i) => i);
@@ -551,10 +552,10 @@ class Galaxy {
   // ------------------------------------------------------------ planets
 
   addPlanet(planet, { born = false } = {}) {
-    const el = planetEl(planet, { peek: true });
+    const el = planetEl(planet, { peek: true, orbit: true });
     el.body.dataset.vt = `planet-${planet.id}`;
     if (planet.locked) {
-      el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(); });
+      el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(el.planet); });
     }
     else if (this.mine) this.makeMovable(el);
     this.planetEls.set(planet.id, el);
@@ -622,9 +623,9 @@ class Galaxy {
   freeSpot(planet, at) {
     const m = this.m;
     const s = planetSize(planet.count, m.scale);
-    const room = Math.max(0, this.size.width / 2 - (m.narrow ? 8 : 28) - footprint(s, m) / 2);
+    const room = Math.max(0, this.size.width / 2 - (m.narrow ? 8 : 28) - footprint(s, m, planet) / 2);
     const others = [...this.spots].filter(([id, spot]) => id !== planet.id && spot).map(([, spot]) => spot.rect);
-    return nearestFree(at, s, m, others, this.inner, room);
+    return nearestFree(at, s, m, others, this.inner, room, planet);
   }
 
   // Put a planet down and remember where. The first time, every planet's
@@ -761,21 +762,24 @@ class Galaxy {
     else this.data.planets.push(planet);
   }
 
-  async unlock(owner = this.owner, after = null) {
+  // A locked planet opens with its own code, which its owner gives out
+  // (never their sign-in code). Their other planets with the same code open too.
+  async unlock(planet, owner = this.owner) {
+    if (!planet.hasCode) { toast(`@${owner} hasn’t given this planet a code yet.`); return; }
     const msg = h('p', { class: 'dialog-msg' });
     const field = pinField({
       autocomplete: 'off',
-      label: `${owner}'s code`,
+      label: 'Planet code',
       onComplete: async (pin) => {
         msg.textContent = '';
         field.state('busy');
         try {
-          const data = await api.post(`/api/galaxy/${encodeURIComponent(owner)}/unlock`, { pin });
+          const data = await api.post(`/api/galaxy/${encodeURIComponent(owner)}/unlock`, { pin, drawer: planet.id });
           field.state('ok');
           await wait(380);
           dialog.close();
-          if (after) { after(); return; }
-          for (const el of this.planetEls.values()) if (el.planet.locked) el.classList.add('is-thawing');
+          const opened = new Set(data.opened || []);
+          for (const el of this.planetEls.values()) if (opened.has(el.planet.id)) el.classList.add('is-thawing');
           await wait(reducedMotion() ? 0 : 420);
           this.apply(data);
           for (const el of this.planetEls.values()) el.classList.remove('is-thawing');
@@ -790,9 +794,9 @@ class Galaxy {
       },
     });
     const dialog = openDialog({
-      title: `@${owner}’s code`,
+      title: `“${planet.title}” is locked`,
       className: 'dialog-code',
-      body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, 'Their locked planets open for you for 12 hours.'), field.el, msg),
+      body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, `Enter the code @${owner} gave you. It stays open for you for 12 hours.`), field.el, msg),
     });
     setTimeout(() => field.focus(), 60);
   }
@@ -861,6 +865,9 @@ class Galaxy {
     for (const [id, el] of this.planetEls) {
       if (el.planet.locked) continue;
       list.push({ kind: 'planet', id, el, measure: () => el.center() });
+      for (const moon of el.moonEls()) {
+        if (!moon.moon.locked) list.push({ kind: 'moon', id: moon.moon.id, el: moon, planet: el, measure: () => moon.center() });
+      }
     }
     if (this.hole) {
       list.push({ kind: 'hole', el: this.hole.el, measure: () => ({ ...this.hole.center(), r: this.hole.radius() }), onHover: (on) => this.hole.hover(on) });
@@ -883,14 +890,17 @@ class Galaxy {
       }
       return;
     }
-    const el = this.planetEls.get(target.id);
+    const el = target.kind === 'moon' ? target.el : this.planetEls.get(target.id);
     await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 620, turns: 0.5 });
     el?.gulp();
     try {
       const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: target.id });
       this.forgetStar(block.id);
-      el?.bump(1);
-      toast(`Moved to ${el?.planet.title || 'a planet'}`);
+      if (target.kind === 'moon') toast(`Moved to ${el.moon.title}`);
+      else {
+        el?.bump(1);
+        toast(`Moved to ${el?.planet.title || 'a planet'}`);
+      }
       bus.emit('block:connected', { block: res.block, drawerId: target.id });
       this.refresh();
     } catch (err) {
@@ -976,7 +986,8 @@ class Galaxy {
 
   // Into a planet straight from the sky (files dropped on it).
   addFilesTo(planetId, files, at) {
-    const el = this.planetEls.get(planetId);
+    const el = this.planetEls.get(planetId)
+      || [...this.planetEls.values()].flatMap((p) => p.moonEls()).find((m) => m.moon.id === planetId);
     files = withinLimit(files);
     if (!el || !files.length) return;
     files.slice(0, 6).forEach((file, i) => {
@@ -1033,6 +1044,16 @@ class Galaxy {
 
   hit(x, y) {
     let best = null;
+    // A moon close by wins over its bigger planet.
+    for (const el of this.planetEls.values()) {
+      for (const moon of el.moonEls()) {
+        if (moon.moon.locked) continue;
+        const c = moon.center();
+        const d = Math.hypot(x - c.x, y - c.y);
+        if (d < c.r * 1.3 + 8 && (!best || d < best.d)) best = { id: moon.moon.id, el: moon, d };
+      }
+    }
+    if (best) return best;
     for (const [id, el] of this.planetEls) {
       if (el.planet.locked) continue;
       const c = el.center();
@@ -1048,17 +1069,26 @@ class Galaxy {
       overlay: false,
       over: (e) => {
         const found = this.hole.isOpen() ? null : this.hit(e.clientX, e.clientY);
-        for (const el of this.planetEls.values()) el.classList.toggle('is-target', el === found?.el);
+        for (const el of this.planetEls.values()) {
+          el.classList.toggle('is-target', el === found?.el);
+          for (const moon of el.moonEls()) moon.classList.toggle('is-target', moon === found?.el);
+        }
         this.hole.hover(!found);
       },
       leave: () => {
-        for (const el of this.planetEls.values()) el.classList.remove('is-target');
+        for (const el of this.planetEls.values()) {
+          el.classList.remove('is-target');
+          for (const moon of el.moonEls()) moon.classList.remove('is-target');
+        }
         this.hole.hover(false);
       },
       drop: (files, e) => {
         const open = this.hole.isOpen();
         const found = e && !open ? this.hit(e.clientX, e.clientY) : null;
-        for (const el of this.planetEls.values()) el.classList.remove('is-target');
+        for (const el of this.planetEls.values()) {
+          el.classList.remove('is-target');
+          for (const moon of el.moonEls()) moon.classList.remove('is-target');
+        }
         this.hole.hover(false);
         // With the box open, files go wherever the box says.
         if (open) this.hole.takeFiles(files, e ? new DOMRect(e.clientX - 20, e.clientY - 20, 40, 40) : null);

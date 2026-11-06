@@ -1,10 +1,10 @@
 #!/bin/bash
 # Runs API test suites against a fresh server on port 8099 with a throwaway
-# data folder. Usage: tests/run.sh [smoke|galaxy|preview|lockout|search|autosort ...]  (default: all)
+# data folder. Usage: tests/run.sh [smoke|galaxy|preview|lockout|search|autosort|moons ...]  (default: all)
 # MUTT_TRUST_PROXY lets the lockout suite pose as different IPs.
 # The suites print what the API answered; read the output for wrong values.
 cd "$(dirname "$0")/.." || exit 1
-SUITES=("$@"); [ ${#SUITES[@]} -eq 0 ] && SUITES=(smoke galaxy preview lockout search autosort)
+SUITES=("$@"); [ ${#SUITES[@]} -eq 0 ] && SUITES=(smoke galaxy preview lockout search autosort moons)
 for N in "${SUITES[@]}"; do
   WORK=$(mktemp -d)
   MUTT_SEE=0 MUTT_TRUST_PROXY=1 MUTT_DATA_DIR="$WORK/data" PORT=8099 python3 server.py > "$WORK/server.log" 2>&1 &

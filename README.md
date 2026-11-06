@@ -28,7 +28,7 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   You can also drop files straight onto the void.
 - **Planets** are collections (drawers, in the code). Each one is a slowly
   turning world with your files laid across its surface, bigger the more it
-  holds; full ones get thin rings, and some have small moons. Hover for a
+  holds; full ones get thin rings. Hover for a
   peek at what's on it; drag a file from your computer, or a star, onto a
   planet to put it there. Open a planet to see and edit everything in it,
   and use **Share** there to choose who can see it.
@@ -38,6 +38,18 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   dust storms, now-and-then lightning. A new planet gets one picked for it;
   change it with **Planet type…** in the planet's ••• menu. The planet's
   colour tints whichever kind it is.
+- **Moons** are small worlds that belong to a planet, each holding its own
+  files (a file on a moon isn't a star). Add one with **Add a moon…** in a
+  planet's ••• menu, up to four per planet. On the galaxy they orbit their
+  planet, passing in front and behind; hover the planet and they slow to a
+  stop in front so you can click one. On the planet's page they sit beside
+  it. Each is one of ten real moons (Luna, Io, Europa, Titan, Enceladus,
+  Triton, Phobos, Hyperion, Iapetus, Callisto) with its own look and
+  motion; change it with **Moon type…**. Drag a star onto a moon, or a
+  file from the planet's page onto one of its moons; drag it onto the small
+  planet on the moon's page to move it back. A moon's sharing can never be
+  more open than its planet's. Autosort never picks a moon. Deleting a
+  moon moves its files to its planet; deleting a planet takes its moons.
 - **Arranging**: drag your planets anywhere in your galaxy (on a phone,
   hold one for a moment first; with the keyboard, Shift and the arrow
   keys). Everyone who opens your galaxy sees them where you put them, and
@@ -90,15 +102,21 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   (prints, photos of climbing, jazz songs, payslips, the cameras used). Nothing shows it yet; it's
   there for features that appear when a planet needs them, and owners can
   read it at `GET /api/drawers/<id>/purpose`.
-- **Who can see a planet**: Private (only you), Code (anyone who has your
-  4-digit code, the default), People (the usernames you list) or Public
-  (everyone signed in). A public planet can also let others add files.
+- **Who can see a planet**: Private (only you), Code (anyone you give the
+  planet's own 4-digit code to, the default), People (the usernames you list)
+  or Public (everyone signed in). A public planet can also let others add files.
+  A Code planet's code is picked by its owner in Share, and can never be their
+  sign-in code (in either direction), so sharing a planet never shares the
+  account. Until it has one, only the owner can look inside.
 - **The universe**: keep scrolling down and the camera pulls back from your
   galaxy, past a few others drifting by, until it sits small among
   everyone's galaxies on a faint web of dust (or go straight to `/universe`).
   Click any galaxy and the camera dives into it. Planets you can't open yet
-  look frosted; click one and type its owner's code to thaw them. Wrong codes count toward the same lockout as
-  signing in; changing your code locks everyone out again. **Save** a file
+  look frosted; click one and type the code its owner gave you to thaw it
+  (their other planets with the same code thaw too, for 12 hours). Wrong
+  planet codes are limited like sign-in codes but counted apart, so they never
+  lock the owner out; changing a planet's code, or who can see it, locks
+  everyone out of it again. **Save** a file
   you like to keep your own copy.
 - **Going home**: away from your galaxy, a faint back arrow in the top-left
   corner takes you home.

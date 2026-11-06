@@ -320,7 +320,7 @@ export const planetView = {
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
       // List mode shows up here only once the planet has earned it.
-      listView ? { label: 'List options…', run: listOptions } : null,
+      listView ? { label: 'List options…', run: () => listOptions() } : null,
       !listView && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       listView || listFits ? '-' : null,
       { label: 'Planet type…', run: pickLook },
@@ -348,7 +348,7 @@ export const planetView = {
       onChange: changed,
     });
     const makeListView = (blocks) => new ListView({
-      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed,
+      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions,
     });
 
     // ------------------------------------------------------------ list mode
@@ -406,8 +406,14 @@ export const planetView = {
       }
     }
 
-    function listOptions() {
-      listSettings({
+    // From the list's own ⋯ button (anchor), or the planet's ••• menu.
+    let listPanel = null;
+    function listOptions(anchor) {
+      if (listPanel) { listPanel.close(); listPanel = null; if (anchor) return; }
+      anchor?.setAttribute('aria-expanded', 'true');
+      listPanel = listSettings({
+        anchor,
+        onClose: () => { listPanel = null; },
         options: drawer.modes?.list,
         onChange: (patch) => { listView?.setOptions(patch); saveList(patch); },
         onTurnOff: async () => {
@@ -466,7 +472,7 @@ export const planetView = {
       dropTarget: () => view().dropTarget(),
       pasteText: (text) => view().pasteText(text),
       mounted: () => setTimeout(lookForList, 700),
-      destroy: () => { sharePop?.close(); view().destroy(); },
+      destroy: () => { sharePop?.close(); listPanel?.close(); view().destroy(); },
     };
     return inst;
   },

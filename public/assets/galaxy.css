@@ -1470,6 +1470,20 @@ body[data-page="planet"] .viewer {
 .liv-label { margin-bottom: 9px; font: 500 10.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .liv-share-hint { margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
 .liv-people { margin-top: 10px; }
+.liv-people[hidden] { display: none; }
+/* Picking people: everyone's username under the search box, a tap adds or takes off. */
+.pp-list { display: flex; flex-direction: column; gap: 1px; max-height: 196px; margin-top: 6px; padding: 4px; overflow-y: auto; overscroll-behavior: contain; border-radius: 14px; background: var(--well); box-shadow: var(--well-shadow); scrollbar-width: thin; }
+.pp-list[hidden] { display: none; }
+.pp-row { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; border-radius: 10px; text-align: left; font-size: 13px; color: var(--ink-2); transition: background 0.15s, color 0.15s; }
+.pp-row:hover, .pp-row.is-active { background: var(--tint); color: var(--ink); }
+.pp-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent); }
+.pp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-tick { flex: none; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-4); transition: background 0.15s, box-shadow 0.15s; }
+.pp-row.is-on { color: var(--ink); }
+.pp-row.is-on .pp-tick { box-shadow: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 5.2 4.1 7.2 8 2.9' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px no-repeat, var(--accent-gloss); }
+.pp-note { margin-top: 7px; font-size: 12px; color: var(--ink-3); }
+.pp-note[hidden] { display: none; }
+@media (pointer: coarse) { .pp-row { min-height: 42px; } }
 .liv-code { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
 .liv-code > svg { flex: none; color: var(--ink-3); }
 .liv-code-text { flex: 1; min-width: 0; }

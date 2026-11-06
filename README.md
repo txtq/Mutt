@@ -28,7 +28,7 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   You can also drop files straight onto the void.
 - **Planets** are collections (drawers, in the code). Each one is a slowly
   turning world with your files laid across its surface, bigger the more it
-  holds; full ones get thin rings, and some have small moons. Hover for a
+  holds; full ones get thin rings. Hover for a
   peek at what's on it; drag a file from your computer, or a star, onto a
   planet to put it there. Open a planet to see and edit everything in it,
   and use **Share** there to choose who can see it.
@@ -38,6 +38,18 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   dust storms, now-and-then lightning. A new planet gets one picked for it;
   change it with **Planet type…** in the planet's ••• menu. The planet's
   colour tints whichever kind it is.
+- **Moons** are small worlds that belong to a planet, each holding its own
+  files (a file on a moon isn't a star). Add one with **Add a moon…** in a
+  planet's ••• menu, up to four per planet. On the galaxy they orbit their
+  planet, passing in front and behind; hover the planet and they slow to a
+  stop in front so you can click one. On the planet's page they sit beside
+  it. Each is one of ten real moons (Luna, Io, Europa, Titan, Enceladus,
+  Triton, Phobos, Hyperion, Iapetus, Callisto) with its own look and
+  motion; change it with **Moon type…**. Drag a star onto a moon, or a
+  file from the planet's page onto one of its moons; drag it onto the small
+  planet on the moon's page to move it back. A moon's sharing can never be
+  more open than its planet's. Autosort never picks a moon. Deleting a
+  moon moves its files to its planet; deleting a planet takes its moons.
 - **Arranging**: drag your planets anywhere in your galaxy (on a phone,
   hold one for a moment first; with the keyboard, Shift and the arrow
   keys). Everyone who opens your galaxy sees them where you put them, and

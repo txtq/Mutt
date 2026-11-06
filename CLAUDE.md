@@ -26,6 +26,7 @@ Vocabulary, because the UI and the code use different words:
 | putting a file on a planet | a connection (`connections` table) |
 | the void (formerly the black hole) | `blackhole.js`, where things are added |
 | universe | everyone's galaxies, below your galaxy on the same page |
+| moon | a drawer with `parent_id` set (its planet); one level only, up to 4, never picked by autosort, hidden from planet lists |
 
 ## Direction: features that appear when you need them (2026-11-05)
 
@@ -67,7 +68,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 **Server** (`server.py` → `mutt/app.py`): a zero-dependency Python WSGI app on SQLite (WAL).
 - Routes live in `mutt/api.py`, declared with `@route(method, regex)`. They return `json_response(...)` and fail with `HttpError(status, message)`.
 - Prefs are validated against `PREF_CHOICES`, so a new pref has to be added there and to `DEFAULTS` in `public/assets/js/theme.js`.
-- Who can see a planet: `drawer_visible`. `galaxy_of` builds `/api/galaxy[/user]`, including the owner's stars and stats. `list_galaxies` builds `/api/galaxies` (the universe).
+- Who can see a planet: `drawer_visible`. A moon is visible only if its planet is too (`moons_of` lists a planet's moons). Queries that list planets need `parent_id IS NULL`. `galaxy_of` builds `/api/galaxy[/user]`, including the owner's stars and stats. `list_galaxies` builds `/api/galaxies` (the universe).
 - Autosort (`mutt/sorting.py`, scores every planet on name, topics, files already there, kinds and sites), adding a file straight onto a planet (`drawer` in `POST /api/blocks` or `?drawer=` on upload) and link previews (`mutt/links.py`) are all server-side.
 - Media previews (thumbnails, posters, PDF first pages) are made in the browser during upload; the server never decodes media.
 

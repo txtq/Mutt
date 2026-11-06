@@ -5,9 +5,11 @@
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
 import { nav } from '../nav.js';
-import { LOOKS, VISIBILITY, glyph, lookOf, planetEl, planetTone } from '../planets.js';
+import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonEl, moonLookOf, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { PALETTE, autosize, bus, h, plural, timeAgo, wait } from '../util.js';
+
+const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
 const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer.owner}` : '/');
 
@@ -98,14 +100,52 @@ export const planetView = {
     let drawer = data.drawer;
     const mine = drawer.mine !== false;
     const home = homeOf(drawer);
+    // A moon's page is a planet page with its planet beside it.
+    const isMoon = !!drawer.parentId;
+    const parent = drawer.parent || null;
+    const word = isMoon ? 'moon' : 'planet';
 
-    const world = planetEl(drawer, { size: innerWidth < 640 ? 76 : 104, href: null, label: false });
-    world.body.dataset.vt = `planet-${id}`;
+    const worldSize = innerWidth < 640 ? 76 : 104;
+    const world = planetEl(drawer, { size: worldSize, href: null, label: false });
+    world.body.dataset.vt = isMoon ? `moon-${id}` : `planet-${id}`;
     world.classList.add('planet-big');
     if (mine) {
       world.classList.add('is-editable');
-      world.title = 'Planet type';
-      world.addEventListener('click', () => pickLook());
+      world.title = isMoon ? 'Moon type' : 'Planet type';
+      world.addEventListener('click', () => (isMoon ? pickMoonLook() : pickLook()));
+    }
+
+    // Beside the world: a planet's moons, first on the right, then the left,
+    // drifting a little. Click one to open it; drag a file onto one to move it there.
+    const besideSize = Math.round(worldSize * 0.32);
+    const worldBox = h('div', { class: 'liv-world', style: { '--ws': `${worldSize}px`, '--bs': `${besideSize}px` } }, world);
+    const moonSlots = [];
+    function renderMoons({ born = null } = {}) {
+      for (const m of moonSlots.splice(0)) m.remove();
+      if (isMoon) return;
+      (drawer.moons || []).forEach((m, i) => {
+        const el = moonEl(m, { size: besideSize });
+        el.classList.add('is-beside');
+        el.style.setProperty('--side', i % 2 ? -1 : 1);
+        el.style.setProperty('--lv', i >> 1);
+        el.style.setProperty('--bob', `${(seedOf(m.id) * -6).toFixed(2)}s`);
+        moonSlots.push(el);
+        worldBox.append(el);
+        if (m.id === born) el.classList.add('is-born');
+      });
+      worldBox.classList.toggle('has-moons', moonSlots.length > 0);
+      worldBox.classList.toggle('has-left', moonSlots.length > 1);
+    }
+    renderMoons();
+    // On a moon's page its planet sits beside it, small; drag a file onto it to move it back.
+    const parentWorld = parent ? planetEl(parent, { size: Math.round(worldSize * 0.46), href: `/p/${parent.id}`, label: false }) : null;
+    if (parentWorld) {
+      parentWorld.body.dataset.vt = `planet-${parent.id}`;
+      parentWorld.classList.add('liv-parent');
+      parentWorld.setAttribute('aria-label', `Back to ${parent.title}`);
+      parentWorld.title = parent.title;
+      worldBox.append(parentWorld);
+      worldBox.classList.add('has-parent');
     }
 
     const title = h('textarea', { class: 'liv-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Planet name', spellcheck: 'false' });
@@ -113,8 +153,9 @@ export const planetView = {
     const meta = h('p', { class: 'liv-meta' });
     const setMeta = (count) => {
       const vis = drawer.community ? 'community' : drawer.visibility;
+      const moons = drawer.moons?.length ? plural(drawer.moons.length, 'moon') : null;
       meta.replaceChildren(
-        h('span', null, [plural(count, 'file'), timeAgo(drawer.updatedAt)].join(' · ')),
+        h('span', null, [plural(count, 'file'), moons, timeAgo(drawer.updatedAt)].filter(Boolean).join(' · ')),
         mine && vis ? h('span', { class: 'liv-vis' }, glyph(vis, 11), drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility].label) : null);
     };
     setMeta(drawer.count);
@@ -142,6 +183,7 @@ export const planetView = {
       desc.classList.add('is-static');
       if (!drawer.description) desc.hidden = true;
     }
+    if (isMoon) title.setAttribute('aria-label', 'Moon name');
     for (const [field, input] of [['title', title], ['description', desc]]) {
       autosize(input);
       input.addEventListener('blur', () => save(field, input));
@@ -220,7 +262,74 @@ export const planetView = {
       }
     }
 
+    // What real moon it is: picked for it, or one you choose.
+    function pickMoonLook() {
+      const auto = MOON_LOOKS.find((l) => l.id === moonLookOf({ id })).label;
+      const choices = [{ id: null, label: 'Auto', note: auto }, ...MOON_LOOKS];
+      const grid = h('div', { class: 'look-grid', role: 'radiogroup', 'aria-label': 'Kind of moon' });
+      const dialog = openDialog({ title: 'Moon type', className: 'dialog-wide', body: grid });
+      for (const choice of choices) {
+        const preview = moonEl({ id, title: drawer.title, look: choice.id }, { size: 56, link: false });
+        grid.append(h('button', {
+          type: 'button',
+          class: 'look-pick',
+          role: 'radio',
+          'aria-checked': String((drawer.look || null) === choice.id),
+          onclick: () => { dialog.close(); if ((drawer.look || null) !== choice.id) setLook(choice.id); },
+        }, h('span', { class: 'look-moon' }, preview), h('span', { class: 'look-name' }, choice.label), h('span', { class: 'look-note' }, choice.note)));
+      }
+    }
+
+    // A new moon: just a name. It shows up beside the planet.
+    function addMoon() {
+      const input = h('input', { class: 'input', type: 'text', maxlength: '80', placeholder: 'Name it', 'aria-label': 'Moon name', autofocus: true });
+      const make = async () => {
+        const name = input.value.trim();
+        if (!name) { input.focus(); return; }
+        dialog.close();
+        try {
+          const res = await api.post('/api/drawers', { title: name, parent: id });
+          const m = res.drawer;
+          drawer = { ...drawer, moons: [...(drawer.moons || []), { id: m.id, title: m.title, look: m.look, count: 0, visibility: m.visibility, locked: false }] };
+          inst.drawer = drawer;
+          renderMoons({ born: m.id });
+          setMeta(collection.blocks.length);
+          bus.emit('drawer:changed', drawer);
+        } catch (err) {
+          toast(err.message);
+        }
+      };
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); make(); } });
+      const dialog = openDialog({
+        title: 'Add a moon',
+        body: h('div', null,
+          h('p', { class: 'dialog-text' }, 'A small planet of its own, going round this one. Drag files onto it to move them there.'),
+          input,
+          h('div', { class: 'dialog-actions' },
+            h('button', { type: 'button', class: 'btn', onclick: () => dialog.close() }, 'Cancel'),
+            h('button', { type: 'button', class: 'btn btn-dark', onclick: make }, 'Add moon'))),
+      });
+    }
+
     async function remove() {
+      if (isMoon) {
+        const ok = await confirmDialog({
+          title: `Delete “${drawer.title}”?`,
+          message: drawer.count ? `Its files move to ${parent?.title || 'its planet'}.` : 'It’s empty.',
+          confirm: 'Delete moon',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await api.del(`/api/drawers/${id}`);
+          toast('Moon deleted');
+          bus.emit('drawer:changed', null);
+          nav.go(`/p/${drawer.parentId}`, { replace: true });
+        } catch (err) {
+          toast(err.message);
+        }
+        return;
+      }
       let orphans = 0;
       try { ({ count: orphans } = await api.get(`/api/drawers/${id}/orphans`)); } catch { /* ask anyway */ }
       const check = h('input', { type: 'checkbox' });
@@ -229,7 +338,7 @@ export const planetView = {
         : null;
       const ok = await confirmDialog({
         title: `Delete “${drawer.title}”?`,
-        message: 'Its files float off and become stars.',
+        message: drawer.moons?.length ? 'Its moons go with it, and all their files float off and become stars.' : 'Its files float off and become stars.',
         confirm: 'Delete planet',
         danger: true,
         extra,
@@ -256,8 +365,12 @@ export const planetView = {
         openBox, h('span', { class: 'vswitch-track' }, h('span', { class: 'vswitch-knob' })), h('span', null, 'Others can add files'));
       const paint = () => {
         hint.textContent = drawer.community ? 'Everyone can look inside and add to it.' : VISIBILITY[drawer.visibility].hint;
+        // A moon is never more open than its planet.
+        if (parent && drawer.visibility !== 'private' && parent.visibility !== 'public' && parent.visibility !== drawer.visibility) {
+          hint.textContent += ` Also limited by ${parent.title}’s sharing (${VISIBILITY[parent.visibility].label}).`;
+        }
         people.hidden = drawer.visibility !== 'people';
-        openRow.hidden = drawer.visibility !== 'public' && !drawer.community;
+        openRow.hidden = isMoon || (drawer.visibility !== 'public' && !drawer.community);
         world.update({ ...drawer, previews: world.planet?.previews });
         setMeta(drawer.count);
         sharePop?.place();
@@ -276,7 +389,7 @@ export const planetView = {
           seg.set(drawer.visibility);
           toast(err.message);
         }
-      }, { className: 'liv-seg', label: 'Who can see this planet' });
+      }, { className: 'liv-seg', label: `Who can see this ${word}` });
       people.append(peoplePicker(drawer.people || [], async (names) => {
         try {
           ({ drawer } = await api.patch(`/api/drawers/${id}`, { people: names }));
@@ -313,28 +426,45 @@ export const planetView = {
       sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-share', width: 340, onClose: () => { sharePop = null; } });
     });
 
-    const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
-    moreBtn.addEventListener('click', () => openMenu(moreBtn, [
+    const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
+    moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
+      { label: 'Moon type…', run: pickMoonLook },
+      '-',
+      { label: 'Delete moon…', danger: true, run: remove },
+    ] : [
       { label: 'Planet type…', run: pickLook },
       { label: 'Planet colour…', run: pickColor },
+      (drawer.moons || []).length < 4 ? { label: 'Add a moon…', run: addMoon } : null,
       '-',
       { label: 'Delete planet…', danger: true, run: remove },
-    ], { align: 'end' }));
+    ].filter(Boolean), { align: 'end' }));
 
     const community = !!drawer.community;
+    // Where a file can be dragged to: this planet's moons, or a moon's planet.
+    const targets = () => {
+      if (!mine) return [];
+      if (parentWorld) {
+        return [{ id: parent.id, title: parent.title, el: parentWorld, measure: () => parentWorld.center(), onMoved: () => { parent.count = (parent.count || 0) + 1; } }];
+      }
+      return moonSlots.filter((el) => !el.moon.locked).map((el) => ({
+        id: el.moon.id, title: el.moon.title, el, measure: () => el.center(),
+        onMoved: () => { el.moon.count = (el.moon.count || 0) + 1; },
+      }));
+    };
     const collection = new Collection({
       blocks: data.blocks,
       drawer,
-      entry: mine || community,
+      targets,
+      entry: !isMoon && (mine || community),
       sortable: mine,
       readOnly: !mine && !community,
       moderate: mine && community,
-      empty: mine ? null : 'Nothing on this planet yet.',
+      empty: isMoon ? (mine ? 'Nothing here yet. Drag files onto this moon from its planet.' : 'Nothing on this moon yet.') : mine ? null : 'Nothing on this planet yet.',
       onChange: (blocks) => {
         drawer.updatedAt = Date.now();
         drawer.count = blocks.length;
         setMeta(blocks.length);
-        world.update({ ...drawer, previews: blocks.slice(0, 12) });
+        world.update({ ...drawer, count: blocks.length, previews: blocks.slice(0, 12) });
         if (session.stats) session.stats.files = Math.max(session.stats.files, blocks.length);
       },
     });
@@ -343,9 +473,11 @@ export const planetView = {
 
     const el = h('div', { class: 'page liv' },
       h('header', { class: 'liv-head' },
-        h('div', { class: 'liv-world' }, world),
+        worldBox,
         h('div', { class: 'liv-info' },
-          mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
+          isMoon
+            ? h('p', { class: 'liv-owner' }, mine ? null : h('a', { href: home }, `@${drawer.owner}`), mine ? 'Moon of ' : '’s moon of ', h('a', { href: `/p/${drawer.parentId}` }, parent?.title || 'its planet'))
+            : mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
           title, desc, meta),
         mine ? h('div', { class: 'liv-tools' }, shareBtn, moreBtn) : null),
       h('div', { class: 'liv-body' }, collection.el));
@@ -359,8 +491,8 @@ export const planetView = {
       who: { username: mine ? session.user.username : drawer.owner, you: mine },
       home: true,
       list: () => collection.list(),
-      dropTarget: () => collection.dropTarget(),
-      pasteText: (text) => collection.pasteText(text),
+      dropTarget: () => (isMoon ? null : collection.dropTarget()),
+      pasteText: (text) => { if (!isMoon) collection.pasteText(text); },
       destroy: () => { sharePop?.close(); collection.destroy(); },
     };
     return inst;

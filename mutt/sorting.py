@@ -879,14 +879,14 @@ PER_PLANET = 150
 def pick(conn, user_id, row, extra='', explain=None):
     """Where a file belongs: (drawer id, None), or (None, title) for a new planet."""
     doc = Doc(row, extra)
-    planets = conn.execute('SELECT id, title, description FROM drawers WHERE user_id = ? '
+    planets = conn.execute('SELECT id, title, description FROM drawers WHERE user_id = ? AND parent_id IS NULL '
                            'ORDER BY updated_at DESC', (user_id,)).fetchall()
     members = {p['id']: [] for p in planets}
     for r in conn.execute(
             'SELECT * FROM (SELECT c.drawer_id, b.id, b.kind, b.title, b.description, b.content, b.file_name, '
             'b.ext, b.meta, b.updated_at, ROW_NUMBER() OVER (PARTITION BY c.drawer_id '
             'ORDER BY c.connected_at DESC) AS rn FROM connections c JOIN blocks b ON b.id = c.block_id '
-            'JOIN drawers d ON d.id = c.drawer_id WHERE d.user_id = ? AND b.id != ?) WHERE rn <= ?',
+            'JOIN drawers d ON d.id = c.drawer_id WHERE d.user_id = ? AND d.parent_id IS NULL AND b.id != ?) WHERE rn <= ?',
             (user_id, row['id'], PER_PLANET)):
         members[r['drawer_id']].append(member(r))
 

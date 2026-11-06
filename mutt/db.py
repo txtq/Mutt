@@ -156,6 +156,10 @@ def migrate(conn):
         # Where its owner put it in their galaxy, from the void's centre; empty = not placed yet.
         conn.execute('ALTER TABLE drawers ADD COLUMN x REAL')
         conn.execute('ALTER TABLE drawers ADD COLUMN y REAL')
+    if 'parent_id' not in drawer_columns:
+        # A moon belongs to a planet; empty = a planet. Moons go with their planet.
+        conn.execute('ALTER TABLE drawers ADD COLUMN parent_id TEXT REFERENCES drawers(id) ON DELETE CASCADE')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_drawers_parent ON drawers(parent_id)')
     conn.execute('CREATE TABLE IF NOT EXISTS drawer_access ('
                  'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '

@@ -1596,10 +1596,19 @@ def purpose(conn, drawer_id):
 LIST_NAMES = {'list', 'lists', 'todo', 'todos', 'checklist', 'checklists', 'shopping', 'grocery', 'groceries',
               'packing', 'wishlist', 'tbr', 'watchlist', 'bucket', 'errands', 'chores', 'tasks', 'inventory',
               'names', 'ingredients'}
-LIST_PHRASES = re.compile(r'\bto[ -]?dos?\b|\bto (?:buy|get|pack|read|watch|try|see|do|visit|bring)\b|'
+LIST_PHRASES = re.compile(r'\bto[ -]?dos?\b|\bto (?:buy|get|pack|read|watch|try|see|do|visit|bring|listen)\b|'
                           r'\bwish ?list\b|\bbucket list\b|\breading list\b', re.I)
+# Planet names that say it's for something other than a list, even when its
+# notes are short (a line of a poem, a quote, a run).
+NOT_LIST_NAMES = {'quote', 'quotes', 'poem', 'poems', 'poetry', 'haiku', 'lyric', 'lyrics', 'journal', 'diary',
+                  'log', 'logs', 'writing', 'story', 'stories', 'recipe', 'recipes', 'code', 'snippet', 'snippets',
+                  'contact', 'contacts', 'messages', 'letters', 'dream', 'dreams'}
 ITEM_RE = re.compile(r'^\s*(?:(?:[-*•·–—+>]|\d{1,3}[.)])\s+)?(?:(\[[ xX✓]?\]|☐|☑|✅|✔|✓)\s*)?(.*?)\s*$')
 LIST_FORMS = ('list', 'checklist', 'tasks')
+# How a note is written that says it isn't a thing on a list, however short.
+NOT_ITEM_FORMS = ('quote', 'dated', 'diary', 'measured', 'code', 'contact', 'idea', 'poem', 'prose', 'story',
+                  'chapter', 'table', 'tab')
+SPEAKING_RE = re.compile(r"\b(?:I|I'm|I've|I'd|I'll|me|my|we|we're|us|our|you|you're|your)\b", re.I)
 
 
 def list_items(text):
@@ -1619,37 +1628,97 @@ def list_items(text):
 
 
 def is_list_note(text):
+    """A note written as a list of things: marked lines (bullets, numbers,
+    boxes), or plain short lines that read as things, not a poem's lines."""
     if not text or len(text) > 20000:
         return False
     f = form(text, '')
-    return max(f.get(k, 0) for k in LIST_FORMS) >= 0.6 and len(list_items(text)) >= 2
+    if max(f.get(k, 0) for k in LIST_FORMS) < 0.6 or f.get('code') or f.get('table') or f.get('tab'):
+        return False
+    items = list_items(text)
+    if len(items) < 2:
+        return False
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    marked = len(BULLET_RE.findall(text)) + len(CHECKBOX_RE.findall(text))
+    if f.get('checklist') or marked >= 0.6 * len(lines):
+        return True
+    # Unmarked lines: a list's things are short and each stands alone. Three
+    # lines of three words could as well be a haiku, so those need to be
+    # very short, or more of them.
+    if f.get('recipe') and re.search(r'\b(?:method|serves|oven|bake|stir|simmer|mix|minutes|mins)\b', text, re.I):
+        return False
+    per_item = sum(len(t.split()) for t, _ in items) / len(items)
+    sentences = sum(1 for t, _ in items if re.search(r'[.!?]$', t) and len(t.split()) > 2)
+    if sentences > len(items) / 3 or SPEAKING_RE.search(text):
+        return False
+    return len(items) >= 4 or per_item <= 2
+
+
+def is_list_item(text):
+    """A short, one-line note that reads as a thing on a list ("oat milk",
+    "call the bank", "Stalker"), not a quote, a dated line, a run, a message."""
+    text = (text or '').strip()
+    if not text or '\n' in text or len(text) > 90:
+        return False
+    f = form(text, '')
+    if any(f.get(k) for k in NOT_ITEM_FORMS):
+        return False
+    count = len(text.split())
+    if SPEAKING_RE.search(text) or (count > 3 and re.search(r'[.!?]$', text)) or count > 10:
+        return False
+    if len(re.findall(r'[^\w\s\'’,&()/-]', text)) > 2:
+        return False  # mostly symbols: a command, a sum
+    if sum(c.isdigit() for c in text) > sum(c.isalpha() for c in text):
+        return False  # mostly numbers: a time, a score, a run
+    return True
 
 
 def list_signs(conn, drawer_id):
     """Whether a planet is being used as a list, and the signs, in plain words.
     {'fits', 'signs': [...], 'type': 'check'|'bullet', 'split': notes that would
-    become separate items}. Features read this to offer list mode."""
-    row = conn.execute('SELECT title FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    become separate items}. Features read this to offer list mode.
+
+    Most of what's on it has to read as a list: one list note among photos,
+    or short lines that are quotes, runs or messages, don't make it one. A
+    moon of a planet that's a list counts as one too, unless what's on it
+    clearly isn't."""
+    row = conn.execute('SELECT * FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
     if row is None:
         return None
     files = conn.execute('SELECT b.id, b.kind, b.content, b.title FROM connections c JOIN blocks b ON '
                          'b.id = c.block_id WHERE c.drawer_id = ?', (drawer_id,)).fetchall()
     n = len(files)
     notes = [f for f in files if f['kind'] == 'text']
-    short = [f for f in notes if '\n' not in (f['content'] or '').strip() and len((f['content'] or '').strip()) <= 90]
     listy = [f for f in notes if is_list_note(f['content'])]
+    short = [f for f in notes if f not in listy and is_list_item(f['content'])]
     things = sum(len(list_items(f['content'])) for f in listy)
     ticks = sum(1 for f in listy for _, t in list_items(f['content']) if t) + sum(
         1 for f in listy if CHECKBOX_RE.search(f['content'] or ''))
     title = row['title'] or ''
-    named = bool(set(stems(title)) & {_stem(w) for w in LIST_NAMES} or LIST_PHRASES.search(title))
+    title_stems = set(stems(title))
+    named = bool(title_stems & {_stem(w) for w in LIST_NAMES} or LIST_PHRASES.search(title))
+    other = not named and bool(title_stems & {_stem(w) for w in NOT_LIST_NAMES})
+    listish = len(listy) + len(short)  # files that read as a list or a thing on one
+    texty = (len(notes) / n) if n else 1.0
+    mostly = n == 0 or listish >= 0.6 * n
+
+    parent = None
+    if 'parent_id' in row.keys() and row['parent_id']:
+        parent = conn.execute('SELECT title, modes FROM drawers WHERE id = ?', (row['parent_id'],)).fetchone()
+        try:
+            parent_list = bool(parent and (json.loads(parent['modes'] or '{}').get('list') or {}).get('on'))
+        except ValueError:
+            parent_list = False
+        parent = parent if parent_list else None
 
     signs = []
+    if parent is not None:
+        signs.append(f'It’s a moon of “{parent["title"]}”, which is a list.')
     if named:
         signs.append(f'It’s called “{title}”, which sounds like a list.')
     if len(short) >= 4 and len(short) >= 0.6 * n:
-        signs.append(f'{len(short)} of its {n} files are short, one-line notes.' if len(short) < n
-                     else f'All {n} of its files are short, one-line notes.')
+        signs.append(f'{len(short)} of its {n} files are short things, one per line.' if len(short) < n
+                     else f'All {n} of its files are short things, one per line.')
     if listy:
         if len(listy) == 1:
             label = (listy[0]['title'] or '').strip() or 'One of its notes'
@@ -1659,15 +1728,19 @@ def list_signs(conn, drawer_id):
             signs.append(f'{len(listy)} of its notes are written as lists ({things} things in all).')
     if ticks:
         signs.append('Some things on it are ticked off.')
-    texty = (len(notes) / n) if n else 1.0
-    fits = bool(listy and things >= 3) or (len(short) >= 4 and len(short) >= 0.6 * n) or (named and texty >= 0.5)
+    fits = not other and (
+        (bool(listy) and things >= 3 and mostly)
+        or (len(short) >= 4 and len(short) >= 0.6 * n)
+        or (named and texty >= 0.5 and (len(notes) < 2 or listish >= 0.5 * len(notes)))
+        or (parent is not None and texty >= 0.5 and (n == 0 or listish >= 0.5 * n)))
     planet_role = None
     if fits and n:
-        planets, members = galaxy(conn, conn.execute('SELECT user_id FROM drawers WHERE id = ?',
-                                                     (drawer_id,)).fetchone()[0])
-        drawer = conn.execute('SELECT id, title, description FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
-        planet_role = Planet(drawer, members.get(drawer_id, [])).role
-    check = bool(ticks) or planet_role in ('tasks', 'wanting', 'planning') or bool(
+        planets, members = galaxy(conn, row['user_id'])
+        planet_role = Planet(row, members.get(drawer_id, [])).role
+    parent_type = None
+    if parent is not None:
+        parent_type = (json.loads(parent['modes'] or '{}').get('list') or {}).get('type')
+    check = bool(ticks) or planet_role in ('tasks', 'wanting', 'planning') or parent_type == 'check' or bool(
         re.search(r'\bto[ -]?dos?\b|\bchecklist|\bshopping|\bgrocer|\bpacking|\berrands|\bchores|\btasks',
                   title, re.I))
     return {'fits': fits, 'signs': signs, 'type': 'check' if check else 'bullet',

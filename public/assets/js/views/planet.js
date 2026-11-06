@@ -516,15 +516,20 @@ export const planetView = {
     });
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
-    moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
-      { label: 'Moon type…', run: pickMoonLook },
-      '-',
-      { label: 'Delete moon…', danger: true, run: remove },
-    ] : [
-      // List mode shows up here only once the planet has earned it.
+    // List mode shows up here only once the planet (or moon) has earned it,
+    // and stays here after the offer is waved away or the list is turned off.
+    const listItems = () => [
       listView ? { label: 'List options…', run: () => listOptions() } : null,
       !listView && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       listView || listFits ? '-' : null,
+    ];
+    moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
+      ...listItems(),
+      { label: 'Moon type…', run: pickMoonLook },
+      '-',
+      { label: 'Delete moon…', danger: true, run: remove },
+    ].filter(Boolean) : [
+      ...listItems(),
       { label: 'Planet type…', run: pickLook },
       { label: 'Planet colour…', run: pickColor },
       (drawer.moons || []).length < 4 ? { label: 'Add a moon…', run: addMoon } : null,
@@ -641,6 +646,7 @@ export const planetView = {
           if (!(await saveList({ on: false, dismissed: true }))) return;
           const blocks = listView.blocks.filter((b) => !String(b.id).startsWith('tmp-'));
           await swapTo(makeCollection(blocks));
+          readListSigns();
           toast('Showing it as files again', {
             action: { label: 'Undo', run: async () => { if (await saveList({ on: true })) swapTo(makeListView(blocks)); } },
           });
@@ -648,12 +654,23 @@ export const planetView = {
       });
     }
 
-    // Is it being used as a list? Ask once the page is up, and offer it once.
-    async function lookForList() {
-      if (!mine || listView || isMoon) return;
+    // Does it read as a list? That decides whether the ••• menu offers one.
+    async function readListSigns() {
+      if (!mine) return null;
       try {
         const { list } = await api.get(`/api/drawers/${id}/modes`);
         listFits = !!list?.fits;
+        return list;
+      } catch {
+        return null;
+      }
+    }
+
+    // Is it being used as a list? Ask once the page is up, and offer it once.
+    async function lookForList() {
+      if (!mine) return;
+      const list = await readListSigns();
+      try {
         if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
         offer = listOffer({
           signs: list.signs,
@@ -692,8 +709,10 @@ export const planetView = {
       homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
       goHome: () => nav.go(home),
       list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : collection.list()),
-      dropTarget: () => (isMoon ? null : view().dropTarget()),
-      pasteText: (text) => { if (!isMoon) view().pasteText(text); },
+      // A moon takes files dragged from its planet, unless it's a list:
+      // then you can drop and paste things onto it like any list.
+      dropTarget: () => (isMoon && !listView ? null : view().dropTarget()),
+      pasteText: (text) => { if (!isMoon || listView) view().pasteText(text); },
       mounted: () => setTimeout(lookForList, 700),
       destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
     };

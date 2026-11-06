@@ -49,7 +49,9 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   file from the planet's page onto one of its moons; drag it onto the small
   planet on the moon's page to move it back. A moon's sharing can never be
   more open than its planet's. Autosort never picks a moon. Deleting a
-  moon moves its files to its planet; deleting a planet takes its moons.
+  moon moves its files to its planet; deleting a planet takes its moons. A
+  moon of a list planet is a list too (type things straight onto it); its
+  ••• menu can show it as files again, like any list.
 - **Arranging**: drag your planets anywhere in your galaxy (on a phone,
   hold one for a moment first; with the keyboard, Shift and the arrow
   keys). Everyone who opens your galaxy sees them where you put them, and

@@ -898,6 +898,7 @@ def create_drawer(req):
         raise HttpError(400, 'That sharing setting could not be saved.')
     parent_id = body.get('parent') or None
     people = []
+    modes = {}
     if parent_id is not None:
         parent = own_drawer(req, str(parent_id))
         if parent['parent_id']:
@@ -913,14 +914,20 @@ def create_drawer(req):
         if visibility not in VISIBILITY:
             raise HttpError(400, 'That sharing setting could not be saved.')
         parent_id = parent['id']
+        # A moon of a list starts as a list too, marked the same way. Its
+        # owner can show it as files like any planet.
+        parent_list = drawer_modes(parent).get('list') or {}
+        if parent_list.get('on'):
+            modes = clean_modes({'list': {k: v for k, v in parent_list.items() if k in LIST_DEFAULTS}
+                                 | {'on': True, 'dismissed': False}}, {})
     drawer_id = new_id()
     stamp = now()
     with db.transaction(req.db):
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, parent_id) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, parent_id, modes) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp,
-             1 if body.get('community') else 0, visibility, parent_id))
+             1 if body.get('community') else 0, visibility, parent_id, json.dumps(modes)))
         for user_id in people:
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
         position = 0
@@ -1086,6 +1093,14 @@ def listify_drawer(req, drawer_id):
                                          .get('type') else {})}}, drawer_modes(row))
         req.db.execute('UPDATE drawers SET modes = ?, updated_at = ? WHERE id = ?',
                        (json.dumps(modes), now(), drawer_id))
+        # Its moons become lists too, marked the same way, unless their owner
+        # already chose for them or what's on them isn't a list.
+        for moon in req.db.execute('SELECT * FROM drawers WHERE parent_id = ?', (drawer_id,)).fetchall():
+            if 'list' in drawer_modes(moon) or not sorting.list_signs(req.db, moon['id'])['fits']:
+                continue
+            moon_modes = clean_modes({'list': {k: v for k, v in modes['list'].items() if k in LIST_DEFAULTS}},
+                                     drawer_modes(moon))
+            req.db.execute('UPDATE drawers SET modes = ? WHERE id = ?', (json.dumps(moon_modes), moon['id']))
     row = own_drawer(req, drawer_id)
     blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
     return json_response({'drawer': planet_json(req, row, len(blocks)), 'blocks': blocks, 'split': split})

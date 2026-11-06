@@ -1,5 +1,5 @@
 #!/bin/bash
-# Autosort: typed notes, text files, Word, PDF and RTF uploads, links and stars
+# Autosort: typed notes, text files, Word, PDF and RTF uploads, links, stars, photos and songs
 # find the planet that fits, or a new planet named after what they're about.
 # Each line prints: what was added -> the planet (and "new" if one was made).
 SP="$1"; B=localhost:8099
@@ -84,3 +84,76 @@ note 'Sea bass with lemon and capers: 2 fillets, 1 lemon, 1 tbsp capers. Pan fry
 # Someone else can't read your planet's purpose.
 curl -s -b /dev/null -c "$SP/b.txt" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"nosy","pin":"4822"}' > /dev/null
 echo "someone else asking: $(curl -s -b "$SP/b.txt" "$B/api/drawers/$R/purpose" | j "d.get('error')")"
+
+# Photos and songs: the camera, when and where, and song tags are read from the file itself.
+python3 - "$SP" <<'PY'
+import sys, struct
+sp = sys.argv[1]
+def exif_jpeg(path, make, model, taken, lat, lon):
+    # A tiny JPEG holding only camera details (Exif): make, model, when, where.
+    def ifd(entries, start, extra_at):
+        out, extra = struct.pack('<H', len(entries)), b''
+        for tag, typ, count, value in entries:
+            if typ == 2 or typ == 5:
+                data = value
+                if len(data) <= 4:
+                    out += struct.pack('<HHI', tag, typ, count) + data.ljust(4, b'\0')
+                else:
+                    out += struct.pack('<HHII', tag, typ, count, extra_at + len(extra))
+                    extra += data + (b'\0' if len(data) % 2 else b'')
+            else:
+                out += struct.pack('<HHII', tag, typ, count, value)
+        return out + struct.pack('<I', 0), extra
+    rat = lambda *xs: b''.join(struct.pack('<II', int(x * 10000), 10000) for x in xs)
+    dms = lambda v: rat(int(abs(v)), int(abs(v) * 60) % 60, (abs(v) * 3600) % 60)
+    def block(entries, at):
+        size = 2 + 12 * len(entries) + 4
+        body, extra = ifd(entries, at, at + size)
+        return body + extra
+    # Layout: header(8) | IFD0 | Exif IFD | GPS IFD
+    ifd0_n, exif_n, gps_n = 4, 1, 4
+    s0 = 2 + 12 * ifd0_n + 4 + len(make) + 1 + (len(make) + 1) % 2 + len(model) + 1 + (len(model) + 1) % 2
+    exif_at = 8 + s0
+    s1 = 2 + 12 * exif_n + 4 + 20
+    gps_at = exif_at + s1
+    ifd0 = block([(0x010F, 2, len(make) + 1, make.encode() + b'\0'), (0x0110, 2, len(model) + 1, model.encode() + b'\0'),
+                  (0x8769, 4, 1, exif_at), (0x8825, 4, 1, gps_at)], 8)
+    exif = block([(0x9003, 2, 20, taken.encode() + b'\0')], exif_at)
+    gps = block([(1, 2, 2, (b'N' if lat >= 0 else b'S') + b'\0'), (2, 5, 3, dms(lat)),
+                 (3, 2, 2, (b'E' if lon >= 0 else b'W') + b'\0'), (4, 5, 3, dms(lon))], gps_at)
+    tiff = b'II*\0' + struct.pack('<I', 8) + ifd0 + exif + gps
+    app1 = b'Exif\0\0' + tiff
+    open(path, 'wb').write(b'\xff\xd8\xff\xe1' + struct.pack('>H', len(app1) + 2) + app1 + b'\xff\xd9')
+
+def id3_mp3(path, **tags):
+    # A tiny MP3 with only its tags (ID3v2.3): title, artist, album, genre.
+    names = {'title': 'TIT2', 'artist': 'TPE1', 'album': 'TALB', 'genre': 'TCON'}
+    frames = b''.join(names[k].encode() + struct.pack('>I', len(v) + 1) + b'\0\0' + b'\0' + v.encode()
+                      for k, v in tags.items())
+    size = len(frames)
+    syncsafe = bytes([(size >> 21) & 127, (size >> 14) & 127, (size >> 7) & 127, size & 127])
+    open(path, 'wb').write(b'ID3\x03\x00\x00' + syncsafe + frames + b'\xff\xfb\x90\x00' + b'\0' * 400)
+
+exif_jpeg(f'{sp}/DSC_0412.jpg', 'SONY', 'ILCE-7M3', '2026:10:12 14:03:11', 35.0116, 135.7681)
+exif_jpeg(f'{sp}/DSC_0413.jpg', 'SONY', 'ILCE-7M3', '2026:10:12 15:20:40', 35.0120, 135.7690)
+id3_mp3(f'{sp}/01 So What.mp3', title='So What', artist='Miles Davis', album='Kind of Blue', genre='Jazz')
+id3_mp3(f'{sp}/02 Blue in Green.mp3', title='Blue in Green', artist='Miles Davis', album='Kind of Blue', genre='Jazz')
+PY
+K=$(planet Kyoto); M=$(planet Records)
+onto() { curl -s "${A[@]}" -H X-Mutt:1 -H "Content-Type: $3" --data-binary @"$SP/$1" "$B/api/upload?name=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$1")&drawer=$2" | j "d['block']['id']"; }
+P1=$(onto DSC_0412.jpg $K image/jpeg); onto '01 So What.mp3' $M audio/mpeg > /dev/null
+echo "photo details: $(curl -s "${A[@]}" $B/api/blocks/$P1 | j "d['block']['meta'].get('media')")"
+up DSC_0413.jpg image/jpeg
+up '02 Blue in Green.mp3' audio/mpeg
+for P in $K $M; do
+  echo "purpose: $(curl -s "${A[@]}" "$B/api/drawers/$P/purpose" | j "(lambda p: p['title'] + ' -> ' + p['summary'] + ' | contains ' + str(p['contains']) + ' | cameras ' + str(p['cameras']) + ' | music ' + str(p['music']))(d['purpose'])")"
+done
+echo "sorting a file that's already on a planet: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$P1/autosort -d '{}' | j "d['sortedInto']")"
+# What a picture shows (512 numbers, read on the device): a bad reading is refused, a good one is kept but not shown.
+echo "bad reading: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$P1 -d '{"see":{"v":1,"e":"not numbers"}}' | j "d.get('error')")"
+GOOD=$(python3 -c 'import base64,json,random; random.seed(1); print(json.dumps({"see": {"v": 1, "e": base64.b64encode(bytes(random.randrange(256) for _ in range(512))).decode()}}))')
+echo "good reading, as the owner sees it: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$P1 -d "$GOOD" | j "d.get('error') or d['block']['meta'].get('see')")"
+echo "pictures still to read: $(curl -s "${A[@]}" $B/api/see/todo | j "[b['title'] for b in d['blocks']]")"
+# Someone else sees a shared photo, but not where or when it was taken, or the reading.
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$P1/share -d '{"shared":true}' > /dev/null
+echo "someone else sees: $(curl -s -b "$SP/b.txt" $B/api/blocks/$P1 | j "d.get('error') or d['block']['meta']")"

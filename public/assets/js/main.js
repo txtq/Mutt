@@ -13,6 +13,7 @@ import { bootPrefs, setPrefs } from './theme.js';
 import { galaxyView, universeView } from './views/galaxy.js';
 import { loginView } from './views/login.js';
 import { planetView } from './views/planet.js';
+import { catchUp } from './see.js';
 
 bootPrefs();
 startMusic();
@@ -154,6 +155,8 @@ async function boot() {
     if (err.data && 'signups' in err.data) session.signups = err.data.signups;
   }
   await startRouter({ rootEl: view, topbar: bar });
+  // Once the page has settled, read pictures uploaded before the picture reader existed.
+  if (session.user) setTimeout(() => catchUp(), 6000);
 }
 
 boot();

@@ -3,7 +3,8 @@
 
 import { api, sendFile } from './api.js';
 import { guessKind } from './kinds.js';
-import { ensureLooks } from './look.js';
+import { ensureLooks, lookOfBlob } from './look.js';
+import { readPicture, within } from './see.js';
 import { makeThumb } from './thumbs.js';
 import { toast } from './ui.js';
 import { bus, fmtBytes, h, plural, uid } from './util.js';
@@ -100,9 +101,13 @@ async function run(item) {
   item.status = 'uploading';
   const thumbing = makeThumb(item.file, item.kind);
   const params = new URLSearchParams({ name: item.name });
+  // Pictures and videos are sorted once we know what they show, so they
+  // upload first and sort after their preview has been read.
+  const visual = item.kind === 'image' || item.kind === 'video';
+  const sortAfter = item.ctx.autosort && visual && !item.ctx.drawerId;
   if (item.ctx.drawerId) params.set('drawer', item.ctx.drawerId);
   if (item.ctx.share) params.set('share', '1');
-  if (item.ctx.autosort) params.set('autosort', '1');
+  if (item.ctx.autosort && !sortAfter) params.set('autosort', '1');
   try {
     let { block, sortedInto } = await sendFile(`/api/upload?${params}`, item.file, {
       type: item.file.type,
@@ -124,6 +129,26 @@ async function run(item) {
       block = (await api.patch(`/api/blocks/${block.id}`, {
         width: thumb.width, height: thumb.height, duration: thumb.duration,
       }).catch(() => ({ block }))).block;
+    }
+    if (visual) {
+      const source = thumb?.blob || (item.kind === 'image' ? item.file : null);
+      const looking = source ? lookOfBlob(source).catch(() => null) : Promise.resolve(null);
+      const reading = source ? readPicture(source).catch(() => null) : Promise.resolve(null);
+      // Sorting waits a little for the reader (its first-ever load fetches the
+      // model); a reading that comes later is still saved for next time.
+      const [look, seen] = await Promise.all([looking, sortAfter ? within(reading, 8000) : reading]);
+      if (look || seen) {
+        block = (await api.patch(`/api/blocks/${block.id}`, { ...(look && { look }), ...(seen && { see: seen }) })
+          .catch(() => ({ block }))).block;
+      }
+      if (!seen && source) {
+        const id = block.id;
+        reading.then((late) => late && api.patch(`/api/blocks/${id}`, { see: late }).catch(() => {}));
+      }
+      if (sortAfter) {
+        const res = await api.post(`/api/blocks/${block.id}/autosort`, {}).catch(() => null);
+        if (res) ({ block, sortedInto } = res);
+      }
     }
     item.status = 'done';
     item.block = block;

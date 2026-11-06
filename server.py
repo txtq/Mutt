@@ -5,7 +5,7 @@
     python3 server.py --host 0.0.0.0 --port 80
 
 Environment: PORT, HOST, MUTT_DATA_DIR, MUTT_ALLOW_SIGNUPS, MUTT_MAX_UPLOAD_MB,
-MUTT_TRUST_PROXY, MUTT_SECRET, MUTT_BACKUPS. See README.md.
+MUTT_TRUST_PROXY, MUTT_SECRET, MUTT_BACKUPS, MUTT_SEE, MUTT_SEE_MODEL. See README.md.
 """
 import argparse
 import os
@@ -13,7 +13,7 @@ import sys
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
-from mutt import backup, db
+from mutt import backup, db, media, sight
 from mutt.app import application
 
 
@@ -48,6 +48,8 @@ def main():
               'erased on the next deploy. Attach a volume to this service mounted at /data.',
               flush=True)
     backup.start()
+    sight.fetch_model()  # the picture reader's model, fetched once (MUTT_SEE=0 turns it off)
+    media.start_backfill()
     with make_server(args.host, args.port, application,
                      server_class=ThreadingWSGIServer, handler_class=Handler) as httpd:
         shown = 'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host

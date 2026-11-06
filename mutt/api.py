@@ -11,7 +11,7 @@ import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, db, kinds, links, sorting
+from . import auth, db, kinds, links, media, sight, sorting
 from .web import HttpError, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
@@ -96,6 +96,22 @@ def drawer_json(row, count=None, previews=None):
     return data
 
 
+def public_meta(raw, mine):
+    """A file's details as the browser gets them: a picture's reading is only
+    marked as done (its numbers stay on the server), and where and when a
+    photo was taken is only shown to its owner."""
+    meta = json.loads(raw or '{}')
+    see = meta.get('see')
+    if isinstance(see, dict):
+        if mine:
+            meta['see'] = {'v': see.get('v')}
+        else:
+            meta.pop('see')
+    if not mine and isinstance(meta.get('media'), dict):
+        meta['media'] = {k: v for k, v in meta['media'].items() if k not in ('gps', 'location', 'taken', 'camera')}
+    return meta
+
+
 def block_json(row, mine=True, owner=None):
     keys = row.keys()
     file_url = None
@@ -117,7 +133,7 @@ def block_json(row, mine=True, owner=None):
         'width': row['width'],
         'height': row['height'],
         'duration': row['duration'],
-        'meta': json.loads(row['meta'] or '{}'),
+        'meta': public_meta(row['meta'], mine),
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
         'mine': mine,
@@ -164,6 +180,15 @@ def clean_icon(value):
 LOOK_COLORS = {'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'brown', 'black', 'white', 'grey'}
 LOOK_TAGS = {'bright', 'dark', 'warm', 'cool', 'vivid', 'muted', 'soft', 'mono', 'contrast', 'busy', 'minimal',
              'tall', 'wide', 'square'}
+
+
+def clean_see(value):
+    """What the browser's picture reader made of a picture: 512 numbers, base64."""
+    if not isinstance(value, dict) or value.get('v') != sight.VERSION or not isinstance(value.get('e'), str):
+        raise HttpError(400, 'That picture reading is not one Mutt understands.')
+    if len(value['e']) > 1000 or sight.unpack(value['e']) is None:
+        raise HttpError(400, 'That picture reading is not one Mutt understands.')
+    return sight.remember({'v': sight.VERSION, 'e': value['e']})
 
 
 def clean_look(value):
@@ -1045,6 +1070,9 @@ def create_block(req):
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
 
 
+MEDIA_DETAILS = ('image', 'video', 'audio', 'pdf', 'doc')
+
+
 @route('POST', r'/api/upload')
 def upload(req):
     drawer_id = target_drawer(req, req.arg('drawer'))
@@ -1066,6 +1094,14 @@ def upload(req):
         text = sorting.read_text(path, ext, ext in kinds.TEXTY)
         if len(text) > len(meta.get('excerpt', '')):
             meta['gist'] = sorting.gist(text)  # the rest, for sorting and search later
+    if size and kind in MEDIA_DETAILS:
+        found = media.read(path, ext)  # camera, date, place, app, artist, album, author...
+        if found:
+            meta['media'] = found
+    if text or kind in ('pdf', 'doc', 'image'):
+        doctype = sorting.doc_type(text[:sorting.DOC_LIMIT], ' '.join([name, (meta.get('media') or {}).get('title', '')]))
+        if doctype:
+            meta['doctype'] = doctype  # an invoice, a payslip, a ticket... from the whole text
     title = os.path.splitext(name)[0] if ext else name
     shared = {'shared_at': now()} if req.arg('share') == '1' else {}
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
@@ -1143,8 +1179,12 @@ def save_block(req, block_id):
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/autosort')
 def sort_block(req, block_id):
-    """A loose star dropped back into the black hole finds itself a planet."""
+    """A loose star dropped back into the void finds itself a planet. Uploads
+    that waited for the browser to read the picture are sorted this way too."""
     own_block(req, block_id)
+    if req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone():
+        return json_response({'block': reload_block(req, block_id), 'sortedInto': None,  # already placed
+                              'connections': block_connections(req, block_id)})
     sorted_into = autosort(req, block_id, icon_arg(req.json().get('icon')))
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into,
                           'connections': block_connections(req, block_id)})
@@ -1182,9 +1222,12 @@ def update_block(req, block_id):
             value = int_arg(body[key], 0, high)
             if value is not None:
                 updates[key] = value
-    if 'look' in body:
+    if 'look' in body or 'see' in body:
         meta = json.loads(row['meta'] or '{}')
-        meta['look'] = clean_look(body['look'])
+        if 'look' in body:
+            meta['look'] = clean_look(body['look'])
+        if 'see' in body:
+            meta['see'] = clean_see(body['see'])
         req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
     if updates:
         updates['updated_at'] = now()
@@ -1306,6 +1349,27 @@ def search(req):
         'blocks': [block_json(b) for b in blocks[:SEARCH_PAGE]],
         'more': len(blocks) > SEARCH_PAGE,
     })
+
+
+@route('GET', r'/api/see/todo')
+def see_todo(req):
+    """Your files with a picture that the picture reader hasn't read yet."""
+    rows = req.db.execute(
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? "
+        "AND (b.thumb_key IS NOT NULL OR b.kind = 'image') "
+        "AND COALESCE(json_extract(b.meta, '$.see.v'), 0) != ? "
+        "ORDER BY b.created_at DESC LIMIT 200", (req.user['id'], sight.VERSION)).fetchall()
+    return json_response({'blocks': [block_json(b) for b in rows]})
+
+
+@route('GET', r'/api/see/model')
+def see_model(req):
+    """The picture reader's model, served by Mutt itself once it has fetched it."""
+    if not sight.model_ready():
+        sight.fetch_model()
+        raise HttpError(503, 'The picture reader is still being fetched.')
+    return file_response(req, sight.model_path(), 'application/octet-stream',
+                         cache='public, max-age=31536000, immutable')
 
 
 @route('GET', r'/api/looks/todo')

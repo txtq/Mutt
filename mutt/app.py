@@ -11,7 +11,7 @@ from .web import HttpError, Request, Response, json_response, match, status_line
 
 APP_CSP = '; '.join([
     "default-src 'self'",
-    "script-src 'self' https://cdnjs.cloudflare.com",
+    "script-src 'self' https://cdnjs.cloudflare.com 'wasm-unsafe-eval'",  # the picture reader runs WebAssembly
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' blob: data:",

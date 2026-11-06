@@ -590,7 +590,7 @@ def file_role(doc, text, name):
 class Doc:
     """One file, boiled down."""
     __slots__ = ('id', 'kind', 'group', 'ext', 'site', 'path', 'heads', 'body', 'lead', 'topics', 'concepts', 'forms',
-                 'role', 'look', 'terms', 'screenshot', 'see', 'medium', 'sights', 'taken', 'gps', 'added', 'doctype',
+                 'role', 'look', 'terms', 'screenshot', 'see', 'medium', 'medium_sure', 'sights', 'taken', 'gps', 'added', 'doctype',
                  'device', 'artist', 'genre', 'spread')
 
     def __init__(self, row, extra='', limit=20000):
@@ -772,6 +772,14 @@ def doc_type(text, title=''):
 ART_MEDIUMS = {'painting', 'drawing', 'print', 'illustration', 'comic', 'render', 'pixel art', 'collage'}
 PAPER_MEDIUMS = {'document', 'receipt', 'handwriting', 'sheet music', 'diagram', 'map'}
 SCREEN_MEDIUMS = {'screenshot', 'interface', 'meme'}
+
+
+def family(medium):
+    """Kinds of picture that sit together: artworks, papers, screens, photos."""
+    for name, members in (('art', ART_MEDIUMS), ('paper', PAPER_MEDIUMS), ('screen', SCREEN_MEDIUMS)):
+        if medium in members:
+            return name
+    return medium
 PICTURE_FORMS = set(MEDIUMS) | {'song', 'recording', 'artwork', 'scan'}
 MEDIUM_MEANING = {name: (topic, concept) for name, (topic, concept, _) in MEDIUMS.items()}
 SIGHT_MEANING = {name: (topic, concept) for name, (topic, concept, _) in SIGHTS.items()}
@@ -794,11 +802,15 @@ def read_media(doc, meta, media, row):
     topics, concepts, forms, role = doc.topics, doc.concepts, doc.forms, doc.role
 
     doc.see, mediums, sights = sight.read(meta.get('see'))
+    if doc.kind == 'link':  # a link's preview is a web page: only what it shows counts, a little
+        mediums, sights = {}, {k: p * 0.5 for k, p in sights.items()}
     doc.medium = None
+    doc.medium_sure = 0.0
     doc.sights = {}
     if doc.see is not None:
         top = max(mediums, key=mediums.get) if mediums else None
         doc.medium = top if top and mediums[top] >= 0.3 else None
+        doc.medium_sure = mediums[top] if doc.medium else 0.0
         for name, p in mediums.items():
             if p >= 0.2 and name != 'photo':  # most pictures are photos; only other kinds tell planets apart
                 forms[name] = max(forms.get(name, 0), min(1.0, p * 1.4))
@@ -1010,6 +1022,7 @@ class Planet:
         # Its pictures, sounds and documents.
         seen = [m for m in members if m.see is not None]
         self.pictures = [m.see for m in seen[:40]]
+        self.seen_share = len(seen) / max(1, len(members))
         self.mediums, self.sights = Counter(), Counter()
         for m in seen:
             if m.medium:
@@ -1031,8 +1044,9 @@ class Planet:
         for r, patterns in ROLE_PHRASES.items():
             if any(p.search(self.title) for p in patterns):
                 roles[r] += 3
-        if self.name & (PLACE_WORDS - NATIONAL) and not roles:
-            roles['planning'] += 1.5  # a planet named after a place is usually a trip
+        taken = sum(1 for m in members if m.group in ('Images', 'Videos') and (m.taken or m.gps))
+        if self.name & (PLACE_WORDS - NATIONAL) and not roles and not (n and taken >= n / 2):
+            roles['planning'] += 1.5  # a planet named after a place is usually a trip (unless it's the photos from it)
         elif self.name & LANGUAGE_NAMES and not roles:
             roles['learning'] += 1.5  # and one named after a language, learning it
         named_role = set(roles)
@@ -1198,6 +1212,19 @@ def evidence(doc, terms, vec_doc, planet, idf, df):
     clues['look'] = look_match(doc, planet)
     clues['visual'] = picture_likeness(doc, planet)
     clues['moment'] = moment_match(doc, planet)
+    # A picture that looks like nothing on a planet of pictures (a pot among
+    # linocuts) doesn't belong there, unless its name, kind or when and where
+    # it was taken says it does.
+    clues['unlike'] = 0.0
+    if doc.see is not None and len(planet.pictures) >= 2 and max(clues['name'], clues['named'], clues['moment']) < 0.3:
+        enough = planet.seen_share * min(1.0, len(planet.pictures) / 3)
+        clues['unlike'] = max(0.0, 0.25 - clues['visual']) / 0.25 * enough
+        # Or it's surely another kind of picture: a map among linocuts, a receipt among photos.
+        if doc.medium and doc.medium_sure >= 0.7 and planet.mediums and not planet.mediums.get(doc.medium):
+            top, count = planet.mediums.most_common(1)[0]
+            share = count / len(planet.pictures)
+            if family(top) != family(doc.medium) and share >= 0.6:
+                clues['unlike'] = max(clues['unlike'], share * enough)
 
     # How it's written and what it's for tell planets on one subject apart
     # (poems from diary entries, a wishlist from a gear planet). They only
@@ -1266,6 +1293,8 @@ def score(doc, terms, vec_doc, planet, idf, df):
         miss = 1 - (1 - miss) * (1 - strength * sure * max(0.0, 0.6 - clues['agree']) / 0.6)
     if clues['clash']:
         miss = 1 - (1 - miss) * (1 - 0.2 * clues['clash'])
+    if clues['unlike']:
+        miss = 1 - (1 - miss) * (1 - 0.45 * clues['unlike'])
     blind = doc.group in MEDIA and not read_inside(doc)
     clues['specific'] = 1 - math.prod(1 - w * clues[c] for c, w in weights(doc).items()
                                       if c in SPECIFIC or blind or (doc.group in MEDIA and c == 'form'))
@@ -1343,7 +1372,8 @@ def pick(conn, user_id, row, extra='', explain=None):
                      and clues['content'] < 0.3)
         enough = clues['specific'] >= 0.3 or doc.group in MEDIA  # more than being a note too
         if (best >= FITS and enough) or (best >= CLEAR and best - runner_up >= 0.06 and best >= 1.3 * runner_up
-                            and clues['specific'] >= 0.1 and not elsewhere and not clues['clash']):
+                            and clues['specific'] >= 0.1 and not elsewhere and not clues['clash']
+                            and clues['unlike'] < 0.4):
             return ranked[0][2].id, None
     title = new_title(doc)
     same = next((p['id'] for p in planets if p['title'].strip().lower() == title.lower()), None)
@@ -1421,7 +1451,7 @@ DOC_TEXT = {'invoice': 'Invoices', 'receipt': 'Receipts', 'bank statement': 'Ban
             'certificate': 'Certificates', 'paper': 'Papers', 'lecture': 'Lecture notes', 'script': 'Scripts',
             'form': 'Forms'}
 # A medium that already says what it's about doesn't need "of art".
-SELF_EVIDENT = {('painting', 'painting'), ('drawing', 'drawing'), ('print', 'printmaking'),
+SELF_EVIDENT = {('photo', 'photography'), ('painting', 'painting'), ('drawing', 'drawing'), ('print', 'printmaking'),
                 ('illustration', 'illustration'), ('comic', 'illustration'), ('render', '3d'),
                 ('sheet music', 'instruments'), ('graphic design', 'print'), ('logo', 'branding'),
                 ('interface', 'interface design'), ('receipt', 'money'), ('map', 'travel'), ('diagram', 'science'),
@@ -1514,7 +1544,8 @@ def purpose(conn, drawer_id):
     contains = Counter()
     for m in mine:
         if m.group in ('Images', 'Videos'):
-            contains[m.medium or ('video' if m.group == 'Videos' else 'picture')] += 1
+            # Not read yet, but taken with a camera or phone: a photo.
+            contains[m.medium or ('video' if m.group == 'Videos' else 'photo' if m.taken or m.device else 'picture')] += 1
         elif m.group == 'Sounds':
             contains['song' if m.forms.get('song') else 'recording' if m.forms.get('recording') else 'sound'] += 1
         elif m.doctype:
@@ -1544,6 +1575,9 @@ def purpose(conn, drawer_id):
             summary = f'{label} of {subject}'
         elif label:
             summary = label
+        # Photos on a planet named after a place: the photos from there.
+        if main == 'photo' and planet.name & set(places) and subject_key in ('', 'photography', 'travel'):
+            summary = f"Photos from {row['title'].strip()}"
     return {
         'id': row['id'], 'title': row['title'], 'files': n,
         'topics': topics, 'concepts': concepts,

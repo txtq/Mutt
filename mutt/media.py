@@ -835,3 +835,37 @@ def words(media):
 
 def now():
     return int(time.time())
+
+
+# ---------------------------------------------------------------- files uploaded before this existed
+
+def start_backfill():
+    """Read the details of files uploaded before Mutt read them, slowly, in the background."""
+    import threading
+    threading.Thread(target=_backfill, name='media-backfill', daemon=True).start()
+
+
+def _backfill():
+    import json
+    import os
+    from . import db
+    try:
+        conn = db.connect()
+        rows = conn.execute(
+            "SELECT id, user_id, file_key, ext, meta FROM blocks WHERE file_key IS NOT NULL "
+            "AND kind IN ('image', 'video', 'audio', 'pdf', 'doc') AND json_extract(meta, '$.media') IS NULL "
+            "ORDER BY created_at DESC LIMIT 20000").fetchall()
+        for row in rows:
+            path = os.path.join(db.user_files_dir(row['user_id']), row['file_key'])
+            found = read(path, row['ext'] or '') if os.path.exists(path) else {}
+            current = conn.execute('SELECT meta FROM blocks WHERE id = ?', (row['id'],)).fetchone()
+            if current is None:
+                continue
+            meta = json.loads(current['meta'] or '{}')
+            meta['media'] = found  # {} means "looked, nothing there"
+            conn.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), row['id']))
+            time.sleep(0.01)
+        conn.close()
+    except Exception:  # never take the server down over this
+        import traceback
+        traceback.print_exc()

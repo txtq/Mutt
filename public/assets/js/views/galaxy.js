@@ -15,7 +15,7 @@ import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
-import { addFiles } from '../uploads.js';
+import { addFiles, withinLimit } from '../uploads.js';
 import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
 import { paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
@@ -942,6 +942,7 @@ class Galaxy {
   }
 
   async addFiles(files, from, dest) {
+    files = withinLimit(files);
     if (!files.length) return;
     const start = from ? center(from) : this.hole.center();
     files.slice(0, 6).forEach((file, i) => {
@@ -973,7 +974,8 @@ class Galaxy {
   // Into a planet straight from the sky (files dropped on it).
   addFilesTo(planetId, files, at) {
     const el = this.planetEls.get(planetId);
-    if (!el) return;
+    files = withinLimit(files);
+    if (!el || !files.length) return;
     files.slice(0, 6).forEach((file, i) => {
       setTimeout(() => {
         const chip = float(h('div', { class: 'fx-chip fx-chip-file' }, h('span', { class: 'fx-chip-text' }, file.name)), at);

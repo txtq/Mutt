@@ -6,9 +6,10 @@
 // Every item is a file on the planet: typed items are short notes, and other
 // files show as a row with their picture and name. Ticks are kept per planet.
 
+import { blockContextMenu, deleteBlock } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { openDialog, openPopover, segmented, toast } from './ui.js';
+import { openContextMenu, openDialog, openPopover, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
 import { EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
 
@@ -88,8 +89,10 @@ const textOf = (block) => (block.kind === 'text' ? block.content || '' : block.t
 
 export class ListView {
   // editable: you can add, edit, tick, reorder and remove (your planet).
-  constructor({ drawer, blocks, editable, options = {}, onChange, onOptions }) {
+  // targets(): moons (or a moon's planet) an item can be moved to from its right-click menu.
+  constructor({ drawer, blocks, editable, options = {}, onChange, onOptions, targets }) {
     this.drawer = drawer;
+    this.targets = targets;
     this.blocks = blocks.slice();
     this.editable = editable;
     this.opts = { ...LIST_DEFAULTS, ...options };
@@ -118,6 +121,13 @@ export class ListView {
     }
     this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.adder || null, this.ol);
     if (editable) this.el.dataset.editable = '';
+    this.ol.addEventListener('contextmenu', (e) => this.context(e));
+    // A right-press on an item you aren't editing would focus it (and pick a
+    // word), so the menu would give way to the browser's. Keep it unfocused.
+    this.ol.addEventListener('mousedown', (e) => {
+      const field = e.button === 2 && e.target.closest?.('textarea');
+      if (field && field !== document.activeElement) e.preventDefault();
+    });
     this.applyOptions();
     this.render({ entrance: true });
 
@@ -628,13 +638,80 @@ export class ListView {
     }
   }
 
+  // ------------------------------------------------------------ right-click
+
+  context(e) {
+    if (e.pointerType === 'touch' || this.el.classList.contains('is-dragging')) return;
+    const li = e.target.closest?.('.lm-item[data-id]');
+    if (!li) return;
+    // While you're typing in an item, the browser's own menu (paste, spelling) stays.
+    const field = e.target.closest?.('textarea');
+    if (field && field === document.activeElement) return;
+    const block = this.find(li.dataset.id);
+    if (!block || isTmp(block.id) || block.pending) return;
+    const id = block.id;
+    const open = () => nav.openBlock(id);
+    if (!this.editable || block.mine === false) {
+      openContextMenu(e, [
+        { label: 'Open', run: open },
+        block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
+      ], { target: li });
+      return;
+    }
+    const text = li.querySelector('textarea.lm-text');
+    const extra = [
+      this.ticking() && { label: block.checked ? 'Untick' : 'Tick off', run: () => this.toggle(id) },
+      text && { label: 'Edit', run: () => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); } },
+    ].filter(Boolean);
+    const worlds = (this.targets?.() || []).map((t) => ({ title: t.title, dot: t.dot, planet: t.planet, move: () => this.moveTo(t, id) }));
+    const only = this.leaving(block).only;
+    blockContextMenu(e, li, block, {
+      drawer: this.drawer, open, worlds, extra,
+      remove: () => this.remove(id, { keep: true }),
+      // A note made just for this list goes with Undo, like its ×; anything else asks first.
+      del: () => (only ? this.remove(id) : deleteBlock(block)),
+    });
+  }
+
+  // Send an item to a moon (or back to a moon's planet). Undo brings it back to its place.
+  async moveTo(target, id) {
+    const block = this.find(id);
+    if (!block || isTmp(id)) return;
+    const gone = { ...this.leaving(block), only: false };
+    this.forget(id);
+    target.el?.gulp?.();
+    try {
+      const res = await api.post(`/api/blocks/${id}/connections`, { drawer: target.id });
+      bus.emit('block:connected', { block: res.block, drawerId: target.id, connections: res.connections });
+      const out = await api.del(`/api/blocks/${id}/connections/${this.drawer.id}`);
+      gone.position = out.position ?? null;
+      target.onMoved?.();
+      toast(`Moved to ${target.title}`, {
+        action: {
+          label: 'Undo',
+          run: async () => {
+            await this.restore([gone]);
+            const left = await api.del(`/api/blocks/${id}/connections/${target.id}`);
+            bus.emit('block:disconnected', { block: left.block, drawerId: target.id, connections: left.connections });
+            target.onBack?.();
+          },
+        },
+      });
+    } catch (err) {
+      toast(err.message);
+      if (!this.find(id)) this.restoreLocal(block, gone.prevId);
+    }
+  }
+
   // ------------------------------------------------------------ removing
 
-  async remove(id, { quiet = false } = {}) {
+  // keep: only take it off this planet, even a note made just for it (it becomes a star).
+  async remove(id, { quiet = false, keep = false } = {}) {
     const block = this.find(id);
     if (!block) return;
     if (isTmp(id)) { this.forget(id); return; }
     const gone = this.leaving(block);
+    if (keep) gone.only = false;
     this.forget(id);
     try {
       await this.takeAway(gone);

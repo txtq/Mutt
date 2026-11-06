@@ -4,7 +4,7 @@
 // files on it. Keep scrolling down and the galaxy shrinks away into the
 // universe, where everyone else's galaxies are.
 
-import { blockMenu, openConnect, sortedToast } from '../actions.js';
+import { blockContextMenu, openConnect, sortedToast } from '../actions.js';
 import { api, session } from '../api.js';
 import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
@@ -816,8 +816,7 @@ class Galaxy {
     el.addEventListener('click', () => nav.openBlock(block.id));
     el.addEventListener('contextmenu', (e) => {
       if (document.body.classList.contains('is-carrying')) return;
-      e.preventDefault();
-      blockMenu(el, el.block, { open: () => nav.openBlock(block.id) });
+      blockContextMenu(e, el, el.block, { open: () => nav.openBlock(block.id) });
     });
     el.addEventListener('keydown', (e) => {
       if (e.key === 'm' || (e.key === 'Enter' && e.shiftKey)) { e.preventDefault(); openConnect(el, el.block); }

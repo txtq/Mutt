@@ -1055,6 +1055,12 @@ function wakeOrbits() {
   if (!orbitFrame && orbiting.size && !document.hidden && !held) orbitFrame = requestAnimationFrame(orbitTick);
 }
 
+// A moon as a small shaded dot, in its own colours, for menus.
+export function moonDot(moon) {
+  const [, dark, mid, light] = MOON_PALETTES[moonLookOf(moon)];
+  return h('span', { class: 'planet-dot moon-dot', style: { '--c': mid, '--c-dark': dark, '--c-light': light }, 'aria-hidden': 'true' });
+}
+
 // A tiny painted world for the universe: no files, just colour and light.
 // A planet's colour as a small dot, for lists of planets.
 export function planetDot(planet) {

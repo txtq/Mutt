@@ -1,14 +1,14 @@
 // A set of files shown in the grid, kept in sync with uploads, edits made
 // elsewhere, and (in Everything) the chosen sort.
 
-import { blockMenu, openConnect, openSave, watchPreview } from './actions.js';
+import { blockContextMenu, blockMenu, moveBlock, openConnect, openSave, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { entryCell } from './entry.js';
 import { Grid } from './grid.js';
 import { SORTS, arrange, ensureLooks } from './look.js';
 import { nav } from './nav.js';
 import { sparkle } from './theme.js';
-import { confirmDialog, openMenu, toast } from './ui.js';
+import { confirmDialog, openContextMenu, openMenu, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor, retry } from './uploads.js';
 import { bus, debounce, uid } from './util.js';
 
@@ -27,6 +27,8 @@ export class Collection {
     this.sort = sort;
     this.readOnly = readOnly;
     this.onChange = onChange;
+    this.targets = targets;
+    this.moderate = moderate;
     this.removedAt = new Map();
 
     this.entry = entry && !readOnly ? entryCell({
@@ -39,6 +41,7 @@ export class Collection {
       onOpen: (id) => nav.openBlock(id),
       onAction: (act, id, btn) => this.action(act, id, btn),
       onReorder: (ids) => this.saveOrder(ids),
+      onContext: (e, id, cell) => this.context(e, id, cell),
       targets,
       onDropTo: (target, id) => this.moveTo(target, id),
       empty,
@@ -205,6 +208,31 @@ export class Collection {
     if (act === 'more') blockMenu(btn, block, { drawer: this.drawer, open: () => nav.openBlock(id) });
   }
 
+  // Right-click on a file: the same things as its ••• button, plus moving it
+  // straight onto one of the worlds beside this one.
+  context(e, id, cell) {
+    const block = this.blocks.find((b) => b.id === id);
+    if (!block) return;
+    const open = () => nav.openBlock(id);
+    if (block.mine === false) {
+      openContextMenu(e, [
+        { label: 'Open', run: open },
+        { label: 'Save…', run: () => openSave(cell, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
+        this.moderate ? '-' : null,
+        this.moderate ? { label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) } : null,
+      ], { title: block.title || undefined, target: cell });
+      return;
+    }
+    if (this.readOnly) {
+      openContextMenu(e, [{ label: 'Open', run: open }], { target: cell });
+      return;
+    }
+    const worlds = (this.drawer ? this.targets?.() || [] : []).map((t) => ({
+      title: t.title, dot: t.dot, planet: t.planet, move: () => this.moveTo(t, id),
+    }));
+    blockContextMenu(e, cell, block, { drawer: this.drawer, open, worlds });
+  }
+
   // Someone else's file in your community drawer. It stays in their own drawers.
   async takeOut(block) {
     const ok = await confirmDialog({
@@ -223,23 +251,22 @@ export class Collection {
     }
   }
 
-  // A file dragged onto one of the worlds beside this one moves there.
+  // A file dragged (or sent from its menu) onto one of the worlds beside this one moves there.
   async moveTo(target, id) {
     const block = this.blocks.find((b) => b.id === id);
     if (!block || !this.drawer || target.id === this.drawer.id) { this.render('flip'); return; }
+    this.removedAt.set(id, this.blocks.indexOf(block));
     this.drop(id);
-    target.el.gulp?.();
+    target.el?.gulp?.();
     try {
-      const res = await api.post(`/api/blocks/${id}/connections`, { drawer: target.id });
-      bus.emit('block:connected', { block: res.block, drawerId: target.id, connections: res.connections });
-      const out = await api.del(`/api/blocks/${id}/connections/${this.drawer.id}`);
-      bus.emit('block:disconnected', { block: out.block, drawerId: this.drawer.id, connections: out.connections });
+      await moveBlock(block, this.drawer, { ...target, onBack: target.onBack });
       target.onMoved?.();
-      toast(`Moved to ${target.title}`);
     } catch (err) {
-      this.blocks.unshift(block);
-      this.render('flip');
-      this.onChange?.(this.blocks);
+      if (!this.blocks.some((b) => b.id === id)) {
+        this.blocks.splice(Math.min(this.removedAt.get(id) ?? 0, this.blocks.length), 0, block);
+        this.render('flip');
+        this.onChange?.(this.blocks);
+      }
       toast(err.message);
     }
   }

@@ -30,8 +30,40 @@ export const MARKERS = [
 export const LIMITS = [60, 120, 200, 400];
 export const LIST_DEFAULTS = { type: 'check', marker: 'dot', limit: 120, doneLast: true };
 
-// An inked tick, drawn like a pen stroke that runs past the box's corner.
-const CHECK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.2 10.6c1.5 1.3 2.8 2.9 4 4.9C11.3 9.4 15.4 3.9 22.6-2.2"/></svg>';
+// Ticking fills the box in with a pen: big back-and-forth strokes slanting
+// across it, working from the top-left corner down to the bottom-right and
+// running a little past the edges, a bit different for every item.
+function scribble(key = '') {
+  let s = 7;
+  for (const c of String(key)) s = (s * 31 + c.charCodeAt(0)) % 2147483647;
+  const rand = () => (s = (s * 16807) % 2147483647 || 1) / 2147483647;
+  const j = (n) => (rand() - 0.5) * n;
+  const f = (n) => n.toFixed(1);
+  const lo = 0.6;
+  const hi = 19.4;
+  // each stroke lies along x + y = c, from its lower-left end to its upper-right end
+  const ends = (c) => [[Math.max(lo, c - hi), Math.min(hi, c - lo)], [Math.min(hi, c - lo), Math.max(lo, c - hi)]];
+  let c = 2 * lo + 1.6;
+  let [x, y] = ends(c)[0];
+  let d = `M${f(x + j(0.6))} ${f(y + j(0.6))}`;
+  for (let up = true; c < 2 * hi - 1.4; up = !up) {
+    c = Math.min(c + 2.9 + j(0.6), 2 * hi - 1.4);
+    const [nx, ny] = ends(c)[up ? 1 : 0].map((v) => v + j(1.1));
+    // each stroke bows a little, the way a wrist swings
+    const bow = (up ? 1 : -1) * (0.6 + rand() * 0.8);
+    d += `Q${f((x + nx) / 2 + bow)} ${f((y + ny) / 2 + bow)} ${f(nx)} ${f(ny)}`;
+    x = nx; y = ny;
+  }
+  return `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+
+// A faint wobble on the strokes so they read as graphite, not vector lines.
+function pencilGrain() {
+  if (document.getElementById('lm-pencil')) return;
+  document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lm-pencil" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="0.7" xChannelSelector="R" yChannelSelector="G"/></filter></svg>');
+}
+
+const SCRIBBLE_MS = 560;
 const moving = () => !reducedMotion();
 const NEAR = 0.8; // show what's left once an item is this far to its limit
 
@@ -39,7 +71,9 @@ const NEAR = 0.8; // show what's left once an item is this far to its limit
 
 // Move children to their new places smoothly: measure, change, then glide
 // each from where it was.
-function flip(container, change, { duration = 460 } = {}) {
+// `sink` is a row just ticked off: it dips a touch, then sinks smoothly to
+// its place at the bottom while the others glide up past it.
+function flip(container, change, { duration = 460, sink = null } = {}) {
   const before = new Map([...container.children].map((el) => [el, el.getBoundingClientRect()]));
   change();
   if (!moving()) return;
@@ -48,6 +82,14 @@ function flip(container, change, { duration = 460 } = {}) {
     if (!was) continue;
     const now = el.getBoundingClientRect();
     const dy = was.top - now.top;
+    if (el === sink && dy <= 0.5) {
+      el.animate([
+        { transform: `translateY(${dy}px)` },
+        { transform: `translateY(${dy + 4}px) scale(0.985)`, offset: 0.16, easing: 'cubic-bezier(0.45, 0, 0.2, 1)' },
+        { transform: 'none' },
+      ], { duration: Math.min(720 + Math.abs(dy) * 0.6, 1000), easing: 'cubic-bezier(0.5, 0, 0.1, 1)' });
+      continue;
+    }
     if (Math.abs(dy) < 0.5) continue;
     el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration, easing: EASE });
   }
@@ -210,14 +252,15 @@ export class ListView {
   }
 
   // Put rows in display order, gliding.
-  arrange() {
+  arrange(sinkId = null) {
+    const sink = sinkId != null ? this.rows.get(sinkId) : null;
     flip(this.ol, () => {
       for (const block of this.order()) {
         const li = this.rows.get(block.id);
         if (li) this.ol.append(li);
       }
       this.placeDivider();
-    });
+    }, sink ? { duration: 620, sink } : undefined);
   }
 
   placeDivider() {
@@ -254,7 +297,8 @@ export class ListView {
         'aria-checked': String(!!block.checked), 'aria-label': `Tick off ${textOf(block).slice(0, 60)}`,
         disabled: !this.editable,
       });
-      box.innerHTML = CHECK_SVG;
+      pencilGrain();
+      box.innerHTML = scribble(block.id);
       box.addEventListener('click', () => this.toggle(block.id));
       return box;
     }
@@ -608,10 +652,12 @@ export class ListView {
     if (!block || !this.editable || block.pending) return;
     const was = block.checked;
     block.checked = was ? null : Date.now();
-    this.paintTick(id);
+    this.paintTick(id, { draw: true });
     this.updateCount();
     clearTimeout(this.sinkTimer);
-    if (this.opts.doneLast) this.sinkTimer = setTimeout(() => this.arrange(), was ? 160 : 520);
+    if (this.opts.doneLast) {
+      this.sinkTimer = setTimeout(() => this.arrange(was ? null : id), was ? 160 : (moving() ? SCRIBBLE_MS + 80 : 0));
+    }
     try {
       await api.post(`/api/drawers/${this.drawer.id}/check`, { block: id, checked: !was });
     } catch (err) {
@@ -623,14 +669,25 @@ export class ListView {
     }
   }
 
-  paintTick(id) {
+  paintTick(id, { draw = false } = {}) {
     const li = this.rows.get(id);
     const block = this.find(id);
     if (!li || !block) return;
     li.classList.toggle('is-done', !!block.checked);
     const box = li.querySelector('.lm-box');
-    if (box) {
-      box.setAttribute('aria-checked', String(!!block.checked));
+    if (!box) return;
+    box.setAttribute('aria-checked', String(!!block.checked));
+    const path = box.querySelector('path');
+    if (!draw || !path || !moving()) return;
+    path.getAnimations().forEach((a) => a.cancel());
+    if (block.checked) {
+      // the pencil goes back and forth until the box is full
+      const len = Math.ceil(path.getTotalLength()) + 1;
+      path.animate(
+        [{ strokeDasharray: `${len} ${len}`, strokeDashoffset: len }, { strokeDasharray: `${len} ${len}`, strokeDashoffset: 0 }],
+        { duration: SCRIBBLE_MS, easing: 'cubic-bezier(0.3, 0, 0.5, 1)' });
+      box.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.92)', offset: 0.25 }, { transform: 'scale(1)' }],
+        { duration: 300, easing: 'ease-out' });
     }
   }
 
@@ -943,7 +1000,7 @@ export function listSettings({ options, onChange, onTurnOff, anchor, onClose }) 
     preview.replaceChildren(...samples.map((s, i) => {
       const li = h('li', { class: `lm-item${opts.type === 'check' && i === 1 ? ' is-done' : ''}` });
       const mark = opts.type === 'check' ? h('span', { class: 'lm-mark lm-box', 'aria-checked': String(i === 1) }) : h('span', { class: 'lm-mark' });
-      if (opts.type === 'check') mark.innerHTML = CHECK_SVG;
+      if (opts.type === 'check') { pencilGrain(); mark.innerHTML = scribble(s); }
       const text = s.length > opts.limit ? `${s.slice(0, opts.limit - 1)}…` : s;
       li.append(h('div', { class: 'lm-row' }, mark, h('div', { class: 'lm-text is-static' }, text)));
       return li;

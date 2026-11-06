@@ -1863,9 +1863,9 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-box:hover { border-color: color-mix(in srgb, var(--ink) 70%, transparent); }
 .lm-box:disabled { cursor: default; }
 .lm-box svg { position: absolute; top: -1.5px; left: -1.5px; width: 20px; height: 20px; overflow: visible; pointer-events: none; }
-.lm-box path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 32; stroke-dashoffset: 32; transition: stroke-dashoffset 0.32s cubic-bezier(0.45, 0, 0.25, 1); }
+.lm-box path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-opacity: 0.9; stroke-linecap: round; stroke-linejoin: round; filter: url(#lm-pencil); opacity: 0; transition: opacity 0.22s ease; }
 .lm-box[aria-checked="true"] { border-color: color-mix(in srgb, var(--lm-mark) 55%, transparent); }
-.lm-box[aria-checked="true"] path { stroke-dashoffset: 0; }
+.lm-box[aria-checked="true"] path { opacity: 1; transition: none; }
 
 /* the words */
 .lm-edit { display: flex; align-items: flex-end; flex: 1; min-width: 0; gap: 8px; }

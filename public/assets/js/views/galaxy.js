@@ -1231,7 +1231,10 @@ class Galaxy {
   track(jump = false) {
     if (!this.size) return;
     const { height, viewH } = this.size;
-    const goal = clamp((scrollY - (height - viewH)) / this.travel);
+    // The page can stop a fraction of a pixel short of its end (on many
+    // screens it does), and that's still all the way out.
+    const raw = (scrollY - (height - viewH)) / this.travel;
+    const goal = clamp(raw > 1 - 2 / this.travel ? 1 : raw);
     this.goal = goal;
     const now = performance.now();
     const dt = this.tickAt ? Math.min(64, now - this.tickAt) : 16;
@@ -1298,13 +1301,13 @@ class Galaxy {
       this.out = out;
       this.el.classList.toggle('is-out', out);
       if (out && !isEditable(document.activeElement)) this.hole?.close();
-      if (out && !this.mine && this.live) this.mineData = api.get('/api/galaxy').catch(() => null);
+      if (out && !this.mine && this.live) this.fetchMine();
       // Back in from the universe, you're home: say so, so a refresh or
       // coming back to this page doesn't open it zoomed out again.
       if (!out && this.mine && this.live && location.pathname === '/universe') nav.rename('/');
       bus.emit('universe', out);
     }
-    if (p === 1 && !this.mine && this.live) this.toMine();
+    if (p >= 0.99 && !this.mine && this.live) this.toMine();
     // Once it starts to zoom, the planets and the black hole hold still
     // (keeping their picture), so each frame only moves finished layers.
     const moving = p > 0.01;
@@ -1356,8 +1359,8 @@ class Galaxy {
   async toMine() {
     if (this.swapping || this.diving) return;
     this.swapping = true;
-    const data = await (this.mineData ||= api.get('/api/galaxy').catch(() => null));
-    if (!data || !this.el.isConnected || this.p < 1 || this.diving) {
+    const data = await this.fetchMine();
+    if (!data || !this.el.isConnected || this.p < 0.99 || this.diving) {
       // Not ready, or you've started back in: try again next time out.
       if (!data) this.mineData = null;
       this.swapping = false;
@@ -1365,6 +1368,16 @@ class Galaxy {
     }
     handoff = { data, list: this.list };
     nav.go('/universe', { replace: true, motion: 'none' });
+  }
+
+  // Your galaxy, fetched ahead (as this page opens, and again on the way
+  // out if it's been a while), so the handover doesn't wait on it.
+  fetchMine() {
+    if (!this.mineData || performance.now() - this.mineAt > 30000) {
+      this.mineAt = performance.now();
+      this.mineData = api.get('/api/galaxy').catch(() => null);
+    }
+    return this.mineData;
   }
 
   // The corner arrow on someone else's galaxy: the camera pulls back into
@@ -1468,6 +1481,7 @@ class Galaxy {
           requestAnimationFrame(() => requestAnimationFrame(() => this.el.classList.remove('is-far')));
         } else if (!moved) this.entrance();
         arriving = false;
+        if (!this.mine) this.fetchMine();
         if (!this.uvLoading) {
           if (window.requestIdleCallback) requestIdleCallback(() => this.loadUniverse(), { timeout: 2000 });
           else setTimeout(() => this.loadUniverse(), 800);

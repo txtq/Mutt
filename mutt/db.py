@@ -213,6 +213,32 @@ def migrate(conn):
     conn.execute('CREATE TABLE IF NOT EXISTS book_texts ('
                  'block_id TEXT PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE, '
                  'data BLOB NOT NULL, made_at REAL NOT NULL)')
+    # Documents: a note's fuller version from the document editor (HTML and
+    # page setup), its saved versions, its pictures, and comments in its margin.
+    conn.execute('CREATE TABLE IF NOT EXISTS docs ('
+                 'block_id TEXT PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'html TEXT NOT NULL, settings TEXT NOT NULL DEFAULT \'{}\', '
+                 'synced_at REAL NOT NULL, updated_at REAL NOT NULL)')
+    conn.execute('CREATE TABLE IF NOT EXISTS doc_versions ('
+                 'id TEXT PRIMARY KEY, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'title TEXT NOT NULL DEFAULT \'\', html TEXT, text TEXT NOT NULL DEFAULT \'\', '
+                 'name TEXT NOT NULL DEFAULT \'\', words INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_doc_versions ON doc_versions(block_id, created_at)')
+    conn.execute('CREATE TABLE IF NOT EXISTS doc_images ('
+                 'id TEXT PRIMARY KEY, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'mime TEXT NOT NULL, data BLOB NOT NULL, created_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_doc_images ON doc_images(block_id)')
+    conn.execute('CREATE TABLE IF NOT EXISTS doc_comments ('
+                 'id TEXT PRIMARY KEY, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'parent_id TEXT REFERENCES doc_comments(id) ON DELETE CASCADE, '
+                 'quote TEXT NOT NULL DEFAULT \'\', prefix TEXT NOT NULL DEFAULT \'\', suffix TEXT NOT NULL DEFAULT \'\', '
+                 'body TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0, '
+                 'created_at REAL NOT NULL, updated_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_doc_comments ON doc_comments(block_id)')
     # Browsers that have signed in to an account; they skip its account-wide lock.
     conn.execute('CREATE TABLE IF NOT EXISTS devices ('
                  'device_hash TEXT NOT NULL, '

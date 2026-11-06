@@ -150,3 +150,42 @@ export function autosize(textarea) {
   new ResizeObserver(() => fit()).observe(textarea);
   return fit;
 }
+
+// ---------------------------------------------------------------- usernames
+
+// How far apart two words are, in letters changed, added, dropped or swapped.
+function editDistance(a, b) {
+  let before = null;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (before && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], before[j - 2] + 1);
+    }
+    before = prev;
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+// How well a username answers what's typed: lower is better, null is no match.
+// Starts with it, then has it, then has its letters in order, then a near miss
+// (a typo or two), so "jmes" still finds @james.
+export function nameMatch(name, q) {
+  if (!q) return 0;
+  if (name.startsWith(q)) return 0;
+  if (name.includes(q)) return 1;
+  let i = 0;
+  for (const c of name) if (c === q[i]) i++;
+  if (i === q.length && q.length > 1) return 2;
+  const room = q.length < 3 ? 0 : q.length < 6 ? 1 : 2;
+  const d = Math.min(editDistance(q, name), editDistance(q, name.slice(0, q.length)));
+  return d <= room ? 3 + d : null;
+}
+
+// A username's own colour, the same everywhere it's shown.
+export function nameColor(name) {
+  const seed = [...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
+  return PALETTE[Math.floor(seed * PALETTE.length)];
+}

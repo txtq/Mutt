@@ -50,13 +50,20 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
     function nearest() {
       let best = null;
       let bestD = Infinity;
+      let moon = null;
+      let moonD = Infinity;
       for (const t of list) {
         t.center = t.measure(); // planets bob and the page scrolls, so look again
         const d = Math.hypot(pos.x - t.center.x, pos.y - t.center.y);
+        // A moon is small: it has a tighter reach, but wins over its planet.
+        if (t.kind === 'moon') {
+          if (d < t.center.r * 1.3 + 10 && d < moonD) { moon = t; moonD = d; }
+          continue;
+        }
         const reach = t.center.r * 1.3 + 22;
         if (d < reach && d < bestD) { best = t; bestD = d; }
       }
-      return best;
+      return moon || best;
     }
 
     function tick(now) {

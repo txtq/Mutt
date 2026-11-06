@@ -174,6 +174,10 @@ export function startRouter({ rootEl, topbar }) {
   chrome = topbar;
   nav.go = go;
   nav.current = () => new URL(location.href);
+  nav.rename = (path) => {
+    history.replaceState(history.state, '', path + location.search);
+    if (current) current.path = new URL(location.href).pathname;
+  };
   nav.openBlock = (id) => {
     const u = new URL(location.href);
     u.searchParams.set('b', id);

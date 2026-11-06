@@ -88,12 +88,52 @@ def drawer_json(row, count=None, previews=None):
         'look': row['look'] if 'look' in row.keys() else None,
         'x': row['x'] if 'x' in row.keys() else None,
         'y': row['y'] if 'y' in row.keys() else None,
+        'modes': drawer_modes(row),
     }
     if count is not None:
         data['count'] = count
     if previews is not None:
         data['previews'] = previews
     return data
+
+
+def drawer_modes(row):
+    try:
+        return json.loads(row['modes'] or '{}') if 'modes' in row.keys() else {}
+    except ValueError:
+        return {}
+
+
+# List mode's options: how items are marked, and how long one can be.
+LIST_TYPES = ('check', 'bullet', 'number', 'plain')
+LIST_MARKERS = ('dot', 'dash', 'arrow', 'star', 'circle', 'square')
+LIST_LIMITS = (60, 120, 200, 400)
+LIST_DEFAULTS = {'on': False, 'type': 'check', 'marker': 'dot', 'limit': 120, 'doneLast': True, 'dismissed': False}
+
+
+def clean_modes(value, current):
+    """Check the modes a planet's owner is setting; returns the whole new value."""
+    if not isinstance(value, dict):
+        raise HttpError(400, 'Those settings could not be saved.')
+    modes = dict(current)
+    if 'list' in value:
+        given = value['list']
+        if not isinstance(given, dict):
+            raise HttpError(400, 'Those list settings could not be saved.')
+        merged = {**LIST_DEFAULTS, **(modes.get('list') or {})}
+        for key, v in given.items():
+            if key in ('on', 'doneLast', 'dismissed') and isinstance(v, bool):
+                merged[key] = v
+            elif key == 'type' and v in LIST_TYPES:
+                merged[key] = v
+            elif key == 'marker' and v in LIST_MARKERS:
+                merged[key] = v
+            elif key == 'limit' and v in LIST_LIMITS:
+                merged[key] = v
+            else:
+                raise HttpError(400, 'Those list settings could not be saved.')
+        modes['list'] = merged
+    return modes
 
 
 def block_json(row, mine=True, owner=None):
@@ -125,6 +165,8 @@ def block_json(row, mine=True, owner=None):
     }
     if owner:
         data['owner'] = owner
+    if 'checked' in keys:
+        data['checked'] = ms(row['checked']) if row['checked'] else None
     if 'conn_count' in keys:
         data['connectionCount'] = row['conn_count']
     return data
@@ -282,6 +324,21 @@ def connect(conn, block_id, drawer_id, position=None):
     conn.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
                  'VALUES (?, ?, ?, ?)', (block_id, drawer_id, position, now()))
     conn.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
+
+
+def place_in(conn, drawer_id, after=None, end=False):
+    """A position just after one file (or at the end) instead of the top."""
+    if after:
+        row = conn.execute('SELECT position FROM connections WHERE drawer_id = ? AND block_id = ?',
+                           (drawer_id, str(after))).fetchone()
+        if row:
+            nxt = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ? AND position > ?',
+                               (drawer_id, row[0])).fetchone()[0]
+            return (row[0] + nxt) / 2 if nxt is not None else row[0] + 1
+    if end:
+        high = conn.execute('SELECT MAX(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+        return high + 1 if high is not None else 0
+    return None
 
 
 def remove_block_files(user_id, *keys):
@@ -546,7 +603,8 @@ def drawer_previews(req, drawer_id, limit=8, owner=None, newest=False):
 
 def blocks_in_drawer(req, drawer_id, community=False):
     rows = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
+        f'SELECT {BLOCK_COLUMNS}, c.checked, u.username AS owner_name FROM connections c '
+        'JOIN blocks b ON b.id = c.block_id '
         'JOIN users u ON u.id = b.user_id '
         'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
     me_id = req.user['id']
@@ -790,6 +848,9 @@ def update_drawer(req, drawer_id):
         updates['look'] = body['look']
     if 'people' in body:
         set_planet_people(req, drawer_id, body['people'])
+    if 'modes' in body:
+        current = drawer_modes(own_drawer(req, drawer_id))
+        updates['modes'] = json.dumps(clean_modes(body['modes'], current))
     if 'community' in body:
         updates['community'] = 1 if body['community'] else 0
         if not body['community']:
@@ -840,6 +901,69 @@ def drawer_purpose(req, drawer_id):
     when a planet needs them are meant to read this."""
     own_drawer(req, drawer_id)
     return json_response({'purpose': sorting.purpose(req.db, drawer_id)})
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/modes')
+def drawer_mode_signs(req, drawer_id):
+    """Features this planet could use, and the signs for each, in plain words
+    (only list mode so far). Only its owner sees these."""
+    own_drawer(req, drawer_id)
+    return json_response({'list': sorting.list_signs(req.db, drawer_id)})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/listify')
+def listify_drawer(req, drawer_id):
+    """Turn list mode on. Notes written as lists, that are yours and only on
+    this planet, become one item per line, in their place."""
+    row = own_drawer(req, drawer_id)
+    body = req.json()
+    signs = sorting.list_signs(req.db, drawer_id)
+    split = 0
+    with db.transaction(req.db):
+        if body.get('split', True):
+            rows = req.db.execute(
+                'SELECT b.id, b.content, c.position FROM connections c JOIN blocks b ON b.id = c.block_id '
+                'WHERE c.drawer_id = ? AND b.user_id = ? AND b.kind = ? AND '
+                '(SELECT COUNT(*) FROM connections c2 WHERE c2.block_id = b.id) = 1 '
+                'ORDER BY c.position', (drawer_id, req.user['id'], 'text')).fetchall()
+            for r in rows:
+                if r['id'] not in signs['split']:
+                    continue
+                items = sorting.list_items(r['content'])
+                after = req.db.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ? AND position > ?',
+                                       (drawer_id, r['position'])).fetchone()[0]
+                gap = ((after - r['position']) if after is not None else len(items) + 1) / (len(items) + 1)
+                for i, (text, ticked) in enumerate(items):
+                    block_id = insert_block(req, kind='text', title='', content=text[:2000])
+                    req.db.execute('INSERT INTO connections (block_id, drawer_id, position, connected_at, checked) '
+                                   'VALUES (?, ?, ?, ?, ?)', (block_id, drawer_id, r['position'] + gap * (i + 1),
+                                                             now(), now() if ticked else None))
+                req.db.execute('DELETE FROM blocks WHERE id = ?', (r['id'],))
+                split += 1
+        modes = clean_modes({'list': {'on': True, 'dismissed': False,
+                                      **({'type': signs['type']} if not (drawer_modes(row).get('list') or {})
+                                         .get('type') else {})}}, drawer_modes(row))
+        req.db.execute('UPDATE drawers SET modes = ?, updated_at = ? WHERE id = ?',
+                       (json.dumps(modes), now(), drawer_id))
+    row = own_drawer(req, drawer_id)
+    blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
+    return json_response({'drawer': planet_json(req, row, len(blocks)), 'blocks': blocks, 'split': split})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/check')
+def check_item(req, drawer_id):
+    """Tick something off (or back on) on a list planet."""
+    writable_drawer(req, drawer_id)
+    body = req.json()
+    block_id = body.get('block')
+    found = req.db.execute('SELECT 1 FROM connections WHERE drawer_id = ? AND block_id = ?',
+                           (drawer_id, str(block_id))).fetchone()
+    if not found:
+        raise HttpError(404, 'That isn’t on this planet.')
+    stamp = now() if body.get('checked') else None
+    req.db.execute('UPDATE connections SET checked = ? WHERE drawer_id = ? AND block_id = ?',
+                   (stamp, drawer_id, str(block_id)))
+    return json_response({'checked': ms(stamp) if stamp else None})
 
 
 @route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)')
@@ -1039,7 +1163,7 @@ def create_block(req):
 
     sorted_into = None
     if drawer_id:
-        connect(req.db, block_id, drawer_id)
+        connect(req.db, block_id, drawer_id, place_in(req.db, drawer_id, body.get('after'), body.get('end')))
     elif body.get('autosort'):
         sorted_into = autosort(req, block_id, icon_arg(body.get('icon')))
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)

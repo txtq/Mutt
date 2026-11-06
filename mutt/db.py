@@ -152,6 +152,12 @@ def migrate(conn):
         conn.execute("ALTER TABLE drawers ADD COLUMN visibility TEXT NOT NULL DEFAULT 'pin'")
     if 'look' not in drawer_columns:
         conn.execute('ALTER TABLE drawers ADD COLUMN look TEXT')  # what kind of world it is; empty = picked for it
+    if 'modes' not in drawer_columns:
+        # Features a planet has switched on (list mode and its options), as JSON.
+        conn.execute("ALTER TABLE drawers ADD COLUMN modes TEXT NOT NULL DEFAULT '{}'")
+    connection_columns = {row[1] for row in conn.execute('PRAGMA table_info(connections)')}
+    if 'checked' not in connection_columns:
+        conn.execute('ALTER TABLE connections ADD COLUMN checked REAL')  # ticked off on a list planet
     if 'x' not in drawer_columns:
         # Where its owner put it in their galaxy, from the void's centre; empty = not placed yet.
         conn.execute('ALTER TABLE drawers ADD COLUMN x REAL')

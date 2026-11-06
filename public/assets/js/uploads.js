@@ -5,12 +5,28 @@ import { api, sendFile } from './api.js';
 import { guessKind } from './kinds.js';
 import { ensureLooks } from './look.js';
 import { makeThumb } from './thumbs.js';
-import { bus, h, plural, uid } from './util.js';
+import { toast } from './ui.js';
+import { bus, fmtBytes, h, plural, uid } from './util.js';
 
 const CONCURRENCY = 3;
 const queue = [];
 const items = new Map();
 let active = 0;
+
+// Matches the server's default limit (MUTT_MAX_UPLOAD_MB), so a file that's
+// too big is turned away at once instead of after uploading it all.
+export const MAX_UPLOAD_MB = 100;
+const MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024;
+
+// The files that fit; says once which ones didn't.
+export function withinLimit(files) {
+  const ok = [];
+  const big = [];
+  for (const file of files) (file.size > MAX_UPLOAD ? big : ok).push(file);
+  if (big.length === 1) toast(`${big[0].name || 'That file'} is ${fmtBytes(big[0].size)}. Files can be up to ${MAX_UPLOAD_MB} MB.`);
+  else if (big.length) toast(`${big.length} files are over ${MAX_UPLOAD_MB} MB and weren't added.`);
+  return ok;
+}
 
 export function contextKey(ctx) {
   if (ctx.share) return 'community';
@@ -20,7 +36,7 @@ export function contextKey(ctx) {
 
 export function addFiles(files, ctx = {}) {
   const added = [];
-  for (const file of files) {
+  for (const file of withinLimit(files)) {
     const kind = guessKind(file);
     const item = {
       key: `up-${uid()}`,

@@ -115,7 +115,7 @@ Mutt and copy a backup over `mutt.db` (and delete `mutt.db-wal` and `mutt.db-shm
 | `PORT` / `HOST` | `8080` / `127.0.0.1` | Where to listen. Use `HOST=0.0.0.0` to let other devices on your network in. |
 | `MUTT_DATA_DIR` | `./data`, or a volume at `/data` | Where the database and files go. |
 | `MUTT_ALLOW_SIGNUPS` | `1` | Set to `0` to stop new accounts (existing ones keep working). |
-| `MUTT_MAX_UPLOAD_MB` | `512` | Largest single file. |
+| `MUTT_MAX_UPLOAD_MB` | `100` | Largest single file. |
 | `MUTT_TRUST_PROXY` | off (on in the Docker image) | Trust the hosting proxy's headers, so cookies are marked Secure and client IPs are read correctly. Only turn on behind a proxy. |
 | `MUTT_SECRET` | from `data/secret.key` | Extra secret mixed into PIN hashes. Set it if your data folder isn't private. |
 | `MUTT_BACKUPS` | `1` | Set to `0` to stop the nightly database copies in `data/backups/`. |

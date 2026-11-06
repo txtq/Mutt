@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from . import auth, db, kinds, links, sorting
 from .web import HttpError, file_response, json_response, route, stream_to_file
 
-MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '512')) * 1024 * 1024)
+MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
 MAX_THUMB = 8 * 1024 * 1024
 UNLOCK_TTL = 12 * 60 * 60
 ALLOW_SIGNUPS = os.environ.get('MUTT_ALLOW_SIGNUPS', '1').lower() not in ('0', 'false', 'no', 'off')

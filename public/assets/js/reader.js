@@ -26,7 +26,10 @@ const FONTS = [{ value: 'serif', label: 'Serif' }, { value: 'sans', label: 'Sans
 const SIZES = [14, 15, 16, 17, 18, 19, 20, 22, 24, 27, 30];
 const SPACINGS = [{ value: 'tight', label: 'Tight' }, { value: 'normal', label: 'Normal' }, { value: 'loose', label: 'Loose' }];
 const COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'];
-const DEFAULTS = { theme: 'night', font: 'serif', size: 4, spacing: 'normal', justify: true };
+const DEFAULTS = { theme: 'night', font: 'serif', size: 4, spacing: 'normal', justify: true, pages: 1 };
+
+// Two pages side by side need a wide screen; then it's the reader's choice.
+const roomForTwo = (W, H) => W >= 960 && W > H * 1.15;
 const KEY = 'mutt:reader';
 
 const moving = () => !reducedMotion();
@@ -432,6 +435,9 @@ class Reader {
       row('Page', themes),
       flowOnly ? row('Typeface', choices(FONTS, s.font, (v) => this.change({ font: v }))) : null,
       flowOnly ? row('Line spacing', choices(SPACINGS, s.spacing, (v) => this.change({ spacing: v }))) : null,
+      roomForTwo(this.stage.clientWidth, this.stage.clientHeight)
+        ? row('Pages', choices([{ value: '1', label: 'One' }, { value: '2', label: 'Two' }], String(s.pages), (v) => this.change({ pages: Number(v) })))
+        : null,
       flowOnly ? row('Edges', choices([{ value: 'on', label: 'Justified' }, { value: 'off', label: 'Ragged' }], s.justify ? 'on' : 'off', (v) => this.change({ justify: v === 'on' }))) : null,
       this.book?.format === 'pdf' && (this.book.mine || this.book.converted) ? pdfSwitch : null);
   }
@@ -547,7 +553,7 @@ class Reader {
     const W = this.stage.clientWidth;
     const H = this.stage.clientHeight;
     const phone = W < 620;
-    const spread = W >= 960 && W > H * 1.15;
+    const spread = roomForTwo(W, H) && this.settings.pages === 2;
     const side = phone ? 22 : spread ? 64 : 48;
     const gap = spread ? 96 : side * 2;
     const avail = W - side * 2;
@@ -1295,7 +1301,7 @@ class Reader {
   layoutPages() {
     const W = this.stage.clientWidth;
     const H = this.stage.clientHeight;
-    this.el.classList.toggle('is-spread', W >= 960 && W > H * 1.15);
+    this.el.classList.toggle('is-spread', roomForTwo(W, H) && this.settings.pages === 2);
     this.geo = { W, H };
   }
 

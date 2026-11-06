@@ -56,8 +56,8 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   like books: a few dozen pages, an ISBN, a copyright page, chapters), it
   offers once to become a reading planet. Its books then stand on a shelf by
   their cover, with how far you've read and the one you're in the middle of
-  up top. Opening one starts the reader: pages that fit the screen (two side
-  by side on wide screens), turned by tapping the edges, swiping, the arrow
+  up top. Opening one starts the reader: pages that fit the screen (one at a
+  time, or two side by side on wide screens if you choose), turned by tapping the edges, swiping, the arrow
   keys or scrolling; contents, bookmarks, highlights in five colours or
   underlined, notes, and the type, size, spacing and page colour you like.
   Where you are, your highlights and bookmarks are saved for each reader. A

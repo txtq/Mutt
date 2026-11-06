@@ -8,7 +8,7 @@
 
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { openDialog, segmented, toast } from './ui.js';
+import { openDialog, openPopover, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
 import { EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
 
@@ -22,14 +22,15 @@ export const MARKERS = [
   { value: 'dot', label: '•', name: 'Dots' },
   { value: 'dash', label: '–', name: 'Dashes' },
   { value: 'arrow', label: '→', name: 'Arrows' },
-  { value: 'star', label: '✦', name: 'Stars' },
+  { value: 'star', label: '*', name: 'Asterisks' },
   { value: 'circle', label: '○', name: 'Circles' },
   { value: 'square', label: '▪', name: 'Squares' },
 ];
 export const LIMITS = [60, 120, 200, 400];
 export const LIST_DEFAULTS = { type: 'check', marker: 'dot', limit: 120, doneLast: true };
 
-const CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.6 8.6l2.9 2.9 5.9-6.6"/></svg>';
+// An inked tick, drawn like a pen stroke that runs past the box's corner.
+const CHECK_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.2 10.6c1.5 1.3 2.8 2.9 4 4.9C11.3 9.4 15.4 3.9 22.6-2.2"/></svg>';
 const moving = () => !reducedMotion();
 const NEAR = 0.8; // show what's left once an item is this far to its limit
 
@@ -87,7 +88,7 @@ const textOf = (block) => (block.kind === 'text' ? block.content || '' : block.t
 
 export class ListView {
   // editable: you can add, edit, tick, reorder and remove (your planet).
-  constructor({ drawer, blocks, editable, options = {}, onChange }) {
+  constructor({ drawer, blocks, editable, options = {}, onChange, onOptions }) {
     this.drawer = drawer;
     this.blocks = blocks.slice();
     this.editable = editable;
@@ -101,7 +102,11 @@ export class ListView {
     this.fill = h('i');
     this.bar = h('span', { class: 'lm-bar', 'aria-hidden': 'true' }, this.fill);
     this.clearBtn = editable ? h('button', { type: 'button', class: 'lm-clear', onclick: () => this.clearTicked() }, 'Clear ticked') : null;
-    this.head = h('div', { class: 'lm-head' }, this.countEl, this.bar, this.clearBtn);
+    this.optsBtn = editable && onOptions
+      ? h('button', { type: 'button', class: 'lm-opts', 'aria-label': 'List options', title: 'List options', 'aria-haspopup': 'dialog' }, h('i'), h('i'), h('i'))
+      : null;
+    this.optsBtn?.addEventListener('click', () => onOptions(this.optsBtn));
+    this.head = h('div', { class: 'lm-head' }, this.bar, this.countEl, h('span', { class: 'lm-gap' }), this.clearBtn, this.optsBtn);
     this.divider = h('li', { class: 'lm-divider', role: 'presentation' }, h('span', null, 'Ticked'));
 
     if (editable) {
@@ -117,7 +122,7 @@ export class ListView {
 
     this.off = [
       bus.on('upload:done', (item) => {
-        if (item.block && contextKey(item.ctx) === contextKey({ drawerId: this.drawer.id })) this.arrive(item.block, { first: true });
+        if (item.block && contextKey(item.ctx) === contextKey({ drawerId: this.drawer.id })) this.arrive(item.block);
       }),
       bus.on('block:changed', (b) => {
         const i = this.blocks.findIndex((x) => x.id === b.id);
@@ -127,7 +132,7 @@ export class ListView {
         if (li && !li.contains(document.activeElement)) this.replaceRow(b.id);
       }),
       bus.on('block:deleted', ({ id }) => this.forget(id)),
-      bus.on('block:connected', (e) => { if (e.drawerId === this.drawer.id && e.block) this.arrive(e.block, { first: true }); }),
+      bus.on('block:connected', (e) => { if (e.drawerId === this.drawer.id && e.block) this.arrive(e.block); }),
       bus.on('block:disconnected', (e) => { if (e.drawerId === this.drawer.id && e.block) this.forget(e.block.id); }),
     ];
   }
@@ -162,8 +167,8 @@ export class ListView {
   swapMarks() {
     if (!moving()) return;
     this.ol.querySelectorAll('.lm-mark').forEach((m, i) => m.animate(
-      [{ opacity: 0, transform: 'scale(0.4) rotate(-30deg)' }, { opacity: 1, transform: 'none' }],
-      { duration: 360, delay: Math.min(i, 12) * 18, easing: 'cubic-bezier(0.34, 1.4, 0.64, 1)', fill: 'backwards' }));
+      [{ opacity: 0 }, { opacity: 1 }],
+      { duration: 240, delay: Math.min(i, 12) * 14, easing: 'ease-out', fill: 'backwards' }));
   }
 
   // ------------------------------------------------------------ drawing
@@ -275,11 +280,8 @@ export class ListView {
     const total = this.blocks.length;
     const done = this.blocks.filter((b) => b.checked).length;
     if (this.ticking()) {
-      this.countEl.textContent = total ? `${done} of ${total} done` : 'Nothing on it yet';
+      this.countEl.textContent = total ? `${done} of ${total}` : 'Nothing on it yet';
       this.fill.style.transform = `scaleX(${total ? done / total : 0})`;
-      if (total && done === total && this.lastDone !== done && moving()) {
-        this.bar.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.6)' }, { filter: 'brightness(1)' }], { duration: 700, easing: 'ease-out' });
-      }
     } else {
       this.countEl.textContent = total ? plural(total, 'item') : 'Nothing on it yet';
     }
@@ -564,19 +566,11 @@ export class ListView {
     this.updateCount();
   }
 
-  arrive(block, { first = false } = {}) {
+  // Something added to the planet another way (a dropped file, say) joins
+  // the list at the bottom, like a typed item.
+  arrive(block) {
     if (this.find(block.id)) return;
-    const b = { ...block, checked: null };
-    if (first) {
-      this.blocks.unshift(b);
-      const li = this.row(b);
-      this.rows.set(b.id, li);
-      flip(this.ol, () => this.ol.prepend(li));
-      grow(li);
-    } else {
-      this.insertBlock(b, null);
-    }
-    this.updateCount();
+    this.insertBlock({ ...block, checked: null }, null);
   }
 
   forget(id) {
@@ -622,10 +616,6 @@ export class ListView {
     const box = li.querySelector('.lm-box');
     if (box) {
       box.setAttribute('aria-checked', String(!!block.checked));
-      if (block.checked && moving()) {
-        box.animate([{ transform: 'scale(0.82)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }],
-          { duration: 380, easing: 'cubic-bezier(0.34, 1.4, 0.64, 1)' });
-      }
     }
   }
 
@@ -829,7 +819,8 @@ export function listOffer({ signs, split, onAccept, onDecline }) {
 
 // ------------------------------------------------------------ options
 
-export function listSettings({ options, onChange, onTurnOff }) {
+// Next to the list's own ⋯ button when given one (anchor), else as a dialog.
+export function listSettings({ options, onChange, onTurnOff, anchor, onClose }) {
   let opts = { ...LIST_DEFAULTS, ...options };
   const preview = h('ol', { class: 'lm lm-preview', 'aria-hidden': 'true' });
   const samples = ['Oat milk', 'Call the plumber', 'A very long thing that keeps going and going'];
@@ -868,16 +859,20 @@ export function listSettings({ options, onChange, onTurnOff }) {
   const markerRow = h('div', { class: 'lm-set' }, h('p', { class: 'liv-label' }, 'Bullet marks'), marker.el);
   const doneRow = h('div', { class: 'lm-set' }, h('p', { class: 'liv-label' }, 'Ticked items'), done.el);
   const off = h('button', { type: 'button', class: 'vbtn vbtn-glass lm-off' }, 'Show as files again');
+  // Beside the list, the list itself shows each change; a dialog needs a sample.
   const body = h('div', { class: 'lm-settings' },
-    preview,
+    anchor ? null : preview,
     h('div', { class: 'lm-set' }, h('p', { class: 'liv-label' }, 'Kind of list'), type.el),
     markerRow, doneRow,
     h('div', { class: 'lm-set' }, h('p', { class: 'liv-label' }, 'Longest item'), limit.el,
       h('p', { class: 'lm-hint' }, 'Characters per item. Longer items you already have stay as they are.')),
     off);
   paint();
-  const dialog = openDialog({ title: 'List', body, className: 'dialog-list' });
-  off.addEventListener('click', () => { dialog.close(); onTurnOff(); });
-  return dialog;
+  const panel = anchor
+    ? openPopover(anchor, h('div', null, h('p', { class: 'lm-pop-title' }, 'List options'), body),
+      { align: 'end', className: 'pop-list', width: 360, onClose })
+    : openDialog({ title: 'List', body, className: 'dialog-list', onClose });
+  off.addEventListener('click', () => { panel.close(); onTurnOff(); });
+  return panel;
 }
 

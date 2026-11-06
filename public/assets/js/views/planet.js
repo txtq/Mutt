@@ -1,13 +1,14 @@
 // A planet up close: a slim header (the world, its name and note, who can
 // see it) and then what matters, everything on it. The arrow in the corner
-// takes you back to your galaxy.
+// takes you back to the galaxy it belongs to (yours, or its owner's).
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
+import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonEl, moonLookOf, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { PALETTE, autosize, bus, h, plural, timeAgo, wait } from '../util.js';
+import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
@@ -81,6 +82,9 @@ function lockedPlanet(id, data) {
     tint: tintOf(drawer),
     who: { username: data.owner, you: false },
     home: true,
+    // Back to the galaxy it belongs to, and from there out to the universe.
+    homeLabel: `@${data.owner}’s galaxy`,
+    goHome: () => nav.go(`/g/${encodeURIComponent(data.owner)}`),
     mounted: () => setTimeout(() => field.focus(), 200),
   };
 }
@@ -293,7 +297,7 @@ export const planetView = {
           drawer = { ...drawer, moons: [...(drawer.moons || []), { id: m.id, title: m.title, look: m.look, count: 0, visibility: m.visibility, locked: false }] };
           inst.drawer = drawer;
           renderMoons({ born: m.id });
-          setMeta(collection.blocks.length);
+          setMeta(view().blocks.length);
           bus.emit('drawer:changed', drawer);
         } catch (err) {
           toast(err.message);
@@ -432,6 +436,10 @@ export const planetView = {
       '-',
       { label: 'Delete moon…', danger: true, run: remove },
     ] : [
+      // List mode shows up here only once the planet has earned it.
+      listView ? { label: 'List options…', run: () => listOptions() } : null,
+      !listView && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
+      listView || listFits ? '-' : null,
       { label: 'Planet type…', run: pickLook },
       { label: 'Planet colour…', run: pickColor },
       (drawer.moons || []).length < 4 ? { label: 'Add a moon…', run: addMoon } : null,
@@ -451,8 +459,15 @@ export const planetView = {
         onMoved: () => { el.moon.count = (el.moon.count || 0) + 1; },
       }));
     };
-    const collection = new Collection({
-      blocks: data.blocks,
+    const changed = (blocks) => {
+      drawer.updatedAt = Date.now();
+      drawer.count = blocks.length;
+      setMeta(blocks.length);
+      world.update({ ...drawer, count: blocks.length, previews: blocks.slice(0, 12) });
+      if (session.stats) session.stats.files = Math.max(session.stats.files, blocks.length);
+    };
+    const makeCollection = (blocks) => new Collection({
+      blocks,
       drawer,
       targets,
       entry: !isMoon && (mine || community),
@@ -460,14 +475,105 @@ export const planetView = {
       readOnly: !mine && !community,
       moderate: mine && community,
       empty: isMoon ? (mine ? 'Nothing here yet. Drag files onto this moon from its planet.' : 'Nothing on this moon yet.') : mine ? null : 'Nothing on this planet yet.',
-      onChange: (blocks) => {
-        drawer.updatedAt = Date.now();
-        drawer.count = blocks.length;
-        setMeta(blocks.length);
-        world.update({ ...drawer, count: blocks.length, previews: blocks.slice(0, 12) });
-        if (session.stats) session.stats.files = Math.max(session.stats.files, blocks.length);
-      },
+      onChange: changed,
     });
+    const makeListView = (blocks) => new ListView({
+      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions,
+    });
+
+    // ------------------------------------------------------------ list mode
+
+    let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
+    let collection = listView ? null : makeCollection(data.blocks);
+    let listFits = false;
+    let offer = null;
+    const view = () => listView || collection;
+    const body = h('div', { class: 'liv-body' }, view().el);
+
+    // Swap what the page shows, with a soft cross-fade.
+    async function swapTo(next) {
+      const old = view();
+      const outgoing = old.el;
+      if (!reducedMotion()) {
+        await outgoing.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px)' }],
+          { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+      }
+      old.destroy();
+      listView = next instanceof ListView ? next : null;
+      collection = next instanceof ListView ? null : next;
+      outgoing.replaceWith(next.el);
+      if (!reducedMotion() && !listView) {
+        next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+      }
+    }
+
+    async function saveList(patch) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { list: patch } }));
+        inst.drawer = drawer;
+        if (listView) listView.drawer = drawer;
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    async function makeList() {
+      try {
+        const res = await api.post(`/api/drawers/${id}/listify`, {});
+        ({ drawer } = res);
+        inst.drawer = drawer;
+        offer?.remove();
+        offer = null;
+        await swapTo(makeListView(res.blocks));
+        changed(res.blocks);
+        toast(res.split ? `Now a list. ${plural(res.split, 'note')} became one item per line.` : 'Now a list');
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    // From the list's own ⋯ button (anchor), or the planet's ••• menu.
+    let listPanel = null;
+    function listOptions(anchor) {
+      if (listPanel) { listPanel.close(); listPanel = null; if (anchor) return; }
+      anchor?.setAttribute('aria-expanded', 'true');
+      listPanel = listSettings({
+        anchor,
+        onClose: () => { listPanel = null; },
+        options: drawer.modes?.list,
+        onChange: (patch) => { listView?.setOptions(patch); saveList(patch); },
+        onTurnOff: async () => {
+          if (!(await saveList({ on: false, dismissed: true }))) return;
+          const blocks = listView.blocks.filter((b) => !String(b.id).startsWith('tmp-'));
+          await swapTo(makeCollection(blocks));
+          toast('Showing it as files again', {
+            action: { label: 'Undo', run: async () => { if (await saveList({ on: true })) swapTo(makeListView(blocks)); } },
+          });
+        },
+      });
+    }
+
+    // Is it being used as a list? Ask once the page is up, and offer it once.
+    async function lookForList() {
+      if (!mine || listView || isMoon) return;
+      try {
+        const { list } = await api.get(`/api/drawers/${id}/modes`);
+        listFits = !!list?.fits;
+        if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
+        offer = listOffer({
+          signs: list.signs,
+          split: list.split,
+          onAccept: makeList,
+          onDecline: () => { offer = null; saveList({ dismissed: true }); },
+        });
+        body.prepend(offer);
+      } catch { /* no offer, then */ }
+    }
+
     // Previews for the big planet's surface come from what's here.
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
@@ -480,7 +586,7 @@ export const planetView = {
             : mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
           title, desc, meta),
         mine ? h('div', { class: 'liv-tools' }, shareBtn, moreBtn) : null),
-      h('div', { class: 'liv-body' }, collection.el));
+      body);
 
     const inst = {
       el,
@@ -490,10 +596,15 @@ export const planetView = {
       tint: tintOf(drawer),
       who: { username: mine ? session.user.username : drawer.owner, you: mine },
       home: true,
-      list: () => collection.list(),
-      dropTarget: () => (isMoon ? null : collection.dropTarget()),
-      pasteText: (text) => { if (!isMoon) collection.pasteText(text); },
-      destroy: () => { sharePop?.close(); collection.destroy(); },
+      // Someone else's planet goes back to their galaxy first; from there the
+      // arrow pulls out to the universe.
+      homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
+      goHome: () => nav.go(home),
+      list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : collection.list()),
+      dropTarget: () => (isMoon ? null : view().dropTarget()),
+      pasteText: (text) => { if (!isMoon) view().pasteText(text); },
+      mounted: () => setTimeout(lookForList, 700),
+      destroy: () => { sharePop?.close(); listPanel?.close(); view().destroy(); },
     };
     return inst;
   },

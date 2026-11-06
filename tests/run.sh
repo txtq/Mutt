@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.." || exit 1
 SUITES=("$@"); [ ${#SUITES[@]} -eq 0 ] && SUITES=(smoke galaxy preview lockout search autosort moons)
 for N in "${SUITES[@]}"; do
   WORK=$(mktemp -d)
-  MUTT_TRUST_PROXY=1 MUTT_DATA_DIR="$WORK/data" PORT=8099 python3 server.py > "$WORK/server.log" 2>&1 &
+  MUTT_SEE=0 MUTT_TRUST_PROXY=1 MUTT_DATA_DIR="$WORK/data" PORT=8099 python3 server.py > "$WORK/server.log" 2>&1 &
   PID=$!
   for i in $(seq 1 30); do curl -s -o /dev/null localhost:8099/api/health && break; sleep 0.2; done
   echo "== $N"

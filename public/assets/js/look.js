@@ -160,6 +160,16 @@ function loadImage(src) {
   });
 }
 
+// The look of a picture that's only in memory so far (during upload).
+export async function lookOfBlob(blob) {
+  const url = URL.createObjectURL(blob);
+  try {
+    return measure(await loadImage(url));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 const inFlight = new Map();
 
 // Measure (and save) any files that don't have a look yet.

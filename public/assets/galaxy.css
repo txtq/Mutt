@@ -1748,3 +1748,252 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 @media (prefers-reduced-motion: reduce) {
   .sky-ribbon, .sky-nebula, .gx-cue .glyph { animation: none !important; }
 }
+
+/* ---------------------------------------------------------------- list mode
+   A planet used as a list. The pane is the same glass and width as the
+   planet's header above it; each item is its own solid, softly lit row, like
+   the Vita's menus. Ticks are inked in the planet's colour. */
+.lm {
+  --lm-mark: color-mix(in srgb, var(--pt, #9fb6f0) 75%, #fff);
+  --lm-row: rgba(205, 218, 255, 0.055);
+  --lm-row-hover: rgba(205, 218, 255, 0.085);
+  --lm-row-lit: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 1px 0 rgba(0, 0, 20, 0.28);
+  position: relative;
+  margin: 0 0 40px 56px;
+  padding: 0 0 14px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+}
+.lm.is-dragging { user-select: none; -webkit-user-select: none; }
+
+/* top: how much is done, and the list's own options */
+.lm-head { position: relative; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 10px 12px 6px 20px; }
+.lm-count { flex: none; font-size: 14px; font-weight: 500; line-height: 1; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.lm-gap { flex: 1; }
+/* a thin flat line along the pane's top edge, filled in the planet's colour */
+.lm-bar { position: absolute; top: -1px; left: 18px; right: 18px; height: 2px; overflow: hidden; border-radius: 0 0 2px 2px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.lm-bar i { display: block; height: 100%; background: var(--lm-mark); transform: scaleX(0); transform-origin: left; transition: transform 0.6s var(--ease); }
+.lm-clear { flex: none; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13.5px; color: var(--ink-3); transition: color 0.2s, background 0.2s; }
+.lm-clear:hover { color: var(--ink); background: var(--tint); }
+.lm-opts { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 3px; width: 36px; height: 32px; border-radius: 999px; color: var(--ink-2); transition: color 0.2s, background 0.2s; }
+.lm-opts i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.lm-opts:hover, .lm-opts[aria-expanded="true"] { color: var(--ink); background: var(--tint-2); }
+
+/* the rows */
+.lm-items, .lm-preview { counter-reset: lm; }
+.lm-items { display: grid; gap: 6px; margin: 0; padding: 0 14px; list-style: none; }
+.lm-item { position: relative; counter-increment: lm; list-style: none; transition: opacity 0.3s; }
+.lm-item.is-pending { opacity: 0.6; }
+.lm-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 50px;
+  padding: 13px 10px 13px 8px;
+  border-radius: 12px;
+  background: var(--lm-row);
+  box-shadow: var(--lm-row-lit);
+  transition: background 0.2s, box-shadow 0.25s;
+}
+.lm-item:hover .lm-row { background: var(--lm-row-hover); }
+.lm-item:focus-within .lm-row { background: var(--lm-row-hover); box-shadow: var(--lm-row-lit), 0 0 0 1px var(--line-2); }
+.lm-item.is-done .lm-row { background: rgba(205, 218, 255, 0.025); box-shadow: none; }
+.lm-item.is-lifted { z-index: 3; }
+.lm-item.is-lifted .lm-row {
+  background: rgba(205, 218, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px var(--glass-edge), 0 20px 40px -16px rgba(0, 0, 20, 0.85);
+}
+
+/* the grip: six faint dots, there when you reach for the row */
+.lm-grip {
+  flex: none;
+  width: 10px;
+  height: 24px;
+  margin-right: -4px;
+  border-radius: 4px;
+  background: radial-gradient(circle, var(--ink-3) 1.1px, transparent 1.5px) center / 5px 5px;
+  background-clip: content-box;
+  padding: 4px 0;
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity 0.2s;
+}
+.lm-item:hover .lm-grip, .lm-item:focus-within .lm-grip { opacity: 0.8; }
+.lm-item.is-lifted .lm-grip { opacity: 1; cursor: grabbing; }
+
+/* marks */
+.lm-mark { position: relative; flex: none; display: grid; place-items: center; width: 24px; height: 24px; color: var(--lm-mark); }
+.lm-mark::before { content: ''; display: block; }
+.lm[data-type="bullet"][data-marker="dot"] .lm-mark::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.lm[data-type="bullet"][data-marker="dash"] .lm-mark::before { width: 11px; height: 2px; border-radius: 2px; background: currentColor; }
+.lm[data-type="bullet"][data-marker="circle"] .lm-mark::before { width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+.lm[data-type="bullet"][data-marker="square"] .lm-mark::before { width: 7px; height: 7px; border-radius: 1px; background: currentColor; }
+.lm[data-type="bullet"][data-marker="arrow"] .lm-mark::before { content: '→'; font: 500 16px/1 var(--sans); }
+.lm[data-type="bullet"][data-marker="star"] .lm-mark::before { content: '*'; font: 600 20px/1 var(--sans); transform: translateY(4px); }
+.lm[data-type="number"] .lm-mark { width: auto; min-width: 24px; justify-content: end; }
+.lm[data-type="number"] .lm-mark::before { content: counter(lm) '.'; font: 500 16px/24px var(--sans); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.lm[data-type="plain"] .lm-mark { width: 0; margin-right: -12px; }
+
+/* the tick box: a plain square, ticked with a pen stroke that runs past it */
+.lm-box {
+  width: 20px;
+  height: 20px;
+  margin: 2px;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 42%, transparent);
+  border-radius: 3px;
+  background: rgba(0, 0, 20, 0.2);
+  color: var(--lm-mark);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.lm-box::before { display: none; }
+.lm-box:hover { border-color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.lm-box:disabled { cursor: default; }
+.lm-box svg { position: absolute; top: -1.5px; left: -1.5px; width: 20px; height: 20px; overflow: visible; pointer-events: none; }
+.lm-box path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 32; stroke-dashoffset: 32; transition: stroke-dashoffset 0.32s cubic-bezier(0.45, 0, 0.25, 1); }
+.lm-box[aria-checked="true"] { border-color: color-mix(in srgb, var(--lm-mark) 55%, transparent); }
+.lm-box[aria-checked="true"] path { stroke-dashoffset: 0; }
+
+/* the words */
+.lm-edit { display: flex; align-items: flex-end; flex: 1; min-width: 0; gap: 8px; }
+.lm-text, .lm-input {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font: 400 17px/24px var(--sans);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-decoration: line-through transparent 1.5px;
+  transition: color 0.35s, text-decoration-color 0.35s;
+}
+.lm-text.is-static { white-space: pre-wrap; }
+.lm-item.is-done .lm-text { color: var(--ink-3); text-decoration-color: color-mix(in srgb, var(--ink-3) 85%, transparent); }
+.lm-input::placeholder { color: var(--ink-3); }
+.lm-left { flex: none; min-width: 0; font-size: 12.5px; line-height: 24px; color: var(--ink-4); font-variant-numeric: tabular-nums; transition: color 0.2s; }
+.lm-left.is-near { color: var(--ink-3); }
+.lm-left.is-full { color: var(--danger); }
+
+/* other files on the list: their picture and name */
+.lm-file { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; margin: -6px 0; text-align: left; }
+.lm-thumb { flex: none; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; box-shadow: 0 0 0 1px var(--card-edge); }
+.lm-kind { display: grid; place-items: center; background: rgba(0, 0, 20, 0.25); font-size: 10px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-3); }
+.lm-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; color: var(--ink); transition: color 0.35s; }
+.lm-file-sub { flex: none; font-size: 13px; color: var(--ink-3); }
+.lm-file:hover .lm-file-name { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.lm-item.is-done .lm-file-name { color: var(--ink-3); text-decoration: line-through; }
+
+/* remove */
+.lm-x { position: relative; flex: none; width: 28px; height: 24px; border-radius: 999px; color: var(--ink-3); opacity: 0; transition: opacity 0.2s, color 0.2s, background 0.2s; }
+.lm-x::before, .lm-x::after { content: ''; position: absolute; top: 50%; left: 50%; width: 11px; height: 1.5px; border-radius: 2px; background: currentColor; transform: translate(-50%, -50%) rotate(45deg); }
+.lm-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.lm-item:hover .lm-x, .lm-item:focus-within .lm-x { opacity: 1; }
+.lm-x:hover { color: var(--ink); background: var(--tint-2); }
+
+/* the line between what's left and what's ticked */
+.lm-divider { display: flex; align-items: center; gap: 12px; padding: 14px 6px 2px; list-style: none; font-size: 13.5px; font-weight: 500; color: var(--ink-3); }
+.lm-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* add an item: an empty row waiting to be typed into */
+.lm-new {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 6px 14px 0;
+  padding: 13px 10px 13px 20px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background 0.2s, box-shadow 0.25s;
+}
+.lm-new:hover { box-shadow: inset 0 0 0 1px var(--line-2); }
+.lm-new:focus-within { background: var(--lm-row-hover); box-shadow: var(--lm-row-lit), 0 0 0 1px var(--line-2); }
+.lm-plus { position: relative; flex: none; width: 24px; height: 24px; color: var(--ink-3); transition: color 0.2s; }
+.lm-plus::before, .lm-plus::after { content: ''; position: absolute; top: 50%; left: 50%; width: 12px; height: 1.5px; border-radius: 2px; background: currentColor; transform: translate(-50%, -50%); }
+.lm-plus::after { transform: translate(-50%, -50%) rotate(90deg); }
+.lm-new:focus-within .lm-plus { color: var(--lm-mark); }
+
+/* the offer, said once in place */
+.lm-offer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 22px 56px;
+  padding: 16px 18px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+}
+.lm-offer-icon { display: grid; align-content: center; gap: 5px; width: 40px; height: 40px; padding: 0 9px; border-radius: 11px; background: var(--well); box-shadow: var(--well-shadow); align-self: start; }
+.lm-offer-icon i { position: relative; display: block; height: 2px; margin-left: 7px; border-radius: 2px; background: var(--ink-3); }
+.lm-offer-icon i::before { content: ''; position: absolute; left: -7px; top: -1.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--lm-mark, #b9c8f0); }
+.lm-offer-icon i:nth-child(2) { margin-right: 4px; }
+.lm-offer-icon i:nth-child(3) { margin-right: 8px; }
+.lm-offer { --lm-mark: color-mix(in srgb, var(--pt, #9fb6f0) 75%, #fff); }
+.lm-offer-title { font-size: 15.5px; font-weight: 600; }
+.lm-offer-signs { margin: 6px 0 0; padding: 0; list-style: none; }
+.lm-offer-signs li { position: relative; padding-left: 13px; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.lm-offer-signs li::before { content: ''; position: absolute; left: 1px; top: 0.66em; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-4); }
+.lm-offer-note { margin-top: 6px; font-size: 13px; color: var(--ink-3); }
+.lm-offer-btns { display: flex; gap: 8px; }
+
+/* list options: beside the list (from its ⋯), or as a dialog from the planet's ••• */
+.pop-list { padding: 18px; }
+.lm-pop-title { margin-bottom: 16px; font-size: 15px; font-weight: 600; }
+.dialog-list { width: min(460px, 100%); }
+.lm-settings { display: grid; gap: 18px; margin-top: 4px; }
+.lm-settings .liv-label { margin-bottom: 8px; font: 500 13px/1.2 var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+.lm-preview { margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+.lm-preview .lm-item { list-style: none; }
+.lm-preview .lm-item + .lm-item { margin-top: 4px; }
+.lm-preview .lm-row { min-height: 0; padding: 8px 10px 8px 8px; }
+.lm-preview .lm-text { font-size: 15px; }
+.lm-seg { display: flex; }
+.lm-seg .seg-btn { flex: 1; justify-content: center; padding: 0 6px; }
+.lm-swatch { display: grid; place-items: center; width: 14px; height: 14px; font-style: normal; }
+.lm-swatch::before { content: ''; display: block; }
+.lm-swatch[data-marker="dot"]::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.lm-swatch[data-marker="dash"]::before { width: 10px; height: 2px; border-radius: 2px; background: currentColor; }
+.lm-swatch[data-marker="circle"]::before { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+.lm-swatch[data-marker="square"]::before { width: 6px; height: 6px; border-radius: 1px; background: currentColor; }
+.lm-swatch[data-marker="arrow"]::before { content: '→'; font: 500 14px/1 var(--sans); }
+.lm-swatch[data-marker="star"]::before { content: '*'; font: 600 17px/1 var(--sans); transform: translateY(3px); }
+.lm-seg-marks .seg-btn { font-size: 15px; }
+.lm-set[hidden] { display: none; }
+.lm-hint { margin-top: 8px; font-size: 12.5px; color: var(--ink-3); }
+.lm-off { justify-self: start; }
+
+@media (hover: none) {
+  .lm-grip { opacity: 0.45; }
+  .lm-x { opacity: 0.6; }
+}
+@media (pointer: coarse) {
+  .lm-box::after { content: ''; position: absolute; inset: -12px -10px; }
+  .lm-x { width: 36px; height: 32px; margin: -4px -6px -4px 0; }
+  .lm-grip { width: 16px; background-size: 6px 6px; }
+  .lm-opts { width: 44px; height: 40px; }
+  .lm-clear { height: 40px; }
+}
+@media (max-width: 720px) {
+  .lm, .lm-offer { margin-left: 0; }
+  .lm-head { padding-left: 16px; }
+  .lm-offer { grid-template-columns: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px; }
+  .lm-offer-btns { grid-column: 1 / -1; justify-content: flex-end; }
+  .lm-items { padding: 0 8px; }
+  .lm-new { margin: 6px 8px 0; padding-left: 14px; }
+}

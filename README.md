@@ -67,9 +67,41 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   called and what that means (a planet called "Food" wants recipes, "Japan
   trip" wants Osaka); the files already on it (their words, kinds, websites
   and colours, so moving a wrong guess teaches it); and how a note is written
-  (a checklist, a quote, a poem, a recipe, code, a diary). If nothing fits
-  well, a new planet is born, named after what the file is about ("Quotes",
-  "To do") or, failing that, its kind (Notes, Images...).
+  (a checklist, a quote, a poem, a story, a dated diary entry, a workout log,
+  a recipe, code). A planet's name is read in the light of its files: "Bass"
+  full of guitar tabs doesn't get a sea bass recipe, and a poem doesn't land
+  on a planet of diary entries. If nothing fits well, a new planet is born,
+  named after what the file is about ("Quotes", "To do") or, failing that, its
+  kind (Notes, Images...). The words it knows live in `mutt/lexicon.py`.
+- **Pictures, videos, music and documents** sort by what they are, not just
+  their names:
+  - **What a picture shows** is read on your own device. When you add a
+    picture (or video), the browser runs a small picture model (OpenAI's
+    CLIP ViT-B/32, MIT licence, through onnxruntime-web, MIT) and keeps only
+    512 numbers with the file; the picture itself never goes anywhere. The
+    server compares those numbers with descriptions of kinds of picture
+    (photo, painting, linocut, map, receipt, screenshot...) and subjects
+    (climbing, a dog, pottery, a wedding...) in `mutt/sights.json`, and with
+    the pictures already on each planet, so a sculpture photo doesn't join a
+    planet of prints. Older pictures are read a few at a time when the
+    browser is idle (not on mobile data or data saver). The model (64 MB) is
+    fetched once by the server from Hugging Face, checked, and served from
+    Mutt at `/api/see/model`; browsers keep their own copy after the first
+    time.
+  - **Details inside files** are read on the server (`mutt/media.py`): the
+    camera and when and where a photo was taken, song tags (artist, album,
+    genre), and what a PDF or document is (an invoice, a payslip, a
+    booking...). Photos from the same time and place go together (the same
+    trip), and songs go by artist and genre. Others who can see a file never
+    see where or when it was taken, its camera, or its picture reading.
+- **What a planet is for**: Mutt reads each planet from its name, note and
+  files: what it's about (a topic like Music, and a finer one like
+  instruments), what it's used for (collecting, making, planning, tasks,
+  logging, learning, keeping or wanting), its kinds of file, how its notes
+  are written, the words that are its own, and what its files are and show
+  (prints, photos of climbing, jazz songs, payslips, the cameras used). Nothing shows it yet; it's
+  there for features that appear when a planet needs them, and owners can
+  read it at `GET /api/drawers/<id>/purpose`.
 - **Who can see a planet**: Private (only you), Code (anyone who has your
   4-digit code, the default), People (the usernames you list) or Public
   (everyone signed in). A public planet can also let others add files.
@@ -131,6 +163,8 @@ Mutt and copy a backup over `mutt.db` (and delete `mutt.db-wal` and `mutt.db-shm
 | `MUTT_TRUST_PROXY` | off (on in the Docker image) | Trust the hosting proxy's headers, so cookies are marked Secure and client IPs are read correctly. Only turn on behind a proxy. |
 | `MUTT_SECRET` | from `data/secret.key` | Extra secret mixed into PIN hashes. Set it if your data folder isn't private. |
 | `MUTT_BACKUPS` | `1` | Set to `0` to stop the nightly database copies in `data/backups/`. |
+| `MUTT_SEE` | `1` | Set to `0` to turn off reading what pictures show (the server won't fetch the picture model, and pictures sort by their other details). |
+| `MUTT_SEE_MODEL` | none | A local copy of the picture model to use instead of downloading it (for offline or test servers). |
 
 ## Put it online
 
@@ -186,12 +220,14 @@ over if someone guessed right.
 
 ```
 server.py            starts the server
-mutt/                Python: app, api, auth, db, links (link previews), kinds (bundles)
+mutt/                Python: app, api, auth, db, links (link previews), kinds (bundles),
+                     sorting + lexicon (autosort), media (file details), sight (picture readings)
 public/index.html    the single page
 public/assets/       mutt.css + galaxy.css, and js/ (galaxy, planets, the void, sky, viewer…)
-tests/               API test suites: tests/run.sh [smoke|galaxy|preview|lockout]
+tests/               API test suites: tests/run.sh [smoke|galaxy|preview|lockout|search|autosort]
 ```
 
-Previews (image thumbnails, video posters, PDF first pages) are made in the
-browser during upload, so the server never decodes media. PDF previews load
-pdf.js from cdnjs; fonts come from Google Fonts (Red Hat Text and Red Hat Mono).
+Previews (image thumbnails, video posters, PDF first pages) and picture
+readings are made in the browser during upload, so the server never decodes
+media (it only reads file headers for details). PDF previews load
+pdf.js from cdnjs, and the picture reader loads onnxruntime-web from cdnjs; fonts come from Google Fonts (Red Hat Text and Red Hat Mono).

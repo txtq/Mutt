@@ -27,6 +27,9 @@ let startOut = false;
 // Set when the camera dived in from the universe, so the page doesn't play
 // its entrance on top.
 let arriving = false;
+// Your galaxy and the universe, already fetched, for when someone else's
+// page hands the universe over to yours (see toMine()).
+let handoff = null;
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const smooth = (t) => t * t * (3 - 2 * t);
@@ -375,8 +378,8 @@ function blurCopy(el, voidPic) {
   return canvas;
 }
 
-// Where every galaxy sits on the map, round the one whose page this is
-// (`home`), and how far the camera pulls back to fit them all on screen.
+// Where every galaxy sits on the map, round yours (`home`), and how far the
+// camera pulls back to fit them all on screen.
 function universeLayout(plans, home, width, viewH) {
   // Names stay one size however far out, so the spacing keeps room for
   // them at the scale the map is drawn at: look for the largest scale at
@@ -1188,7 +1191,10 @@ class Galaxy {
     const here = this.uvEls[this.homeAt];
     Object.assign(here.plan, home);
     Object.assign(here.style, { left: `${-home.ex}px`, top: `${-home.ey}px`, width: `${home.ex * 2}px`, height: `${home.ey * 2}px` });
-    const { spots, k, mid } = universeLayout(plans, this.homeAt, width, viewH);
+    // The map is always laid out round you, whoever's page this is, so it's
+    // the same map wherever you zoom out from.
+    const you = this.list.findIndex((g) => g.you);
+    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH);
     const { height, cx, cy } = this.size;
     // Everything zooms about one point, F, chosen so that at the end the map
     // sits fitted on screen: a map point P ends at mid + k·P. At the start
@@ -1241,7 +1247,7 @@ class Galaxy {
       const W = width * M;
       const H = viewH * M;
       const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
-      paintWeb(this.web, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), this.owner);
+      paintWeb(this.web, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner);
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
     }
   }
@@ -1319,8 +1325,13 @@ class Galaxy {
       this.out = out;
       this.el.classList.toggle('is-out', out);
       if (out && !isEditable(document.activeElement)) this.hole?.close();
+      if (out && !this.mine && this.live) this.mineData = api.get('/api/galaxy').catch(() => null);
+      // Back in from the universe, you're home: say so, so a refresh or
+      // coming back to this page doesn't open it zoomed out again.
+      if (!out && this.mine && this.live && location.pathname === '/universe') nav.rename('/');
       bus.emit('universe', out);
     }
+    if (p === 1 && !this.mine && this.live) this.toMine();
     // Once it starts to zoom, the planets and the black hole hold still
     // (keeping their picture), so each frame only moves finished layers.
     const moving = p > 0.01;
@@ -1366,8 +1377,26 @@ class Galaxy {
     scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }
 
-  // The corner arrow on someone else's galaxy: first the camera pulls back
-  // into the universe round them, then from there it flies you home.
+  // Out in the universe from someone else's galaxy, the page quietly becomes
+  // yours, scrolled all the way out, so zooming back in always lands home.
+  // The map is the same on both, so nothing moves when it swaps.
+  async toMine() {
+    if (this.swapping || this.diving) return;
+    this.swapping = true;
+    const data = await (this.mineData ||= api.get('/api/galaxy').catch(() => null));
+    if (!data || !this.el.isConnected || this.p < 1 || this.diving) {
+      // Not ready, or you've started back in: try again next time out.
+      if (!data) this.mineData = null;
+      this.swapping = false;
+      return;
+    }
+    handoff = { data, list: this.list };
+    nav.go('/universe', { replace: true, motion: 'none' });
+  }
+
+  // The corner arrow on someone else's galaxy: the camera pulls back into
+  // the universe, where the page becomes yours (toMine()). Pressed again
+  // before that, it flies you home.
   async back() {
     if (this.p < 0.5) { this.goOut(); return; }
     if (!this.uvLoading) this.loadUniverse();
@@ -1454,7 +1483,12 @@ class Galaxy {
           if (this.p > 0.02 || !this.el.isConnected) return null;
           return { ...this.void.center(), r: this.void.radius() };
         });
-        if (startOut) { startOut = false; requestAnimationFrame(() => this.goOut(true)); }
+        // Straight out, before anything is drawn, so a handover from
+        // someone else's universe doesn't flash your galaxy up close.
+        if (startOut) { startOut = false; this.goOut(true); this.track(true); }
+        // Only now does the scroll say where you are on this page (before,
+        // it was the old page's, then the top while it was put in place).
+        this.live = true;
         if (arriving) {
           // The planets' names come in gently after the camera's dive.
           this.el.classList.add('is-far');
@@ -1475,6 +1509,7 @@ class Galaxy {
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
         this.diving = false;
+        this.live = false;
         theSky()?.setLens(null);
         this.void.destroy();
         theSky()?.setNight(0);
@@ -1517,7 +1552,11 @@ export const galaxyView = {
 
 // The universe is your galaxy, scrolled all the way out.
 export const universeView = {
-  load: () => loadGalaxy(null, true),
+  load: () => {
+    const ready = handoff;
+    handoff = null;
+    return ready || loadGalaxy(null, true);
+  },
   create(params, loaded) {
     startOut = true;
     return galaxyView.create([], loaded);

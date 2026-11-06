@@ -11,7 +11,7 @@ import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, db, kinds, links, sorting
+from . import auth, db, kinds, links, media, sight, sorting
 from .web import HttpError, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
@@ -91,12 +91,68 @@ def drawer_json(row, count=None, previews=None):
         'x': row['x'] if 'x' in row.keys() else None,
         'y': row['y'] if 'y' in row.keys() else None,
         'parentId': row['parent_id'] if 'parent_id' in row.keys() else None,
+        'modes': drawer_modes(row),
     }
     if count is not None:
         data['count'] = count
     if previews is not None:
         data['previews'] = previews
     return data
+
+
+def public_meta(raw, mine):
+    """A file's details as the browser gets them: a picture's reading is only
+    marked as done (its numbers stay on the server), and where and when a
+    photo was taken is only shown to its owner."""
+    meta = json.loads(raw or '{}')
+    see = meta.get('see')
+    if isinstance(see, dict):
+        if mine:
+            meta['see'] = {'v': see.get('v')}
+        else:
+            meta.pop('see')
+    if not mine and isinstance(meta.get('media'), dict):
+        meta['media'] = {k: v for k, v in meta['media'].items() if k not in ('gps', 'location', 'taken', 'camera')}
+    return meta
+
+
+def drawer_modes(row):
+    try:
+        return json.loads(row['modes'] or '{}') if 'modes' in row.keys() else {}
+    except ValueError:
+        return {}
+
+
+# List mode's options: how items are marked, and how long one can be.
+LIST_TYPES = ('check', 'bullet', 'number', 'plain')
+LIST_MARKERS = ('dot', 'dash', 'arrow', 'star', 'circle', 'square')
+LIST_LIMITS = (60, 120, 200, 400)
+LIST_DEFAULTS = {'on': False, 'type': 'check', 'marker': 'dot', 'limit': 120, 'doneLast': True, 'dismissed': False}
+
+
+def clean_modes(value, current):
+    """Check the modes a planet's owner is setting; returns the whole new value."""
+    if not isinstance(value, dict):
+        raise HttpError(400, 'Those settings could not be saved.')
+    modes = dict(current)
+    if 'list' in value:
+        given = value['list']
+        if not isinstance(given, dict):
+            raise HttpError(400, 'Those list settings could not be saved.')
+        merged = {**LIST_DEFAULTS, **(modes.get('list') or {})}
+        for key, v in given.items():
+            if key in ('on', 'doneLast', 'dismissed') and isinstance(v, bool):
+                merged[key] = v
+            elif key == 'type' and v in LIST_TYPES:
+                merged[key] = v
+            elif key == 'marker' and v in LIST_MARKERS:
+                merged[key] = v
+            elif key == 'limit' and v in LIST_LIMITS:
+                merged[key] = v
+            else:
+                raise HttpError(400, 'Those list settings could not be saved.')
+        modes['list'] = merged
+    return modes
 
 
 def block_json(row, mine=True, owner=None):
@@ -120,7 +176,7 @@ def block_json(row, mine=True, owner=None):
         'width': row['width'],
         'height': row['height'],
         'duration': row['duration'],
-        'meta': json.loads(row['meta'] or '{}'),
+        'meta': public_meta(row['meta'], mine),
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
         'mine': mine,
@@ -128,6 +184,8 @@ def block_json(row, mine=True, owner=None):
     }
     if owner:
         data['owner'] = owner
+    if 'checked' in keys:
+        data['checked'] = ms(row['checked']) if row['checked'] else None
     if 'conn_count' in keys:
         data['connectionCount'] = row['conn_count']
     return data
@@ -167,6 +225,15 @@ def clean_icon(value):
 LOOK_COLORS = {'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'brown', 'black', 'white', 'grey'}
 LOOK_TAGS = {'bright', 'dark', 'warm', 'cool', 'vivid', 'muted', 'soft', 'mono', 'contrast', 'busy', 'minimal',
              'tall', 'wide', 'square'}
+
+
+def clean_see(value):
+    """What the browser's picture reader made of a picture: 512 numbers, base64."""
+    if not isinstance(value, dict) or value.get('v') != sight.VERSION or not isinstance(value.get('e'), str):
+        raise HttpError(400, 'That picture reading is not one Mutt understands.')
+    if len(value['e']) > 1000 or sight.unpack(value['e']) is None:
+        raise HttpError(400, 'That picture reading is not one Mutt understands.')
+    return sight.remember({'v': sight.VERSION, 'e': value['e']})
 
 
 def clean_look(value):
@@ -286,13 +353,38 @@ def block_connections(req, block_id):
     return [drawer_json(r) for r in rows if drawer_visible(req, r)]
 
 
+def is_list(conn, drawer_id):
+    row = conn.execute('SELECT modes FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    return bool(row and (drawer_modes(row).get('list') or {}).get('on'))
+
+
 def connect(conn, block_id, drawer_id, position=None):
     if position is None:
-        low = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
-        position = low - 1 if low is not None else 0
+        # A planet shows its newest file first; a list reads top to bottom, so
+        # new things join it at the end.
+        if is_list(conn, drawer_id):
+            position = place_in(conn, drawer_id, end=True)
+        else:
+            low = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+            position = low - 1 if low is not None else 0
     conn.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
                  'VALUES (?, ?, ?, ?)', (block_id, drawer_id, position, now()))
     conn.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
+
+
+def place_in(conn, drawer_id, after=None, end=False):
+    """A position just after one file (or at the end) instead of the top."""
+    if after:
+        row = conn.execute('SELECT position FROM connections WHERE drawer_id = ? AND block_id = ?',
+                           (drawer_id, str(after))).fetchone()
+        if row:
+            nxt = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ? AND position > ?',
+                               (drawer_id, row[0])).fetchone()[0]
+            return (row[0] + nxt) / 2 if nxt is not None else row[0] + 1
+    if end:
+        high = conn.execute('SELECT MAX(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+        return high + 1 if high is not None else 0
+    return None
 
 
 def remove_block_files(user_id, *keys):
@@ -557,7 +649,8 @@ def drawer_previews(req, drawer_id, limit=8, owner=None, newest=False):
 
 def blocks_in_drawer(req, drawer_id, community=False):
     rows = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
+        f'SELECT {BLOCK_COLUMNS}, c.checked, u.username AS owner_name FROM connections c '
+        'JOIN blocks b ON b.id = c.block_id '
         'JOIN users u ON u.id = b.user_id '
         'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
     me_id = req.user['id']
@@ -845,6 +938,9 @@ def update_drawer(req, drawer_id):
         set_planet_people(req, drawer_id, body['people'])
     if 'community' in body and moon and body['community']:
         raise HttpError(400, 'Moons can only be added to by their owner.')
+    if 'modes' in body:
+        current = drawer_modes(own_drawer(req, drawer_id))
+        updates['modes'] = json.dumps(clean_modes(body['modes'], current))
     if 'community' in body:
         updates['community'] = 1 if body['community'] else 0
         if not body['community']:
@@ -889,6 +985,89 @@ ORPHANS_SQL = (
 def drawer_orphans(req, drawer_id):
     own_drawer(req, drawer_id)
     return json_response({'count': len(req.db.execute(ORPHANS_SQL, {'d': drawer_id, 'u': req.user['id']}).fetchall())})
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/purpose')
+def drawer_purpose(req, drawer_id):
+    """What Mutt reads a planet as being about and for (sorting.purpose). Only
+    its owner can ask; nothing in the app shows it yet. Features that appear
+    when a planet needs them are meant to read this."""
+    own_drawer(req, drawer_id)
+    return json_response({'purpose': sorting.purpose(req.db, drawer_id)})
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/modes')
+def drawer_mode_signs(req, drawer_id):
+    """Features this planet could use, and the signs for each, in plain words
+    (only list mode so far). Only its owner sees these."""
+    own_drawer(req, drawer_id)
+    return json_response({'list': sorting.list_signs(req.db, drawer_id)})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/listify')
+def listify_drawer(req, drawer_id):
+    """Turn list mode on. Notes written as lists, that are yours and only on
+    this planet, become one item per line, in their place."""
+    row = own_drawer(req, drawer_id)
+    body = req.json()
+    signs = sorting.list_signs(req.db, drawer_id)
+    split = 0
+    with db.transaction(req.db):
+        # A planet left in the order its files came (newest first) is turned
+        # round, so the list reads top to bottom in the order things were
+        # added. One its owner has arranged by hand keeps that order.
+        placed = req.db.execute('SELECT block_id, connected_at FROM connections WHERE drawer_id = ? '
+                                'ORDER BY position', (drawer_id,)).fetchall()
+        times = [r['connected_at'] for r in placed]
+        pairs = list(zip(times, times[1:]))
+        if pairs and all(a >= b for a, b in pairs) and any(a > b for a, b in pairs):
+            for i, r in enumerate(reversed(placed)):
+                req.db.execute('UPDATE connections SET position = ? WHERE drawer_id = ? AND block_id = ?',
+                               (i, drawer_id, r['block_id']))
+        if body.get('split', True):
+            rows = req.db.execute(
+                'SELECT b.id, b.content, c.position FROM connections c JOIN blocks b ON b.id = c.block_id '
+                'WHERE c.drawer_id = ? AND b.user_id = ? AND b.kind = ? AND '
+                '(SELECT COUNT(*) FROM connections c2 WHERE c2.block_id = b.id) = 1 '
+                'ORDER BY c.position', (drawer_id, req.user['id'], 'text')).fetchall()
+            for r in rows:
+                if r['id'] not in signs['split']:
+                    continue
+                items = sorting.list_items(r['content'])
+                after = req.db.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ? AND position > ?',
+                                       (drawer_id, r['position'])).fetchone()[0]
+                gap = ((after - r['position']) if after is not None else len(items) + 1) / (len(items) + 1)
+                for i, (text, ticked) in enumerate(items):
+                    block_id = insert_block(req, kind='text', title='', content=text[:2000])
+                    req.db.execute('INSERT INTO connections (block_id, drawer_id, position, connected_at, checked) '
+                                   'VALUES (?, ?, ?, ?, ?)', (block_id, drawer_id, r['position'] + gap * (i + 1),
+                                                             now(), now() if ticked else None))
+                req.db.execute('DELETE FROM blocks WHERE id = ?', (r['id'],))
+                split += 1
+        modes = clean_modes({'list': {'on': True, 'dismissed': False,
+                                      **({'type': signs['type']} if not (drawer_modes(row).get('list') or {})
+                                         .get('type') else {})}}, drawer_modes(row))
+        req.db.execute('UPDATE drawers SET modes = ?, updated_at = ? WHERE id = ?',
+                       (json.dumps(modes), now(), drawer_id))
+    row = own_drawer(req, drawer_id)
+    blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
+    return json_response({'drawer': planet_json(req, row, len(blocks)), 'blocks': blocks, 'split': split})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/check')
+def check_item(req, drawer_id):
+    """Tick something off (or back on) on a list planet."""
+    writable_drawer(req, drawer_id)
+    body = req.json()
+    block_id = body.get('block')
+    found = req.db.execute('SELECT 1 FROM connections WHERE drawer_id = ? AND block_id = ?',
+                           (drawer_id, str(block_id))).fetchone()
+    if not found:
+        raise HttpError(404, 'That isn’t on this planet.')
+    stamp = now() if body.get('checked') else None
+    req.db.execute('UPDATE connections SET checked = ? WHERE drawer_id = ? AND block_id = ?',
+                   (stamp, drawer_id, str(block_id)))
+    return json_response({'checked': ms(stamp) if stamp else None})
 
 
 @route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)')
@@ -1104,10 +1283,13 @@ def create_block(req):
 
     sorted_into = None
     if drawer_id:
-        connect(req.db, block_id, drawer_id)
+        connect(req.db, block_id, drawer_id, place_in(req.db, drawer_id, body.get('after'), body.get('end')))
     elif body.get('autosort'):
         sorted_into = autosort(req, block_id, icon_arg(body.get('icon')))
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
+
+
+MEDIA_DETAILS = ('image', 'video', 'audio', 'pdf', 'doc')
 
 
 @route('POST', r'/api/upload')
@@ -1131,6 +1313,14 @@ def upload(req):
         text = sorting.read_text(path, ext, ext in kinds.TEXTY)
         if len(text) > len(meta.get('excerpt', '')):
             meta['gist'] = sorting.gist(text)  # the rest, for sorting and search later
+    if size and kind in MEDIA_DETAILS:
+        found = media.read(path, ext)  # camera, date, place, app, artist, album, author...
+        if found:
+            meta['media'] = found
+    if text or kind in ('pdf', 'doc', 'image'):
+        doctype = sorting.doc_type(text[:sorting.DOC_LIMIT], ' '.join([name, (meta.get('media') or {}).get('title', '')]))
+        if doctype:
+            meta['doctype'] = doctype  # an invoice, a payslip, a ticket... from the whole text
     title = os.path.splitext(name)[0] if ext else name
     shared = {'shared_at': now()} if req.arg('share') == '1' else {}
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
@@ -1208,8 +1398,12 @@ def save_block(req, block_id):
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/autosort')
 def sort_block(req, block_id):
-    """A loose star dropped back into the black hole finds itself a planet."""
+    """A loose star dropped back into the void finds itself a planet. Uploads
+    that waited for the browser to read the picture are sorted this way too."""
     own_block(req, block_id)
+    if req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone():
+        return json_response({'block': reload_block(req, block_id), 'sortedInto': None,  # already placed
+                              'connections': block_connections(req, block_id)})
     sorted_into = autosort(req, block_id, icon_arg(req.json().get('icon')))
     return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into,
                           'connections': block_connections(req, block_id)})
@@ -1247,9 +1441,12 @@ def update_block(req, block_id):
             value = int_arg(body[key], 0, high)
             if value is not None:
                 updates[key] = value
-    if 'look' in body:
+    if 'look' in body or 'see' in body:
         meta = json.loads(row['meta'] or '{}')
-        meta['look'] = clean_look(body['look'])
+        if 'look' in body:
+            meta['look'] = clean_look(body['look'])
+        if 'see' in body:
+            meta['see'] = clean_see(body['see'])
         req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
     if updates:
         updates['updated_at'] = now()
@@ -1371,6 +1568,27 @@ def search(req):
         'blocks': [block_json(b) for b in blocks[:SEARCH_PAGE]],
         'more': len(blocks) > SEARCH_PAGE,
     })
+
+
+@route('GET', r'/api/see/todo')
+def see_todo(req):
+    """Your files with a picture that the picture reader hasn't read yet."""
+    rows = req.db.execute(
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? "
+        "AND (b.thumb_key IS NOT NULL OR b.kind = 'image') "
+        "AND COALESCE(json_extract(b.meta, '$.see.v'), 0) != ? "
+        "ORDER BY b.created_at DESC LIMIT 200", (req.user['id'], sight.VERSION)).fetchall()
+    return json_response({'blocks': [block_json(b) for b in rows]})
+
+
+@route('GET', r'/api/see/model')
+def see_model(req):
+    """The picture reader's model, served by Mutt itself once it has fetched it."""
+    if not sight.model_ready():
+        sight.fetch_model()
+        raise HttpError(503, 'The picture reader is still being fetched.')
+    return file_response(req, sight.model_path(), 'application/octet-stream',
+                         cache='public, max-age=31536000, immutable')
 
 
 @route('GET', r'/api/looks/todo')

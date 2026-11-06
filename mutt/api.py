@@ -13,7 +13,7 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, db, kinds, links, media, sight, sorting
+from . import auth, books, db, documents, kinds, links, media, sight, sorting
 from .web import HttpError, Response, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
@@ -166,6 +166,17 @@ def clean_modes(value, current):
             else:
                 raise HttpError(400, 'Those reading settings could not be saved.')
         modes['reading'] = merged
+    if 'documents' in value:
+        given = value['documents']
+        if not isinstance(given, dict):
+            raise HttpError(400, 'Those document settings could not be saved.')
+        merged = {'on': False, 'dismissed': False, **(modes.get('documents') or {})}
+        for key, v in given.items():
+            if key in ('on', 'dismissed') and isinstance(v, bool):
+                merged[key] = v
+            else:
+                raise HttpError(400, 'Those document settings could not be saved.')
+        modes['documents'] = merged
     return modes
 
 
@@ -1069,7 +1080,8 @@ def drawer_mode_signs(req, drawer_id):
     """Features this planet could use, and the signs for each, in plain words
     (list mode and reading mode). Only its owner sees these."""
     row = own_drawer(req, drawer_id)
-    return json_response({'list': sorting.list_signs(req.db, drawer_id), 'reading': shelf_signs(req, row)})
+    return json_response({'list': sorting.list_signs(req.db, drawer_id), 'reading': shelf_signs(req, row),
+                          'documents': desk_signs(req, row)})
 
 
 @route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/listify')
@@ -1716,6 +1728,12 @@ def epub_of(row):
     return books.epub(path, stamp)
 
 
+def desk_signs(req, row):
+    files = req.db.execute('SELECT b.kind, b.content FROM connections c JOIN blocks b ON b.id = c.block_id '
+                           'WHERE c.drawer_id = ?', (row['id'],)).fetchall()
+    return documents.doc_signs(row['title'], files)
+
+
 def shelf_signs(req, row):
     files = req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ?',
                            (row['id'],)).fetchall()
@@ -1988,3 +2006,294 @@ def serve_thumb(req, block_id):
     ext = row['thumb_key'].rsplit('.', 1)[-1]
     return file_response(req, path, kinds.THUMB_TYPES.get(ext, 'application/octet-stream'),
                          headers=[('Content-Security-Policy', FILE_CSP)])
+
+
+# ---------------------------------------------------------------- documents
+
+DOC_VERSION_EVERY = 10 * 60   # an automatic version at most this often while writing
+DOC_VERSIONS_KEPT = 100       # unnamed ones; named versions are always kept
+DOC_IMAGE_TYPES = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif'}
+MAX_DOC_IMAGE = 8 * 1024 * 1024
+
+
+def text_block(req, block_id):
+    row, mine = readable_block(req, block_id)
+    if row['kind'] != 'text':
+        raise HttpError(400, 'Only text files open as documents.')
+    return row, mine
+
+
+def doc_json(req, row, mine):
+    doc = req.db.execute('SELECT * FROM docs WHERE block_id = ?', (row['id'],)).fetchone()
+    # Edited somewhere else since (as a note): the note's words win.
+    fresh = bool(doc) and doc['synced_at'] >= row['updated_at'] - 0.001
+    return {
+        'id': row['id'],
+        'html': doc['html'] if fresh else None,
+        'settings': documents.settings_of(doc['settings'] if doc else None),
+        'reads': documents.reads_as(row['content']),
+        'savedAt': ms(doc['updated_at']) if doc else ms(row['updated_at']),
+        'mine': mine,
+    }
+
+
+def comment_json(r):
+    return {'id': r['id'], 'parentId': r['parent_id'], 'quote': r['quote'], 'prefix': r['prefix'],
+            'suffix': r['suffix'], 'body': r['body'], 'resolved': bool(r['resolved']),
+            'by': r['username'], 'byId': r['user_id'], 'createdAt': ms(r['created_at']),
+            'updatedAt': ms(r['updated_at'])}
+
+
+def comments_of(req, block_id):
+    rows = req.db.execute('SELECT c.*, u.username FROM doc_comments c JOIN users u ON u.id = c.user_id '
+                          'WHERE c.block_id = ? ORDER BY c.created_at', (block_id,)).fetchall()
+    return [comment_json(r) for r in rows]
+
+
+def add_version(req, block_id, title, html_text, text, name=''):
+    words = documents.word_count(text)
+    req.db.execute('INSERT INTO doc_versions (id, block_id, title, html, text, name, words, created_at) '
+                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (new_id(), block_id, title or '', html_text, text, name, words, now()))
+    old = req.db.execute("SELECT id FROM doc_versions WHERE block_id = ? AND name = '' ORDER BY created_at DESC "
+                         'LIMIT -1 OFFSET ?', (block_id, DOC_VERSIONS_KEPT)).fetchall()
+    for r in old:
+        req.db.execute('DELETE FROM doc_versions WHERE id = ?', (r['id'],))
+
+
+@route('GET', r'/api/docs/(?P<block_id>[\w-]+)')
+def get_doc(req, block_id):
+    """A note opened as a document: its fuller version (if the editor has saved
+    one since it was last changed as a note), page setup and margin comments."""
+    row, mine = text_block(req, block_id)
+    block = mark_saved(req, [block_json(row, mine, None if mine else row['owner_name'])])[0]
+    return json_response({'doc': doc_json(req, row, mine), 'block': block, 'comments': comments_of(req, block_id)})
+
+
+@route('PUT', r'/api/docs/(?P<block_id>[\w-]+)')
+def save_doc(req, block_id):
+    """Save from the editor: `html` (cleaned here), `text` (the same words as a
+    note, for the rest of Mutt), `title`, `settings`. Any can be left out."""
+    row = own_block(req, block_id)
+    if row['kind'] != 'text':
+        raise HttpError(400, 'Only text files open as documents.')
+    body = req.json()
+    doc = req.db.execute('SELECT * FROM docs WHERE block_id = ?', (block_id,)).fetchone()
+    stamp = now()
+    updates = {}
+    title = text_field(body, 'title', 200, 'Title')
+    if title is not None:
+        updates['title'] = title
+    text = text_field(body, 'text', 200_000, 'Text', strip=False)
+    if text is not None:
+        updates['content'] = text.strip('\n') or ' '
+    clean = None
+    if 'html' in body:
+        try:
+            clean = documents.clean_html(body['html'])
+        except ValueError:
+            raise HttpError(400, 'That document is too large to save.')
+    settings = None
+    if 'settings' in body:
+        try:
+            settings = documents.clean_settings(body['settings'], documents.settings_of(doc['settings'] if doc else None))
+        except ValueError:
+            raise HttpError(400, 'Those page settings could not be saved.')
+    if clean is None and doc is None and (updates or settings is not None):
+        clean = ''  # first save of settings alone: the note's words stand until the editor sends its own
+    if not doc:
+        # The note as it was before it became a document, so it can always be got back.
+        add_version(req, block_id, row['title'], None, row['content'] or '', name='As a note')
+    updates['updated_at'] = stamp
+    assignments = ', '.join(f'{k} = ?' for k in updates)
+    req.db.execute(f'UPDATE blocks SET {assignments} WHERE id = ?', (*updates.values(), block_id))
+    if doc:
+        req.db.execute('UPDATE docs SET html = COALESCE(?, html), settings = COALESCE(?, settings), synced_at = ?, '
+                       'updated_at = ? WHERE block_id = ?',
+                       (clean, json.dumps(settings) if settings is not None else None, stamp, stamp, block_id))
+    else:
+        req.db.execute('INSERT INTO docs (block_id, html, settings, synced_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                       (block_id, clean or '', json.dumps(settings or documents.DEFAULTS), stamp, stamp))
+    if clean:
+        last = req.db.execute("SELECT created_at, html FROM doc_versions WHERE block_id = ? AND html IS NOT NULL "
+                              'ORDER BY created_at DESC LIMIT 1', (block_id,)).fetchone()
+        if not last or (stamp - last['created_at'] >= DOC_VERSION_EVERY and last['html'] != clean):
+            add_version(req, block_id, updates.get('title', row['title']), clean,
+                        updates.get('content', row['content']) or '')
+    fresh = own_block(req, block_id)
+    return json_response({'block': block_json(fresh), 'doc': doc_json(req, fresh, True)})
+
+
+@route('GET', r'/api/docs/(?P<block_id>[\w-]+)/versions')
+def doc_versions(req, block_id):
+    own_block(req, block_id)
+    rows = req.db.execute('SELECT id, title, name, words, created_at FROM doc_versions WHERE block_id = ? '
+                          'ORDER BY created_at DESC', (block_id,)).fetchall()
+    return json_response({'versions': [{'id': r['id'], 'title': r['title'], 'name': r['name'], 'words': r['words'],
+                                        'at': ms(r['created_at'])} for r in rows]})
+
+
+@route('GET', r'/api/docs/(?P<block_id>[\w-]+)/versions/(?P<version_id>[\w-]+)')
+def doc_version(req, block_id, version_id):
+    own_block(req, block_id)
+    r = req.db.execute('SELECT * FROM doc_versions WHERE id = ? AND block_id = ?', (version_id, block_id)).fetchone()
+    if not r:
+        raise HttpError(404, 'That version is gone.')
+    return json_response({'version': {'id': r['id'], 'title': r['title'], 'name': r['name'], 'html': r['html'],
+                                      'text': r['text'], 'words': r['words'], 'at': ms(r['created_at'])}})
+
+
+@route('POST', r'/api/docs/(?P<block_id>[\w-]+)/versions')
+def name_version(req, block_id):
+    """Keep how it is now as a named version."""
+    row = own_block(req, block_id)
+    name = text_field(req.json(), 'name', 80, 'Name') or 'Saved version'
+    doc = req.db.execute('SELECT * FROM docs WHERE block_id = ?', (block_id,)).fetchone()
+    fresh = doc and doc['synced_at'] >= row['updated_at'] - 0.001
+    add_version(req, block_id, row['title'], doc['html'] if fresh and doc['html'] else None, row['content'] or '', name=name)
+    return doc_versions(req, block_id)
+
+
+@route('PATCH', r'/api/docs/(?P<block_id>[\w-]+)/versions/(?P<version_id>[\w-]+)')
+def rename_version(req, block_id, version_id):
+    own_block(req, block_id)
+    name = text_field(req.json(), 'name', 80, 'Name') or ''
+    req.db.execute('UPDATE doc_versions SET name = ? WHERE id = ? AND block_id = ?', (name, version_id, block_id))
+    return doc_versions(req, block_id)
+
+
+@route('POST', r'/api/docs/(?P<block_id>[\w-]+)/img')
+def add_doc_image(req, block_id):
+    """A picture put into a document. It lives with the document, not as a file of its own."""
+    own_block(req, block_id)
+    mime = (req.header('CONTENT_TYPE') or '').split(';')[0].strip().lower()
+    if mime not in DOC_IMAGE_TYPES:
+        raise HttpError(400, 'Pictures in a document can be PNG, JPEG, WebP or GIF.')
+    data = req.read_bytes(MAX_DOC_IMAGE)
+    if not data:
+        raise HttpError(400, 'That picture was empty.')
+    image_id = new_id()
+    req.db.execute('INSERT INTO doc_images (id, block_id, mime, data, created_at) VALUES (?, ?, ?, ?, ?)',
+                   (image_id, block_id, mime, data, now()))
+    return json_response({'src': f'/api/docs/{block_id}/img/{image_id}'}, status=201)
+
+
+@route('GET', r'/api/docs/(?P<block_id>[\w-]+)/img/(?P<image_id>[\w-]+)')
+def get_doc_image(req, block_id, image_id):
+    readable_block(req, block_id)
+    r = req.db.execute('SELECT mime, data FROM doc_images WHERE id = ? AND block_id = ?', (image_id, block_id)).fetchone()
+    if not r:
+        raise HttpError(404, 'That picture is gone.')
+    return Response(200, [('Content-Type', r['mime']), ('Content-Length', str(len(r['data']))),
+                          ('Cache-Control', 'private, max-age=31536000, immutable'),
+                          ('Content-Security-Policy', FILE_CSP)], r['data'])
+
+
+@route('GET', r'/api/docs/(?P<block_id>[\w-]+)/comments')
+def get_doc_comments(req, block_id):
+    text_block(req, block_id)
+    return json_response({'comments': comments_of(req, block_id)})
+
+
+@route('POST', r'/api/docs/(?P<block_id>[\w-]+)/comments')
+def add_doc_comment(req, block_id):
+    """A comment in the margin, by anyone who can see the document. It's tied
+    to the words it was made on (quote, with a little before and after)."""
+    text_block(req, block_id)
+    body = req.json()
+    text = text_field(body, 'body', 4000, 'Comment')
+    if not text:
+        raise HttpError(400, 'Write a comment first.')
+    parent = body.get('parent')
+    if parent:
+        p = req.db.execute('SELECT id, parent_id FROM doc_comments WHERE id = ? AND block_id = ?', (parent, block_id)).fetchone()
+        if not p:
+            raise HttpError(404, 'That comment is gone.')
+        parent = p['parent_id'] or p['id']
+    quote = '' if parent else (text_field(body, 'quote', 2000, 'Quote') or '')
+    prefix = '' if parent else (text_field(body, 'prefix', 64, 'Quote', strip=False) or '')
+    suffix = '' if parent else (text_field(body, 'suffix', 64, 'Quote', strip=False) or '')
+    stamp = now()
+    req.db.execute('INSERT INTO doc_comments (id, block_id, user_id, parent_id, quote, prefix, suffix, body, created_at, updated_at) '
+                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                   (new_id(), block_id, req.user['id'], parent or None, quote, prefix, suffix, text, stamp, stamp))
+    return json_response({'comments': comments_of(req, block_id)}, status=201)
+
+
+def comment_row(req, block_id, comment_id):
+    r = req.db.execute('SELECT c.*, b.user_id AS doc_owner FROM doc_comments c JOIN blocks b ON b.id = c.block_id '
+                       'WHERE c.id = ? AND c.block_id = ?', (comment_id, block_id)).fetchone()
+    if not r:
+        raise HttpError(404, 'That comment is gone.')
+    return r
+
+
+@route('PATCH', r'/api/docs/(?P<block_id>[\w-]+)/comments/(?P<comment_id>[\w-]+)')
+def edit_doc_comment(req, block_id, comment_id):
+    """Its writer can change the words; they or the document's owner can mark it done."""
+    text_block(req, block_id)
+    r = comment_row(req, block_id, comment_id)
+    body = req.json()
+    me = req.user['id']
+    if 'body' in body:
+        if r['user_id'] != me:
+            raise HttpError(403, 'Only who wrote a comment can change it.')
+        text = text_field(body, 'body', 4000, 'Comment')
+        if not text:
+            raise HttpError(400, 'Write a comment first.')
+        req.db.execute('UPDATE doc_comments SET body = ?, updated_at = ? WHERE id = ?', (text, now(), comment_id))
+    if 'resolved' in body:
+        if me not in (r['user_id'], r['doc_owner']):
+            raise HttpError(403, 'Only the document’s owner or who wrote it can mark a comment done.')
+        req.db.execute('UPDATE doc_comments SET resolved = ? WHERE id = ?', (1 if body['resolved'] else 0, comment_id))
+    return json_response({'comments': comments_of(req, block_id)})
+
+
+@route('DELETE', r'/api/docs/(?P<block_id>[\w-]+)/comments/(?P<comment_id>[\w-]+)')
+def delete_doc_comment(req, block_id, comment_id):
+    text_block(req, block_id)
+    r = comment_row(req, block_id, comment_id)
+    if req.user['id'] not in (r['user_id'], r['doc_owner']):
+        raise HttpError(403, 'Only the document’s owner or who wrote it can delete a comment.')
+    req.db.execute('DELETE FROM doc_comments WHERE id = ?', (comment_id,))
+    return json_response({'comments': comments_of(req, block_id)})
+
+
+def doc_preview(raw):
+    """The start of a document, for its page on the desk (no pictures)."""
+    cut = raw[:5000]
+    if len(raw) > 5000:
+        cut = cut[:cut.rfind('>') + 1]
+    return documents.clean_html(re.sub(r'<img\b[^>]*>', '', cut))
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/docs')
+def drawer_docs(req, drawer_id):
+    """The writing on a planet, for its desk: how long each piece is, whether
+    it reads as a poem, its page setup and open comments."""
+    visible_drawer(req, drawer_id)
+    rows = req.db.execute(
+        'SELECT b.id, b.content, b.updated_at, d.settings, d.synced_at, d.html, '
+        '(SELECT COUNT(*) FROM doc_comments k WHERE k.block_id = b.id AND k.resolved = 0 AND k.parent_id IS NULL) AS open '
+        "FROM connections c JOIN blocks b ON b.id = c.block_id LEFT JOIN docs d ON d.block_id = b.id "
+        "WHERE c.drawer_id = ? AND b.kind = 'text'", (drawer_id,)).fetchall()
+    out = []
+    for r in rows:
+        settings = documents.settings_of(r['settings'])
+        fresh = r['synced_at'] is not None and r['synced_at'] >= r['updated_at'] - 0.001 and r['html']
+        layout = settings['layout'] if settings['layout'] != 'auto' else documents.reads_as(r['content'])
+        out.append({'id': r['id'], 'words': documents.word_count(r['content']), 'poem': layout == 'poem',
+                    'font': settings['font'], 'comments': r['open'], 'html': doc_preview(r['html']) if fresh else None,
+                    'editedAt': ms(r['updated_at'])})
+    return json_response({'docs': out})
+
+
+@route('POST', r'/api/docs')
+def new_doc(req):
+    """A new, empty document on a planet (or a star, with no planet)."""
+    body = req.json()
+    drawer_id = target_drawer(req, body.get('drawer'))
+    title = text_field(body, 'title', 200, 'Title') or ''
+    block_id = insert_block(req, kind='text', title=title, content=' ')
+    if drawer_id:
+        connect(req.db, block_id, drawer_id, None)
+    return json_response({'block': reload_block(req, block_id)}, status=201)

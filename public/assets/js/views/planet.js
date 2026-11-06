@@ -4,6 +4,8 @@
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
+import { docEditorOpen, openDocEditor } from '../doceditor.js';
+import { DeskView, deskOffer, writingHint } from '../docs.js';
 import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
@@ -521,11 +523,15 @@ export const planetView = {
     // and stays here after the offer is waved away or the list is turned off.
     const listItems = () => [
       listView ? { label: 'List options…', run: () => listOptions() } : null,
-      !listView && !shelf && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
+      !listView && !shelf && !desk && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       // And reading mode, once it holds books.
       shelf ? { label: 'Show as files again', run: () => unshelve() } : null,
-      !listView && !shelf && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
-      listView || listFits || shelf || shelfFits ? '-' : null,
+      !listView && !shelf && !desk && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
+      // And Mutt documents, once it holds writing.
+      desk ? { label: 'New document', run: () => newDoc() } : null,
+      desk ? { label: 'Show as files again', run: () => undesk() } : null,
+      !listView && !shelf && !desk && deskFits ? { label: 'Open in Mutt Documents', run: () => makeDesk() } : null,
+      listView || listFits || shelf || shelfFits || desk || deskFits ? '-' : null,
     ];
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
       ...listItems(),
@@ -584,13 +590,18 @@ export const planetView = {
 
     // ------------------------------------------------------------ list mode
 
+    const makeDeskView = (blocks) => new DeskView({
+      drawer, blocks, editable: mine, makeCollection, onChange: changed, onOpen: (bid) => openDoc(bid), onNew: () => newDoc(),
+    });
     let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
     let shelf = !listView && !isMoon && drawer.modes?.reading?.on ? makeShelfView(data.blocks) : null;
-    let collection = listView || shelf ? null : makeCollection(data.blocks);
+    let desk = !listView && !shelf && drawer.modes?.documents?.on ? makeDeskView(data.blocks) : null;
+    let collection = listView || shelf || desk ? null : makeCollection(data.blocks);
     let listFits = false;
     let shelfFits = false;
+    let deskFits = false;
     let offer = null;
-    const view = () => listView || shelf || collection;
+    const view = () => listView || shelf || desk || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
     const stopDrift = drift(body);
 
@@ -605,8 +616,11 @@ export const planetView = {
       old.destroy();
       listView = next instanceof ListView ? next : null;
       shelf = next instanceof ShelfView ? next : null;
-      collection = listView || shelf ? null : next;
+      desk = next instanceof DeskView ? next : null;
+      collection = listView || shelf || desk ? null : next;
       outgoing.replaceWith(next.el);
+      el.classList.toggle('is-desk', !!desk);
+      attachHint();
       if (!reducedMotion() && !listView) {
         next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
       }
@@ -695,14 +709,116 @@ export const planetView = {
       });
     }
 
-    // Does it read as a list, or a bookshelf? That decides what the ••• menu offers.
+    // ------------------------------------------------------------ Mutt documents
+
+    async function saveDocs(patch) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { documents: patch } }));
+        inst.drawer = drawer;
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    async function makeDesk({ quiet = false } = {}) {
+      if (!(await saveDocs({ on: true, dismissed: false }))) return false;
+      offer?.remove();
+      offer = null;
+      const blocks = view().list ? view().list() : data.blocks;
+      await swapTo(makeDeskView(blocks.filter((b) => !String(b.id).startsWith('tmp-'))));
+      if (!quiet) toast('Now in Mutt Documents');
+      return true;
+    }
+
+    async function undesk() {
+      if (!(await saveDocs({ on: false, dismissed: true }))) return;
+      const blocks = desk.list();
+      await swapTo(makeCollection(blocks));
+      readListSigns();
+      toast('Showing it as files again', {
+        action: { label: 'Undo', run: async () => { if (await saveDocs({ on: true })) swapTo(makeDeskView(blocks)); } },
+      });
+    }
+
+    // The editor's address is the planet's with ?doc=, so a reload or Back finds it.
+    let docPushed = false;
+    function openDoc(bid, { fresh = false } = {}) {
+      const u = new URL(location.href);
+      if (u.searchParams.get('doc') === bid) { showDoc(bid, { fresh }); return; }
+      const replace = !!u.searchParams.get('doc');
+      if (!replace) docPushed = true;
+      freshDoc = fresh ? bid : null;
+      nav.go(`/p/${id}?doc=${encodeURIComponent(bid)}`, { replace });
+    }
+    let freshDoc = null;
+    function showDoc(bid, { fresh = freshDoc === bid } = {}) {
+      openDocEditor(bid, {
+        drawer,
+        fresh,
+        docs: () => (desk ? desk.summaries() : []),
+        onSwitch: (other) => openDoc(other),
+        onNew: () => newDoc(),
+        onClose: ({ switching }) => {
+          if (switching) return;
+          desk?.refreshSoon();
+          const u = new URL(location.href);
+          if (!u.searchParams.get('doc')) return;
+          if (docPushed) { docPushed = false; history.back(); } else nav.go(`/p/${id}`, { replace: true });
+        },
+      });
+    }
+
+    async function newDoc() {
+      try {
+        const { block } = await api.post('/api/docs', { drawer: id });
+        if (!desk) await makeDesk({ quiet: true });
+        desk?.add(block);
+        openDoc(block.id, { fresh: true });
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
+    // Typing more than a note holds into the add box: offer to write it as a document.
+    function attachHint() {
+      const cell = collection?.entry;
+      if (!mine || !cell || cell.querySelector('.dk-hint')) return;
+      const area = cell.querySelector('textarea');
+      const box = cell.querySelector('.entry');
+      if (!area || !box) return;
+      const hint = writingHint('Write it as a document', async () => {
+        const text = area.value;
+        if (!text.trim()) return;
+        area.value = '';
+        area.dispatchEvent(new Event('input'));
+        hint.check('');
+        try {
+          const { block } = await api.post('/api/blocks', { content: text, drawer: id });
+          await makeDesk({ quiet: true });
+          desk?.add(block);
+          openDoc(block.id);
+        } catch (err) {
+          area.value = text;
+          toast(err.message);
+        }
+      });
+      box.append(hint);
+      area.addEventListener('input', () => hint.check(area.value));
+    }
+
+    // Does it read as a list, a bookshelf, or writing? That decides what the ••• menu offers.
     let readingSigns = null;
+    let deskSigns = null;
     async function readListSigns() {
       if (!mine) return null;
       try {
-        const { list, reading } = await api.get(`/api/drawers/${id}/modes`);
+        const { list, reading, documents } = await api.get(`/api/drawers/${id}/modes`);
         listFits = !!list?.fits;
         shelfFits = !isMoon && !!reading?.fits;
+        deskFits = !!documents?.fits;
+        deskSigns = documents;
         readingSigns = reading;
         return list;
       } catch {
@@ -715,7 +831,7 @@ export const planetView = {
       if (!mine) return;
       const list = await readListSigns();
       try {
-        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf) {
+        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !desk) {
           offer = readingOffer({
             signs: readingSigns.signs,
             pdfs: readingSigns.pdfs,
@@ -725,7 +841,16 @@ export const planetView = {
           body.prepend(offer);
           return;
         }
-        if (shelf) return;
+        if (shelf || desk) return;
+        if (deskFits && !drawer.modes?.documents?.dismissed && el.isConnected && !listView) {
+          offer = deskOffer({
+            signs: deskSigns.signs,
+            onAccept: () => makeDesk(),
+            onDecline: () => { offer = null; saveDocs({ dismissed: true }); },
+          });
+          body.prepend(offer);
+          return;
+        }
         if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
         offer = listOffer({
           signs: list.signs,
@@ -740,7 +865,7 @@ export const planetView = {
     // Previews for the big planet's surface come from what's here.
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
-    const el = h('div', { class: 'page liv' },
+    const el = h('div', { class: `page liv${desk ? ' is-desk' : ''}` },
       h('header', { class: 'liv-head' },
         worldBox,
         h('div', { class: 'liv-info' },
@@ -768,8 +893,20 @@ export const planetView = {
       // then you can drop and paste things onto it like any list.
       dropTarget: () => (isMoon && !listView ? null : view().dropTarget()),
       pasteText: (text) => { if (!isMoon || listView) view().pasteText(text); },
-      mounted: () => setTimeout(lookForList, 700),
-      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
+      mounted: () => {
+        setTimeout(lookForList, 700);
+        attachHint();
+        const bid = new URL(location.href).searchParams.get('doc');
+        if (bid) showDoc(bid);
+      },
+      // Opening or closing a document changes only ?doc=, not the page.
+      update: (url) => {
+        const bid = url.searchParams.get('doc');
+        const open = docEditorOpen();
+        if (bid) { if (open?.id !== bid) showDoc(bid); } else if (open) { docPushed = false; open.close(); }
+        return true;
+      },
+      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); docEditorOpen()?.close(); view().destroy(); },
     };
     return inst;
   },

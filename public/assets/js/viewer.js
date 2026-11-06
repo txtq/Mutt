@@ -1,5 +1,7 @@
 // Full-screen block view: the block on the left, its details on the right.
 
+import { openDocEditor } from './doceditor.js';
+import { writingHint } from './docs.js';
 import { deleteBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
@@ -326,7 +328,14 @@ function textStage(block) {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); area.blur(); }
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
     });
-    wrap.replaceChildren(area, h('div', { class: 'vw-hint' }, touchScreen() ? 'tap outside to save' : 'click away to save · esc to cancel'));
+    // Grown past what a note holds: offer the document editor.
+    const long = writingHint('Open it as a document', async () => {
+      await finish(true);
+      openDocEditor(block.id);
+    });
+    area.addEventListener('input', () => long.check(area.value));
+    long.check(area.value);
+    wrap.replaceChildren(area, long, h('div', { class: 'vw-hint' }, touchScreen() ? 'tap outside to save' : 'click away to save · esc to cancel'));
     autosize(area);
     area.focus();
     area.setSelectionRange(area.value.length, area.value.length);
@@ -515,7 +524,10 @@ function renderSide() {
     block.file ? h('a', { class: 'btn', href: `${block.file}?dl=1` }, 'Download') : null,
     block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Original ↗') : null,
     block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
-    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null);
+    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null,
+    // Writing longer than a sentence or two can be opened as a document.
+    block.kind === 'text' && (block.content.trim().length >= 280 || (block.content.match(/[.!?](\s|$)/g) || []).length >= 3)
+      ? h('button', { type: 'button', class: 'btn', onclick: () => openDocEditor(block.id) }, 'Open as a document') : null);
 
   const count = connections?.length ?? block.connectionCount ?? 0;
 

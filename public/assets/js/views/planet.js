@@ -7,7 +7,7 @@ import { Collection } from '../collection.js';
 import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
-import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonEl, moonLookOf, planetEl, planetTone } from '../planets.js';
+import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
 
@@ -537,11 +537,16 @@ export const planetView = {
     const targets = () => {
       if (!mine) return [];
       if (parentWorld) {
-        return [{ id: parent.id, title: parent.title, el: parentWorld, measure: () => parentWorld.center(), onMoved: () => { parent.count = (parent.count || 0) + 1; } }];
+        return [{
+          id: parent.id, title: parent.title, el: parentWorld, planet: true, dot: planetDot(parent), measure: () => parentWorld.center(),
+          onMoved: () => { parent.count = (parent.count || 0) + 1; },
+          onBack: () => { parent.count = Math.max(0, (parent.count || 1) - 1); },
+        }];
       }
       return moonSlots.filter((el) => !el.moon.locked).map((el) => ({
-        id: el.moon.id, title: el.moon.title, el, measure: () => el.center(),
+        id: el.moon.id, title: el.moon.title, el, dot: moonDot(el.moon), measure: () => el.center(),
         onMoved: () => { el.moon.count = (el.moon.count || 0) + 1; },
+        onBack: () => { el.moon.count = Math.max(0, (el.moon.count || 1) - 1); },
       }));
     };
     const changed = (blocks) => {
@@ -563,7 +568,7 @@ export const planetView = {
       onChange: changed,
     });
     const makeListView = (blocks) => new ListView({
-      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions,
+      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions, targets,
     });
 
     // ------------------------------------------------------------ list mode

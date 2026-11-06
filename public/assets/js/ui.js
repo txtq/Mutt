@@ -249,6 +249,138 @@ export function openMenu(anchor, items, opts = {}) {
   return pop;
 }
 
+// A right-click menu, opened where the pointer is. Items are like openMenu's,
+// plus `{ heading }` for a small section label and `icon` (an element) before
+// the label. It grows out of the pointer, its rows arrive one after another,
+// and one highlight glides between them.
+export function openContextMenu(e, items, { title, target, onClose } = {}) {
+  e.preventDefault();
+  closeAllPopovers();
+  // The thing it's about stays lit while the menu is open.
+  target?.classList.add('is-ctx');
+  const x = e.clientX;
+  const y = e.clientY;
+  const hi = h('span', { class: 'ctx-hi', 'aria-hidden': 'true' });
+  const rows = [];
+  let n = 0;
+  const list = h('div', { class: 'menu ctx-menu', role: 'menu', 'aria-label': title || 'Actions' }, hi,
+    title ? h('div', { class: 'ctx-title' }, title) : null,
+    items.filter(Boolean).map((item) => {
+      if (item === '-') return h('div', { class: 'menu-sep' });
+      if (item.heading) return h('div', { class: 'ctx-heading', style: { '--i': n++ } }, item.heading);
+      const btn = h('button', {
+        type: 'button', role: 'menuitem', tabindex: '-1',
+        class: `menu-item ctx-item${item.danger ? ' is-danger' : ''}`,
+        style: { '--i': n++ },
+        onclick: () => pick(btn, item),
+      }, item.icon ? h('span', { class: 'ctx-icon' }, item.icon) : null,
+      h('span', { class: 'ctx-label' }, item.label),
+      item.hint ? h('span', { class: 'menu-hint' }, item.hint) : null);
+      rows.push(btn);
+      return btn;
+    }));
+  const el = h('div', { class: 'pop pop-ctx' }, list);
+  document.body.append(el);
+
+  // Open toward the room there is, growing from the corner at the pointer.
+  // Its own size, not the bounding box: that is still shrunk by the opening animation.
+  const r = { width: el.offsetWidth, height: el.offsetHeight };
+  const right = x + r.width + 8 <= innerWidth - 8;
+  const down = y + r.height + 8 <= innerHeight - 8;
+  const left = right ? x + 2 : Math.max(8, x - r.width - 2);
+  const top = down ? y + 2 : Math.max(8, Math.min(y - r.height - 2, innerHeight - r.height - 8));
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.style.setProperty('--origin', `${x - left}px ${y - top}px`);
+
+  // The highlight follows the row under the pointer (or the keyboard).
+  let current = null;
+  const light = (btn) => {
+    if (btn === current) return;
+    const first = !current;
+    current = btn;
+    if (!btn) { hi.classList.remove('is-on'); return; }
+    hi.style.transform = `translateY(${btn.offsetTop}px)`;
+    hi.style.height = `${btn.offsetHeight}px`;
+    hi.classList.toggle('is-danger', btn.classList.contains('is-danger'));
+    if (first) {
+      // Appear in place rather than sliding in from the top.
+      hi.style.transition = 'none';
+      void hi.offsetWidth;
+      hi.style.transition = '';
+    }
+    hi.classList.add('is-on');
+  };
+  list.addEventListener('pointerover', (ev) => {
+    const btn = ev.target.closest?.('.ctx-item');
+    if (btn) { light(btn); btn.focus({ preventScroll: true }); }
+  });
+  list.addEventListener('pointerleave', () => { light(null); if (el.contains(document.activeElement)) list.focus?.(); });
+  list.tabIndex = -1;
+  list.addEventListener('keydown', (ev) => {
+    const i = rows.indexOf(current);
+    let next = null;
+    if (ev.key === 'ArrowDown') next = rows[(i + 1) % rows.length];
+    else if (ev.key === 'ArrowUp') next = rows[(i - 1 + rows.length) % rows.length];
+    else if (ev.key === 'Home') next = rows[0];
+    else if (ev.key === 'End') next = rows[rows.length - 1];
+    else if ((ev.key === 'Enter' || ev.key === ' ') && current) { ev.preventDefault(); current.click(); return; }
+    else if (ev.key === 'Tab') { ev.preventDefault(); close(); return; }
+    if (!next) return;
+    ev.preventDefault();
+    light(next);
+    next.focus({ preventScroll: true });
+  });
+  requestAnimationFrame(() => list.focus({ preventScroll: true }));
+
+  // A chosen row blinks once, then the menu folds back into the pointer.
+  let busy = false;
+  function pick(btn, item) {
+    if (busy) return;
+    busy = true;
+    light(btn);
+    if (reducedMotion()) { close(); item.run(); return; }
+    btn.classList.add('is-picked');
+    hi.classList.add('is-picked');
+    setTimeout(() => { close(); item.run(); }, 140);
+  }
+
+  let closed = false;
+  const before = document.activeElement;
+  function close() {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('pointerdown', outside, true);
+    removeEventListener('resize', close);
+    removeEventListener('scroll', scrolled, true);
+    removeEventListener('blur', close);
+    openPopovers.delete(api);
+    openLayers.splice(openLayers.indexOf(api), 1);
+    if (el.contains(document.activeElement)) {
+      if (before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
+      else document.activeElement.blur();
+    }
+    exit(el, 'is-leaving', 200);
+    target?.classList.remove('is-ctx');
+    onClose?.();
+  }
+  const outside = (ev) => { if (!el.contains(ev.target)) close(); };
+  const scrolled = (ev) => { if (!el.contains(ev.target)) close(); };
+  setTimeout(() => {
+    if (closed) return;
+    document.addEventListener('pointerdown', outside, true);
+    addEventListener('scroll', scrolled, { capture: true, passive: true });
+  });
+  addEventListener('resize', close);
+  addEventListener('blur', close);
+  // A second right-click elsewhere opens a fresh menu there.
+  el.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  const api = { el, close, place: () => {} };
+  openPopovers.add(api);
+  openLayers.push(api);
+  return api;
+}
+
 // Escape closes the top-most layer.
 export function closeTopLayer() {
   const top = openLayers[openLayers.length - 1];

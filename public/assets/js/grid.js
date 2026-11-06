@@ -23,7 +23,7 @@ function shift(el, { into = true, duration = 700, delay = 0, easing = EASE, fill
 export class Grid {
   // targets(): worlds a file can be dragged onto ([{ el, id, measure() → { x, y, r } }]);
   // onDropTo(target, id) is called instead of reordering when one is let go over.
-  constructor({ entry = null, sortable = false, onOpen, onAction, onReorder, targets, onDropTo, empty } = {}) {
+  constructor({ entry = null, sortable = false, onOpen, onAction, onReorder, onContext, targets, onDropTo, empty } = {}) {
     this.el = h('div', { class: 'grid' });
     this.entry = entry;
     if (entry) this.el.append(entry);
@@ -43,6 +43,14 @@ export class Grid {
     this.el.addEventListener('keydown', (e) => {
       const cell = e.target.closest?.('.cell[data-id]');
       if (cell && e.target === cell && e.key === 'Enter') this.onOpen?.(cell.dataset.id, cell);
+    });
+    // Right-click a file for its menu (a phone's long press is the drag instead).
+    this.el.addEventListener('contextmenu', (e) => {
+      if (!onContext || this.drag || e.pointerType === 'touch') return;
+      if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
+      const cell = e.target.closest?.('.cell[data-id]');
+      if (!cell || cell === this.entry || cell.classList.contains('is-pending')) return;
+      onContext(e, cell.dataset.id, cell);
     });
     this.el.addEventListener('pointerdown', (e) => this.pointerDown(e));
     // The browser's own drag-and-drop would cancel ours halfway (pointercancel).

@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { displayTitle } from './kinds.js';
 import { drawerHref, nav } from './nav.js';
 import { planetDot } from './planets.js';
-import { confirmDialog, openMenu, openPopover, toast } from './ui.js';
+import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './ui.js';
 import { bus, h, plural, wait } from './util.js';
 
 // ---------------------------------------------------------------- connect picker
@@ -335,16 +335,55 @@ export async function toggleShare(block) {
   }
 }
 
-export function blockMenu(anchor, block, { drawer, open } = {}) {
-  openMenu(anchor, [
+// What you can do to one of your files. `worlds` are moons (or a moon's
+// planet) it can move to straight away: [{ id, title, dot, move() }].
+// `remove` and `del` replace the usual take-off and delete (list mode has its own).
+function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [] } = {}) {
+  return [
     open && { label: 'Open', run: open },
-    { label: 'Move to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
+    ...extra,
+    worlds.length ? '-' : null,
+    worlds.length ? { heading: worlds.some((w) => w.planet) ? 'Move back to' : 'Move to a moon' } : null,
+    ...worlds.map((w) => ({ label: w.title, icon: w.dot, run: w.move })),
+    worlds.length ? '-' : null,
+    { label: worlds.length ? 'Other planets…' : 'Move to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
     block.sharedAt && { label: 'Stop sharing', run: () => toggleShare(block) },
     block.file && { label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
     block.kind === 'link' && { label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
     block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
     '-',
-    drawer && { label: `Take off ${drawer.title}`, run: () => removeFromDrawer(block, drawer.id, drawer.title) },
-    { label: 'Delete', danger: true, run: () => deleteBlock(block) },
-  ], { align: 'end' });
+    drawer && { label: `Take off ${drawer.title}`, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },
+    { label: 'Delete', danger: true, run: del || (() => deleteBlock(block)) },
+  ];
+}
+
+export function blockMenu(anchor, block, opts = {}) {
+  openMenu(anchor, blockItems(anchor, block, opts), { align: 'end' });
+}
+
+// The same, opened by a right-click where the pointer is. `anchor` is the
+// file's own element, for the planet picker that some rows open.
+export function blockContextMenu(e, anchor, block, opts = {}) {
+  return openContextMenu(e, blockItems(anchor, block, opts), { title: displayTitle(block) || undefined, target: anchor });
+}
+
+// Move a file from one planet to another (a moon, or a moon's planet), with Undo.
+// Screens follow along through the bus.
+export async function moveBlock(block, from, to) {
+  const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: to.id });
+  bus.emit('block:connected', { block: res.block, drawerId: to.id, connections: res.connections });
+  const out = await api.del(`/api/blocks/${block.id}/connections/${from.id}`);
+  bus.emit('block:disconnected', { block: out.block, drawerId: from.id, connections: out.connections });
+  toast(`Moved to ${to.title}`, {
+    action: {
+      label: 'Undo',
+      run: async () => {
+        const back = await api.post(`/api/blocks/${block.id}/connections`, { drawer: from.id, position: out.position });
+        bus.emit('block:connected', { block: back.block, drawerId: from.id, connections: back.connections, position: out.position });
+        const left = await api.del(`/api/blocks/${block.id}/connections/${to.id}`);
+        bus.emit('block:disconnected', { block: left.block, drawerId: to.id, connections: left.connections });
+        to.onBack?.();
+      },
+    },
+  });
 }

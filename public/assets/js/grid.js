@@ -47,10 +47,15 @@ export class Grid {
     // Right-click a file for its menu (a phone's long press is the drag instead).
     this.el.addEventListener('contextmenu', (e) => {
       if (!onContext || this.drag || e.pointerType === 'touch') return;
-      if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
       const cell = e.target.closest?.('.cell[data-id]');
       if (!cell || cell === this.entry || cell.classList.contains('is-pending')) return;
       onContext(e, cell.dataset.id, cell);
+    });
+    // …and pressing for it doesn't select the note's text (a Mac picks a word).
+    this.el.addEventListener('mousedown', (e) => {
+      if (!onContext || !(e.button === 2 || (e.button === 0 && e.ctrlKey))) return;
+      const cell = e.target.closest?.('.cell[data-id]');
+      if (cell && cell !== this.entry) e.preventDefault();
     });
     this.el.addEventListener('pointerdown', (e) => this.pointerDown(e));
     // The browser's own drag-and-drop would cancel ours halfway (pointercancel).

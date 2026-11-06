@@ -194,6 +194,25 @@ def migrate(conn):
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'source TEXT NOT NULL, at REAL NOT NULL)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_failures_user ON login_failures(user_id, at)')
+    # Books: where each reader is in a book, their highlights and bookmarks,
+    # and a PDF's text once it's been turned into reading format.
+    conn.execute('CREATE TABLE IF NOT EXISTS book_progress ('
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'loc TEXT NOT NULL, percent REAL NOT NULL DEFAULT 0, updated_at REAL NOT NULL, '
+                 'PRIMARY KEY (user_id, block_id))')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_book_progress_block ON book_progress(block_id)')
+    conn.execute('CREATE TABLE IF NOT EXISTS book_marks ('
+                 'id TEXT PRIMARY KEY, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'kind TEXT NOT NULL, loc TEXT NOT NULL, text TEXT NOT NULL DEFAULT \'\', '
+                 'color TEXT, note TEXT NOT NULL DEFAULT \'\', percent REAL NOT NULL DEFAULT 0, '
+                 'created_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_book_marks ON book_marks(user_id, block_id)')
+    conn.execute('CREATE TABLE IF NOT EXISTS book_texts ('
+                 'block_id TEXT PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'data BLOB NOT NULL, made_at REAL NOT NULL)')
     # Browsers that have signed in to an account; they skip its account-wide lock.
     conn.execute('CREATE TABLE IF NOT EXISTS devices ('
                  'device_hash TEXT NOT NULL, '

@@ -1,4 +1,5 @@
 """HTTP API: accounts, settings, galaxies, drawers (planets), files (blocks), connections."""
+import gzip
 import json
 import os
 import random
@@ -9,10 +10,11 @@ import sqlite3
 import threading
 import time
 import urllib.parse
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, db, kinds, links, media, sight, sorting
-from .web import HttpError, file_response, json_response, route, stream_to_file
+from . import auth, books, db, kinds, links, media, sight, sorting
+from .web import HttpError, Response, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
 MAX_THUMB = 8 * 1024 * 1024
@@ -153,6 +155,17 @@ def clean_modes(value, current):
             else:
                 raise HttpError(400, 'Those list settings could not be saved.')
         modes['list'] = merged
+    if 'reading' in value:
+        given = value['reading']
+        if not isinstance(given, dict):
+            raise HttpError(400, 'Those reading settings could not be saved.')
+        merged = {'on': False, 'dismissed': False, **(modes.get('reading') or {})}
+        for key, v in given.items():
+            if key in ('on', 'dismissed') and isinstance(v, bool):
+                merged[key] = v
+            else:
+                raise HttpError(400, 'Those reading settings could not be saved.')
+        modes['reading'] = merged
     return modes
 
 
@@ -1047,9 +1060,9 @@ def drawer_purpose(req, drawer_id):
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/modes')
 def drawer_mode_signs(req, drawer_id):
     """Features this planet could use, and the signs for each, in plain words
-    (only list mode so far). Only its owner sees these."""
-    own_drawer(req, drawer_id)
-    return json_response({'list': sorting.list_signs(req.db, drawer_id)})
+    (list mode and reading mode). Only its owner sees these."""
+    row = own_drawer(req, drawer_id)
+    return json_response({'list': sorting.list_signs(req.db, drawer_id), 'reading': shelf_signs(req, row)})
 
 
 @route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/listify')
@@ -1362,10 +1375,19 @@ def upload(req):
         doctype = sorting.doc_type(text[:sorting.DOC_LIMIT], ' '.join([name, (meta.get('media') or {}).get('title', '')]))
         if doctype:
             meta['doctype'] = doctype  # an invoice, a payslip, a ticket... from the whole text
+    if kind == 'pdf' and text:
+        found = books.hints(text)
+        if found:
+            meta['bookish'] = found  # ISBN, copyright page, contents... a book's giveaways
+    epub = books.read_epub(path) if size and ext in books.BOOK_EXTS else None
+    if epub:
+        meta['book'] = {'title': epub['title'], 'author': epub['author']}
     title = os.path.splitext(name)[0] if ext else name
     shared = {'shared_at': now()} if req.arg('share') == '1' else {}
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
                             mime=mime, ext=ext, size=size, meta=meta, **shared)
+    if epub and epub['cover']:
+        save_epub_cover(req, block_id, path, epub['cover'])
     sorted_into = None
     if drawer_id:
         connect(req.db, block_id, drawer_id)
@@ -1644,6 +1666,284 @@ def looks_todo(req):
         "AND COALESCE(json_extract(b.meta, '$.look.v'), 0) < 2 "
         "ORDER BY b.created_at DESC LIMIT 300", (req.user['id'],)).fetchall()
     return json_response({'blocks': [block_json(b) for b in rows]})
+
+
+# ---------------------------------------------------------------- books
+
+MARK_KINDS = ('highlight', 'bookmark')
+MARK_COLORS = ('yellow', 'green', 'blue', 'pink', 'purple', 'underline')
+MAX_MARKS = 5000
+MAX_BOOK_TEXT = 40 * 1024 * 1024
+
+
+def book_path(row):
+    return os.path.join(db.user_files_dir(row['user_id']), row['file_key'])
+
+
+def save_epub_cover(req, block_id, path, cover):
+    """An EPUB's own cover becomes its picture everywhere in Mutt."""
+    try:
+        data, _ = books.epub_part(path, cover)
+    except Exception:  # a broken book just keeps no picture
+        return
+    if len(data) <= MAX_THUMB and kinds.thumb_type(data)[0]:
+        save_thumb(req, block_id, data, kinds.thumb_type(data)[0])
+
+
+def epub_of(row):
+    if not row['file_key']:
+        return None
+    path = book_path(row)
+    try:
+        stamp = os.stat(path).st_mtime
+    except OSError:
+        return None
+    return books.epub(path, stamp)
+
+
+def shelf_signs(req, row):
+    files = req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ?',
+                           (row['id'],)).fetchall()
+    signs = books.shelf_signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in files])
+    signs.pop('books')
+    return signs
+
+
+def visible_drawer(req, drawer_id):
+    row = req.db.execute('SELECT * FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    if not row or not drawer_visible(req, row):
+        raise HttpError(404, 'That planet does not exist.')
+    return row
+
+
+def mark_json(r):
+    return {'id': r['id'], 'kind': r['kind'], 'loc': r['loc'], 'text': r['text'], 'color': r['color'],
+            'note': r['note'], 'percent': r['percent'], 'createdAt': ms(r['created_at'])}
+
+
+def progress_of(req, block_id):
+    r = req.db.execute('SELECT loc, percent, updated_at FROM book_progress WHERE user_id = ? AND block_id = ?',
+                       (req.user['id'], block_id)).fetchone()
+    return {'loc': r['loc'], 'percent': r['percent'], 'at': ms(r['updated_at'])} if r else None
+
+
+def has_text(req, block_id):
+    return bool(req.db.execute('SELECT 1 FROM book_texts WHERE block_id = ?', (block_id,)).fetchone())
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/shelf')
+def drawer_shelf(req, drawer_id):
+    """The books on a planet, as the person looking sees them: cover, title,
+    author, and how far through each they are."""
+    visible_drawer(req, drawer_id)
+    rows = req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ? '
+                          'ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
+    read = {r['block_id']: r for r in req.db.execute(
+        'SELECT p.block_id, p.percent, p.updated_at FROM book_progress p JOIN connections c ON c.block_id = p.block_id '
+        'WHERE c.drawer_id = ? AND p.user_id = ?', (drawer_id, req.user['id']))}
+    texts = {r[0] for r in req.db.execute(
+        'SELECT t.block_id FROM book_texts t JOIN connections c ON c.block_id = t.block_id WHERE c.drawer_id = ?',
+        (drawer_id,))}
+    out = []
+    for r in rows:
+        meta = json.loads(r['meta'] or '{}')
+        fmt = books.book_format(r, meta)
+        if not fmt:
+            continue
+        info = meta.get('book') if isinstance(meta.get('book'), dict) else None
+        if fmt == 'epub' and info is None:
+            # Added before Mutt read books: read it once now.
+            found = epub_of(r)
+            info = {'title': found['title'], 'author': found['author']} if found else {}
+            if r['user_id'] == req.user['id']:
+                meta['book'] = info
+                req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), r['id']))
+                if found and found['cover'] and not r['thumb_key']:
+                    save_epub_cover(req, r['id'], book_path(r), found['cover'])
+                    r = req.db.execute('SELECT * FROM blocks WHERE id = ?', (r['id'],)).fetchone()
+        info = info or {}
+        media_ = meta.get('media') or {}
+        progress = read.get(r['id'])
+        out.append({
+            'id': r['id'], 'format': fmt,
+            'title': info.get('title') or media_.get('title') or r['title'] or r['file_name'],
+            'author': info.get('author') or media_.get('author'),
+            'cover': f"/t/{r['id']}?v={r['thumb_key'][:8]}" if r['thumb_key'] else None,
+            'pages': books.pages_of(meta) or None,
+            'percent': progress['percent'] if progress else 0,
+            'readAt': ms(progress['updated_at']) if progress else None,
+            'converted': r['id'] in texts,
+            'book': books.is_book(r, meta),
+        })
+    return json_response({'books': out})
+
+
+@route('GET', r'/api/books/(?P<block_id>[\w-]+)')
+def get_book(req, block_id):
+    """Everything the reader needs to open a book, plus where you were and your marks."""
+    row, mine = readable_block(req, block_id)
+    meta = json.loads(row['meta'] or '{}')
+    fmt = books.book_format(row, meta)
+    if not fmt or not row['file_key']:
+        raise HttpError(404, 'That isn’t a book Mutt can open.')
+    media_ = meta.get('media') or {}
+    book = {'id': row['id'], 'format': fmt, 'mine': mine, 'title': row['title'], 'author': media_.get('author'),
+            'file': f"/f/{row['id']}/{urllib.parse.quote(row['file_name'] or 'file')}",
+            'cover': f"/t/{row['id']}?v={row['thumb_key'][:8]}" if row['thumb_key'] else None}
+    if fmt == 'epub':
+        found = epub_of(row)
+        if not found or not found['spine']:
+            raise HttpError(422, 'This book couldn’t be opened. The file may be damaged.')
+        book.update({k: found[k] for k in ('spine', 'toc', 'dir', 'language', 'publisher')})
+        book['title'] = found['title'] or book['title']
+        book['author'] = found['author'] or book['author']
+    else:
+        book['title'] = media_.get('title') or book['title']
+        book['pages'] = books.pages_of(meta) or None
+        book['converted'] = has_text(req, block_id)
+    marks = [mark_json(r) for r in req.db.execute(
+        'SELECT * FROM book_marks WHERE user_id = ? AND block_id = ? ORDER BY percent, created_at',
+        (req.user['id'], block_id))]
+    return json_response({'book': book, 'progress': progress_of(req, block_id), 'marks': marks})
+
+
+@route('GET', r'/api/books/(?P<block_id>[\w-]+)/part/(?P<name>.+)')
+def book_part(req, block_id, name):
+    """One chapter or picture from inside an EPUB."""
+    row, _ = readable_block(req, block_id)
+    if books.book_format(row, {}) != 'epub' or not row['file_key']:
+        raise HttpError(404, 'Not found.')
+    try:
+        data, ctype = books.epub_part(book_path(row), urllib.parse.unquote(name))
+    except (KeyError, ValueError, OSError, zipfile.BadZipFile):
+        raise HttpError(404, 'That part of the book is missing.')
+    return Response(200, [('Content-Type', ctype), ('Content-Length', str(len(data))),
+                          ('Cache-Control', 'private, max-age=86400'), ('Content-Security-Policy', FILE_CSP)], data)
+
+
+def clean_loc(body):
+    loc = text_field(body, 'loc', 500, 'Place', strip=False)
+    if not loc:
+        raise HttpError(400, 'Where in the book is missing.')
+    try:
+        percent = min(1.0, max(0.0, float(body.get('percent') or 0)))
+    except (TypeError, ValueError):
+        raise HttpError(400, 'How far through is missing.')
+    return loc, percent
+
+
+@route('PUT', r'/api/books/(?P<block_id>[\w-]+)/progress')
+def save_progress(req, block_id):
+    readable_block(req, block_id)
+    loc, percent = clean_loc(req.json())
+    req.db.execute('INSERT INTO book_progress (user_id, block_id, loc, percent, updated_at) VALUES (?, ?, ?, ?, ?) '
+                   'ON CONFLICT (user_id, block_id) DO UPDATE SET loc = excluded.loc, percent = excluded.percent, '
+                   'updated_at = excluded.updated_at', (req.user['id'], block_id, loc, percent, now()))
+    return json_response({'progress': progress_of(req, block_id)})
+
+
+@route('POST', r'/api/books/(?P<block_id>[\w-]+)/marks')
+def add_mark(req, block_id):
+    """A highlight (with a colour and maybe a note) or a bookmark, yours only."""
+    readable_block(req, block_id)
+    body = req.json()
+    kind = body.get('kind')
+    if kind not in MARK_KINDS:
+        raise HttpError(400, 'That kind of mark doesn’t exist.')
+    loc, percent = clean_loc(body)
+    color = body.get('color') if kind == 'highlight' else None
+    if kind == 'highlight' and color not in MARK_COLORS:
+        raise HttpError(400, 'That colour doesn’t exist.')
+    count = req.db.execute('SELECT COUNT(*) FROM book_marks WHERE user_id = ? AND block_id = ?',
+                           (req.user['id'], block_id)).fetchone()[0]
+    if count >= MAX_MARKS:
+        raise HttpError(400, 'That’s as many marks as one book can hold.')
+    mark_id = new_id()
+    req.db.execute('INSERT INTO book_marks (id, user_id, block_id, kind, loc, text, color, note, percent, created_at) '
+                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                   (mark_id, req.user['id'], block_id, kind, loc, text_field(body, 'text', 4000, 'Text') or '',
+                    color, text_field(body, 'note', 4000, 'Note') or '', percent, now()))
+    row = req.db.execute('SELECT * FROM book_marks WHERE id = ?', (mark_id,)).fetchone()
+    return json_response({'mark': mark_json(row)}, status=201)
+
+
+def own_mark(req, block_id, mark_id):
+    row = req.db.execute('SELECT * FROM book_marks WHERE id = ? AND block_id = ? AND user_id = ?',
+                         (mark_id, block_id, req.user['id'])).fetchone()
+    if not row:
+        raise HttpError(404, 'That mark is gone.')
+    return row
+
+
+@route('PATCH', r'/api/books/(?P<block_id>[\w-]+)/marks/(?P<mark_id>[\w-]+)')
+def update_mark(req, block_id, mark_id):
+    row = own_mark(req, block_id, mark_id)
+    body = req.json()
+    updates = {}
+    if 'color' in body:
+        if row['kind'] != 'highlight' or body['color'] not in MARK_COLORS:
+            raise HttpError(400, 'That colour doesn’t exist.')
+        updates['color'] = body['color']
+    note = text_field(body, 'note', 4000, 'Note')
+    if note is not None:
+        updates['note'] = note
+    if updates:
+        req.db.execute(f"UPDATE book_marks SET {', '.join(f'{k} = ?' for k in updates)} WHERE id = ?",
+                       (*updates.values(), mark_id))
+    return json_response({'mark': mark_json(own_mark(req, block_id, mark_id))})
+
+
+@route('DELETE', r'/api/books/(?P<block_id>[\w-]+)/marks/(?P<mark_id>[\w-]+)')
+def delete_mark(req, block_id, mark_id):
+    own_mark(req, block_id, mark_id)
+    req.db.execute('DELETE FROM book_marks WHERE id = ?', (mark_id,))
+    return json_response({'ok': True})
+
+
+@route('PUT', r'/api/books/(?P<block_id>[\w-]+)/text')
+def save_book_text(req, block_id):
+    """A PDF turned into reading format (in the browser): its chapters as JSON."""
+    row = own_block(req, block_id)
+    if row['kind'] != 'pdf':
+        raise HttpError(400, 'Only PDFs are turned into reading format.')
+    raw = req.read_bytes(MAX_BOOK_TEXT)
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HttpError(400, 'That book text could not be read.')
+    if not isinstance(data, dict) or data.get('v') != 1 or not isinstance(data.get('chapters'), list) \
+            or not data['chapters'] or len(data['chapters']) > 5000:
+        raise HttpError(400, 'That book text could not be read.')
+    for ch in data['chapters']:
+        if not isinstance(ch, dict) or not isinstance(ch.get('blocks'), list):
+            raise HttpError(400, 'That book text could not be read.')
+    packed = gzip.compress(json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode('utf-8'), 6)
+    req.db.execute('INSERT INTO book_texts (block_id, data, made_at) VALUES (?, ?, ?) '
+                   'ON CONFLICT (block_id) DO UPDATE SET data = excluded.data, made_at = excluded.made_at',
+                   (block_id, packed, now()))
+    return json_response({'ok': True, 'chapters': len(data['chapters'])})
+
+
+@route('GET', r'/api/books/(?P<block_id>[\w-]+)/text')
+def get_book_text(req, block_id):
+    readable_block(req, block_id)
+    r = req.db.execute('SELECT data FROM book_texts WHERE block_id = ?', (block_id,)).fetchone()
+    if not r:
+        raise HttpError(404, 'This PDF hasn’t been turned into reading format yet.')
+    data = bytes(r['data'])
+    if 'gzip' in (req.header('Accept-Encoding') or ''):
+        headers = [('Content-Encoding', 'gzip'), ('Vary', 'Accept-Encoding')]
+    else:
+        data, headers = gzip.decompress(data), []
+    return Response(200, [('Content-Type', 'application/json; charset=utf-8'), ('Content-Length', str(len(data))),
+                          ('Cache-Control', 'no-store'), *headers], data)
+
+
+@route('DELETE', r'/api/books/(?P<block_id>[\w-]+)/text')
+def delete_book_text(req, block_id):
+    own_block(req, block_id)
+    req.db.execute('DELETE FROM book_texts WHERE block_id = ?', (block_id,))
+    return json_response({'ok': True})
 
 
 # ---------------------------------------------------------------- stored files

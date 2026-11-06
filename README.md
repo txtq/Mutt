@@ -50,6 +50,18 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   planet on the moon's page to move it back. A moon's sharing can never be
   more open than its planet's. Autosort never picks a moon. Deleting a
   moon moves its files to its planet; deleting a planet takes its moons.
+- **Reading planets**: when a planet holds books (EPUBs, or PDFs that read
+  like books: a few dozen pages, an ISBN, a copyright page, chapters), it
+  offers once to become a reading planet. Its books then stand on a shelf by
+  their cover, with how far you've read and the one you're in the middle of
+  up top. Opening one starts the reader: pages that fit the screen (two side
+  by side on wide screens), turned by tapping the edges, swiping, the arrow
+  keys or scrolling; contents, bookmarks, highlights in five colours or
+  underlined, notes, and the type, size, spacing and page colour you like.
+  Where you are, your highlights and bookmarks are saved for each reader. A
+  PDF can be read as its printed pages, or turned into reading format (its
+  text, rebuilt into chapters and paragraphs in the browser) to read like an
+  EPUB. **Show as files again** in the ••• menu turns it off.
 - **Arranging**: drag your planets anywhere in your galaxy (on a phone,
   hold one for a moment first; with the keyboard, Shift and the arrow
   keys). Everyone who opens your galaxy sees them where you put them, and

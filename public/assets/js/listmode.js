@@ -289,12 +289,9 @@ export class ListView {
     if (!this.countEl) return;
     const total = this.blocks.length;
     const done = this.blocks.filter((b) => b.checked).length;
-    if (this.ticking()) {
-      this.countEl.textContent = total ? `${done} of ${total}` : 'Nothing on it yet';
-      this.fill.style.transform = `scaleX(${total ? done / total : 0})`;
-    } else {
-      this.countEl.textContent = total ? plural(total, 'item') : 'Nothing on it yet';
-    }
+    // Just how many items; the thin line on top shows how much is ticked.
+    this.countEl.textContent = total ? plural(total, 'item') : 'Nothing on it yet';
+    if (this.ticking()) this.fill.style.transform = `scaleX(${total ? done / total : 0})`;
     this.lastDone = done;
     this.bar.hidden = !this.ticking();
     if (this.clearBtn) this.clearBtn.hidden = !this.ticking() || !done;

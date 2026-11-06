@@ -342,20 +342,10 @@ def block_connections(req, block_id):
     return [drawer_json(r) for r in rows if drawer_visible(req, r)]
 
 
-def is_list(conn, drawer_id):
-    row = conn.execute('SELECT modes FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
-    return bool(row and (drawer_modes(row).get('list') or {}).get('on'))
-
-
 def connect(conn, block_id, drawer_id, position=None):
     if position is None:
-        # A planet shows its newest file first; a list reads top to bottom, so
-        # new things join it at the end.
-        if is_list(conn, drawer_id):
-            position = place_in(conn, drawer_id, end=True)
-        else:
-            low = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
-            position = low - 1 if low is not None else 0
+        low = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+        position = low - 1 if low is not None else 0
     conn.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
                  'VALUES (?, ?, ?, ?)', (block_id, drawer_id, position, now()))
     conn.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
@@ -955,17 +945,6 @@ def listify_drawer(req, drawer_id):
     signs = sorting.list_signs(req.db, drawer_id)
     split = 0
     with db.transaction(req.db):
-        # A planet left in the order its files came (newest first) is turned
-        # round, so the list reads top to bottom in the order things were
-        # added. One its owner has arranged by hand keeps that order.
-        placed = req.db.execute('SELECT block_id, connected_at FROM connections WHERE drawer_id = ? '
-                                'ORDER BY position', (drawer_id,)).fetchall()
-        times = [r['connected_at'] for r in placed]
-        pairs = list(zip(times, times[1:]))
-        if pairs and all(a >= b for a, b in pairs) and any(a > b for a, b in pairs):
-            for i, r in enumerate(reversed(placed)):
-                req.db.execute('UPDATE connections SET position = ? WHERE drawer_id = ? AND block_id = ?',
-                               (i, drawer_id, r['block_id']))
         if body.get('split', True):
             rows = req.db.execute(
                 'SELECT b.id, b.content, c.position FROM connections c JOIN blocks b ON b.id = c.block_id '

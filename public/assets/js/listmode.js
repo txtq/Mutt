@@ -96,6 +96,7 @@ export class ListView {
     this.onChange = onChange;
     this.rows = new Map();
     this.saving = new Map();
+    this.queue = Promise.resolve();
 
     this.ol = h('ol', { class: 'lm-items' });
     this.countEl = h('span', { class: 'lm-count' });
@@ -115,7 +116,7 @@ export class ListView {
       this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }), this.input, this.left);
       this.wireAdder();
     }
-    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.ol, this.adder || null);
+    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.adder || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.applyOptions();
     this.render({ entrance: true });
@@ -319,7 +320,10 @@ export class ListView {
     this.guard(input, left);
     input.addEventListener('input', () => this.counter(input, left));
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      if (e.key === 'ArrowDown' && input.selectionStart === input.value.length) {
+        const first = this.order()[0];
+        if (first) { e.preventDefault(); this.focusItem(first.id, 'end'); }
+      } else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         const value = input.value.trim();
         if (!value) return;
@@ -353,15 +357,16 @@ export class ListView {
         e.preventDefault();
         const prev = this.neighbour(id, -1);
         this.remove(id, { quiet: true });
-        this.focusItem(prev, 'end');
+        if (prev) this.focusItem(prev, 'end');
+        else this.input?.focus();
       } else if (e.key === 'ArrowUp' && at === 0 && text.selectionEnd === 0) {
         const prev = this.neighbour(id, -1);
-        if (prev) { e.preventDefault(); this.focusItem(prev, 'end'); }
-      } else if (e.key === 'ArrowDown' && atEnd) {
         e.preventDefault();
-        const next = this.neighbour(id, 1);
-        if (next) this.focusItem(next, 'end');
+        if (prev) this.focusItem(prev, 'end');
         else this.input?.focus();
+      } else if (e.key === 'ArrowDown' && atEnd) {
+        const next = this.neighbour(id, 1);
+        if (next) { e.preventDefault(); this.focusItem(next, 'end'); }
       } else if (e.key === 'Escape') {
         text.value = this.find(id)?.content || '';
         text.blur();
@@ -420,7 +425,7 @@ export class ListView {
   }
 
   // The row just above one in the list's saved order: new rows are saved
-  // after it, so quick adds can't overtake each other.
+  // after it (or at the top when there's none).
   above(block) {
     return this.blocks[this.blocks.indexOf(block) - 1]?.id || null;
   }
@@ -432,13 +437,15 @@ export class ListView {
     return id && this.find(id) ? id : null;
   }
 
-  // Save a new row's words as a note on the planet, after another row.
+  // Save a new row's words as a note on the planet, after another row or at
+  // the top. Saves go one after another, so quick adds keep their order.
   save(temp, content, afterId) {
+    const waitTurn = this.queue;
     const job = (async () => {
+      await waitTurn;
       const after = await this.anchorOf(afterId);
       const body = { content, drawer: this.drawer.id };
       if (after) body.after = after;
-      else body.end = true;
       const { block } = await api.post('/api/blocks', body);
       if (!this.find(temp.id)) {
         // Removed while it was being saved.
@@ -449,13 +456,15 @@ export class ListView {
       return block.id;
     })();
     this.saving.set(temp.id, job);
+    this.queue = job.catch(() => {});
     job.catch((err) => { this.forget(temp.id); toast(err.message); })
       .finally(() => setTimeout(() => this.saving.delete(temp.id), 0));
     return job;
   }
 
-  // Items in order, each placed after the one before (or at the end). Rows
-  // appear at once; saving happens behind them.
+  // Items in order, each placed after the one before (the first at the top,
+  // just under the add box, unless given a row to follow). Rows appear at
+  // once; saving happens behind them.
   add(texts, { after = null, focus = false, caretStart = false } = {}) {
     let prev = after;
     let first = true;
@@ -511,21 +520,20 @@ export class ListView {
         e.preventDefault();
         settled = true;
         this.forget(temp.id);
-        this.focusItem(prevId, 'end');
+        if (prevId) this.focusItem(prevId, 'end');
+        else this.input?.focus();
       } else if (e.key === 'ArrowUp' && text.selectionStart === 0) {
         e.preventDefault();
-        this.focusItem(prevId, 'end');
+        if (prevId) this.focusItem(prevId, 'end');
+        else this.input?.focus();
       }
     });
   }
 
-  // Put a block in the list after another (or at the end of the open items).
+  // Put a block in the list after another (or at the top).
   insertBlock(block, after) {
     const at = after ? this.blocks.findIndex((b) => b.id === after) : -1;
-    let i;
-    if (at >= 0) i = at + 1;
-    else if (this.ticking() && this.opts.doneLast && !block.checked) i = this.blocks.map((b) => !!b.checked).lastIndexOf(false) + 1;
-    else i = this.blocks.length;
+    const i = at >= 0 ? at + 1 : 0;
     this.blocks.splice(i, 0, block);
     const li = this.row(block);
     if (block.pending) li.classList.add('is-pending');
@@ -567,7 +575,7 @@ export class ListView {
   }
 
   // Something added to the planet another way (a dropped file, say) joins
-  // the list at the bottom, like a typed item.
+  // the list at the top, like a typed item.
   arrive(block) {
     if (this.find(block.id)) return;
     this.insertBlock({ ...block, checked: null }, null);
@@ -655,7 +663,6 @@ export class ListView {
         if (only) {
           const body = { content: block.content, drawer: this.drawer.id };
           if (prevId && this.find(prevId)) body.after = prevId;
-          else body.end = true;
           const { block: back } = await api.post('/api/blocks', body);
           if (block.checked) await api.post(`/api/drawers/${this.drawer.id}/check`, { block: back.id, checked: true });
           this.insertBlock({ ...back, checked: block.checked }, prevId && this.find(prevId) ? prevId : null);

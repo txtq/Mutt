@@ -166,6 +166,11 @@ def clean_modes(value, current):
             else:
                 raise HttpError(400, 'Those reading settings could not be saved.')
         modes['reading'] = merged
+    if 'shareTip' in value:
+        # The one-time "who can see it" tip on a new planet; only ever put away.
+        if value['shareTip'] is not False:
+            raise HttpError(400, 'Those settings could not be saved.')
+        modes.pop('shareTip', None)
     return modes
 
 
@@ -726,6 +731,12 @@ def planet_json(req, row, count, previews=None, locked=False):
     return data
 
 
+def private_planet(row):
+    return {'id': row['id'], 'title': '', 'icon': {'c': json.loads(row['icon']).get('c')}, 'look': row['look'],
+            'x': row['x'], 'y': row['y'], 'count': 0, 'moons': [], 'locked': True, 'private': True,
+            'mine': False, 'visibility': 'private', 'hasCode': False}
+
+
 def galaxy_of(req, owner):
     """Someone's planets as you're allowed to see them, plus your own loose stars."""
     mine = owner['id'] == req.user['id']
@@ -738,7 +749,10 @@ def galaxy_of(req, owner):
             planets.append(planet_json(req, r, r['n'], drawer_previews(req, r['id'], limit=12)))
         elif r['visibility'] == 'pin':
             planets.append(planet_json(req, r, r['n'], locked=True))
-        # Private planets, and people-only ones you're not on, stay out of sight.
+        else:
+            # Private planets, and people-only ones you're not on, show
+            # blurred: where they are and what kind, never their name or files.
+            planets.append(private_planet(r))
     data = {
         'user': {**user_json(owner), 'you': mine},
         'planets': planets,
@@ -849,9 +863,9 @@ def save_layout(req):
 
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
-    """The universe: everyone with something you could look at, you first,
-    then everyone else A to Z. Anyone's galaxy can be opened; a code is only
-    asked for on a locked planet."""
+    """The universe: everyone, you first, then everyone else A to Z. Anyone's
+    galaxy can be opened; a code is only asked for on a locked planet, and
+    planets you can't see at all (private, or shared with others) show blurred."""
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
     out = []
     for user in users:
@@ -862,17 +876,17 @@ def list_galaxies(req):
         worlds = []
         for r in rows:
             open_ = mine or drawer_visible(req, r)
-            if open_ or r['visibility'] == 'pin':
-                worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': r['n'], 'locked': not open_,
-                               'look': r['look'], 'x': r['x'], 'y': r['y'],
-                               'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
-        if not worlds and not mine:
-            continue
+            hidden = not open_ and r['visibility'] != 'pin'
+            worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': 0 if hidden else r['n'],
+                           'locked': not open_, 'private': hidden,
+                           'look': r['look'], 'x': r['x'], 'y': r['y'],
+                           'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
         opened = [w for w in worlds if not w['locked']]
+        private = sum(1 for w in worlds if w['private'])
         out.append({
             'username': user['username'], 'you': mine, 'planets': len(worlds),
             'files': sum(w['n'] for w in opened), 'open': len(opened),
-            'locked': len(worlds) - len(opened),
+            'locked': len(worlds) - len(opened) - private, 'private': private,
             'worlds': worlds[:16],
         })
     out.sort(key=lambda g: (not g['you'], g['username']))
@@ -906,13 +920,16 @@ def create_drawer(req):
     block_ids = body.get('blockIds') or []
     if not isinstance(block_ids, list) or len(block_ids) > 10000:
         raise HttpError(400, 'Could not add those files.')
-    visibility = body.get('visibility') or 'pin'
+    # New planets are public (look, don't add) until their owner says otherwise.
+    visibility = body.get('visibility') or 'public'
     if visibility not in VISIBILITY:
         raise HttpError(400, 'That sharing setting could not be saved.')
     parent_id = body.get('parent') or None
     people = []
-    modes = {}
+    # A new planet shows its owner a tip about sharing the first time they open it.
+    modes = {'shareTip': True}
     if parent_id is not None:
+        modes = {}
         parent = own_drawer(req, str(parent_id))
         if parent['parent_id']:
             raise HttpError(400, "Moons can't have moons.")
@@ -1209,8 +1226,8 @@ def autosort(req, block_id, icon=None, text=None):
         drawer_id = new_id()
         stamp = now()
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility) '
-            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'pin')",
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, modes) '
+            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'public', '{\"shareTip\": true}')",
             (drawer_id, req.user['id'], title, json.dumps(icon or default_icon()), stamp, stamp))
     connect(req.db, block_id, drawer_id)
     row = own_drawer(req, drawer_id)

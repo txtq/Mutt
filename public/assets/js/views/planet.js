@@ -511,7 +511,47 @@ export const planetView = {
         seg.el, hint, codeRow, people, openRow);
     }
     const shareBtn = mine ? h('button', { type: 'button', class: 'vbtn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
+    // A new planet's first visit: a quiet note by Share saying who can see it
+    // now and that it can be changed. Put away for good once read or used.
+    let shareTip = null;
+    const putTipAway = () => {
+      if (!shareTip) return;
+      const tip = shareTip;
+      shareTip = null;
+      api.patch(`/api/drawers/${id}`, { modes: { shareTip: false } }).then((res) => { drawer = res.drawer; inst.drawer = drawer; }).catch(() => {});
+      if (reducedMotion()) { tip.remove(); return; }
+      tip.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -6px' }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
+        .finished.then(() => tip.remove(), () => tip.remove());
+    };
+    const showShareTip = () => {
+      if (!mine || isMoon || !drawer.modes?.shareTip || shareTip || !shareBtn?.isConnected) return;
+      const now = drawer.community ? 'Everyone on Mutt can see it and add files.'
+        : { public: 'Everyone on Mutt can see it, but only you can add files.',
+            private: 'Only you can see it.', pin: 'Only people with its code can see it.',
+            people: 'Only the people you picked can see it.' }[drawer.visibility] || '';
+      const change = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Change sharing');
+      const ok = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Got it');
+      shareTip = h('div', { class: 'share-tip fglass', role: 'note' },
+        h('p', { class: 'share-tip-title' }, 'Who can see this planet'),
+        h('p', { class: 'share-tip-text' }, `${now} Change that, or let others add too, under Share.`),
+        h('div', { class: 'share-tip-btns' }, ok, change));
+      change.addEventListener('click', () => { putTipAway(); shareBtn.click(); });
+      ok.addEventListener('click', putTipAway);
+      // It hangs from the page, not the header: glass inside the header's
+      // glass can only frost the header, so the files under it would show through.
+      el.append(shareTip);
+      placeTip();
+      addEventListener('resize', placeTip);
+    };
+    const placeTip = () => {
+      if (!shareTip) { removeEventListener('resize', placeTip); return; }
+      const page = el.getBoundingClientRect();
+      const btn = shareBtn.parentElement.getBoundingClientRect();
+      shareTip.style.top = `${Math.round(btn.bottom - page.top + 10)}px`;
+      shareTip.style.right = `${Math.max(0, Math.round(page.right - btn.right))}px`;
+    };
     shareBtn?.addEventListener('click', () => {
+      putTipAway();
       if (sharePop) { sharePop.close(); return; }
       sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-share', width: 340, onClose: () => { sharePop = null; } });
     });
@@ -768,8 +808,8 @@ export const planetView = {
       // then you can drop and paste things onto it like any list.
       dropTarget: () => (isMoon && !listView ? null : view().dropTarget()),
       pasteText: (text) => { if (!isMoon || listView) view().pasteText(text); },
-      mounted: () => setTimeout(lookForList, 700),
-      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
+      mounted: () => { setTimeout(lookForList, 700); setTimeout(showShareTip, 900); },
+      destroy: () => { removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
     };
     return inst;
   },

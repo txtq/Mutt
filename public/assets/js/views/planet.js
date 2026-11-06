@@ -4,10 +4,11 @@
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
+import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
 import { LOOKS, VISIBILITY, glyph, lookOf, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { PALETTE, autosize, bus, h, plural, timeAgo, wait } from '../util.js';
+import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
 
 const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer.owner}` : '/');
 
@@ -315,29 +316,125 @@ export const planetView = {
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': 'Planet options' }, '•••');
     moreBtn.addEventListener('click', () => openMenu(moreBtn, [
+      // List mode shows up here only once the planet has earned it.
+      listView ? { label: 'List options…', run: listOptions } : null,
+      !listView && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
+      listView || listFits ? '-' : null,
       { label: 'Planet type…', run: pickLook },
       { label: 'Planet colour…', run: pickColor },
       '-',
       { label: 'Delete planet…', danger: true, run: remove },
-    ], { align: 'end' }));
+    ].filter(Boolean), { align: 'end' }));
 
     const community = !!drawer.community;
-    const collection = new Collection({
-      blocks: data.blocks,
+    const changed = (blocks) => {
+      drawer.updatedAt = Date.now();
+      drawer.count = blocks.length;
+      setMeta(blocks.length);
+      world.update({ ...drawer, previews: blocks.slice(0, 12) });
+      if (session.stats) session.stats.files = Math.max(session.stats.files, blocks.length);
+    };
+    const makeCollection = (blocks) => new Collection({
+      blocks,
       drawer,
       entry: mine || community,
       sortable: mine,
       readOnly: !mine && !community,
       moderate: mine && community,
       empty: mine ? null : 'Nothing on this planet yet.',
-      onChange: (blocks) => {
-        drawer.updatedAt = Date.now();
-        drawer.count = blocks.length;
-        setMeta(blocks.length);
-        world.update({ ...drawer, previews: blocks.slice(0, 12) });
-        if (session.stats) session.stats.files = Math.max(session.stats.files, blocks.length);
-      },
+      onChange: changed,
     });
+    const makeListView = (blocks) => new ListView({
+      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed,
+    });
+
+    // ------------------------------------------------------------ list mode
+
+    let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
+    let collection = listView ? null : makeCollection(data.blocks);
+    let listFits = false;
+    let offer = null;
+    const view = () => listView || collection;
+    const body = h('div', { class: 'liv-body' }, view().el);
+
+    // Swap what the page shows, with a soft cross-fade.
+    async function swapTo(next) {
+      const old = view();
+      const outgoing = old.el;
+      if (!reducedMotion()) {
+        await outgoing.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px)' }],
+          { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+      }
+      old.destroy();
+      listView = next instanceof ListView ? next : null;
+      collection = next instanceof ListView ? null : next;
+      outgoing.replaceWith(next.el);
+      if (!reducedMotion() && !listView) {
+        next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+      }
+    }
+
+    async function saveList(patch) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { list: patch } }));
+        inst.drawer = drawer;
+        if (listView) listView.drawer = drawer;
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    async function makeList() {
+      try {
+        const res = await api.post(`/api/drawers/${id}/listify`, {});
+        ({ drawer } = res);
+        inst.drawer = drawer;
+        offer?.remove();
+        offer = null;
+        await swapTo(makeListView(res.blocks));
+        changed(res.blocks);
+        toast(res.split ? `Now a list. ${plural(res.split, 'note')} became one item per line.` : 'Now a list');
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    function listOptions() {
+      listSettings({
+        options: drawer.modes?.list,
+        onChange: (patch) => { listView?.setOptions(patch); saveList(patch); },
+        onTurnOff: async () => {
+          if (!(await saveList({ on: false, dismissed: true }))) return;
+          const blocks = listView.blocks.filter((b) => !String(b.id).startsWith('tmp-'));
+          await swapTo(makeCollection(blocks));
+          toast('Showing it as files again', {
+            action: { label: 'Undo', run: async () => { if (await saveList({ on: true })) swapTo(makeListView(blocks)); } },
+          });
+        },
+      });
+    }
+
+    // Is it being used as a list? Ask once the page is up, and offer it once.
+    async function lookForList() {
+      if (!mine || listView) return;
+      try {
+        const { list } = await api.get(`/api/drawers/${id}/modes`);
+        listFits = !!list?.fits;
+        if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
+        offer = listOffer({
+          signs: list.signs,
+          split: list.split,
+          onAccept: makeList,
+          onDecline: () => { offer = null; saveList({ dismissed: true }); },
+        });
+        body.prepend(offer);
+      } catch { /* no offer, then */ }
+    }
+
     // Previews for the big planet's surface come from what's here.
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
@@ -348,7 +445,7 @@ export const planetView = {
           mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
           title, desc, meta),
         mine ? h('div', { class: 'liv-tools' }, shareBtn, moreBtn) : null),
-      h('div', { class: 'liv-body' }, collection.el));
+      body);
 
     const inst = {
       el,
@@ -358,10 +455,11 @@ export const planetView = {
       tint: tintOf(drawer),
       who: { username: mine ? session.user.username : drawer.owner, you: mine },
       home: true,
-      list: () => collection.list(),
-      dropTarget: () => collection.dropTarget(),
-      pasteText: (text) => collection.pasteText(text),
-      destroy: () => { sharePop?.close(); collection.destroy(); },
+      list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : collection.list()),
+      dropTarget: () => view().dropTarget(),
+      pasteText: (text) => view().pasteText(text),
+      mounted: () => setTimeout(lookForList, 700),
+      destroy: () => { sharePop?.close(); view().destroy(); },
     };
     return inst;
   },

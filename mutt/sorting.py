@@ -1589,3 +1589,86 @@ def purpose(conn, drawer_id):
         'cameras': dict(planet.devices) or None,
         'sure': round(sure, 2), 'summary': summary,
     }
+
+
+# ---------------------------------------------------------------- list mode
+
+LIST_NAMES = {'list', 'lists', 'todo', 'todos', 'checklist', 'checklists', 'shopping', 'grocery', 'groceries',
+              'packing', 'wishlist', 'tbr', 'watchlist', 'bucket', 'errands', 'chores', 'tasks', 'inventory',
+              'names', 'ingredients'}
+LIST_PHRASES = re.compile(r'\bto[ -]?dos?\b|\bto (?:buy|get|pack|read|watch|try|see|do|visit|bring)\b|'
+                          r'\bwish ?list\b|\bbucket list\b|\breading list\b', re.I)
+ITEM_RE = re.compile(r'^\s*(?:(?:[-*•·–—+>]|\d{1,3}[.)])\s+)?(?:(\[[ xX✓]?\]|☐|☑|✅|✔|✓)\s*)?(.*?)\s*$')
+LIST_FORMS = ('list', 'checklist', 'tasks')
+
+
+def list_items(text):
+    """A note written as a list -> [(item, ticked)], leaving out a heading line ("Groceries:")."""
+    out = []
+    lines = [line for line in (text or '').splitlines() if line.strip()]
+    for i, line in enumerate(lines):
+        m = ITEM_RE.match(line)
+        box, item = m.group(1), m.group(2)
+        if not item:
+            continue
+        if i == 0 and len(lines) > 2 and item.endswith(':') and not box and not BULLET_RE.match(line):
+            continue
+        ticked = bool(box) and box not in ('[ ]', '[]', '☐')
+        out.append((item, ticked))
+    return out
+
+
+def is_list_note(text):
+    if not text or len(text) > 20000:
+        return False
+    f = form(text, '')
+    return max(f.get(k, 0) for k in LIST_FORMS) >= 0.6 and len(list_items(text)) >= 2
+
+
+def list_signs(conn, drawer_id):
+    """Whether a planet is being used as a list, and the signs, in plain words.
+    {'fits', 'signs': [...], 'type': 'check'|'bullet', 'split': notes that would
+    become separate items}. Features read this to offer list mode."""
+    row = conn.execute('SELECT title FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    if row is None:
+        return None
+    files = conn.execute('SELECT b.id, b.kind, b.content, b.title FROM connections c JOIN blocks b ON '
+                         'b.id = c.block_id WHERE c.drawer_id = ?', (drawer_id,)).fetchall()
+    n = len(files)
+    notes = [f for f in files if f['kind'] == 'text']
+    short = [f for f in notes if '\n' not in (f['content'] or '').strip() and len((f['content'] or '').strip()) <= 90]
+    listy = [f for f in notes if is_list_note(f['content'])]
+    things = sum(len(list_items(f['content'])) for f in listy)
+    ticks = sum(1 for f in listy for _, t in list_items(f['content']) if t) + sum(
+        1 for f in listy if CHECKBOX_RE.search(f['content'] or ''))
+    title = row['title'] or ''
+    named = bool(set(stems(title)) & {_stem(w) for w in LIST_NAMES} or LIST_PHRASES.search(title))
+
+    signs = []
+    if named:
+        signs.append(f'It’s called “{title}”, which sounds like a list.')
+    if len(short) >= 4 and len(short) >= 0.6 * n:
+        signs.append(f'{len(short)} of its {n} files are short, one-line notes.' if len(short) < n
+                     else f'All {n} of its files are short, one-line notes.')
+    if listy:
+        if len(listy) == 1:
+            label = (listy[0]['title'] or '').strip() or 'One of its notes'
+            signs.append(f'{"“" + label + "”" if label != "One of its notes" else label} is written as a list '
+                         f'of {things} things.')
+        else:
+            signs.append(f'{len(listy)} of its notes are written as lists ({things} things in all).')
+    if ticks:
+        signs.append('Some things on it are ticked off.')
+    texty = (len(notes) / n) if n else 1.0
+    fits = bool(listy and things >= 3) or (len(short) >= 4 and len(short) >= 0.6 * n) or (named and texty >= 0.5)
+    planet_role = None
+    if fits and n:
+        planets, members = galaxy(conn, conn.execute('SELECT user_id FROM drawers WHERE id = ?',
+                                                     (drawer_id,)).fetchone()[0])
+        drawer = conn.execute('SELECT id, title, description FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+        planet_role = Planet(drawer, members.get(drawer_id, [])).role
+    check = bool(ticks) or planet_role in ('tasks', 'wanting', 'planning') or bool(
+        re.search(r'\bto[ -]?dos?\b|\bchecklist|\bshopping|\bgrocer|\bpacking|\berrands|\bchores|\btasks',
+                  title, re.I))
+    return {'fits': fits, 'signs': signs, 'type': 'check' if check else 'bullet',
+            'split': [f['id'] for f in listy]}

@@ -677,11 +677,11 @@ export const planetView = {
       blocks,
       drawer,
       targets,
-      entry: !isMoon && (mine || community),
+      entry: mine || community,
       sortable: mine,
       readOnly: !mine && !community,
       moderate: mine && community,
-      empty: isMoon ? (mine ? 'Nothing here yet. Drag files onto this moon from its planet.' : 'Nothing on this moon yet.') : mine ? null : 'Nothing on this planet yet.',
+      empty: mine ? null : isMoon ? 'Nothing on this moon yet.' : 'Nothing on this planet yet.',
       onChange: changed,
       ...over,
     });
@@ -872,10 +872,9 @@ export const planetView = {
       homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
       goHome: () => nav.go(home),
       list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : view().list()),
-      // A moon takes files dragged from its planet, unless it's a list:
-      // then you can drop and paste things onto it like any list.
-      dropTarget: () => (isMoon && !listView ? null : view().dropTarget()),
-      pasteText: (text) => { if (!isMoon || listView) view().pasteText(text); },
+      // A moon takes new things just like a planet: typed, pasted or dropped.
+      dropTarget: () => view().dropTarget(),
+      pasteText: (text) => view().pasteText(text),
       mounted: () => setTimeout(lookForList, 700),
       destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
     };

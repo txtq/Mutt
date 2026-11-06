@@ -4,6 +4,7 @@
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
+import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonEl, moonLookOf, planetEl, planetTone } from '../planets.js';
@@ -573,6 +574,7 @@ export const planetView = {
     let offer = null;
     const view = () => listView || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
+    const stopDrift = drift(body);
 
     // Swap what the page shows, with a soft cross-fade.
     async function swapTo(next) {
@@ -688,7 +690,7 @@ export const planetView = {
       dropTarget: () => (isMoon ? null : view().dropTarget()),
       pasteText: (text) => { if (!isMoon) view().pasteText(text); },
       mounted: () => setTimeout(lookForList, 700),
-      destroy: () => { sharePop?.close(); listPanel?.close(); view().destroy(); },
+      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
     };
     return inst;
   },

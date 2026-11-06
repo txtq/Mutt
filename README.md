@@ -55,9 +55,19 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   called and what that means (a planet called "Food" wants recipes, "Japan
   trip" wants Osaka); the files already on it (their words, kinds, websites
   and colours, so moving a wrong guess teaches it); and how a note is written
-  (a checklist, a quote, a poem, a recipe, code, a diary). If nothing fits
-  well, a new planet is born, named after what the file is about ("Quotes",
-  "To do") or, failing that, its kind (Notes, Images...).
+  (a checklist, a quote, a poem, a story, a dated diary entry, a workout log,
+  a recipe, code). A planet's name is read in the light of its files: "Bass"
+  full of guitar tabs doesn't get a sea bass recipe, and a poem doesn't land
+  on a planet of diary entries. If nothing fits well, a new planet is born,
+  named after what the file is about ("Quotes", "To do") or, failing that, its
+  kind (Notes, Images...). The words it knows live in `mutt/lexicon.py`.
+- **What a planet is for**: Mutt reads each planet from its name, note and
+  files: what it's about (a topic like Music, and a finer one like
+  instruments), what it's used for (collecting, making, planning, tasks,
+  logging, learning, keeping or wanting), its kinds of file, how its notes
+  are written, and the words that are its own. Nothing shows it yet; it's
+  there for features that appear when a planet needs them, and owners can
+  read it at `GET /api/drawers/<id>/purpose`.
 - **Who can see a planet**: Private (only you), Code (anyone who has your
   4-digit code, the default), People (the usernames you list) or Public
   (everyone signed in). A public planet can also let others add files.

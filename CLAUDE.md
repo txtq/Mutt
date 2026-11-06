@@ -41,8 +41,9 @@ Decided by the user:
 - Future work will add features through this one mechanism. Build each new feature as a mode that waits for its trigger, never as an always-visible button.
 
 What already exists to read a planet's purpose (reuse it, don't start a second classifier):
-- `mutt/sorting.py`: `shape()` reads how a note is written (to do / list, quote, recipe, code, writing, journal, ideas, people); `topic_scores()` and `TOPICS` give what a file is about; `group_of()` gives its kind group (Images, Notes…); `look` colours and vibes come from pictures.
-- A planet's files, kinds and name are all on hand in `_members` / `galaxy_of`.
+- `sorting.purpose(conn, drawer_id)` (and `GET /api/drawers/<id>/purpose`, owner only) reads a whole planet: `topics` and finer `concepts` with shares, `role` (collecting, making, planning, tasks, logging, learning, keeping, wanting, or None when unclear), `kinds`, `forms`, `keywords`, `places`, `sure` and a plain `summary`. This is the reading a mode's test should use. Autosort scores with the same `Planet` object.
+- `sorting.form()` reads how one note is written (checklist, list, tasks, poem, prose, story, chapter, quote, recipe, code, tab, table, dated, diary, measured, idea, contact, priced, appointment), for modes that respond to what you're writing.
+- The words live in `mutt/lexicon.py`: `TOPICS`, `CONCEPTS` (finer subjects inside a topic), `ROLES`, `EMOJI`, places, sites. Add vocabulary there, not in the scoring code.
 
 Suggested shape for the mechanism (not yet agreed with the user; ask before building):
 - One registry of modes. Each has a test against a planet (or a file being edited) and what it adds when it's on.
@@ -68,7 +69,7 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - Routes live in `mutt/api.py`, declared with `@route(method, regex)`. They return `json_response(...)` and fail with `HttpError(status, message)`.
 - Prefs are validated against `PREF_CHOICES`, so a new pref has to be added there and to `DEFAULTS` in `public/assets/js/theme.js`.
 - Who can see a planet: `drawer_visible`. `galaxy_of` builds `/api/galaxy[/user]`, including the owner's stars and stats. `list_galaxies` builds `/api/galaxies` (the universe).
-- Autosort (`mutt/sorting.py`, scores every planet on name, topics, files already there, kinds and sites), adding a file straight onto a planet (`drawer` in `POST /api/blocks` or `?drawer=` on upload) and link previews (`mutt/links.py`) are all server-side.
+- Autosort (`mutt/sorting.py`, scores every planet on name, topics and concepts, files already there, kinds, sites, how notes are written and what the planet is for; words in `mutt/lexicon.py`), adding a file straight onto a planet (`drawer` in `POST /api/blocks` or `?drawer=` on upload) and link previews (`mutt/links.py`) are all server-side.
 - Media previews (thumbnails, posters, PDF first pages) are made in the browser during upload; the server never decodes media.
 
 **Front end** (`public/index.html` + `public/assets/js`): vanilla ES modules.

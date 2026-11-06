@@ -833,6 +833,15 @@ def drawer_orphans(req, drawer_id):
     return json_response({'count': len(req.db.execute(ORPHANS_SQL, (drawer_id, req.user['id'])).fetchall())})
 
 
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/purpose')
+def drawer_purpose(req, drawer_id):
+    """What Mutt reads a planet as being about and for (sorting.purpose). Only
+    its owner can ask; nothing in the app shows it yet. Features that appear
+    when a planet needs them are meant to read this."""
+    own_drawer(req, drawer_id)
+    return json_response({'purpose': sorting.purpose(req.db, drawer_id)})
+
+
 @route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def delete_drawer(req, drawer_id):
     own_drawer(req, drawer_id)

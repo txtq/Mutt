@@ -64,3 +64,23 @@ up letter.rtf application/rtf
 S=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"Prune the roses and repot the basil"}' | j "d['block']['id']")
 echo "star -> $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$S/autosort -d '{}' | j "$shown")"
 echo "search finds the word inside the PDF: $(curl -s "${A[@]}" "$B/api/search?q=tonkotsu" | j "[b['title'] for b in d['blocks']]")"
+
+# What each planet is for, as read from its name and files (summary, role, top topic and concept, own words).
+for P in $R $T $W $G; do
+  echo "purpose: $(curl -s "${A[@]}" "$B/api/drawers/$P/purpose" | j "(lambda p: p['title'] + ' -> ' + p['summary'] + ' | role ' + str(p['role']) + ' | ' + str(p['topics'][:1]) + ' ' + str(p['concepts'][:1]) + ' | ' + ', '.join(p['keywords'][:4]))(d['purpose'])")"
+done
+# A poem doesn't join diary entries; a sea bass recipe doesn't join a bass guitar planet.
+D=$(planet "Morning pages"); BS=$(planet Bass)
+put $D '6 Nov. Slept badly again. I keep circling the same worry about money. Wrote 400 words before the house woke up.'
+put $D '7 Nov. Better today. I walked to the river and felt lighter.'
+put $BS 'Practice: 20 min scales, 20 min slap, then the Jamerson line'
+put $BS 'Strings: flatwounds on the P bass, 45-105'
+note 'frost on the car
+I write your name in it
+and it stays
+all morning'
+note '8 Nov. Woke early and wrote for an hour. I felt calm.'
+note 'Sea bass with lemon and capers: 2 fillets, 1 lemon, 1 tbsp capers. Pan fry 4 min each side.'
+# Someone else can't read your planet's purpose.
+curl -s -b /dev/null -c "$SP/b.txt" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"nosy","pin":"4822"}' > /dev/null
+echo "someone else asking: $(curl -s -b "$SP/b.txt" "$B/api/drawers/$R/purpose" | j "d.get('error')")"

@@ -4,6 +4,7 @@
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
+import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
 import { ShelfView, readingOffer } from '../reading.js';
@@ -516,18 +517,23 @@ export const planetView = {
     });
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
-    moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
-      { label: 'Moon type…', run: pickMoonLook },
-      '-',
-      { label: 'Delete moon…', danger: true, run: remove },
-    ] : [
-      // List mode shows up here only once the planet has earned it.
+    // List mode shows up here only once the planet (or moon) has earned it,
+    // and stays here after the offer is waved away or the list is turned off.
+    const listItems = () => [
       listView ? { label: 'List options…', run: () => listOptions() } : null,
       !listView && !shelf && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       // And reading mode, once it holds books.
       shelf ? { label: 'Show as files again', run: () => unshelve() } : null,
       !listView && !shelf && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
       listView || listFits || shelf || shelfFits ? '-' : null,
+    ];
+    moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
+      ...listItems(),
+      { label: 'Moon type…', run: pickMoonLook },
+      '-',
+      { label: 'Delete moon…', danger: true, run: remove },
+    ].filter(Boolean) : [
+      ...listItems(),
       { label: 'Planet type…', run: pickLook },
       { label: 'Planet colour…', run: pickColor },
       (drawer.moons || []).length < 4 ? { label: 'Add a moon…', run: addMoon } : null,
@@ -586,6 +592,7 @@ export const planetView = {
     let offer = null;
     const view = () => listView || shelf || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
+    const stopDrift = drift(body);
 
     // Swap what the page shows, with a soft cross-fade.
     async function swapTo(next) {
@@ -648,6 +655,7 @@ export const planetView = {
           if (!(await saveList({ on: false, dismissed: true }))) return;
           const blocks = listView.blocks.filter((b) => !String(b.id).startsWith('tmp-'));
           await swapTo(makeCollection(blocks));
+          readListSigns();
           toast('Showing it as files again', {
             action: { label: 'Undo', run: async () => { if (await saveList({ on: true })) swapTo(makeListView(blocks)); } },
           });
@@ -687,23 +695,37 @@ export const planetView = {
       });
     }
 
-    // Is it being used as a list, or a bookshelf? Ask once the page is up, and offer it once.
-    async function lookForList() {
-      if (!mine || listView || shelf || isMoon) return;
+    // Does it read as a list, or a bookshelf? That decides what the ••• menu offers.
+    let readingSigns = null;
+    async function readListSigns() {
+      if (!mine) return null;
       try {
         const { list, reading } = await api.get(`/api/drawers/${id}/modes`);
         listFits = !!list?.fits;
-        shelfFits = !!reading?.fits;
+        shelfFits = !isMoon && !!reading?.fits;
+        readingSigns = reading;
+        return list;
+      } catch {
+        return null;
+      }
+    }
+
+    // Is it being used as a list, or a bookshelf? Ask once the page is up, and offer it once.
+    async function lookForList() {
+      if (!mine) return;
+      const list = await readListSigns();
+      try {
         if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf) {
           offer = readingOffer({
-            signs: reading.signs,
-            pdfs: reading.pdfs,
+            signs: readingSigns.signs,
+            pdfs: readingSigns.pdfs,
             onAccept: makeShelf,
             onDecline: () => { offer = null; saveReading({ dismissed: true }); },
           });
           body.prepend(offer);
           return;
         }
+        if (shelf) return;
         if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
         offer = listOffer({
           signs: list.signs,
@@ -742,10 +764,12 @@ export const planetView = {
       homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
       goHome: () => nav.go(home),
       list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : view().list()),
-      dropTarget: () => (isMoon ? null : view().dropTarget()),
-      pasteText: (text) => { if (!isMoon) view().pasteText(text); },
+      // A moon takes files dragged from its planet, unless it's a list:
+      // then you can drop and paste things onto it like any list.
+      dropTarget: () => (isMoon && !listView ? null : view().dropTarget()),
+      pasteText: (text) => { if (!isMoon || listView) view().pasteText(text); },
       mounted: () => setTimeout(lookForList, 700),
-      destroy: () => { sharePop?.close(); listPanel?.close(); view().destroy(); },
+      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
     };
     return inst;
   },

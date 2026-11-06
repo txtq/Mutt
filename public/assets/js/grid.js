@@ -6,6 +6,20 @@ import { EASE, EASE_IN, h, inViewport, reducedMotion } from './util.js';
 
 const nearby = (els) => [...els].filter((el) => el.isConnected && inViewport(el, 300));
 
+// A cell's way in or out: it slides while its glass fades and its words go in
+// or out of focus. The fade and blur go on the parts, never on the cell, since
+// either one on the cell stops the frosted glass inside it from frosting (it
+// would show clear, then snap to frost at the end).
+const GLASS = '.face-text, .face-file, .face-link, .entry';
+function shift(el, { into = true, duration = 700, delay = 0, easing = EASE, fill = into ? 'backwards' : 'forwards', moved = 'translateY(14px)' } = {}) {
+  const ends = (a, b) => (into ? [a, b] : [b, a]);
+  const opts = { duration, delay, easing, fill };
+  const anim = el.animate(ends({ transform: moved }, { transform: 'none' }), opts);
+  for (const part of el.querySelectorAll(`.face, .entry, .cell-cap, .cell-progress`)) part.animate(ends({ opacity: 0 }, { opacity: 1 }), { ...opts, duration: duration * 0.85 });
+  for (const part of el.querySelectorAll(`:is(${GLASS}) > *, .face-img, .cell-cap`)) part.animate(ends({ filter: 'blur(8px)' }, { filter: 'blur(0)' }), opts);
+  return anim;
+}
+
 export class Grid {
   // targets(): worlds a file can be dragged onto ([{ el, id, measure() → { x, y, r } }]);
   // onDropTo(target, id) is called instead of reordering when one is let go over.
@@ -33,10 +47,15 @@ export class Grid {
     // Right-click a file for its menu (a phone's long press is the drag instead).
     this.el.addEventListener('contextmenu', (e) => {
       if (!onContext || this.drag || e.pointerType === 'touch') return;
-      if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
       const cell = e.target.closest?.('.cell[data-id]');
       if (!cell || cell === this.entry || cell.classList.contains('is-pending')) return;
       onContext(e, cell.dataset.id, cell);
+    });
+    // …and pressing for it doesn't select the note's text (a Mac picks a word).
+    this.el.addEventListener('mousedown', (e) => {
+      if (!onContext || !(e.button === 2 || (e.button === 0 && e.ctrlKey))) return;
+      const cell = e.target.closest?.('.cell[data-id]');
+      if (cell && cell !== this.entry) e.preventDefault();
     });
     this.el.addEventListener('pointerdown', (e) => this.pointerDown(e));
     // The browser's own drag-and-drop would cancel ours halfway (pointercancel).
@@ -113,10 +132,7 @@ export class Grid {
         if (!el.classList.contains('is-new')) continue;
         el.classList.remove('is-new');
         if (inViewport(el)) {
-          el.animate(
-            [{ opacity: 0, transform: 'scale(0.96)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-            { duration: 620, delay: 80 + Math.min(i++, 12) * 28, easing: EASE, fill: 'backwards' },
-          );
+          shift(el, { duration: 620, delay: 80 + Math.min(i++, 12) * 28 });
         }
       }
     } else {
@@ -149,10 +165,8 @@ export class Grid {
       width: `${rect.width}px`, pointerEvents: 'none', zIndex: 0,
     });
     this.el.append(el);
-    el.animate(
-      [{ opacity: 1, transform: 'none', filter: 'none' }, { opacity: 0, transform: 'scale(0.94)', filter: 'blur(6px)' }],
-      { duration: 300, easing: EASE_IN, fill: 'forwards' },
-    ).finished.then(() => el.remove(), () => el.remove());
+    shift(el, { into: false, duration: 300, easing: EASE_IN, moved: 'translateY(10px)' })
+      .finished.then(() => el.remove(), () => el.remove());
   }
 
   insertFirst(el, key) {
@@ -161,10 +175,7 @@ export class Grid {
     if (key) this.cells.set(key, el);
     glide(before);
     if (!reducedMotion()) {
-      el.animate(
-        [{ opacity: 0, transform: 'scale(0.94)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-        { duration: 700, easing: EASE },
-      );
+      shift(el);
     }
     this.syncEmpty();
   }

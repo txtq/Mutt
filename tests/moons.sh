@@ -49,3 +49,21 @@ echo "planet after: $(curl -s "${A[@]}" $B/api/drawers/$TRIP | j "[m['title'] fo
 echo "orphans of planet (planet + moons): $(curl -s "${A[@]}" $B/api/drawers/$TRIP/orphans | j "d['count']")"
 echo "delete planet: $(curl -s "${A[@]}" -H X-Mutt:1 -X DELETE "$B/api/drawers/$TRIP?blocks=orphans" | j "d")"
 echo "after: $(curl -s "${A[@]}" $B/api/galaxy | j "[p['title'] for p in d['planets']], [s['content'] for s in d['stars']]") moon gone $(code "${A[@]}" $B/api/drawers/$FOOD) file gone $(code "${A[@]}" $B/api/blocks/$N1)"
+
+# A list planet's moons are lists too, and can be turned back into files.
+SHOP=$(mk '{"title":"Shopping"}')
+for x in milk eggs bread jam; do add $x $SHOP > /dev/null; done
+OLD=$(mk "{\"title\":\"Old moon\",\"parent\":\"$SHOP\"}")
+PICS=$(mk "{\"title\":\"Pictures\",\"parent\":\"$SHOP\"}")
+printf '\x89PNG\r\n\x1a\n' > "$SP/a.png"
+curl -s "${A[@]}" -H X-Mutt:1 -H "Content-Type: image/png" --data-binary @"$SP/a.png" "$B/api/upload?name=a.png&drawer=$PICS" > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$SHOP -d '{"modes":{"list":{"marker":"dash"}}}' > /dev/null
+echo "listify: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$SHOP/listify -d '{}' | j "d['drawer']['modes']['list']['on'], d['drawer']['modes']['list']['type']")"
+echo "existing moons after (empty one on, pictures one off): $(curl -s "${A[@]}" $B/api/drawers/$OLD | j "d['drawer']['modes'].get('list', {}).get('on'), d['drawer']['modes'].get('list', {}).get('marker')") $(curl -s "${A[@]}" $B/api/drawers/$PICS | j "d['drawer']['modes'].get('list')")"
+NEW=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"Next week\",\"parent\":\"$SHOP\"}" | tee "$SP/lmoon.json" | j "d['drawer']['id']")
+echo "new moon is a list: $(j "d['drawer']['modes']['list']['on'], d['drawer']['modes']['list']['marker'], d['drawer']['modes']['list']['type']" < "$SP/lmoon.json")"
+echo "its signs: $(curl -s "${A[@]}" $B/api/drawers/$NEW/modes | j "d['list']['fits'], d['list']['signs']")"
+echo "turn off: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$NEW -d '{"modes":{"list":{"on":false,"dismissed":true}}}' | j "d['drawer']['modes']['list']['on']") still offered in menu: $(curl -s "${A[@]}" $B/api/drawers/$NEW/modes | j "d['list']['fits']")"
+echo "pictures moon signs: $(curl -s "${A[@]}" $B/api/drawers/$PICS/modes | j "d['list']['fits']")"
+PLAIN=$(mk '{"title":"Plain"}'); BODY="{\"title\":\"x\",\"parent\":\"$PLAIN\"}"
+echo "moon of a plain planet: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$BODY" | j "d['drawer']['modes']")"

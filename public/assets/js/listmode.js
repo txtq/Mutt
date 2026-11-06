@@ -122,11 +122,10 @@ export class ListView {
     this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.adder || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.ol.addEventListener('contextmenu', (e) => this.context(e));
-    // A right-press on an item you aren't editing would focus it (and pick a
-    // word), so the menu would give way to the browser's. Keep it unfocused.
+    // A right-press anywhere on an item only opens its menu: it doesn't focus
+    // the text or pick a word (a Mac picks one under the pointer).
     this.ol.addEventListener('mousedown', (e) => {
-      const field = e.button === 2 && e.target.closest?.('textarea');
-      if (field && field !== document.activeElement) e.preventDefault();
+      if ((e.button === 2 || (e.button === 0 && e.ctrlKey)) && e.target.closest?.('.lm-item')) e.preventDefault();
     });
     this.applyOptions();
     this.render({ entrance: true });
@@ -290,12 +289,9 @@ export class ListView {
     if (!this.countEl) return;
     const total = this.blocks.length;
     const done = this.blocks.filter((b) => b.checked).length;
-    if (this.ticking()) {
-      this.countEl.textContent = total ? `${done} of ${total}` : 'Nothing on it yet';
-      this.fill.style.transform = `scaleX(${total ? done / total : 0})`;
-    } else {
-      this.countEl.textContent = total ? plural(total, 'item') : 'Nothing on it yet';
-    }
+    // Just how many items; the thin line on top shows how much is ticked.
+    this.countEl.textContent = total ? plural(total, 'item') : 'Nothing on it yet';
+    if (this.ticking()) this.fill.style.transform = `scaleX(${total ? done / total : 0})`;
     this.lastDone = done;
     this.bar.hidden = !this.ticking();
     if (this.clearBtn) this.clearBtn.hidden = !this.ticking() || !done;
@@ -644,9 +640,6 @@ export class ListView {
     if (e.pointerType === 'touch' || this.el.classList.contains('is-dragging')) return;
     const li = e.target.closest?.('.lm-item[data-id]');
     if (!li) return;
-    // While you're typing in an item, the browser's own menu (paste, spelling) stays.
-    const field = e.target.closest?.('textarea');
-    if (field && field === document.activeElement) return;
     const block = this.find(li.dataset.id);
     if (!block || isTmp(block.id) || block.pending) return;
     const id = block.id;

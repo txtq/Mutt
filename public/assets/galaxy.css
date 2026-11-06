@@ -2148,8 +2148,7 @@ html[data-motion="off"] .pop-ctx, html[data-motion="off"] .pop-ctx * { animation
 .rp-now-card {
   display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 22px; align-items: center;
   width: 100%; padding: 18px 22px 18px 18px; text-align: left; cursor: pointer;
-  border: 1px solid var(--glass-edge); border-radius: 18px;
-  background: var(--glass-fill); box-shadow: var(--glass-shadow); color: var(--ink);
+  border-radius: 18px; color: var(--ink);
   font: inherit;
 }
 .rp-now-card:hover .rp-cover { transform: translateY(-3px) rotate(-0.6deg); }
@@ -2457,3 +2456,109 @@ html.is-reading, html.is-reading body { overflow: hidden; }
   .rd-top, .rd-ribbon, .rd-scrub-row, .rp-cover { transition: none; }
 }
 .rd:not(.is-ready) .rd-foot { visibility: hidden; }
+
+/* ---------------------------------------------------------------- frosted glass: the house style for boxes
+   Every box that holds the owner's things or a feature (file boxes, the add
+   box, lists, the list offer, and anything added later: give it `.fglass`)
+   is a block of frosted glass: one flat, light, see-through fill (never a
+   gradient) under a deep frost that lifts the sky behind it, a lip of light
+   on the top edge, and the planet's colour only in the edge glow. Headers
+   (the planet's own header, menus, sheets) may look different.
+   On a planet page --pc is the planet's colour; elsewhere it's the accent. */
+/* Fill and frost are the same everywhere. */
+:root {
+  --fg-fill: rgba(180, 192, 232, 0.085);
+  --fg-fill-hover: rgba(190, 202, 240, 0.12);
+  --fg-frost: blur(20px) saturate(0.95) brightness(1.08);
+}
+:is(.face-text, .face-file, .face-link, .entry, .lm, .lm-offer, .fglass) {
+  /* The colours are worked out on the box itself, so they take the planet's
+     colour (--pc) from the page it sits on. */
+  --fg-tone: color-mix(in oklab, var(--pc, #6c9cff), #e4e8f2 34%);
+  --fg-edge: color-mix(in srgb, var(--fg-tone) 36%, rgba(225, 232, 255, 0.1));
+  --fg-edge-hi: color-mix(in srgb, var(--fg-tone) 48%, rgba(225, 232, 255, 0.22));
+  --fg-glow: color-mix(in srgb, var(--fg-tone) 26%, transparent);
+  border: 1px solid var(--fg-edge);
+  background: var(--fg-fill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 0.5px color-mix(in srgb, var(--fg-tone) 18%, transparent),
+    0 0 24px -5px var(--fg-glow),
+    0 18px 36px -24px rgba(0, 0, 18, 0.7);
+  backdrop-filter: var(--fg-frost);
+  -webkit-backdrop-filter: var(--fg-frost);
+  transition: border-color 0.45s var(--ease), box-shadow 0.6s var(--ease), background 0.45s var(--ease);
+}
+.cell[data-id]:hover :is(.face-text, .face-file, .face-link),
+:is(.entry, .lm, .fglass):focus-within,
+.fglass:is(a, button):hover {
+  border-color: var(--fg-edge-hi);
+  background: var(--fg-fill-hover);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 0.5px color-mix(in srgb, var(--fg-tone) 30%, transparent),
+    0 0 30px -4px color-mix(in srgb, var(--fg-tone) 32%, transparent),
+    0 22px 40px -24px rgba(0, 0, 18, 0.8);
+}
+/* Rows inside a glass list are faint washes on the same glass, no fills of their own. */
+.lm {
+  --lm-row: rgba(220, 230, 255, 0.05);
+  --lm-row-hover: rgba(220, 230, 255, 0.09);
+  --lm-row-lit: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.lm-item:focus-within .lm-row, .lm-new:focus-within { box-shadow: var(--lm-row-lit), 0 0 0 1px var(--fg-edge); }
+.lm-item.is-lifted .lm-row { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px var(--fg-edge-hi), 0 20px 40px -16px rgba(0, 0, 20, 0.7); }
+.lm-new { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg-edge) 70%, transparent); }
+
+/* The text fades out at the foot through a mask, so the glass stays clear
+   (a painted fade would show as a dark band on see-through glass). */
+.face-text::after { content: none; }
+.face-text-body {
+  height: 100%;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 46px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 46px), transparent);
+}
+
+/* Entrance: the cell slides up, the glass fades in, the words come into
+   focus. Fades and blurs sit on the parts, never on the cell: either one on
+   the cell would stop the glass inside it from frosting until the end, and
+   the frost would snap on. */
+.cell.reveal { animation-name: cell-slide; }
+@keyframes cell-slide { from { transform: translateY(16px); } }
+.cell.reveal :is(.face-text, .face-file, .face-link, .entry, .face-img, .cell-cap),
+.cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * {
+  animation: part-fade 0.65s var(--ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 30ms);
+}
+.cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-focus; animation-duration: 0.85s; }
+.cell.reveal :is(.face-img, .cell-cap) { animation-name: part-fade, part-focus; animation-duration: 0.65s, 0.85s; }
+@keyframes part-fade { from { opacity: 0; } }
+@keyframes part-focus { from { filter: blur(8px); } }
+html[data-motion="calm"] .cell.reveal { animation-name: none; }
+html[data-motion="calm"] .cell.reveal :is(.face-img, .cell-cap),
+html[data-motion="calm"] .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-fade; animation-duration: 0.45s; animation-delay: 0s; }
+
+/* Idle: each box bobs on its own slow beat (the box), and leans with the
+   pointer (the fill inside it), so the two never fight over one transform. */
+body[data-page="planet"] .grid > .cell .cell-box {
+  animation: cell-float var(--float, 9s) ease-in-out var(--float-at, 0s) infinite alternate;
+}
+body[data-page="planet"] .grid > .cell:nth-child(3n + 1) { --float: 8.2s; --float-at: -3.1s; }
+body[data-page="planet"] .grid > .cell:nth-child(3n + 2) { --float: 10.4s; --float-at: -7.6s; }
+body[data-page="planet"] .grid > .cell:nth-child(4n + 3) { --float-at: -5.3s; --depth: 1.35; }
+body[data-page="planet"] .grid > .cell:nth-child(5n) { --float: 11.6s; --depth: 0.7; }
+@keyframes cell-float { from { translate: 0 -2.5px; } to { translate: 0 2.5px; } }
+body[data-page="planet"] .grid > .cell .cell-fill {
+  transform:
+    perspective(1000px)
+    translate3d(calc(var(--mx, 0) * var(--depth, 1) * 5px), calc(var(--my, 0) * var(--depth, 1) * 4px), 0)
+    rotateX(calc(var(--my, 0) * -2.4deg))
+    rotateY(calc(var(--mx, 0) * 3deg));
+}
+body[data-page="planet"] .grid > .cell:is(.is-ghosting, .is-placeholder) :is(.cell-box, .cell-fill),
+.cell-ghost :is(.cell-box, .cell-fill) { animation: none; transform: none; translate: none; }
+html:is([data-motion="calm"], [data-motion="off"]) body[data-page="planet"] .grid > .cell :is(.cell-box, .cell-fill) { animation: none; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="planet"] .grid > .cell :is(.cell-box, .cell-fill) { animation: none !important; transform: none; }
+}

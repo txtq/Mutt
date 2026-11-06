@@ -152,7 +152,7 @@ export class ShelfView {
     const current = books.filter((b) => b.readAt && b.percent < 0.995).sort((a, b) => b.readAt - a.readAt)[0];
     if (current) {
       const bar = h('span', { class: 'rp-bar' }, h('i', { style: { width: `${Math.round(current.percent * 100)}%` } }));
-      this.now.replaceChildren(h('button', { type: 'button', class: 'rp-now-card', onclick: () => this.read(current) },
+      this.now.replaceChildren(h('button', { type: 'button', class: 'rp-now-card fglass', onclick: () => this.read(current) },
         this.coverEl(current, true),
         h('span', { class: 'rp-now-text' },
           h('span', { class: 'rp-now-label' }, 'Continue reading'),

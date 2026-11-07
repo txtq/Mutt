@@ -38,6 +38,10 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   dust storms, now-and-then lightning. A new planet gets one picked for it;
   change it with **Planet type…** in the planet's ••• menu. The planet's
   colour tints whichever kind it is.
+- **Comments**: open any file you can see in someone's galaxy and leave a
+  comment at the bottom of its details. The owner can answer, and can remove
+  any comment on their files; you can take back your own. A small count
+  under a file's tile shows it has comments.
 - **Moons** are small worlds that belong to a planet, each holding its own
   files (a file on a moon isn't a star). Add one with **Add a moon…** in a
   planet's ••• menu, up to four per planet. On the galaxy they orbit their

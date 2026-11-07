@@ -93,7 +93,10 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
   },
   box,
   h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, displayTitle(block),
-    block.owner ? h('span', { class: 'cell-owner' }, ` @${block.owner}`) : null)));
+    block.owner ? h('span', { class: 'cell-owner' }, ` @${block.owner}`) : null),
+  block.commentCount ? h('span', {
+    class: 'cell-comments', title: `${block.commentCount} comment${block.commentCount === 1 ? '' : 's'}`,
+  }, commentGlyph(), String(block.commentCount)) : null));
   if (block.kind === 'video' && block.file) attachHoverPlay(cell, block);
   return cell;
 }
@@ -161,4 +164,16 @@ export function updatePending(cell, item) {
     cap.replaceChildren(h('span', { class: 'cell-error' }, item.error || 'Upload failed'), ' · ',
       h('button', { type: 'button', class: 'link', dataset: { act: 'retry' } }, 'Retry'));
   }
+}
+
+// A little speech bubble, drawn as a line like the other marks.
+export function commentGlyph() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('cm-glyph');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M3.5 3h9A1.5 1.5 0 0 1 14 4.5v5a1.5 1.5 0 0 1-1.5 1.5H8l-3 2.5V11H3.5A1.5 1.5 0 0 1 2 9.5v-5A1.5 1.5 0 0 1 3.5 3z');
+  svg.append(path);
+  return svg;
 }

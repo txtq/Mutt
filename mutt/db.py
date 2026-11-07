@@ -239,6 +239,13 @@ def migrate(conn):
                  'body TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0, '
                  'created_at REAL NOT NULL, updated_at REAL NOT NULL)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_doc_comments ON doc_comments(block_id)')
+    # Comments on any file, by anyone who can see it. Its owner can remove any of them.
+    conn.execute('CREATE TABLE IF NOT EXISTS file_comments ('
+                 'id TEXT PRIMARY KEY, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'body TEXT NOT NULL, created_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_file_comments ON file_comments(block_id, created_at)')
     # Browsers that have signed in to an account; they skip its account-wide lock.
     conn.execute('CREATE TABLE IF NOT EXISTS devices ('
                  'device_hash TEXT NOT NULL, '

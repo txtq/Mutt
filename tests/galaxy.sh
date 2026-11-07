@@ -9,7 +9,12 @@ curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"bo","pin
 curl -s "${W[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cy","pin":"1111"}' > /dev/null
 mk() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$1" | j "d['drawer']['id']"; }
 PRIV=$(mk '{"title":"Diary","visibility":"private"}')
-PIN=$(mk '{"title":"Recipes"}')
+PIN=$(mk '{"title":"Recipes","visibility":"pin"}')
+NEW=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Fresh"}')
+echo "new planet default (expect public False True): $(echo "$NEW" | j "d['drawer']['visibility'], d['drawer']['community'], d['drawer']['modes'].get('shareTip')")"
+NEWID=$(echo "$NEW" | j "d['drawer']['id']")
+echo "tip put away: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$NEWID -d '{"modes":{"shareTip":false}}' | j "'shareTip' in d['drawer']['modes']")  tip back on (expect 400): $(curl -s -o /dev/null -w '%{http_code}' "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$NEWID -d '{"modes":{"shareTip":true}}')"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X DELETE $B/api/drawers/$NEWID
 PUB=$(mk '{"title":"Zines","visibility":"public"}')
 PPL=$(mk '{"title":"Gifts","visibility":"people"}')
 add() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"$1\",\"drawer\":\"$2\"}" | j "d['block']['id']"; }
@@ -21,7 +26,8 @@ STAR=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"loose t
 echo "own galaxy: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['title'], p['visibility'], p['count']) for p in d['planets']], [s['content'] for s in d['stars']], d['user']")"
 echo "bo sees alma: $(curl -s "${U[@]}" $B/api/galaxy/alma | j "[(p['title'], p.get('locked', False), len(p.get('previews') or [])) for p in d['planets']], 'stars' in d")"
 echo "cy sees alma: $(curl -s "${W[@]}" $B/api/galaxy/alma | j "[(p['title'], p.get('locked', False)) for p in d['planets']]")"
-echo "bo galaxies: $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], g['you'], g['planets']) for g in d['galaxies']]")"
+echo "bo galaxies: $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], g['you'], g['planets'], g['open'], g['locked'], g['private']) for g in d['galaxies']]")"
+echo "bo's universe worlds of alma (private ones blurred, no files): $(curl -s "${U[@]}" $B/api/galaxies | j "[(w['locked'], w['private'], w['n']) for g in d['galaxies'] if g['username'] == 'alma' for w in g['worlds']]")"
 echo "bo reads: pub $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PUB) ppl $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PPL) pin $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PIN) priv $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PRIV)"
 echo "cy reads ppl: $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/drawers/$PPL)  blocks: pub $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/blocks/$NPUB) ppl $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/blocks/$NPPL) star $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/blocks/$STAR)"
 echo "locked body: $(curl -s "${U[@]}" $B/api/drawers/$PIN | j "d.get('locked'), d.get('owner'), d['drawer']['title']")"

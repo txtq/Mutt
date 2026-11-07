@@ -9,7 +9,7 @@ import { COLORS, TRAITS, arrange, ensureLooks } from './look.js';
 import { nav } from './nav.js';
 import { glyph, planetEl } from './planets.js';
 import { openPopover } from './ui.js';
-import { debounce, h } from './util.js';
+import { debounce, h, nameColor, nameMatch } from './util.js';
 
 // ---------------------------------------------------------------- what can be picked
 
@@ -156,10 +156,14 @@ function parse(text, all) {
 
 let measured = false; // older pictures get measured once a visit
 
+// Everyone else's username, fetched once a visit, so you can jump to a galaxy.
+let everyone = null;
+const loadEveryone = () => (everyone ||= api.get('/api/users').then((r) => r.users).catch(() => { everyone = null; return []; }));
+
 export function searchBody(close) {
   const state = { kind: [], ext: [], when: null, color: null, vibe: [], sort: null };
 
-  const input = h('input', { class: 'search-input', type: 'search', placeholder: 'Search your planets and stars', 'aria-label': 'Search', autocomplete: 'off', enterkeyhint: 'search' });
+  const input = h('input', { class: 'search-input', type: 'search', placeholder: 'Search your planets, stars and people', 'aria-label': 'Search', autocomplete: 'off', enterkeyhint: 'search' });
   const chipsEl = h('span', { class: 'search-chips' });
   const box = h('label', { class: 'sheet-search' }, glyph('search', 14), chipsEl, input);
   const options = h('div', { class: 'search-options' });
@@ -197,7 +201,7 @@ export function searchBody(close) {
 
   function paint() {
     const list = chips();
-    input.placeholder = list.length ? 'Add words…' : 'Search your planets and stars';
+    input.placeholder = list.length ? 'Add words…' : 'Search your planets, stars and people';
     chipsEl.replaceChildren(...list.map((c) => h('span', { class: 'search-chip' },
       c.dot ? h('i', { class: 'search-dot', style: { '--c': c.dot } }) : null,
       c.label,
@@ -305,6 +309,9 @@ export function searchBody(close) {
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // "@name" and Enter goes straight to that galaxy.
+      const top = matchPeople()[0];
+      if (top && /^@/.test(input.value.trim())) { visit(top); return; }
       if (absorb(true)) run.now();
     } else if (e.key === 'Backspace' && !input.value && input.selectionStart === 0) {
       const last = chips().pop();
@@ -349,8 +356,29 @@ export function searchBody(close) {
     }
   }
 
+  // People whose username answers the words typed (no chips: those are about files).
+  let users = [];
+  function matchPeople() {
+    const raw = input.value.trim().toLowerCase();
+    const q = raw.replace(/^@/, '');
+    if (!raw || /\s/.test(q) || chips().length) return [];
+    if (!q) return users.slice(0, 12); // just "@": a few of everyone
+    return users.map((name) => ({ name, score: nameMatch(name, q) }))
+      .filter((u) => u.score !== null)
+      .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name))
+      .slice(0, 8).map((u) => u.name);
+  }
+  const visit = (name) => { close(); nav.go(`/g/${name}`); };
+  const personEl = (name) => h('button', {
+    type: 'button', class: 'search-person', title: `Visit @${name}’s galaxy`,
+    onclick: () => visit(name),
+  }, h('i', { class: 'search-person-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'search-person-name' }, `@${name}`),
+  h('span', { class: 'search-person-go' }, 'Galaxy', glyph('chevron', 10)));
+
   let planets = [];
-  function show(drawers, more) {
+  let lastMore = false;
+  function show(drawers, more = lastMore) {
+    lastMore = more;
     if (drawers) planets = drawers.map((d) => {
       const el = planetEl(d, { size: 40 });
       el.classList.add('planet-mini');
@@ -367,12 +395,15 @@ export function searchBody(close) {
       ['warm', 'pdf', 'this month', 'blue'].flatMap((w, i) => [i ? ', ' : '', h('button', {
         type: 'button', class: 'search-try', onclick: () => { add(chipFor(w)); changed(); input.focus(); },
       }, `“${w}”`)]), ', or pick from the row above.');
+    const people = matchPeople();
     results.replaceChildren(...[
       hint,
+      people.length ? h('div', { class: 'search-people', role: 'group', 'aria-label': 'People' },
+        h('p', { class: 'search-label' }, 'People'), h('div', { class: 'search-people-row' }, people.map(personEl))) : null,
       planets.length ? h('div', { class: 'search-planets' }, planets) : null,
       files.length ? h('div', { class: 'grid search-grid' }, files) : null,
       more ? h('div', { class: 'search-more' }, h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => fetchPage(true) }, 'Show more')) : null,
-      !planets.length && !files.length ? h('p', { class: 'search-none' }, anything() ? 'Nothing out there like that.' : 'Nothing here yet.') : null,
+      !planets.length && !files.length && !people.length ? h('p', { class: 'search-none' }, anything() ? 'Nothing out there like that.' : 'Nothing here yet.') : null,
     ].filter(Boolean));
   }
 
@@ -386,6 +417,8 @@ export function searchBody(close) {
     const refresh = debounce(() => { if (looksMatter() && results.isConnected) fetchPage(false); }, 600);
     api.get('/api/looks/todo').then(({ blocks }) => ensureLooks(blocks, refresh)).catch(() => {});
   }
+
+  loadEveryone().then((all) => { users = all; if (input.value.trim() && results.isConnected) show(null); });
 
   paint();
   run.now();

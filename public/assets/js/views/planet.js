@@ -4,6 +4,8 @@
 
 import { api, session } from '../api.js';
 import { Collection } from '../collection.js';
+import { docEditorOpen, openDocEditor } from '../doceditor.js';
+import { DeskView, deskOffer, writingHint } from '../docs.js';
 import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
@@ -11,7 +13,7 @@ import { ShelfView, readingOffer } from '../reading.js';
 import { RecipeBoxView, cookbookOffer } from '../cookbook.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
+import { EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, timeAgo, wait } from '../util.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
@@ -23,27 +25,104 @@ function tintOf(drawer) {
   return { '--pc': tone, '--pa': accent };
 }
 
-// The people a planet is shared with, as removable chips plus a box to add more.
+const loadEveryone = () => api.get('/api/users').then((r) => r.users);
+
+// The people a planet is shared with: chips for who's on it, a box to search,
+// and everyone else's username below to pick from (a tap adds or takes off).
 function peoplePicker(names, onChange) {
   let list = [...names];
+  let users = [];
+  let shown = [];
+  let active = -1;
+  let busy = false;
+  let failed = false;
   const chips = h('div', { class: 'chips' });
-  const input = h('input', { class: 'chip-input', type: 'text', placeholder: list.length ? 'Add someone' : '@username', 'aria-label': 'Add a person by username', autocapitalize: 'none', spellcheck: 'false' });
-  const render = () => {
-    chips.replaceChildren(...list.map((name) => h('span', { class: 'chip' }, `@${name}`,
-      h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove @${name}`, onclick: () => { list = list.filter((n) => n !== name); render(); onChange(list); } }, '×'))), input);
-    input.placeholder = list.length ? 'Add someone' : '@username';
-  };
-  input.addEventListener('keydown', async (e) => {
-    if (e.key === 'Backspace' && !input.value && list.length) { list = list.slice(0, -1); render(); onChange(list); return; }
-    if (e.key !== 'Enter' && e.key !== ',' && e.key !== ' ') return;
-    e.preventDefault();
-    const name = input.value.trim().replace(/^@/, '').toLowerCase();
-    if (!name || list.includes(name)) { input.value = ''; return; }
-    const ok = await onChange([...list, name]);
-    if (ok !== false) { list.push(name); input.value = ''; render(); input.focus(); }
+  const input = h('input', {
+    class: 'chip-input', type: 'text', placeholder: 'Search usernames', role: 'combobox',
+    'aria-label': 'Search for a person by username', 'aria-autocomplete': 'list', 'aria-expanded': 'true',
+    autocapitalize: 'none', autocomplete: 'off', spellcheck: 'false',
   });
-  render();
-  return chips;
+  const results = h('div', { class: 'pp-list', role: 'listbox', 'aria-label': 'People', 'aria-multiselectable': 'true' });
+  input.setAttribute('aria-controls', results.id = `pp-${Math.random().toString(36).slice(2, 8)}`);
+  const note = h('p', { class: 'pp-note' });
+
+  const query = () => input.value.trim().replace(/^@/, '').toLowerCase();
+  const save = async (next) => {
+    if (busy) return false;
+    busy = true;
+    const ok = await onChange(next);
+    busy = false;
+    if (ok !== false) list = next;
+    renderChips();
+    renderList();
+    return ok !== false;
+  };
+  const toggle = (name) => save(list.includes(name) ? list.filter((n) => n !== name) : [...list, name]);
+
+  // The chips go in front of the search box without moving it, so it keeps focus.
+  const renderChips = () => {
+    chips.querySelectorAll('.chip').forEach((c) => c.remove());
+    if (input.parentNode !== chips) chips.append(input);
+    input.before(...list.map((name) => h('span', { class: 'chip' }, `@${name}`,
+      h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove @${name}`, onclick: () => { save(list.filter((n) => n !== name)); input.focus({ preventScroll: true }); } }, '×'))));
+  };
+
+  const renderList = () => {
+    const q = query();
+    shown = users.map((name) => ({ name, score: nameMatch(name, q) }))
+      .filter((u) => u.score !== null)
+      .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name))
+      .map((u) => u.name);
+    if (active >= shown.length) active = shown.length - 1;
+    if (q && active < 0 && shown.length) active = 0;
+    results.replaceChildren(...shown.map((name, i) => {
+      const on = list.includes(name);
+      const row = h('button', {
+        type: 'button', class: `pp-row${on ? ' is-on' : ''}${i === active ? ' is-active' : ''}`, role: 'option',
+        id: `${results.id}-${i}`, 'aria-selected': String(on), tabindex: '-1',
+        onpointerdown: (e) => e.preventDefault(),
+        onclick: () => { active = i; toggle(name); input.focus({ preventScroll: true }); },
+      }, h('span', { class: 'pp-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
+      return row;
+    }));
+    if (active >= 0 && shown.length) input.setAttribute('aria-activedescendant', `${results.id}-${active}`);
+    else input.removeAttribute('aria-activedescendant');
+    results.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' });
+    const near = q && shown.length && nameMatch(shown[0], q) >= 3;
+    note.textContent = failed ? 'Couldn’t load people. Type a username and press Enter.'
+      : !users.length ? 'No one else is here yet.'
+      : !shown.length ? `No one called @${q}.`
+      : near ? `No exact match. Did you mean @${shown[0]}?` : '';
+    note.hidden = !note.textContent;
+    results.hidden = !shown.length;
+  };
+
+  input.addEventListener('input', () => { active = -1; renderList(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!shown.length) return;
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+      renderList();
+      return;
+    }
+    if (e.key === 'Backspace' && !input.value && list.length) { save(list.slice(0, -1)); return; }
+    if (e.key !== 'Enter' && e.key !== ',') return;
+    e.preventDefault();
+    const q = query();
+    const pick = shown[active] ?? (users.includes(q) || (failed && q) ? q : null);
+    if (!pick) { if (q) toast(`No one here is called @${q}.`); return; }
+    const clear = () => { input.value = ''; active = -1; renderList(); };
+    // Typing a name only ever adds; picking with the arrows (nothing typed) can take someone off.
+    if (q && list.includes(pick)) { clear(); return; }
+    toggle(pick).then((ok) => { if (ok && q) clear(); });
+  });
+
+  renderChips();
+  note.textContent = 'Loading people…';
+  results.hidden = true;
+  loadEveryone().then((all) => { users = all; renderList(); }).catch(() => { failed = true; renderList(); });
+  return h('div', { class: 'pp' }, chips, results, note);
 }
 
 // The owner picks the code they'll give people, typed twice. It can't be
@@ -512,7 +591,47 @@ export const planetView = {
         seg.el, hint, codeRow, people, openRow);
     }
     const shareBtn = mine ? h('button', { type: 'button', class: 'vbtn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
+    // A new planet's first visit: a quiet note by Share saying who can see it
+    // now and that it can be changed. Put away for good once read or used.
+    let shareTip = null;
+    const putTipAway = () => {
+      if (!shareTip) return;
+      const tip = shareTip;
+      shareTip = null;
+      api.patch(`/api/drawers/${id}`, { modes: { shareTip: false } }).then((res) => { drawer = res.drawer; inst.drawer = drawer; }).catch(() => {});
+      if (reducedMotion()) { tip.remove(); return; }
+      tip.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -6px' }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
+        .finished.then(() => tip.remove(), () => tip.remove());
+    };
+    const showShareTip = () => {
+      if (!mine || isMoon || !drawer.modes?.shareTip || shareTip || !shareBtn?.isConnected) return;
+      const now = drawer.community ? 'Everyone on Mutt can see it and add files.'
+        : { public: 'Everyone on Mutt can see it, but only you can add files.',
+            private: 'Only you can see it.', pin: 'Only people with its code can see it.',
+            people: 'Only the people you picked can see it.' }[drawer.visibility] || '';
+      const change = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Change sharing');
+      const ok = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Got it');
+      shareTip = h('div', { class: 'share-tip fglass', role: 'note' },
+        h('p', { class: 'share-tip-title' }, 'Who can see this planet'),
+        h('p', { class: 'share-tip-text' }, `${now} Change that, or let others add too, under Share.`),
+        h('div', { class: 'share-tip-btns' }, ok, change));
+      change.addEventListener('click', () => { putTipAway(); shareBtn.click(); });
+      ok.addEventListener('click', putTipAway);
+      // It hangs from the page, not the header: glass inside the header's
+      // glass can only frost the header, so the files under it would show through.
+      el.append(shareTip);
+      placeTip();
+      addEventListener('resize', placeTip);
+    };
+    const placeTip = () => {
+      if (!shareTip) { removeEventListener('resize', placeTip); return; }
+      const page = el.getBoundingClientRect();
+      const btn = shareBtn.parentElement.getBoundingClientRect();
+      shareTip.style.top = `${Math.round(btn.bottom - page.top + 10)}px`;
+      shareTip.style.right = `${Math.max(0, Math.round(page.right - btn.right))}px`;
+    };
     shareBtn?.addEventListener('click', () => {
+      putTipAway();
       if (sharePop) { sharePop.close(); return; }
       sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-share', width: 340, onClose: () => { sharePop = null; } });
     });
@@ -522,14 +641,18 @@ export const planetView = {
     // and stays here after the offer is waved away or the list is turned off.
     const listItems = () => [
       listView ? { label: 'List options…', run: () => listOptions() } : null,
-      !listView && !shelf && !cookbook && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
+      !listView && !shelf && !desk && !cookbook && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       // And reading mode, once it holds books.
       shelf ? { label: 'Show as files again', run: () => unshelve() } : null,
-      !listView && !shelf && !cookbook && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
+      !listView && !shelf && !desk && !cookbook && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
       // And cookbook mode, once it holds recipes.
       cookbook ? { label: 'Show as files again', run: () => uncook() } : null,
-      !listView && !shelf && !cookbook && cookFits ? { label: 'Make it a cookbook', run: () => makeCookbook() } : null,
-      listView || listFits || shelf || shelfFits || cookbook || cookFits ? '-' : null,
+      !listView && !shelf && !desk && !cookbook && cookFits ? { label: 'Make it a cookbook', run: () => makeCookbook() } : null,
+      // And Mutt documents, once it holds writing.
+      desk ? { label: 'New document', run: () => newDoc() } : null,
+      desk ? { label: 'Show as files again', run: () => undesk() } : null,
+      !listView && !shelf && !desk && !cookbook && deskFits ? { label: 'Open in Mutt Documents', run: () => makeDesk() } : null,
+      listView || listFits || shelf || shelfFits || desk || deskFits || cookbook || cookFits ? '-' : null,
     ];
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
       ...listItems(),
@@ -573,11 +696,11 @@ export const planetView = {
       blocks,
       drawer,
       targets,
-      entry: !isMoon && (mine || community),
+      entry: mine || community,
       sortable: mine,
       readOnly: !mine && !community,
       moderate: mine && community,
-      empty: isMoon ? (mine ? 'Nothing here yet. Drag files onto this moon from its planet.' : 'Nothing on this moon yet.') : mine ? null : 'Nothing on this planet yet.',
+      empty: mine ? null : isMoon ? 'Nothing on this moon yet.' : 'Nothing on this planet yet.',
       onChange: changed,
       ...over,
     });
@@ -589,15 +712,20 @@ export const planetView = {
 
     // ------------------------------------------------------------ list mode
 
+    const makeDeskView = (blocks) => new DeskView({
+      drawer, blocks, editable: mine, makeCollection, onChange: changed, onOpen: (bid) => openDoc(bid), onNew: () => newDoc(),
+    });
     let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
     let shelf = !listView && !isMoon && drawer.modes?.reading?.on ? makeShelfView(data.blocks) : null;
-    let cookbook = !listView && !shelf && !isMoon && drawer.modes?.cookbook?.on ? makeBoxView(data.blocks) : null;
-    let collection = listView || shelf || cookbook ? null : makeCollection(data.blocks);
+    let desk = !listView && !shelf && drawer.modes?.documents?.on ? makeDeskView(data.blocks) : null;
+    let cookbook = !listView && !shelf && !desk && !isMoon && drawer.modes?.cookbook?.on ? makeBoxView(data.blocks) : null;
+    let collection = listView || shelf || desk || cookbook ? null : makeCollection(data.blocks);
     let listFits = false;
     let shelfFits = false;
+    let deskFits = false;
     let cookFits = false;
     let offer = null;
-    const view = () => listView || shelf || cookbook || collection;
+    const view = () => listView || shelf || desk || cookbook || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
     const stopDrift = drift(body);
 
@@ -612,9 +740,12 @@ export const planetView = {
       old.destroy();
       listView = next instanceof ListView ? next : null;
       shelf = next instanceof ShelfView ? next : null;
+      desk = next instanceof DeskView ? next : null;
       cookbook = next instanceof RecipeBoxView ? next : null;
-      collection = listView || shelf || cookbook ? null : next;
+      collection = listView || shelf || desk || cookbook ? null : next;
       outgoing.replaceWith(next.el);
+      el.classList.toggle('is-desk', !!desk);
+      attachHint();
       if (!reducedMotion() && !listView) {
         next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
       }
@@ -703,7 +834,18 @@ export const planetView = {
       });
     }
 
-    // ------------------------------------------------------------ cookbook mode
+    // ------------------------------------------------------------ Mutt documents
+
+    async function saveDocs(patch) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { documents: patch } }));
+        inst.drawer = drawer;
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
 
     async function saveCookbook(patch) {
       try {
@@ -715,6 +857,8 @@ export const planetView = {
         return false;
       }
     }
+
+    // ------------------------------------------------------------ cookbook mode
 
     async function makeCookbook() {
       try {
@@ -743,15 +887,104 @@ export const planetView = {
       });
     }
 
-    // Does it read as a list, a bookshelf or a cookbook? That decides what the ••• menu offers.
+    async function makeDesk({ quiet = false } = {}) {
+      if (!(await saveDocs({ on: true, dismissed: false }))) return false;
+      offer?.remove();
+      offer = null;
+      const blocks = view().list ? view().list() : data.blocks;
+      await swapTo(makeDeskView(blocks.filter((b) => !String(b.id).startsWith('tmp-'))));
+      if (!quiet) toast('Now in Mutt Documents');
+      return true;
+    }
+
+    async function undesk() {
+      if (!(await saveDocs({ on: false, dismissed: true }))) return;
+      const blocks = desk.list();
+      await swapTo(makeCollection(blocks));
+      readListSigns();
+      toast('Showing it as files again', {
+        action: { label: 'Undo', run: async () => { if (await saveDocs({ on: true })) swapTo(makeDeskView(blocks)); } },
+      });
+    }
+
+    // The editor's address is the planet's with ?doc=, so a reload or Back finds it.
+    let docPushed = false;
+    function openDoc(bid, { fresh = false } = {}) {
+      const u = new URL(location.href);
+      if (u.searchParams.get('doc') === bid) { showDoc(bid, { fresh }); return; }
+      const replace = !!u.searchParams.get('doc');
+      if (!replace) docPushed = true;
+      freshDoc = fresh ? bid : null;
+      nav.go(`/p/${id}?doc=${encodeURIComponent(bid)}`, { replace });
+    }
+    let freshDoc = null;
+    function showDoc(bid, { fresh = freshDoc === bid } = {}) {
+      openDocEditor(bid, {
+        drawer,
+        fresh,
+        docs: () => (desk ? desk.summaries() : []),
+        onSwitch: (other) => openDoc(other),
+        onNew: () => newDoc(),
+        onClose: ({ switching }) => {
+          if (switching) return;
+          desk?.refreshSoon();
+          const u = new URL(location.href);
+          if (!u.searchParams.get('doc')) return;
+          if (docPushed) { docPushed = false; history.back(); } else nav.go(`/p/${id}`, { replace: true });
+        },
+      });
+    }
+
+    async function newDoc() {
+      try {
+        const { block } = await api.post('/api/docs', { drawer: id });
+        if (!desk) await makeDesk({ quiet: true });
+        desk?.add(block);
+        openDoc(block.id, { fresh: true });
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
+    // Typing more than a note holds into the add box: offer to write it as a document.
+    function attachHint() {
+      const cell = collection?.entry;
+      if (!mine || !cell || cell.querySelector('.dk-hint')) return;
+      const area = cell.querySelector('textarea');
+      const box = cell.querySelector('.entry');
+      if (!area || !box) return;
+      const hint = writingHint('Write it as a document', async () => {
+        const text = area.value;
+        if (!text.trim()) return;
+        area.value = '';
+        area.dispatchEvent(new Event('input'));
+        hint.check('');
+        try {
+          const { block } = await api.post('/api/blocks', { content: text, drawer: id });
+          await makeDesk({ quiet: true });
+          desk?.add(block);
+          openDoc(block.id);
+        } catch (err) {
+          area.value = text;
+          toast(err.message);
+        }
+      });
+      box.append(hint);
+      area.addEventListener('input', () => hint.check(area.value));
+    }
+
+    // Does it read as a list, a bookshelf, recipes or writing? That decides what the ••• menu offers.
     let readingSigns = null;
+    let deskSigns = null;
     let cookSigns = null;
     async function readListSigns() {
       if (!mine) return null;
       try {
-        const { list, reading, cookbook: cooking } = await api.get(`/api/drawers/${id}/modes`);
+        const { list, reading, documents, cookbook: cooking } = await api.get(`/api/drawers/${id}/modes`);
         listFits = !!list?.fits;
         shelfFits = !isMoon && !!reading?.fits;
+        deskFits = !!documents?.fits;
+        deskSigns = documents;
         cookFits = !isMoon && !!cooking?.fits;
         readingSigns = reading;
         cookSigns = cooking;
@@ -766,7 +999,7 @@ export const planetView = {
       if (!mine) return;
       const list = await readListSigns();
       try {
-        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !cookbook) {
+        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !desk && !cookbook) {
           offer = readingOffer({
             signs: readingSigns.signs,
             pdfs: readingSigns.pdfs,
@@ -776,12 +1009,21 @@ export const planetView = {
           body.prepend(offer);
           return;
         }
-        if (shelf || cookbook) return;
+        if (shelf || desk || cookbook) return;
         if (cookFits && !drawer.modes?.cookbook?.dismissed && el.isConnected && !listView) {
           offer = cookbookOffer({
             signs: cookSigns.signs,
             onAccept: makeCookbook,
             onDecline: () => { offer = null; saveCookbook({ dismissed: true }); },
+          });
+          body.prepend(offer);
+          return;
+        }
+        if (deskFits && !drawer.modes?.documents?.dismissed && el.isConnected && !listView) {
+          offer = deskOffer({
+            signs: deskSigns.signs,
+            onAccept: () => makeDesk(),
+            onDecline: () => { offer = null; saveDocs({ dismissed: true }); },
           });
           body.prepend(offer);
           return;
@@ -800,7 +1042,7 @@ export const planetView = {
     // Previews for the big planet's surface come from what's here.
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
-    const el = h('div', { class: 'page liv' },
+    const el = h('div', { class: `page liv${desk ? ' is-desk' : ''}` },
       h('header', { class: 'liv-head' },
         worldBox,
         h('div', { class: 'liv-info' },
@@ -824,12 +1066,24 @@ export const planetView = {
       homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
       goHome: () => nav.go(home),
       list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : view().list()),
-      // A moon takes files dragged from its planet, unless it's a list:
-      // then you can drop and paste things onto it like any list.
-      dropTarget: () => (isMoon && !listView ? null : view().dropTarget()),
-      pasteText: (text) => { if (!isMoon || listView) view().pasteText(text); },
-      mounted: () => setTimeout(lookForList, 700),
-      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); view().destroy(); },
+      // A moon takes new things just like a planet: typed, pasted or dropped.
+      dropTarget: () => view().dropTarget(),
+      pasteText: (text) => view().pasteText(text),
+      mounted: () => {
+        setTimeout(lookForList, 700);
+        setTimeout(showShareTip, 900);
+        attachHint();
+        const bid = new URL(location.href).searchParams.get('doc');
+        if (bid) showDoc(bid);
+      },
+      // Opening or closing a document changes only ?doc=, not the page.
+      update: (url) => {
+        const bid = url.searchParams.get('doc');
+        const open = docEditorOpen();
+        if (bid) { if (open?.id !== bid) showDoc(bid); } else if (open) { docPushed = false; open.close(); }
+        return true;
+      },
+      destroy: () => { removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); listPanel?.close(); docEditorOpen()?.close(); view().destroy(); },
     };
     return inst;
   },

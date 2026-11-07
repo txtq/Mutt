@@ -328,7 +328,8 @@ function miniGalaxy(g, plan, here) {
   });
   const meta = [h('span', null, plural(g.planets, 'planet'))];
   if (g.locked) meta.push(h('span', { class: 'uvg-locks' }, glyph('lock', 10), `${g.locked} locked`));
-  else if (g.planets) meta.push(h('span', null, `· ${plural(g.files, 'file')}`));
+  else if (g.open) meta.push(h('span', null, `· ${plural(g.files, 'file')}`));
+  else if (g.private) meta.push(h('span', null, '· private'));
   const sys = h('span', { class: 'uvg-sys' }, h('span', { class: 'uvg-center' },
     here ? null : h('span', { class: 'uvg-core', style: { '--r': `${(m.hole * REACH.y * 1.05 * VOID_UV).toFixed(1)}px` } }),
     worlds));
@@ -554,7 +555,10 @@ class Galaxy {
   addPlanet(planet, { born = false } = {}) {
     const el = planetEl(planet, { peek: true, orbit: true });
     el.body.dataset.vt = `planet-${planet.id}`;
-    if (planet.locked) {
+    if (planet.private) {
+      el.addEventListener('click', (e) => { e.preventDefault(); toast(`@${this.owner} keeps this planet private.`); });
+    }
+    else if (planet.locked) {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(el.planet); });
     }
     else if (this.mine) this.makeMovable(el);

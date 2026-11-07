@@ -835,6 +835,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     el.style.setProperty('--c-light', colors.light);
     el.style.setProperty('--c-dark', colors.dark);
     el.classList.toggle('is-locked', !!next.locked);
+    el.classList.toggle('is-private', !!next.private);
     el.classList.toggle('has-rings', !isMoon && (next.count || 0) >= 10);
     el.classList.toggle('is-empty', !next.count);
     globeApi.setSize(s);
@@ -842,8 +843,13 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const previews = next.locked ? [] : (next.previews || []).slice(0, 12);
     const tex = textureFor(next, previews, () => globeApi.setTexture(textures.get(tex.key) || tex));
     globeApi.setTexture(tex);
-    name.textContent = next.title;
+    name.textContent = next.private ? 'Private' : next.title;
     const bits = [];
+    if (next.private) {
+      meta.replaceChildren();
+      el.setAttribute('aria-label', 'A private planet');
+      return;
+    }
     const vis = next.community ? 'community' : next.visibility;
     if (next.mine !== false && vis && vis !== 'pin') bits.push(glyph(vis, 10));
     if (next.locked) bits.push(glyph('lock', 10));
@@ -1075,7 +1081,7 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
   const colors = worldColors(world);
   const look = lookOf(world);
   const el = h('span', {
-    class: `uv-world${world.locked ? ' is-locked' : ''}${(world.n || 0) >= 10 ? ' has-rings' : ''}`,
+    class: `uv-world${world.locked ? ' is-locked' : ''}${world.private ? ' is-private' : ''}${(world.n || 0) >= 10 ? ' has-rings' : ''}`,
     dataset: { look },
     style: { '--w': `${size}px`, '--c': colors.base, '--c-light': colors.light, '--c-dark': colors.dark },
   });
@@ -1083,7 +1089,7 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
     const look = moonLookOf(m);
     el.append(h('span', { class: 'uv-moon', style: { '--mc': MOON_PALETTES[look][1], '--side': i % 2 ? -1 : 1, '--lv': i >> 1 } }));
   });
-  if (world.locked) el.append(h('span', { class: 'uv-world-lock', style: { '--g': `${Math.round(size * 0.3)}px` } }, glyph('lock', Math.max(6, Math.round(size * 0.3)))));
+  if (world.locked && !world.private) el.append(h('span', { class: 'uv-world-lock', style: { '--g': `${Math.round(size * 0.3)}px` } }, glyph('lock', Math.max(6, Math.round(size * 0.3)))));
   if (!canPaint()) return el;
   // The same draws from the planet's id as planetEl() and makeGlobe(), so
   // it shows the same face, tilt and weather.

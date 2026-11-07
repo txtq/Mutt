@@ -110,6 +110,8 @@ class _MetaParser(HTMLParser):
         self.meta = {}
         self.title = ''
         self._in_title = False
+        self.ld = []  # JSON-LD scripts (a recipe page's ingredients and method live there)
+        self._in_ld = None
 
     def handle_starttag(self, tag, attrs):
         attrs = {k.lower(): (v or '') for k, v in attrs}
@@ -119,14 +121,24 @@ class _MetaParser(HTMLParser):
                 self.meta[key] = attrs['content'].strip()
         elif tag == 'title' and not self.title:
             self._in_title = True
+        elif tag == 'script' and 'ld+json' in attrs.get('type', '').lower() and len(self.ld) < 12:
+            self._in_ld = []
 
     def handle_endtag(self, tag):
         if tag == 'title':
             self._in_title = False
+        elif tag == 'script' and self._in_ld is not None:
+            try:
+                self.ld.append(json.loads(''.join(self._in_ld)))
+            except ValueError:
+                pass
+            self._in_ld = None
 
     def handle_data(self, data):
         if self._in_title and len(self.title) < 400:
             self.title += data
+        elif self._in_ld is not None and sum(map(len, self._in_ld)) < 400_000:
+            self._in_ld.append(data)
 
 
 def _charset(headers, data):
@@ -271,6 +283,13 @@ def inspect(url):
         info['siteName'] = _clip(meta['og:site_name'], 80)
     if meta.get('keywords'):
         info['keywords'] = _clip(meta['keywords'], 200)  # helps autosort
+    try:
+        from .recipes import find_ld_recipe
+        recipe = find_ld_recipe(parser.ld)
+    except Exception:  # a page's odd JSON never stops the link
+        recipe = None
+    if recipe:
+        info['recipe'] = recipe  # a cookbook planet makes a card of it
     image_url = (meta.get('og:image') or meta.get('og:image:url') or meta.get('og:image:secure_url')
                  or meta.get('twitter:image') or meta.get('twitter:image:src'))
     preview = None

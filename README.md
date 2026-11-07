@@ -117,15 +117,19 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   there for features that appear when a planet needs them, and owners can
   read it at `GET /api/drawers/<id>/purpose`.
 - **Who can see a planet**: Private (only you), Code (anyone you give the
-  planet's own 4-digit code to, the default), People (the usernames you list)
-  or Public (everyone signed in). A public planet can also let others add files.
+  planet's own 4-digit code to), People (the usernames you list) or Public
+  (everyone signed in, the default for new planets). A public planet can also
+  let others add files (off at first). The first time you open a planet you
+  made, a small note under Share says who can see it and how to change that.
   A Code planet's code is picked by its owner in Share, and can never be their
   sign-in code (in either direction), so sharing a planet never shares the
   account. Until it has one, only the owner can look inside.
 - **The universe**: keep scrolling down and the camera pulls back from your
   galaxy, past a few others drifting by, until it sits small among
   everyone's galaxies on a faint web of dust (or go straight to `/universe`).
-  Click any galaxy and the camera dives into it. Planets you can't open yet
+  Everyone is there, even people with nothing shared: planets you can't see
+  at all (private, or shared with other people) show only as a blur, with no
+  name or files. Click any galaxy and the camera dives into it. Planets you can't open yet
   look frosted; click one and type the code its owner gave you to thaw it
   (their other planets with the same code thaw too, for 12 hours). Wrong
   planet codes are limited like sign-in codes but counted apart, so they never

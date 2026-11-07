@@ -1,0 +1,50 @@
+#!/bin/bash
+# Cookbook mode: which planets are offered it, reading recipe notes into cards,
+# saving a card (the note is rewritten), chapters, the dish photo, visitors.
+SP="$1"; B=localhost:8099
+J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt"); V=(-b "$SP/v.txt" -c "$SP/v.txt")
+j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
+note() { python3 -c "import json,sys; print(json.dumps({'content': sys.argv[1], 'drawer': sys.argv[2]}))" "$1" "$2" |
+  curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d @- | j "d['block']['id']"; }
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cook","pin":"4821"}' >/dev/null
+D=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Stuff"}' | j "d['drawer']['id']")
+R1=$(note $'Banana bread\nServes 8 · Prep 15 min · Cook 1 hr\n\nIngredients\n- 3 ripe bananas\n- 100 g butter, melted\n- 150 g sugar\n- 190 g flour\n\nMethod\n1. Preheat the oven to 175°C.\n2. Mash the bananas and mix in the rest.\n3. Bake for 60 minutes.' "$D")
+echo "one recipe, no offer: $(curl -s "${C[@]}" $B/api/drawers/$D/modes | j "d['cookbook']")"
+R2=$(note $'Weeknight chicken curry\nserves 4\n500g chicken thighs\n1 onion\n2 tbsp curry paste\n400ml coconut milk\nFry the onion until soft.\nAdd the chicken and paste, cook 5 mins.\nPour in the coconut milk and simmer 20 minutes.' "$D")
+L=$(note 'buy milk' "$D")
+echo "two recipes + a note: $(curl -s "${C[@]}" $B/api/drawers/$D/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+N=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Shopping"}' | j "d['drawer']['id']")
+note $'milk\neggs\nbread\nbutter' "$N" >/dev/null
+echo "a shopping list isn't: $(curl -s "${C[@]}" $B/api/drawers/$N/modes | j "d['cookbook']['fits']")"
+K=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Recipes to try"}' | j "d['drawer']['id']")
+note $'Pesto\n2 cups basil\n1/2 cup parmesan\n1/3 cup pine nuts\nBlend it all.' "$K" >/dev/null
+echo "named + one: $(curl -s "${C[@]}" $B/api/drawers/$K/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+echo "cookify: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$D/cookify | j "d['drawer']['modes']['cookbook'], [(r['title'], r['chapter'], r['serves'], r['prep'], r['cook'], len(r['ingredients']), len(r['steps'])) for r in d['box']['recipes']], d['box']['chapters']")"
+echo "save card: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$R2/recipe -d '{"title":"Chicken curry","serves":6,"prep":10,"ingredients":["600g chicken thighs","For the rice:","300 g basmati"],"notes":"Good with naan.","chapter":"Weeknights"}' | j "d['recipe']['title'], d['recipe']['chapter'], d['recipe']['serves']")"
+echo "note rewritten:"; curl -s "${C[@]}" $B/api/blocks/$R2 | j "d['block']['title'] + '\n' + d['block']['content']"
+python3 -c "import zlib,struct,sys
+c=lambda t,d: struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d))
+open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+c(b'IHDR',struct.pack('>IIBBBBB',2,2,8,2,0,0,0))+c(b'IDAT',zlib.compress(b'\0'+b'\xc0\x80\x40'*2+b'\0'+b'\xc0\x80\x40'*2))+c(b'IEND',b''))" "$SP/dish.png"
+P=$(curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: image/png' --data-binary @"$SP/dish.png" "$B/api/upload?drawer=$D&name=dish.png" | j "d['block']['id']")
+echo "photo: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$R1/recipe -d "{\"photo\":\"$P\"}" | j "bool(d['recipe']['photo']), d['recipe']['photo']['id'] == '$P'")"
+echo "bad photo: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$R1/recipe -d '{"photo":"nope"}' | j "d['error']")"
+echo "bad field: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$R1/recipe -d '{"serves":"lots"}' | j "d['error']")"
+# Edited as a note elsewhere: read again, chapter and photo kept.
+curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$R1 -d '{"content":"Banana bread\nServes 10\n\nIngredients\n- 4 bananas\n- 100 g butter\n\nMethod\n1. Mix.\n2. Bake."}' >/dev/null
+echo "edited note: $(curl -s "${C[@]}" $B/api/drawers/$D/recipes | j "[(r['title'], r['serves'], r['ingredients'], r['chapter'], bool(r['photo'])) for r in d['recipes'] if r['id'] == '$R1'], d['photos'] == ['$P']")"
+echo "rename chapter: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$D/chapters -d '{"from":"Baking","to":"Breads & bakes"}' | j "d['chapters'], [r['chapter'] for r in d['recipes']]")"
+echo "new card: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$D/recipes -d '{"title":"Chocolate mousse","ingredients":["200 g dark chocolate","4 eggs"]}' | j "d['recipe']['title'], d['recipe']['chapter'], d['block']['content'][:40]")"
+BL=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$D/recipes -d '{}' | j "d['recipe']['id']")
+echo "blank card named: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$BL/recipe -d '{"title":"Lemonade","ingredients":["4 lemons"]}' | j "d['recipe']['title'], d['recipe']['chapter']")"
+echo "chapter order: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"cookbook":{"chapters":["Desserts","Weeknights"]}}}' >/dev/null; curl -s "${C[@]}" $B/api/drawers/$D/recipes | j "d['chapters']")"
+echo "bad setting: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"cookbook":{"on":"yes"}}}' | j "d['error']")"
+# A visitor sees the cards of a public planet, read-only.
+curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"visibility":"public"}' >/dev/null
+curl -s "${V[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"guest","pin":"5930"}' >/dev/null
+echo "visitor: $(curl -s "${V[@]}" $B/api/drawers/$D/recipes | j "[(r['title'], r['mine']) for r in d['recipes']]")"
+echo "visitor photo: $(curl -s "${V[@]}" -o /dev/null -w '%{http_code}' "$B/f/$P/dish.png")"
+echo "visitor can't save: $(curl -s "${V[@]}" "${J[@]}" -X PUT $B/api/blocks/$R1/recipe -d '{"title":"x"}' | j "d['error']")"
+echo "visitor can't cookify: $(curl -s "${V[@]}" "${J[@]}" -X POST $B/api/drawers/$D/cookify | j "d['error']")"
+curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"visibility":"pin"}' >/dev/null
+echo "private again: $(curl -s "${V[@]}" $B/api/drawers/$D/recipes | j "d['error']")"
+echo "off: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"cookbook":{"on":false,"dismissed":true}}}' | j "d['drawer']['modes']['cookbook']")"

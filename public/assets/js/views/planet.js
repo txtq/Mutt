@@ -10,9 +10,10 @@ import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
 import { ShelfView, readingOffer } from '../reading.js';
+import { RecipeBoxView, cookbookOffer } from '../cookbook.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
+import { EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, timeAgo, wait } from '../util.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
@@ -22,37 +23,6 @@ const homeOf = (drawer) => (drawer.mine === false && drawer.owner ? `/g/${drawer
 function tintOf(drawer) {
   const { tone, accent } = planetTone(drawer);
   return { '--pc': tone, '--pa': accent };
-}
-
-// How far apart two words are, in letters changed, added, dropped or swapped.
-function editDistance(a, b) {
-  let before = null;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const row = [i];
-    for (let j = 1; j <= b.length; j++) {
-      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      if (before && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], before[j - 2] + 1);
-    }
-    before = prev;
-    prev = row;
-  }
-  return prev[b.length];
-}
-
-// How well a username answers what's typed: lower is better, null is no match.
-// Starts with it, then has it, then has its letters in order, then a near miss
-// (a typo or two), so "jmes" still finds @james.
-function nameMatch(name, q) {
-  if (!q) return 0;
-  if (name.startsWith(q)) return 0;
-  if (name.includes(q)) return 1;
-  let i = 0;
-  for (const c of name) if (c === q[i]) i++;
-  if (i === q.length && q.length > 1) return 2;
-  const room = q.length < 3 ? 0 : q.length < 6 ? 1 : 2;
-  const d = Math.min(editDistance(q, name), editDistance(q, name.slice(0, q.length)));
-  return d <= room ? 3 + d : null;
 }
 
 const loadEveryone = () => api.get('/api/users').then((r) => r.users);
@@ -112,7 +82,7 @@ function peoplePicker(names, onChange) {
         id: `${results.id}-${i}`, 'aria-selected': String(on), tabindex: '-1',
         onpointerdown: (e) => e.preventDefault(),
         onclick: () => { active = i; toggle(name); input.focus({ preventScroll: true }); },
-      }, h('span', { class: 'pp-dot', style: { '--c': PALETTE[Math.floor(seedOf(name) * PALETTE.length)] } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
+      }, h('span', { class: 'pp-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
       return row;
     }));
     if (active >= 0 && shown.length) input.setAttribute('aria-activedescendant', `${results.id}-${active}`);
@@ -621,7 +591,47 @@ export const planetView = {
         seg.el, hint, codeRow, people, openRow);
     }
     const shareBtn = mine ? h('button', { type: 'button', class: 'vbtn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
+    // A new planet's first visit: a quiet note by Share saying who can see it
+    // now and that it can be changed. Put away for good once read or used.
+    let shareTip = null;
+    const putTipAway = () => {
+      if (!shareTip) return;
+      const tip = shareTip;
+      shareTip = null;
+      api.patch(`/api/drawers/${id}`, { modes: { shareTip: false } }).then((res) => { drawer = res.drawer; inst.drawer = drawer; }).catch(() => {});
+      if (reducedMotion()) { tip.remove(); return; }
+      tip.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -6px' }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
+        .finished.then(() => tip.remove(), () => tip.remove());
+    };
+    const showShareTip = () => {
+      if (!mine || isMoon || !drawer.modes?.shareTip || shareTip || !shareBtn?.isConnected) return;
+      const now = drawer.community ? 'Everyone on Mutt can see it and add files.'
+        : { public: 'Everyone on Mutt can see it, but only you can add files.',
+            private: 'Only you can see it.', pin: 'Only people with its code can see it.',
+            people: 'Only the people you picked can see it.' }[drawer.visibility] || '';
+      const change = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Change sharing');
+      const ok = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Got it');
+      shareTip = h('div', { class: 'share-tip fglass', role: 'note' },
+        h('p', { class: 'share-tip-title' }, 'Who can see this planet'),
+        h('p', { class: 'share-tip-text' }, `${now} Change that, or let others add too, under Share.`),
+        h('div', { class: 'share-tip-btns' }, ok, change));
+      change.addEventListener('click', () => { putTipAway(); shareBtn.click(); });
+      ok.addEventListener('click', putTipAway);
+      // It hangs from the page, not the header: glass inside the header's
+      // glass can only frost the header, so the files under it would show through.
+      el.append(shareTip);
+      placeTip();
+      addEventListener('resize', placeTip);
+    };
+    const placeTip = () => {
+      if (!shareTip) { removeEventListener('resize', placeTip); return; }
+      const page = el.getBoundingClientRect();
+      const btn = shareBtn.parentElement.getBoundingClientRect();
+      shareTip.style.top = `${Math.round(btn.bottom - page.top + 10)}px`;
+      shareTip.style.right = `${Math.max(0, Math.round(page.right - btn.right))}px`;
+    };
     shareBtn?.addEventListener('click', () => {
+      putTipAway();
       if (sharePop) { sharePop.close(); return; }
       sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-share', width: 340, onClose: () => { sharePop = null; } });
     });
@@ -631,15 +641,18 @@ export const planetView = {
     // and stays here after the offer is waved away or the list is turned off.
     const listItems = () => [
       listView ? { label: 'List options…', run: () => listOptions() } : null,
-      !listView && !shelf && !desk && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
+      !listView && !shelf && !desk && !cookbook && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       // And reading mode, once it holds books.
       shelf ? { label: 'Show as files again', run: () => unshelve() } : null,
-      !listView && !shelf && !desk && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
+      !listView && !shelf && !desk && !cookbook && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
+      // And cookbook mode, once it holds recipes.
+      cookbook ? { label: 'Show as files again', run: () => uncook() } : null,
+      !listView && !shelf && !desk && !cookbook && cookFits ? { label: 'Make it a cookbook', run: () => makeCookbook() } : null,
       // And Mutt documents, once it holds writing.
       desk ? { label: 'New document', run: () => newDoc() } : null,
       desk ? { label: 'Show as files again', run: () => undesk() } : null,
-      !listView && !shelf && !desk && deskFits ? { label: 'Open in Mutt Documents', run: () => makeDesk() } : null,
-      listView || listFits || shelf || shelfFits || desk || deskFits ? '-' : null,
+      !listView && !shelf && !desk && !cookbook && deskFits ? { label: 'Open in Mutt Documents', run: () => makeDesk() } : null,
+      listView || listFits || shelf || shelfFits || desk || deskFits || cookbook || cookFits ? '-' : null,
     ];
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
       ...listItems(),
@@ -692,6 +705,7 @@ export const planetView = {
       ...over,
     });
     const makeShelfView = (blocks) => new ShelfView({ drawer, blocks, editable: mine, makeCollection, onChange: changed });
+    const makeBoxView = (blocks, box = null) => new RecipeBoxView({ drawer, blocks, box, editable: mine, makeCollection, onChange: changed });
     const makeListView = (blocks) => new ListView({
       blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions, targets,
     });
@@ -705,12 +719,14 @@ export const planetView = {
     let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
     let shelf = !listView && !isMoon && drawer.modes?.reading?.on ? makeShelfView(data.blocks) : null;
     let desk = !listView && !shelf && drawer.modes?.documents?.on ? makeDeskView(data.blocks) : null;
-    let collection = listView || shelf || desk ? null : makeCollection(data.blocks);
+    let cookbook = !listView && !shelf && !desk && !isMoon && drawer.modes?.cookbook?.on ? makeBoxView(data.blocks) : null;
+    let collection = listView || shelf || desk || cookbook ? null : makeCollection(data.blocks);
     let listFits = false;
     let shelfFits = false;
     let deskFits = false;
+    let cookFits = false;
     let offer = null;
-    const view = () => listView || shelf || desk || collection;
+    const view = () => listView || shelf || desk || cookbook || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
     const stopDrift = drift(body);
 
@@ -726,7 +742,8 @@ export const planetView = {
       listView = next instanceof ListView ? next : null;
       shelf = next instanceof ShelfView ? next : null;
       desk = next instanceof DeskView ? next : null;
-      collection = listView || shelf || desk ? null : next;
+      cookbook = next instanceof RecipeBoxView ? next : null;
+      collection = listView || shelf || desk || cookbook ? null : next;
       outgoing.replaceWith(next.el);
       el.classList.toggle('is-desk', !!desk);
       attachHint();
@@ -831,6 +848,46 @@ export const planetView = {
       }
     }
 
+    async function saveCookbook(patch) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { cookbook: patch } }));
+        inst.drawer = drawer;
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    // ------------------------------------------------------------ cookbook mode
+
+    async function makeCookbook() {
+      try {
+        const res = await api.post(`/api/drawers/${id}/cookify`, {});
+        ({ drawer } = res);
+        inst.drawer = drawer;
+        offer?.remove();
+        offer = null;
+        const blocks = (view().list ? view().list() : data.blocks).filter((b) => !String(b.id).startsWith('tmp-'));
+        await swapTo(makeBoxView(blocks, res.box));
+        const n = res.box.recipes.length;
+        toast(n ? `Now a cookbook: ${plural(n, 'recipe')} in the box` : 'Now a cookbook');
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    async function uncook() {
+      if (!(await saveCookbook({ on: false, dismissed: true }))) return;
+      const blocks = cookbook.list();
+      await swapTo(makeCollection(blocks));
+      toast('Showing it as files again', {
+        action: { label: 'Undo', run: async () => { if (await saveCookbook({ on: true })) swapTo(makeBoxView(blocks)); } },
+      });
+    }
+
     async function makeDesk({ quiet = false } = {}) {
       if (!(await saveDocs({ on: true, dismissed: false }))) return false;
       offer?.remove();
@@ -917,18 +974,21 @@ export const planetView = {
       area.addEventListener('input', () => hint.check(area.value));
     }
 
-    // Does it read as a list, a bookshelf, or writing? That decides what the ••• menu offers.
+    // Does it read as a list, a bookshelf, recipes or writing? That decides what the ••• menu offers.
     let readingSigns = null;
     let deskSigns = null;
+    let cookSigns = null;
     async function readListSigns() {
       if (!mine) return null;
       try {
-        const { list, reading, documents } = await api.get(`/api/drawers/${id}/modes`);
+        const { list, reading, documents, cookbook: cooking } = await api.get(`/api/drawers/${id}/modes`);
         listFits = !!list?.fits;
         shelfFits = !isMoon && !!reading?.fits;
         deskFits = !!documents?.fits;
         deskSigns = documents;
+        cookFits = !isMoon && !!cooking?.fits;
         readingSigns = reading;
+        cookSigns = cooking;
         return list;
       } catch {
         return null;
@@ -940,7 +1000,7 @@ export const planetView = {
       if (!mine) return;
       const list = await readListSigns();
       try {
-        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !desk) {
+        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !desk && !cookbook) {
           offer = readingOffer({
             signs: readingSigns.signs,
             pdfs: readingSigns.pdfs,
@@ -950,7 +1010,16 @@ export const planetView = {
           body.prepend(offer);
           return;
         }
-        if (shelf || desk) return;
+        if (shelf || desk || cookbook) return;
+        if (cookFits && !drawer.modes?.cookbook?.dismissed && el.isConnected && !listView) {
+          offer = cookbookOffer({
+            signs: cookSigns.signs,
+            onAccept: makeCookbook,
+            onDecline: () => { offer = null; saveCookbook({ dismissed: true }); },
+          });
+          body.prepend(offer);
+          return;
+        }
         if (deskFits && !drawer.modes?.documents?.dismissed && el.isConnected && !listView) {
           offer = deskOffer({
             signs: deskSigns.signs,
@@ -1003,6 +1072,7 @@ export const planetView = {
       pasteText: (text) => view().pasteText(text),
       mounted: () => {
         setTimeout(lookForList, 700);
+        setTimeout(showShareTip, 900);
         attachHint();
         const bid = new URL(location.href).searchParams.get('doc');
         if (bid) showDoc(bid);
@@ -1014,7 +1084,7 @@ export const planetView = {
         if (bid) { if (open?.id !== bid) showDoc(bid); } else if (open) { docPushed = false; open.close(); }
         return true;
       },
-      destroy: () => { stopDrift(); sharePop?.close(); listPanel?.close(); docEditorOpen()?.close(); view().destroy(); },
+      destroy: () => { removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); listPanel?.close(); docEditorOpen()?.close(); view().destroy(); },
     };
     return inst;
   },

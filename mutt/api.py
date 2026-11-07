@@ -13,7 +13,7 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, db, documents, kinds, links, media, sight, sorting
+from . import auth, books, db, documents, kinds, links, media, recipes, sight, sorting
 from .web import HttpError, Response, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
@@ -166,6 +166,20 @@ def clean_modes(value, current):
             else:
                 raise HttpError(400, 'Those reading settings could not be saved.')
         modes['reading'] = merged
+    if 'cookbook' in value:
+        given = value['cookbook']
+        if not isinstance(given, dict):
+            raise HttpError(400, 'Those cookbook settings could not be saved.')
+        merged = {'on': False, 'dismissed': False, **(modes.get('cookbook') or {})}
+        for key, v in given.items():
+            if key in ('on', 'dismissed') and isinstance(v, bool):
+                merged[key] = v
+            elif (key == 'chapters' and isinstance(v, list) and len(v) <= 40
+                  and all(isinstance(c, str) and 0 < len(c.strip()) <= recipes.MAX_CHAPTER for c in v)):
+                merged[key] = list(dict.fromkeys(c.strip() for c in v))
+            else:
+                raise HttpError(400, 'Those cookbook settings could not be saved.')
+        modes['cookbook'] = merged
     if 'documents' in value:
         given = value['documents']
         if not isinstance(given, dict):
@@ -179,6 +193,11 @@ def clean_modes(value, current):
             else:
                 raise HttpError(400, 'Those document settings could not be saved.')
         modes['documents'] = merged
+    if 'shareTip' in value:
+        # The one-time "who can see it" tip on a new planet; only ever put away.
+        if value['shareTip'] is not False:
+            raise HttpError(400, 'Those settings could not be saved.')
+        modes.pop('shareTip', None)
     return modes
 
 
@@ -739,6 +758,12 @@ def planet_json(req, row, count, previews=None, locked=False):
     return data
 
 
+def private_planet(row):
+    return {'id': row['id'], 'title': '', 'icon': {'c': json.loads(row['icon']).get('c')}, 'look': row['look'],
+            'x': row['x'], 'y': row['y'], 'count': 0, 'moons': [], 'locked': True, 'private': True,
+            'mine': False, 'visibility': 'private', 'hasCode': False}
+
+
 def galaxy_of(req, owner):
     """Someone's planets as you're allowed to see them, plus your own loose stars."""
     mine = owner['id'] == req.user['id']
@@ -751,7 +776,10 @@ def galaxy_of(req, owner):
             planets.append(planet_json(req, r, r['n'], drawer_previews(req, r['id'], limit=12)))
         elif r['visibility'] == 'pin':
             planets.append(planet_json(req, r, r['n'], locked=True))
-        # Private planets, and people-only ones you're not on, stay out of sight.
+        else:
+            # Private planets, and people-only ones you're not on, show
+            # blurred: where they are and what kind, never their name or files.
+            planets.append(private_planet(r))
     data = {
         'user': {**user_json(owner), 'you': mine},
         'planets': planets,
@@ -869,9 +897,9 @@ def list_users(req):
 
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
-    """The universe: everyone with something you could look at, you first,
-    then everyone else A to Z. Anyone's galaxy can be opened; a code is only
-    asked for on a locked planet."""
+    """The universe: everyone, you first, then everyone else A to Z. Anyone's
+    galaxy can be opened; a code is only asked for on a locked planet, and
+    planets you can't see at all (private, or shared with others) show blurred."""
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
     out = []
     for user in users:
@@ -882,17 +910,17 @@ def list_galaxies(req):
         worlds = []
         for r in rows:
             open_ = mine or drawer_visible(req, r)
-            if open_ or r['visibility'] == 'pin':
-                worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': r['n'], 'locked': not open_,
-                               'look': r['look'], 'x': r['x'], 'y': r['y'],
-                               'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
-        if not worlds and not mine:
-            continue
+            hidden = not open_ and r['visibility'] != 'pin'
+            worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': 0 if hidden else r['n'],
+                           'locked': not open_, 'private': hidden,
+                           'look': r['look'], 'x': r['x'], 'y': r['y'],
+                           'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
         opened = [w for w in worlds if not w['locked']]
+        private = sum(1 for w in worlds if w['private'])
         out.append({
             'username': user['username'], 'you': mine, 'planets': len(worlds),
             'files': sum(w['n'] for w in opened), 'open': len(opened),
-            'locked': len(worlds) - len(opened),
+            'locked': len(worlds) - len(opened) - private, 'private': private,
             'worlds': worlds[:16],
         })
     out.sort(key=lambda g: (not g['you'], g['username']))
@@ -926,13 +954,16 @@ def create_drawer(req):
     block_ids = body.get('blockIds') or []
     if not isinstance(block_ids, list) or len(block_ids) > 10000:
         raise HttpError(400, 'Could not add those files.')
-    visibility = body.get('visibility') or 'pin'
+    # New planets are public (look, don't add) until their owner says otherwise.
+    visibility = body.get('visibility') or 'public'
     if visibility not in VISIBILITY:
         raise HttpError(400, 'That sharing setting could not be saved.')
     parent_id = body.get('parent') or None
     people = []
-    modes = {}
+    # A new planet shows its owner a tip about sharing the first time they open it.
+    modes = {'shareTip': True}
     if parent_id is not None:
+        modes = {}
         parent = own_drawer(req, str(parent_id))
         if parent['parent_id']:
             raise HttpError(400, "Moons can't have moons.")
@@ -1090,7 +1121,258 @@ def drawer_mode_signs(req, drawer_id):
     (list mode and reading mode). Only its owner sees these."""
     row = own_drawer(req, drawer_id)
     return json_response({'list': sorting.list_signs(req.db, drawer_id), 'reading': shelf_signs(req, row),
+                          'cookbook': cookbook_signs(req, row),
                           'documents': desk_signs(req, row)})
+
+
+# ---------------------------------------------------------------- cookbooks
+
+def drawer_files(req, drawer_id):
+    return req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ? '
+                          'ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
+
+
+def cookbook_signs(req, row):
+    signs = recipes.signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in drawer_files(req, row['id'])])
+    signs.pop('recipes')
+    return signs
+
+
+def read_recipe(row, meta, lenient=False):
+    """The card for one file, or None if it isn't a recipe. Returns
+    (recipe, changed): changed means the file's saved card is out of date."""
+    old = meta.get('recipe') if isinstance(meta.get('recipe'), dict) else None
+    changed = False
+    if row['kind'] == 'text':
+        stamp = recipes.sig(row['content'])
+        if old and old.get('sig') == stamp:
+            rec = dict(old)
+        else:
+            # A note edited somewhere else is read again; its chapter and photo stay.
+            found = (recipes.parse(row['content'], row['title']) if old or lenient
+                     else recipes.is_recipe_note(row['content'], row['title']))
+            if not found:
+                return None, False
+            keep = {k: old[k] for k in ('chapter', 'chapterSet', 'photo') if old and k in old}
+            rec = {**found, **keep, 'sig': stamp}
+            changed = True
+    elif row['kind'] == 'link':
+        if old:
+            rec = dict(old)
+        elif recipes.is_recipe_link(row, meta):
+            rec = {'title': row['title'] or '', 'serves': None, 'makes': '', 'prep': None, 'cook': None,
+                   'ingredients': [], 'steps': [], 'notes': ''}
+        else:
+            return None, False
+    else:
+        return None, False
+    if not rec.get('chapter'):
+        rec['chapter'] = recipes.chapter_of(rec)
+        changed = True
+    return rec, changed
+
+
+def save_recipe_meta(req, block_id, meta, rec):
+    meta['recipe'] = rec
+    req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
+
+
+def photo_json(req, photo_id, owner_id):
+    if not photo_id:
+        return None
+    p = req.db.execute('SELECT id, file_key, file_name, thumb_key, kind, width, height FROM blocks '
+                       'WHERE id = ? AND user_id = ?', (photo_id, owner_id)).fetchone()
+    if not p or not (p['thumb_key'] or p['kind'] == 'image'):
+        return None
+    file_url = f"/f/{p['id']}/{urllib.parse.quote(p['file_name'] or 'photo')}" if p['file_key'] else None
+    thumb = f"/t/{p['id']}?v={p['thumb_key'][:8]}" if p['thumb_key'] else file_url
+    return {'id': p['id'], 'thumb': thumb, 'file': file_url if p['kind'] == 'image' else thumb,
+            'width': p['width'], 'height': p['height']}
+
+
+def card_json(req, row, meta, rec):
+    mine = row['user_id'] == req.user['id']
+    photo = photo_json(req, rec.get('photo'), row['user_id'])
+    link = row['kind'] == 'link'
+    return {
+        'id': row['id'], 'kind': row['kind'], 'mine': mine,
+        'title': rec.get('title') or row['title'] or 'Untitled recipe',
+        'serves': rec.get('serves'), 'makes': rec.get('makes') or '',
+        'prep': rec.get('prep'), 'cook': rec.get('cook'),
+        'ingredients': rec.get('ingredients') or [], 'steps': rec.get('steps') or [],
+        'notes': rec.get('notes') or '', 'chapter': rec.get('chapter') or recipes.OTHER_CHAPTER,
+        'photo': photo,
+        'cover': None if photo or not link or not row['thumb_key'] else f"/t/{row['id']}?v={row['thumb_key'][:8]}",
+        'source': row['content'] if link else None,
+        'site': (meta.get('siteName') or meta.get('domain')) if link else None,
+        'updatedAt': ms(row['updated_at']),
+    }
+
+
+def chapter_order(modes, cards):
+    """Dividers in the box: the owner's order first, then the usual one."""
+    order = list((modes.get('cookbook') or {}).get('chapters') or [])
+    used = {c['chapter'] for c in cards}
+    for name in recipes.CHAPTERS:
+        if name not in order:
+            order.append(name)
+    for c in cards:
+        if c['chapter'] not in order:
+            order.insert(len(order) - 1, c['chapter'])
+    return [name for name in order if name in used]
+
+
+def recipe_box(req, drawer, refresh_links=False):
+    rows = drawer_files(req, drawer['id'])
+    if refresh_links and drawer['user_id'] == req.user['id']:
+        read_recipe_links(req, rows)
+        rows = drawer_files(req, drawer['id'])
+    cards = []
+    for row in rows:
+        meta = json.loads(row['meta'] or '{}')
+        rec, changed = read_recipe(row, meta)
+        if not rec:
+            continue
+        if changed and row['user_id'] == req.user['id']:
+            save_recipe_meta(req, row['id'], meta, rec)
+        cards.append(card_json(req, row, meta, rec))
+    cards.sort(key=lambda c: c['title'].lower())
+    return {'recipes': cards, 'chapters': chapter_order(drawer_modes(drawer), cards),
+            'photos': [c['photo']['id'] for c in cards if c['photo']]}
+
+
+def read_recipe_links(req, rows):
+    """Saved recipe links from before Mutt read recipes: read each page once."""
+    todo = []
+    for row in rows:
+        meta = json.loads(row['meta'] or '{}')
+        if (row['kind'] == 'link' and row['user_id'] == req.user['id'] and 'recipe' not in meta
+                and not meta.get('recipeTried') and recipes.is_recipe_link(row, meta)):
+            todo.append((row, meta))
+    if not todo:
+        return
+
+    def fetch(item):
+        try:
+            return links.inspect(item[0]['content'])[0].get('recipe')
+        except Exception:
+            return None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        found = list(pool.map(fetch, todo[:24]))
+    for (row, meta), rec in zip(todo, found):
+        meta['recipeTried'] = True
+        if rec:
+            meta['recipe'] = rec
+        req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), row['id']))
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/cookify')
+def cookify_drawer(req, drawer_id):
+    """Turn cookbook mode on: every recipe note and recipe link on the planet
+    is read into a card."""
+    row = own_drawer(req, drawer_id)
+    if row['parent_id']:
+        raise HttpError(400, 'Moons can’t be cookbooks.')
+    box = recipe_box(req, row, refresh_links=True)
+    modes = clean_modes({'cookbook': {'on': True, 'dismissed': False}}, drawer_modes(row))
+    req.db.execute('UPDATE drawers SET modes = ?, updated_at = ? WHERE id = ?', (json.dumps(modes), now(), drawer_id))
+    row = own_drawer(req, drawer_id)
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count), 'box': box})
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/recipes')
+def drawer_recipes(req, drawer_id):
+    """The recipe cards on a planet, by chapter, for whoever can see it."""
+    return json_response(recipe_box(req, visible_drawer(req, drawer_id)))
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/recipes')
+def new_recipe(req, drawer_id):
+    """A new, blank (or filled) card: a recipe note on the planet."""
+    own_drawer(req, drawer_id)
+    try:
+        rec = {'title': '', 'serves': None, 'makes': '', 'prep': None, 'cook': None,
+               'ingredients': [], 'steps': [], 'notes': '', **recipes.clean(req.json())}
+    except ValueError:
+        raise HttpError(400, 'That recipe could not be saved.')
+    rec['title'] = rec['title'] or 'New recipe'
+    if not rec.get('chapter'):
+        rec['chapter'] = recipes.chapter_of(rec)
+    else:
+        rec['chapterSet'] = True
+    if rec.get('photo') and not photo_json(req, rec['photo'], req.user['id']):
+        raise HttpError(400, 'That photo could not be found.')
+    content = recipes.to_text(rec)
+    rec['sig'] = recipes.sig(content)
+    block_id = insert_block(req, kind='text', title=rec['title'], content=content, meta={'recipe': rec})
+    connect(req.db, block_id, drawer_id)
+    row = own_block(req, block_id)
+    return json_response({'recipe': card_json(req, row, json.loads(row['meta']), rec),
+                          'block': block_json(row)}, status=201)
+
+
+@route('PUT', r'/api/blocks/(?P<block_id>[\w-]+)/recipe')
+def save_recipe(req, block_id):
+    """Save a card. A note's text is written out again from it, so the note
+    and the card stay the same thing."""
+    row = own_block(req, block_id)
+    if row['kind'] not in ('text', 'link'):
+        raise HttpError(400, 'Only notes and links can be recipes.')
+    try:
+        given = recipes.clean(req.json())
+    except ValueError:
+        raise HttpError(400, 'That recipe could not be saved.')
+    meta = json.loads(row['meta'] or '{}')
+    rec, _ = read_recipe(row, meta, lenient=True)
+    rec = {**(rec or {'title': row['title'] or '', 'ingredients': [], 'steps': [], 'notes': ''}), **given}
+    if 'chapter' in given:
+        rec['chapterSet'] = True
+    elif not rec.get('chapterSet'):
+        rec['chapter'] = recipes.chapter_of(rec)  # a chapter Mutt picked follows the new name
+    if given.get('photo') and not photo_json(req, given['photo'], req.user['id']):
+        raise HttpError(400, 'That photo could not be found.')
+    if row['kind'] == 'text':
+        content = recipes.to_text(rec)
+        rec['sig'] = recipes.sig(content)
+        req.db.execute('UPDATE blocks SET content = ?, title = ?, updated_at = ? WHERE id = ?',
+                       (content, (rec.get('title') or '')[:200], now(), block_id))
+    else:
+        req.db.execute('UPDATE blocks SET updated_at = ? WHERE id = ?', (now(), block_id))
+    save_recipe_meta(req, block_id, meta, rec)
+    row = own_block(req, block_id)
+    return json_response({'recipe': card_json(req, row, meta, rec), 'block': block_json(row)})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/chapters')
+def rename_chapter(req, drawer_id):
+    """Rename a divider: every card behind it moves with it."""
+    row = own_drawer(req, drawer_id)
+    body = req.json()
+    old = body.get('from')
+    new = (body.get('to') or '').strip() if isinstance(body.get('to'), str) else ''
+    if not isinstance(old, str) or not new or len(new) > recipes.MAX_CHAPTER:
+        raise HttpError(400, 'Give the chapter a name.')
+    with db.transaction(req.db):
+        for f in drawer_files(req, drawer_id):
+            if f['user_id'] != req.user['id']:
+                continue
+            meta = json.loads(f['meta'] or '{}')
+            rec, _ = read_recipe(f, meta)
+            if rec and rec.get('chapter') == old:
+                rec['chapter'] = new
+                rec['chapterSet'] = True
+                save_recipe_meta(req, f['id'], meta, rec)
+        modes = drawer_modes(row)
+        order = list((modes.get('cookbook') or {}).get('chapters') or [])
+        order += [c for c in recipes.CHAPTERS if c not in order]
+        if old in order:
+            order[order.index(old)] = new
+        elif new not in order:
+            order.insert(len(order) - 1, new)
+        modes = clean_modes({'cookbook': {'chapters': order}}, modes)
+        req.db.execute('UPDATE drawers SET modes = ? WHERE id = ?', (json.dumps(modes), drawer_id))
+    return json_response(recipe_box(req, own_drawer(req, drawer_id)))
 
 
 @route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/listify')
@@ -1230,8 +1512,8 @@ def autosort(req, block_id, icon=None, text=None):
         drawer_id = new_id()
         stamp = now()
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility) '
-            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'pin')",
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, modes) '
+            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'public', '{\"shareTip\": true}')",
             (drawer_id, req.user['id'], title, json.dumps(icon or default_icon()), stamp, stamp))
     connect(req.db, block_id, drawer_id)
     row = own_drawer(req, drawer_id)

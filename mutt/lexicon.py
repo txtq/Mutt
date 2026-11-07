@@ -831,3 +831,53 @@ DOC_TYPES = {
              r'applicant|declaration|form',
              r'application form|registration form|consent form'),
 }
+
+
+# ---------------------------------------------------------------- cookbooks
+
+# A cookbook's chapters, in the order its dividers stand in the box, with the
+# words that put a recipe there (its title counts most; joined words like
+# ice_cream are phrases). The last is where anything else goes.
+RECIPE_CHAPTERS = (
+    ('Breakfast', 'breakfast brunch pancake pancakes waffle waffles granola porridge oats oatmeal overnight omelette '
+                  'omelet frittata shakshuka eggs benedict scrambled french_toast muesli crumpet crumpets bagel '
+                  'smoothie_bowl hash_browns'),
+    ('Starters & snacks', 'starter starters snack snacks appetiser appetizer appetizers canape canapes dip dips '
+                          'hummus houmous guacamole bruschetta crostini nachos crackers dumpling dumplings gyoza '
+                          'spring_rolls samosa samosas pakora fritters arancini croquettes tapas mezze bites wings'),
+    ('Soups & salads', 'soup soups salad salads broth chowder bisque gazpacho minestrone slaw coleslaw tabbouleh '
+                       'panzanella caesar nicoise dal dhal'),
+    ('Mains', 'chicken beef pork lamb steak mince sausage sausages fish salmon cod tuna prawns prawn shrimp tofu '
+              'tempeh pasta spaghetti lasagne lasagna linguine penne rigatoni noodles ramen curry stew casserole '
+              'risotto paella tacos burrito burritos enchiladas burger burgers pizza pie stir_fry stirfry roast '
+              'traybake bake chilli chili bolognese ragu meatballs kebab kebabs pad_thai biryani tagine schnitzel '
+              'dinner supper main'),
+    ('Sides', 'side sides potatoes potato mash mashed fries chips wedges gratin rice pilaf greens beans '
+              'roasted_vegetables veg carrots sprouts cauliflower broccoli corn polenta couscous flatbread'),
+    ('Sauces & basics', 'sauce sauces dressing vinaigrette stock gravy pesto salsa chutney jam relish pickle '
+                        'pickles pickled mayo mayonnaise aioli marinade rub spice_blend butter ketchup syrup '
+                        'curd compote'),
+    ('Baking', 'bread loaf loaves sourdough focaccia baguette rolls buns brioche bagels muffin muffins scone '
+               'scones cookie cookies biscuit biscuits brownie brownies blondies cake cakes cupcake cupcakes '
+               'banana_bread traybake flapjack flapjacks shortbread croissant croissants pastry danish cinnamon '
+               'rolls pretzel pretzels dough yeast'),
+    ('Desserts', 'dessert desserts pudding puddings ice_cream gelato sorbet mousse tart tarts crumble cobbler '
+                 'custard panna_cotta tiramisu cheesecake trifle pavlova meringue souffle fudge truffles '
+                 'brulee creme_caramel sundae parfait'),
+    ('Drinks', 'drink drinks cocktail cocktails mocktail smoothie smoothies lemonade juice coffee latte tea chai '
+               'margarita negroni martini spritz punch sangria milkshake shake cordial kombucha hot_chocolate'),
+    ('Everything else', ''),
+)
+
+# Sites whose pages are recipes (a saved link from one gets a card).
+RECIPE_SITES = (
+    'allrecipes.com bbcgoodfood.com cooking.nytimes.com seriouseats.com bonappetit.com epicurious.com '
+    'foodnetwork.com foodnetwork.co.uk smittenkitchen.com budgetbytes.com delish.com tasty.co food52.com '
+    'jamieoliver.com simplyrecipes.com kingarthurbaking.com thekitchn.com minimalistbaker.com recipetineats.com '
+    'halfbakedharvest.com cookieandkate.com loveandlemons.com sallysbakingaddiction.com taste.com.au '
+    'ottolenghi.co.uk nigella.com marthastewart.com eatingwell.com myrecipes.com olivemagazine.com '
+    'deliciousmagazine.co.uk bbc.co.uk/food thewoksoflife.com justonecookbook.com maangchi.com '
+    'pinchofyum.com damndelicious.net skinnytaste.com hellofresh.com gousto.co.uk tasteofhome.com '
+    'food.com yummly.com bettycrocker.com joyofbaking.com davidlebovitz.com hebbarskitchen.com '
+    'indianhealthyrecipes.com woolworths.com.au/shop/recipes sainsburysmagazine.co.uk waitrose.com/ecom/recipes'
+).split()

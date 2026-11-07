@@ -2958,3 +2958,89 @@ html[data-motion="off"] .cb-steam { display: none; }
 @keyframes share-tip-in { from { opacity: 0; translate: 0 -8px; } }
 @keyframes share-tip-part { from { filter: blur(6px); } }
 @media (prefers-reduced-motion: reduce) { .share-tip, .share-tip > * { animation: none; } }
+
+/* ---------------------------------------------------------------- comments on files
+   In the side of the file view. Each comment is a small block of the house
+   glass; the writer's colour is a dot by their name, the planet's on the edge.
+   The owner's own words are marked "owner" so a visitor can tell them apart. */
+.vw-cm { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--line); }
+.vw-cm[hidden] { display: none; }
+.vw-cm-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
+.vw-cm-count { display: inline-flex; align-items: center; gap: 5px; font: 400 11.5px/1 var(--mono); color: var(--ink-3); }
+.cm-glyph { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+.vw-cm-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.vw-cm-list:empty { display: none; }
+.vw-cm-empty { padding: 4px 0 2px; font-size: 13px; color: var(--ink-3); }
+.vw-cm-item {
+  position: relative;
+  padding: 10px 12px 11px;
+  border-radius: 12px;
+  animation: cm-in 0.5s var(--ease) backwards;
+}
+.vw-cm-item.is-new { animation: cm-arrive 0.6s var(--ease) backwards; }
+/* The fade sits on the box's parts, never on the glass's parent. */
+.vw-cm-item > * { animation: inherit; animation-name: cm-part; }
+@keyframes cm-in { from { translate: 0 6px; } }
+@keyframes cm-arrive { from { translate: 0 10px; scale: 0.98; } }
+@keyframes cm-part { from { opacity: 0; filter: blur(3px); } }
+.vw-cm-item.is-owner { --fg-edge: color-mix(in srgb, var(--fg-tone) 55%, rgba(225, 232, 255, 0.16)); }
+.vw-cm-meta { display: flex; align-items: center; gap: 7px; min-height: 20px; font-size: 12px; color: var(--ink-3); }
+.vw-cm-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--who); box-shadow: 0 0 0 2px color-mix(in srgb, var(--who) 22%, transparent); }
+.vw-cm-by { font: 500 12px/1 var(--mono); color: var(--ink-2); transition: color 0.2s; }
+.vw-cm-by:hover { color: var(--ink); }
+.vw-cm-tag {
+  padding: 2px 6px;
+  border-radius: 99px;
+  border: 1px solid color-mix(in srgb, var(--fg-tone) 40%, transparent);
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--ink-2);
+}
+.vw-cm-when { margin-left: auto; font: 400 11px/1 var(--mono); color: var(--ink-4); white-space: nowrap; }
+.vw-cm-x {
+  height: 22px;
+  min-width: 22px;
+  margin: -2px -5px -2px -2px;
+  padding: 0 5px;
+  border-radius: 7px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-4);
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s, color 0.2s;
+}
+.vw-cm-item:hover .vw-cm-x, .vw-cm-x:focus-visible, .vw-cm-x.is-armed { opacity: 1; }
+.vw-cm-x:hover { background: var(--tint-2); color: var(--ink); }
+.vw-cm-x.is-armed { font-size: 11.5px; color: #ff8a8a; background: rgba(255, 90, 90, 0.12); }
+@media (hover: none) { .vw-cm-x { opacity: 1; } }
+.vw-cm-body { margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.vw-cm-compose { margin-top: 10px; padding: 9px 10px 8px 12px; border-radius: 12px; }
+.vw-cm-input {
+  display: block;
+  width: 100%;
+  min-height: 22px;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  padding: 2px 0;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.vw-cm-input::placeholder { color: var(--ink-4); }
+.vw-cm-bar { display: flex; align-items: center; gap: 10px; height: 0; overflow: hidden; opacity: 0; transition: height 0.3s var(--ease), opacity 0.25s, margin 0.3s var(--ease); }
+.vw-cm-compose:focus-within .vw-cm-bar, .vw-cm-compose.has-text .vw-cm-bar { height: 28px; margin-top: 6px; opacity: 1; }
+.vw-cm-hint { flex: 1; min-width: 0; font-size: 11px; color: var(--ink-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vw-cm-left { font: 400 11px/1 var(--mono); color: var(--ink-3); }
+.vw-cm-post { flex: none; }
+.vw-cm-post:disabled { opacity: 0.45; }
+@media (max-width: 720px) { .vw-cm-input { font-size: 16px; } }
+
+/* The count under a file's tile. */
+.cell-cap:has(.cell-comments) { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.cell-cap:has(.cell-comments) .cell-title { min-width: 0; }
+.cell-comments { display: inline-flex; align-items: center; gap: 3px; flex: none; font: 400 11px/1 var(--mono); color: var(--ink-4); }
+.cell:hover .cell-comments { color: var(--ink-3); }
+.vw-cm-list.is-settled .vw-cm-item:not(.is-new), .vw-cm-list.is-settled .vw-cm-item:not(.is-new) > * { animation: none; }

@@ -1,5 +1,6 @@
 // Full-screen block view: the block on the left, its details on the right.
 
+import { commentSection } from './comments.js';
 import { openDocEditor } from './doceditor.js';
 import { writingHint } from './docs.js';
 import { deleteBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
@@ -515,6 +516,26 @@ function saveButton(block) {
   return h('div', { class: 'vw-save' }, btn);
 }
 
+// The comments keep their place (and anything half written) while the rest
+// of the side panel is rebuilt around them.
+function comments(block) {
+  if (state.comments?.id !== block.id) {
+    state.comments = commentSection(block, {
+      go: (href) => hooks.go(href),
+      onCount: (n) => {
+        if (state?.block.id !== block.id) return;
+        state.block = { ...state.block, commentCount: n };
+        state.list = state.list.map((b) => (b.id === block.id ? state.block : b));
+        bus.emit('block:changed', state.block);
+      },
+    });
+  }
+  // Edged in the colour of the planet it was opened from.
+  const c = state.drawer?.icon?.c || state.drawer?.c;
+  if (c) state.comments.el.style.setProperty('--pc', c);
+  return state.comments.el;
+}
+
 // replaceChildren would print a skipped (null) piece as the word “null”.
 const fill = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null && k !== false));
 
@@ -547,7 +568,8 @@ function renderSide() {
         return h('li', null, h('a', {
           href, class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(href); },
         }, planetDot(d), h('span', null, d.title)));
-      })) : null);
+      })) : null,
+      comments(block));
     return;
   }
 
@@ -575,6 +597,7 @@ function renderSide() {
       h('span', null, count ? plural(count, 'planet') : 'A loose star'),
       connectBtn),
     list,
+    comments(block),
     h('div', { class: 'vw-danger' },
       drawer && connections?.some((d) => d.id === drawer.id)
         ? h('button', { type: 'button', class: 'link', onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title) }, `Take off ${drawer.title}`)

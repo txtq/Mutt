@@ -188,6 +188,8 @@ def clean_modes(value, current):
         for key, v in given.items():
             if key in ('on', 'dismissed') and isinstance(v, bool):
                 merged[key] = v
+            elif key == 'sort' and v in documents.SORTS:
+                merged[key] = v
             else:
                 raise HttpError(400, 'Those document settings could not be saved.')
         modes['documents'] = merged
@@ -232,10 +234,13 @@ def block_json(row, mine=True, owner=None):
         data['checked'] = ms(row['checked']) if row['checked'] else None
     if 'conn_count' in keys:
         data['connectionCount'] = row['conn_count']
+    if 'comment_count' in keys:
+        data['commentCount'] = row['comment_count']
     return data
 
 
-BLOCK_COLUMNS = 'b.*, (SELECT COUNT(*) FROM connections cc WHERE cc.block_id = b.id) AS conn_count'
+BLOCK_COLUMNS = ('b.*, (SELECT COUNT(*) FROM connections cc WHERE cc.block_id = b.id) AS conn_count, '
+                 '(SELECT COUNT(*) FROM file_comments fc WHERE fc.block_id = b.id) AS comment_count')
 
 
 # ---------------------------------------------------------------- icons
@@ -2594,3 +2599,49 @@ def new_doc(req):
     if drawer_id:
         connect(req.db, block_id, drawer_id, None)
     return json_response({'block': reload_block(req, block_id)}, status=201)
+
+
+# ---------------------------------------------------------------- comments on files
+
+COMMENT_LIMIT = 2000
+
+
+def file_comments(req, block_id, owner_id):
+    rows = req.db.execute('SELECT c.*, u.username FROM file_comments c JOIN users u ON u.id = c.user_id '
+                          'WHERE c.block_id = ? ORDER BY c.created_at', (block_id,)).fetchall()
+    me = req.user['id']
+    return [{'id': r['id'], 'body': r['body'], 'by': r['username'], 'createdAt': ms(r['created_at']),
+             'mine': r['user_id'] == me, 'byOwner': r['user_id'] == owner_id,
+             'canRemove': me in (r['user_id'], owner_id)} for r in rows]
+
+
+@route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/comments')
+def get_file_comments(req, block_id):
+    """What people have said about a file, oldest first. Anyone who can see the file can read them."""
+    row, _ = readable_block(req, block_id)
+    return json_response({'comments': file_comments(req, block_id, row['user_id'])})
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/comments')
+def add_file_comment(req, block_id):
+    """Anyone who can see a file can leave a comment on it (its owner too, to answer)."""
+    row, _ = readable_block(req, block_id)
+    text = text_field(req.json(), 'body', COMMENT_LIMIT, 'Comment')
+    if not text:
+        raise HttpError(400, 'Write a comment first.')
+    req.db.execute('INSERT INTO file_comments (id, block_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)',
+                   (new_id(), block_id, req.user['id'], text, now()))
+    return json_response({'comments': file_comments(req, block_id, row['user_id'])}, status=201)
+
+
+@route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)/comments/(?P<comment_id>[\w-]+)')
+def delete_file_comment(req, block_id, comment_id):
+    """The file's owner can remove any comment on it; whoever wrote one can take theirs back."""
+    row, _ = readable_block(req, block_id)
+    c = req.db.execute('SELECT user_id FROM file_comments WHERE id = ? AND block_id = ?', (comment_id, block_id)).fetchone()
+    if not c:
+        raise HttpError(404, 'That comment is gone.')
+    if req.user['id'] not in (c['user_id'], row['user_id']):
+        raise HttpError(403, 'Only the file’s owner or who wrote it can remove a comment.')
+    req.db.execute('DELETE FROM file_comments WHERE id = ?', (comment_id,))
+    return json_response({'comments': file_comments(req, block_id, row['user_id'])})

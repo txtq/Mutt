@@ -9,7 +9,7 @@ note() { python3 -c "import json,sys; print(json.dumps({'content': sys.argv[1], 
 curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cook","pin":"4821"}' >/dev/null
 D=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Stuff"}' | j "d['drawer']['id']")
 R1=$(note $'Banana bread\nServes 8 · Prep 15 min · Cook 1 hr\n\nIngredients\n- 3 ripe bananas\n- 100 g butter, melted\n- 150 g sugar\n- 190 g flour\n\nMethod\n1. Preheat the oven to 175°C.\n2. Mash the bananas and mix in the rest.\n3. Bake for 60 minutes.' "$D")
-echo "one recipe, no offer: $(curl -s "${C[@]}" $B/api/drawers/$D/modes | j "d['cookbook']")"
+echo "one recipe on its own: $(curl -s "${C[@]}" $B/api/drawers/$D/modes | j "d['cookbook']")"
 R2=$(note $'Weeknight chicken curry\nserves 4\n500g chicken thighs\n1 onion\n2 tbsp curry paste\n400ml coconut milk\nFry the onion until soft.\nAdd the chicken and paste, cook 5 mins.\nPour in the coconut milk and simmer 20 minutes.' "$D")
 L=$(note 'buy milk' "$D")
 echo "two recipes + a note: $(curl -s "${C[@]}" $B/api/drawers/$D/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
@@ -19,6 +19,26 @@ echo "a shopping list isn't: $(curl -s "${C[@]}" $B/api/drawers/$N/modes | j "d[
 K=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Recipes to try"}' | j "d['drawer']['id']")
 note $'Pesto\n2 cups basil\n1/2 cup parmesan\n1/3 cup pine nuts\nBlend it all.' "$K" >/dev/null
 echo "named + one: $(curl -s "${C[@]}" $B/api/drawers/$K/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+# Casual recipes: a comma list of what goes in, a list with no method, a method in sentences.
+F=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Dinner ideas"}' | j "d['drawer']['id']")
+note $'Pasta aglio e olio\nspaghetti, garlic, olive oil, chilli flakes, parsley\nCook the pasta. Fry the garlic in the oil and toss it all together.' "$F" >/dev/null
+note $'Guacamole\n2 avocados\n1 lime\nsalt\ncoriander' "$F" >/dev/null
+note 'Book a table at Luigis for Friday' "$F" >/dev/null
+echo "casual, named for food: $(curl -s "${C[@]}" $B/api/drawers/$F/modes | j "d['cookbook']['fits'], d['cookbook']['food'], d['cookbook']['signs']")"
+E=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"🍝"}' | j "d['drawer']['id']")
+note $'Mums lasagne\nBrown the mince with onion and garlic, add passata and simmer for an hour. Layer with the sheets and bechamel, top with cheese and bake for 40 min.' "$E" >/dev/null
+echo "an emoji name, one method: $(curl -s "${C[@]}" $B/api/drawers/$E/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+O=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Odds and ends"}' | j "d['drawer']['id']")
+note $'Pancakes\nIngredients: flour, eggs, milk, butter\nWhisk everything, rest 30 min, fry in butter.' "$O" >/dev/null
+note $'Pasta aglio e olio\nspaghetti, garlic, olive oil, chilli flakes, parsley\nCook the pasta. Fry the garlic in the oil and toss it all together.' "$O" >/dev/null
+note $'Things to do\ncall mum\nbook dentist' "$O" >/dev/null
+echo "unnamed, two casual recipes: $(curl -s "${C[@]}" $B/api/drawers/$O/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+X=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Notes"}' | j "d['drawer']['id']")
+note $'Had pasta at Luigis tonight, the garlic bread was amazing and the tiramisu too.' "$X" >/dev/null
+note $'Autumn\nleaves fall softly\nthe kettle sings' "$X" >/dev/null
+note $'Standup\nAlice, Bob, Carol\nship the release, fix login' "$X" >/dev/null
+echo "not food (no): $(curl -s "${C[@]}" $B/api/drawers/$X/modes | j "d['cookbook']['fits']")"
+echo "casual cards read: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$F/cookify | j "[(r['title'], len(r['ingredients']), len(r['steps'])) for r in d['box']['recipes']]")"
 echo "cookify: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$D/cookify | j "d['drawer']['modes']['cookbook'], [(r['title'], r['chapter'], r['serves'], r['prep'], r['cook'], len(r['ingredients']), len(r['steps'])) for r in d['box']['recipes']], d['box']['chapters']")"
 echo "save card: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$R2/recipe -d '{"title":"Chicken curry","serves":6,"prep":10,"ingredients":["600g chicken thighs","For the rice:","300 g basmati"],"notes":"Good with naan.","chapter":"Weeknights"}' | j "d['recipe']['title'], d['recipe']['chapter'], d['recipe']['serves']")"
 echo "note rewritten:"; curl -s "${C[@]}" $B/api/blocks/$R2 | j "d['block']['title'] + '\n' + d['block']['content']"

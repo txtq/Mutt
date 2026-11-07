@@ -881,3 +881,33 @@ RECIPE_SITES = (
     'food.com yummly.com bettycrocker.com joyofbaking.com davidlebovitz.com hebbarskitchen.com '
     'indianhealthyrecipes.com woolworths.com.au/shop/recipes sainsburysmagazine.co.uk waitrose.com/ecom/recipes'
 ).split()
+
+# Planet names that say it's for food: the cookbook offer reads these. Phrases
+# use underscores. Emoji count too.
+RECIPE_NAMES = (
+    'recipe recipes recipies receipes recipe_box cookbook cook_book cookbooks cooking cookin cook cooks to_cook '
+    'baking bakes bakery bake to_bake bread breads sourdough cakes cake cookies treats sweets pastry '
+    'kitchen food foods foodie eats eat yum yummy nom noms grub chow munchies snacks snack '
+    'meal meals mealprep meal_prep meal_plan meal_ideas dinner dinners dinner_ideas supper suppers lunch lunches '
+    'breakfast breakfasts brunch dessert desserts pudding puddings dishes cuisine chef menu menus '
+    'cocktails cocktail drinks mocktails smoothies soups soup salads salad pasta noodles curries curry '
+    'vegan vegetarian veggie plant_based keto paleo bbq barbecue grill grilling slow_cooker air_fryer airfryer '
+    'family_recipes grandmas_recipes nans_recipes mums_recipes moms_recipes cocina cucina cuisine'
+).split()
+RECIPE_EMOJI = '🍳🥘🍲🍝🍜🍛🍕🍔🌮🌯🥗🥪🍞🥐🥖🥯🧁🍰🎂🍪🥧🍩🍫🍮🍦🍨🍧🥞🧇🍱🍣🍤🥟🍙🍚🫕🥙🧆🍹🍸🍷🍺☕🍵🧑‍🍳👩‍🍳👨‍🍳🔪🥄🍴🍽️🥕🍅🥑🧄🧅🌶️🫑🍋🍓🫐'
+
+# Notes with these names are lists of food, not recipes.
+NOT_RECIPE_NAMES = (
+    'shopping groceries grocery to_buy shopping_list pantry_list restaurants places_to_eat reservations '
+    'menu_plan meal_plan food_diary food_log what_i_ate calories macros'
+).split()
+
+# Cooking verbs: a note that does several of these to food is telling you how to make it.
+COOK_VERBS = (
+    'preheat bake baked fry fried simmer boil roast roasted stir whisk knead chop chopped mix saute sauté '
+    'grill grilled toss fold season marinate blend melt dice diced slice sliced mince minced grate grated '
+    'braise poach sear brown drain reduce caramelise caramelize steam blanch puree rest proof prove'
+).split()
+
+# Video and picture sites where links are often recipes, on a planet that's about food.
+FOOD_VIDEO_SITES = 'youtube.com youtu.be tiktok.com instagram.com pinterest.com pin.it vimeo.com reddit.com'.split()

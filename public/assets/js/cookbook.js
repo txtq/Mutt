@@ -18,6 +18,9 @@ import { openContextMenu, openDialog, openMenu, segmented, toast } from './ui.js
 import { addFiles } from './uploads.js';
 import { EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
 
+// A long, soft glide: an easy start, a slow settle (like a sheet on a phone).
+const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+
 const moving = () => !reducedMotion();
 const OTHER = 'Everything else';
 
@@ -59,23 +62,6 @@ function ingredientNames(r) {
   return (text.charAt(0).toUpperCase() + text.slice(1)) + (names.length > 6 ? '…' : '');
 }
 
-// The front's lettering: RECIPES between two pairs of lightning strokes.
-function letters() {
-  const NS = 'http://www.w3.org/2000/svg';
-  const bolt = (flip) => {
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 120 40');
-    svg.setAttribute('class', `cb-bolt${flip ? ' is-flip' : ''}`);
-    for (const d of ['M2 20 L58 9 L52 17 L118 4', 'M2 20 L58 31 L52 23 L118 36']) {
-      const path = document.createElementNS(NS, 'path');
-      path.setAttribute('d', d);
-      svg.append(path);
-    }
-    return svg;
-  };
-  return h('span', { class: 'cb-letters' }, bolt(false), h('span', { class: 'cb-word' }, 'Recipes'), bolt(true));
-}
-
 export class RecipeBoxView {
   constructor({ drawer, blocks, editable, makeCollection, onChange, box = null }) {
     this.drawer = drawer;
@@ -101,23 +87,15 @@ export class RecipeBoxView {
       empty: editable ? null : '',
     });
 
-    // A recipe box seen from the front, open: its lid stands up behind with
-    // a label, the cards stand in rows with chapter tabs between them, and
-    // the front is lettered "Recipes". Other files on the planet stay out of
-    // sight here; "Show as files again" brings them back.
-    this.count = h('span', { class: 'cb-label-count' });
+    // Just the cards, sorted into chapters with tabs between them. Other
+    // files on the planet stay out of sight here; "Show as files again"
+    // brings them back.
     this.newBtn = editable ? h('button', { type: 'button', class: 'vbtn vbtn-glass cb-new', onclick: () => this.newCard() }, '+ New card') : null;
     this.stack = h('div', { class: 'cb-stack', role: 'list', 'aria-label': 'Recipe cards' });
     this.inside = h('div', { class: 'cb-inside' }, this.stack);
     this.boxEl = h('div', { class: 'cb-box' },
-      h('div', { class: 'cb-back fglass' },
-        h('div', { class: 'cb-label' },
-          h('span', { class: 'cb-label-small' }, 'The recipes of'),
-          h('span', { class: 'cb-label-title' }, drawer.title),
-          this.count),
-        this.newBtn),
-      this.inside,
-      h('div', { class: 'cb-front fglass', 'aria-hidden': 'true' }, letters()));
+      this.newBtn ? h('div', { class: 'cb-bar' }, this.newBtn) : null,
+      this.inside);
     this.isOpen = true;
     this.el = h('div', { class: 'cb' }, this.boxEl);
 
@@ -195,7 +173,6 @@ export class RecipeBoxView {
 
   render({ entrance = false, born = null } = {}) {
     const all = this.ordered();
-    this.count.textContent = all.length ? `${all.length} ${all.length === 1 ? 'recipe' : 'recipes'}` : 'No recipes yet';
     const parts = [];
     let tabAt = 0;
     for (const ch of this.chapters) {
@@ -277,7 +254,7 @@ export class RecipeBoxView {
 
   open(id, { edit = false } = {}) {
     const from = this.stack.querySelector(`.cb-top[data-id="${CSS.escape(id)}"]`);
-    if (this.card) this.card.show(id, { edit });
+    if (this.card) this.card.show(id, { edit, from });
     else this.card = new CardView(this, id, { from, edit, onClose: () => { this.card = null; } });
   }
 
@@ -467,6 +444,9 @@ class CardView {
 
   show(id, { edit = false, from = null, dir = 0 } = {}) {
     const first = !this.id;
+    // Where things are now, before the card goes in, so it can float from there.
+    const fromRect = from && !dir ? from.getBoundingClientRect() : null;
+    const snap = this.snapshot();
     const before = this.el.getBoundingClientRect().height;
     this.id = id;
     this.editor = null;
@@ -475,40 +455,70 @@ class CardView {
     const card = this.build(r, edit && r.mine && this.box.editable);
     const old = this.cardEl;
     this.cardEl = card;
+    if (old && !dir) old.remove();
     this.sheet.append(card);
     this.navState();
     this.markOut();
-    const after = this.el.getBoundingClientRect().height;
-    if (old) {
-      if (moving() && dir) {
+    if (old && dir) {
+      const after = this.el.getBoundingClientRect().height;
+      if (moving()) {
         old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 8}%) scale(0.98)` }],
           { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished.then(() => old.remove(), () => old.remove());
         card.animate([{ opacity: 0, transform: `translateX(${dir * 8}%) scale(0.98)` }, { opacity: 1, transform: 'none' }],
           { duration: 480, delay: 90, easing: EASE, fill: 'backwards' });
         this.el.animate([{ height: `${before}px` }, { height: `${after}px` }], { duration: 480, easing: EASE });
       } else old.remove();
-    } else if (first) {
-      if (moving()) {
-        // It rises out of the box from where it stood, and the box slides down.
-        this.el.animate([{ height: '0px', marginBottom: '0px' }, { height: `${after}px` }], { duration: 640, easing: EASE });
-        const start = from?.getBoundingClientRect();
-        const end = card.getBoundingClientRect();
-        const dy = start ? Math.max(60, start.top - end.top) : 60;
-        card.animate([
-          { opacity: 0, transform: `translateY(${Math.min(dy, 420)}px) scale(0.96)` },
-          { opacity: 1, offset: 0.5 },
-          { opacity: 1, transform: 'none' },
-        ], { duration: 720, easing: EASE });
-      }
-      const top = this.el.getBoundingClientRect().top;
-      if (top < 60 || top > innerHeight * 0.5) {
-        setTimeout(() => this.el.scrollIntoView({ behavior: moving() ? 'smooth' : 'auto', block: 'start' }), moving() ? 60 : 0);
-      }
+    } else {
+      // It lifts out of its place in the box and glides up to the top, while
+      // the page and the box glide to where they now belong.
+      this.float(card, fromRect, snap, { scroll: true });
     }
     if (edit) requestAnimationFrame(() => card.querySelector('.cbe-title')?.focus({ preventScroll: true }));
     else if (!first) requestAnimationFrame(() => this.closeBtn.focus({ preventScroll: true }));
   }
 
+  // Where the page and the box are, before something moves them.
+  snapshot() {
+    return { scroll: scrollY, box: this.box.boxEl.getBoundingClientRect().top + scrollY };
+  }
+
+  // One motion, transforms only: the page as if it scrolled, the box sliding
+  // to its new place, and the card flying from `fromRect` to where it is,
+  // opening downward from the height of the card's top in the box.
+  float(card, fromRect, snap, { scroll = false } = {}) {
+    if (scroll) {
+      const top = this.el.getBoundingClientRect().top;
+      if (top < 56 || top > innerHeight * 0.4) window.scrollTo({ top: Math.max(0, scrollY + top - 64), behavior: 'instant' });
+    }
+    if (!moving()) return;
+    const page = this.box.el.closest('.page') || this.box.el;
+    const shift = scrollY - snap.scroll;
+    const boxNow = this.box.boxEl.getBoundingClientRect().top + scrollY;
+    const opts = { duration: 760, easing: GLIDE };
+    if (shift) page.animate([{ transform: `translateY(${shift}px)` }, { transform: 'none' }], opts);
+    if (boxNow !== snap.box) this.box.boxEl.animate([{ transform: `translateY(${snap.box - boxNow}px)` }, { transform: 'none' }], opts);
+    const end = card.getBoundingClientRect();
+    if (!fromRect || !end.height) {
+      card.animate([{ opacity: 0, transform: 'translateY(24px)' }, { opacity: 1, transform: 'none' }], opts);
+      return;
+    }
+    this.lift(true);
+    const dx = fromRect.left - end.left;
+    const dy = fromRect.top - (end.top + shift);
+    const cut = Math.max(0, end.height - fromRect.height);
+    const sx = fromRect.width / end.width;
+    card.animate([
+      { transform: `translate(${dx}px, ${dy}px) scaleX(${sx})`, clipPath: `inset(0 0 ${cut}px 0 round 14px)` },
+      { transform: `translate(${dx * 0.12}px, ${dy * 0.12}px) scale(1.012)`, clipPath: `inset(0 0 ${cut * 0.25}px 0 round 16px)`, offset: 0.7 },
+      { transform: 'none', clipPath: 'inset(0 0 0 0 round 18px)' },
+    ], { ...opts, duration: 820 }).finished.then(() => this.lift(false), () => this.lift(false));
+  }
+
+  // While a card is in flight it may pass over the box: let it show outside
+  // its panel and above the cards.
+  lift(on) {
+    this.el.classList.toggle('is-flying', on);
+  }
   // The box changed underneath (a save, a refresh): redraw unless typing.
   sync() {
     if (!this.recipe) { this.close(); return; }
@@ -893,16 +903,35 @@ class CardView {
     this.closing = true;
     this.unlayer();
     this.zoomed?.remove();
-    this.markOut();
     const back = this.box.stack.querySelector(`.cb-top[data-id="${CSS.escape(this.id)}"]`);
-    const done = () => { this.el.remove(); this.onClose?.(); };
-    if (!instant && moving()) {
-      const height = this.el.getBoundingClientRect().height;
-      this.cardEl.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(40px) scale(0.97)' }], { duration: 340, easing: 'ease-in', fill: 'forwards' });
-      this.el.animate([{ height: `${height}px` }, { height: '0px', marginBottom: '0px' }], { duration: 460, delay: 120, easing: 'cubic-bezier(0.5, 0, 0.2, 1)', fill: 'forwards' })
+    const done = () => {
+      this.el.remove();
+      back?.classList.remove('is-out');
+      this.onClose?.();
+    };
+    if (instant || !moving() || !this.cardEl) { done(); back?.querySelector('button')?.focus({ preventScroll: true }); return; }
+    // The card glides back down into its place; the box slides up under it.
+    const from = this.cardEl.getBoundingClientRect();
+    const boxThen = this.box.boxEl.getBoundingClientRect().top;
+    const holder = this.el.getBoundingClientRect();
+    const parent = this.box.el.getBoundingClientRect();
+    Object.assign(this.el.style, { position: 'absolute', top: `${holder.top - parent.top}px`, left: `${holder.left - parent.left}px`, width: `${holder.width}px` });
+    this.lift(true);
+    const boxNow = this.box.boxEl.getBoundingClientRect().top;
+    const opts = { duration: 680, easing: GLIDE, fill: 'forwards' };
+    if (boxNow !== boxThen) this.box.boxEl.animate([{ transform: `translateY(${boxThen - boxNow}px)` }, { transform: 'none' }], { ...opts, fill: 'none' });
+    const to = back?.getBoundingClientRect();
+    if (to) {
+      const cut = Math.max(0, from.height - to.height);
+      this.cardEl.animate([
+        { transform: 'none', clipPath: 'inset(0 0 0 0 round 18px)', opacity: 1 },
+        { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scaleX(${to.width / from.width})`, clipPath: `inset(0 0 ${cut}px 0 round 14px)`, opacity: 1, offset: 0.92 },
+        { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scaleX(${to.width / from.width})`, clipPath: `inset(0 0 ${cut}px 0 round 14px)`, opacity: 0 },
+      ], opts).finished.then(done, done);
+    } else {
+      this.cardEl.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(30px) scale(0.98)' }], { ...opts, duration: 340 })
         .finished.then(done, done);
-      back?.animate([{ transform: 'translateY(-14px)' }, { transform: 'none' }], { duration: 620, delay: 380, easing: EASE });
-    } else done();
+    }
     back?.querySelector('button')?.focus({ preventScroll: true });
   }
 }

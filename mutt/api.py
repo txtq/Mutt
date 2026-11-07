@@ -1131,14 +1131,22 @@ def drawer_files(req, drawer_id):
 
 
 def cookbook_signs(req, row):
-    signs = recipes.signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in drawer_files(req, row['id'])])
+    files = drawer_files(req, row['id'])
+    if not files:
+        return {'fits': False, 'signs': [], 'food': recipes.food_name(row['title'])}
+    try:
+        purpose = sorting.purpose(req.db, row['id'])
+    except Exception:  # the offer can do without it
+        purpose = None
+    signs = recipes.signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in files], purpose)
     signs.pop('recipes')
     return signs
 
 
 def read_recipe(row, meta, lenient=False):
     """The card for one file, or None if it isn't a recipe. Returns
-    (recipe, changed): changed means the file's saved card is out of date."""
+    (recipe, changed): changed means the file's saved card is out of date.
+    Notes and links are read as on a planet about food: it's a cookbook."""
     old = meta.get('recipe') if isinstance(meta.get('recipe'), dict) else None
     changed = False
     if row['kind'] == 'text':
@@ -1148,7 +1156,7 @@ def read_recipe(row, meta, lenient=False):
         else:
             # A note edited somewhere else is read again; its chapter and photo stay.
             found = (recipes.parse(row['content'], row['title']) if old or lenient
-                     else recipes.is_recipe_note(row['content'], row['title']))
+                     else recipes.is_recipe_note(row['content'], row['title'], food=True))
             if not found:
                 return None, False
             keep = {k: old[k] for k in ('chapter', 'chapterSet', 'photo') if old and k in old}
@@ -1157,7 +1165,7 @@ def read_recipe(row, meta, lenient=False):
     elif row['kind'] == 'link':
         if old:
             rec = dict(old)
-        elif recipes.is_recipe_link(row, meta):
+        elif recipes.is_recipe_link(row, meta, food=True):
             rec = {'title': row['title'] or '', 'serves': None, 'makes': '', 'prep': None, 'cook': None,
                    'ingredients': [], 'steps': [], 'notes': ''}
         else:
@@ -1245,7 +1253,7 @@ def read_recipe_links(req, rows):
     for row in rows:
         meta = json.loads(row['meta'] or '{}')
         if (row['kind'] == 'link' and row['user_id'] == req.user['id'] and 'recipe' not in meta
-                and not meta.get('recipeTried') and recipes.is_recipe_link(row, meta)):
+                and not meta.get('recipeTried') and recipes.is_recipe_link(row, meta, food=True)):
             todo.append((row, meta))
     if not todo:
         return

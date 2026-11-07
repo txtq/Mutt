@@ -34,8 +34,43 @@ OTHER_CHAPTER = CHAPTERS[-1]
 _CHAPTER_WORDS = [(name, set(words.split())) for name, words in lexicon.RECIPE_CHAPTERS]
 _PHRASES = {w for _, ws in _CHAPTER_WORDS for w in ws if '_' in w}
 
-NAMES = re.compile(r'\b(?:recipes?|recipies|receipes|cook ?books?|cooking|baking|bakes|kitchen|food|foods|meals?|'
-                   r'dinners?|suppers?|desserts?|eats|dishes|cuisine|cocktails?|to cook|to bake)\b', re.I)
+_WORD_RE = re.compile(r"[a-zà-ÿ]+(?:'[a-z]+)?")
+
+
+def _words(text):
+    return [w.replace("'", '') for w in _WORD_RE.findall((text or '').lower())]
+
+
+def _phrase_hit(words, vocab):
+    """Does this run of words contain any word or underscore phrase in vocab?"""
+    joined = '_'.join(words)
+    singles = set(words) | {w[:-1] for w in words if w.endswith('s') and len(w) > 3}
+    return any((v in singles) if '_' not in v else (f'_{v}_' in f'_{joined}_') for v in vocab)
+
+
+_NAME_WORDS = set(lexicon.RECIPE_NAMES)
+_NOT_RECIPE = set(lexicon.NOT_RECIPE_NAMES)
+FOOD_WORDS = set(' '.join(lexicon.TOPICS['Recipes'][:2]).split()) - {'menu', 'cafe', 'restaurant', 'tasty',
+                                                                      'delicious', 'bowl', 'pan', 'sheet', 'tray'}
+_COOK_VERBS = set(lexicon.COOK_VERBS)
+
+
+def food_name(title):
+    """Does a planet's name say it's for food or recipes?"""
+    if any(e in (title or '') for e in lexicon.RECIPE_EMOJI if e.strip()):
+        return True
+    return _phrase_hit(_words(title), _NAME_WORDS)
+
+
+def food_count(text):
+    """How many words in the text are food or cooking words."""
+    words = _words(text)
+    return sum(1 for w in words if w in FOOD_WORDS or (w.endswith('s') and w[:-1] in FOOD_WORDS))
+
+
+def _cook_verbs(text):
+    return len({w for w in _words(text) if w in _COOK_VERBS})
+
 
 HEAD_RE = re.compile(r'^\s*(?:#+\s*)?(?:\*\*)?\s*(?P<word>ingredients?|you(?:\'ll| will)? need|what you need|'
                      r'method|directions?|instructions?|steps?|preparation|how to make(?: it)?|to make|'
@@ -112,6 +147,12 @@ def parse(text, title=''):
             if section == 'steps' and out['steps'] and not numbered:
                 out['steps'].append('')  # a blank line ends a paragraph step
             continue
+        inline = INLINE_HEAD_RE.match(line)
+        if inline:
+            section = 'ingredients'
+            first = False
+            out['ingredients'].extend(_comma_items(inline.group('rest')) or [_clean_line(inline.group('rest'))])
+            continue
         head = HEAD_RE.match(line)
         if head:
             word = head.group('word').lower()
@@ -136,6 +177,16 @@ def parse(text, title=''):
             notes.append(line)
         elif section == 'ingredients':
             clean = _clean_line(line)
+            items = _comma_items(line)
+            if items:
+                out['ingredients'].extend(items)
+                continue
+            # A cooking sentence after the ingredients is the method starting without a heading.
+            if (out['ingredients'] and not NUMBER_RE.match(line) and VERB_RE.match(line)
+                    and (len(line.split()) > 5 or line.endswith('.')) and not AMOUNT_RE.match(line)):
+                section = 'steps'
+                out['steps'].append(_clean_line(line))
+                continue
             # A numbered line after the ingredients is the method starting without a heading.
             if NUMBER_RE.match(line) and out['ingredients'] and not AMOUNT_RE.match(NUMBER_RE.sub('', line)):
                 section = 'steps'
@@ -160,6 +211,8 @@ def parse(text, title=''):
             loose.append(line)
 
     # No headings: ingredients are the short lines up front, the method what follows.
+    # "spaghetti, garlic, olive oil, chilli" on one line is a list of them.
+    loose = [x for line in loose for x in (_comma_items(line) or [line])]
     if loose:
         i = 0
         while i < len(loose) and _looks_ingredient(_clean_line(loose[i])) and not NUMBER_RE.match(loose[i]):
@@ -188,6 +241,21 @@ def parse(text, title=''):
     return out
 
 
+INLINE_HEAD_RE = re.compile(r'^\s*(?:\*\*)?(?:ingredients?|you(?:\'ll| will)? need)\s*(?:\*\*)?\s*:\s*(?P<rest>\S.*)$', re.I)
+
+
+def _comma_items(line):
+    """'spaghetti, garlic, olive oil, chilli' → the items, when a line is a
+    list of short things (not a sentence with commas in it)."""
+    line = _clean_line(line).rstrip('.')
+    parts = [p.strip() for p in re.split(r',|;|\band\b(?=[^,]*$)', line) if p.strip()]
+    if len(parts) < 3 or any(len(p.split()) > 5 for p in parts) or VERB_RE.match(line):
+        return None
+    if not any(food_count(p) for p in parts):
+        return None
+    return parts
+
+
 def _meta(out, line):
     m = SERVES_RE.search(line)
     if m and not out['serves']:
@@ -200,17 +268,36 @@ def _meta(out, line):
     out['cook'] = out['cook'] or _minutes(COOK_RE.search(line))
 
 
-def is_recipe_note(text, title=''):
-    """Is this note written as a recipe? Stricter than the form alone: it
-    needs amounts or an ingredients heading, and something to do with them."""
-    found = sorting.form(text)
+def is_recipe_note(text, title='', food=False):
+    """Is this note written as a recipe? It needs amounts or an ingredients
+    heading, and something to do with them. On a planet that's about food
+    (food=True) it's gentler: a list of what goes in, or a few lines saying
+    how to cook it, will do."""
+    first = next((l for l in (text or '').split('\n') if l.strip()), '')
+    if _phrase_hit(_words(title or first), _NOT_RECIPE):
+        return None
     read = parse(text, title)
     if not read:
         return None
+    found = sorting.form(text)
     quantities = len(sorting.QUANTITY_RE.findall(text or ''))
-    headed = bool(re.search(r'^\s*(?:#+\s*)?ingredients?\s*:?\s*$', text or '', re.I | re.M))
-    if len(read['ingredients']) >= 2 and (read['steps'] or headed) and (found.get('recipe') or headed or quantities >= 2):
+    headed = bool(re.search(r'^\s*(?:#+\s*)?(?:\*\*)?ingredients?\b', text or '', re.I | re.M))
+    ings = read['ingredients']
+    if len(ings) >= 2 and (read['steps'] or headed) and (found.get('recipe') or headed or quantities >= 2):
         return read
+    foodish = sum(1 for x in ings if food_count(x))
+    verbs = _cook_verbs(text)
+    # Anywhere: plainly food going in, and plainly cooking.
+    if foodish >= 3 and read['steps'] and verbs >= 2:
+        return read
+    if not food:
+        return None
+    if len(ings) >= 2 and foodish >= 2 and (read['steps'] or headed or quantities >= 2):
+        return read
+    if len(ings) >= 3 and foodish >= 3 and foodish >= 0.6 * len(ings):
+        return read  # what goes in it, method to come
+    if read['steps'] and verbs >= 2 and food_count(text) >= 3:
+        return read  # how to make it, in a few sentences
     return None
 
 
@@ -322,12 +409,19 @@ def recipe_site(url):
     return bool(re.search(r'/recipes?/|/recipe-|[/-]recipe(?:s)?(?:[/-]|$)', url))
 
 
-def is_recipe_link(row, meta):
+def is_recipe_link(row, meta, food=False):
     if row['kind'] != 'link':
         return False
     if isinstance(meta.get('recipe'), dict):
         return True
-    return recipe_site(row['content']) or bool(re.search(r'\brecipe\b', row['title'] or '', re.I))
+    words = ' '.join(filter(None, [row['title'], meta.get('description') if isinstance(meta.get('description'), str) else '']))
+    if recipe_site(row['content']) or re.search(r'\brecipes?\b|\bhow to (?:make|cook|bake)\b', words, re.I):
+        return True
+    if not food:
+        return False
+    url = (row['content'] or '').lower()
+    video = any(site in url for site in lexicon.FOOD_VIDEO_SITES)
+    return food_count(words + ' ' + url.replace('-', ' ').replace('/', ' ')) >= (1 if video else 2)
 
 
 def chapter_of(recipe):
@@ -450,32 +544,48 @@ def _photo(value):
     return value
 
 
-def signs(title, files):
+FOOD_SIGHTS = ('meal', 'baking', 'ingredients', 'drinks', 'restaurant')
+
+
+def signs(title, files, purpose=None):
     """Whether a planet is being used to keep recipes, in plain words.
-    files: [(row, meta)]. {'fits', 'signs', 'recipes'}."""
+    files: [(row, meta)]; purpose: what sorting.purpose reads the planet as.
+    {'fits', 'signs', 'recipes', 'food'}. A planet whose name or files say
+    it's about food reads its notes and links more gently."""
+    purpose = purpose or {}
+    named = food_name(title)
+    topics = dict(purpose.get('topics') or [])
+    shows = dict(purpose.get('shows') or [])
+    food_photos = sum(v for k, v in shows.items() if k in FOOD_SIGHTS)
+    about = topics.get('Recipes', 0) >= 0.4 and next(iter(topics), None) == 'Recipes'
+    food = named or about or food_photos >= 0.4
     n = len(files)
     notes, sites = [], []
     for row, meta in files:
         if isinstance(meta.get('recipe'), dict):
             (sites if row['kind'] == 'link' else notes).append(row['id'])
-        elif row['kind'] == 'text' and is_recipe_note(row['content'], row['title']):
+        elif row['kind'] == 'text' and is_recipe_note(row['content'], row['title'], food=food):
             notes.append(row['id'])
-        elif is_recipe_link(row, meta):
+        elif is_recipe_link(row, meta, food=food):
             sites.append(row['id'])
     found = len(notes) + len(sites)
-    named = bool(NAMES.search(title or ''))
     out = []
     if named:
         out.append(f'It’s called “{title}”, which sounds like somewhere to keep recipes.')
+    elif about:
+        out.append('Most of what’s on it is about food and cooking.')
     if notes:
-        out.append(f'{_count(len(notes), "note")} {"is" if len(notes) == 1 else "are"} written as '
-                   f'{"a recipe" if len(notes) == 1 else "recipes"}, with amounts and a method.')
+        out.append(f'{_count(len(notes), "note")} {"is" if len(notes) == 1 else "are"} '
+                   f'{"a recipe" if len(notes) == 1 else "recipes"}.')
     if sites:
-        out.append(f'{_count(len(sites), "link")} {"goes" if len(sites) == 1 else "go"} to recipe pages.')
+        out.append(f'{_count(len(sites), "link")} {"goes" if len(sites) == 1 else "go"} to recipes.')
+    if food_photos >= 0.4:
+        out.append('Its pictures are mostly of food.')
     if found and found == n and n > 1:
         out.append('Everything on it is a recipe.')
-    fits = bool(found) and ((found >= 2 and found >= 0.5 * n) or (named and found >= 1) or found >= 4)
-    return {'fits': fits, 'signs': out, 'recipes': notes + sites}
+    fits = bool(found) and (found >= 4 or (found >= 2 and found >= 0.3 * n)
+                            or (food and (found >= 2 or found >= 0.2 * n)))
+    return {'fits': fits, 'signs': out, 'recipes': notes + sites, 'food': food}
 
 
 def _count(n, word):

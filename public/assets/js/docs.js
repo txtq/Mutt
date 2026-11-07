@@ -10,7 +10,7 @@
 import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
-import { openContextMenu, toast } from './ui.js';
+import { openContextMenu, openMenu, toast } from './ui.js';
 import { EASE, bus, h, plural, reducedMotion, timeAgo } from './util.js';
 
 const moving = () => !reducedMotion();
@@ -32,9 +32,24 @@ export const docTitle = titleOf;
 
 const wordsIn = (text) => ((text || '').match(/\S+/g) || []).length;
 
+// The width, in pixels, of the page a preview draws before it's scaled to its card.
+const PRINT_W = 440;
+
+// Ways to order the desk. The owner's choice is kept with the planet.
+const SORTS = {
+  edited: { label: 'Last edited', by: (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0) },
+  newest: { label: 'Newest', by: (a, b) => (b.createdAt || 0) - (a.createdAt || 0) },
+  oldest: { label: 'Oldest', by: (a, b) => (a.createdAt || 0) - (b.createdAt || 0) },
+  name: { label: 'Name', by: (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { numeric: true, sensitivity: 'base' }) },
+  longest: { label: 'Longest', by: (a, b) => wordsIn(b.content) - wordsIn(a.content) },
+  shortest: { label: 'Shortest', by: (a, b) => wordsIn(a.content) - wordsIn(b.content) },
+};
+
 export class DeskView {
-  constructor({ drawer, blocks, editable, makeCollection, onChange, onOpen, onNew }) {
+  constructor({ drawer, blocks, editable, makeCollection, onChange, onOpen, onNew, onSort }) {
     this.drawer = drawer;
+    this.sort = SORTS[drawer.modes?.documents?.sort] ? drawer.modes.documents.sort : 'edited';
+    this.onSort = onSort;
     this.blocks = blocks;
     this.editable = editable;
     this.onChange = onChange;
@@ -52,12 +67,15 @@ export class DeskView {
     this.count = h('span', { class: 'dk-count' });
     this.newBtn = editable ? h('button', { type: 'button', class: 'vbtn vbtn-glass dk-new' }, h('span', { 'aria-hidden': 'true' }, '+'), 'New document') : null;
     this.newBtn?.addEventListener('click', () => this.onNew?.());
+    this.sortBtn = h('button', { type: 'button', class: 'dk-sort', 'aria-haspopup': 'menu' });
+    this.sortBtn.addEventListener('click', () => this.sortMenu());
     this.othersHead = h('h3', { class: 'dk-head dk-others-head' }, 'Other files');
     this.others = h('div', { class: 'dk-others' }, this.othersHead, this.collection.el);
     this.el = h('div', { class: 'dk' },
       this.now,
       h('div', { class: 'dk-desk' },
-        h('div', { class: 'dk-bar' }, h('h3', { class: 'dk-head' }, 'Documents', this.count), this.newBtn),
+        h('div', { class: 'dk-bar' }, h('h3', { class: 'dk-head' }, 'Documents', this.count),
+          h('div', { class: 'dk-bar-end' }, this.sortBtn, this.newBtn)),
         this.grid),
       this.others);
 
@@ -94,7 +112,21 @@ export class DeskView {
     return this.sorted().map((b) => ({ id: b.id, title: titleOf(b), words: wordsIn(b.content) }));
   }
 
-  sorted() { return this.docs(); }
+  sorted() { return [...this.docs()].sort(SORTS[this.sort].by); }
+
+  sortMenu() {
+    openMenu(this.sortBtn, Object.entries(SORTS).map(([key, { label }]) => ({
+      label, hint: key === this.sort ? '✓' : null, run: () => this.setSort(key),
+    })), { className: 'dk-sort-menu' });
+  }
+
+  setSort(key) {
+    if (key === this.sort) return;
+    this.sort = key;
+    this.render({ reorder: true });
+    // Visitors can sort for themselves; only the owner's choice is kept.
+    if (this.editable) this.onSort?.(key);
+  }
 
   changed() {
     this.blocks = [...this.docs(), ...this.collection.blocks];
@@ -135,9 +167,9 @@ export class DeskView {
   fit() {
     const card = this.grid.querySelector('.dk-paper');
     if (!card) return;
-    this.grid.style.setProperty('--k', String(card.clientWidth / 640));
+    this.grid.style.setProperty('--k', String(card.clientWidth / PRINT_W));
     const big = this.now.querySelector('.dk-paper');
-    if (big) this.now.style.setProperty('--k', String(big.clientWidth / 640));
+    if (big) this.now.style.setProperty('--k', String(big.clientWidth / PRINT_W));
   }
 
   paper(b) {
@@ -148,8 +180,14 @@ export class DeskView {
       h('span', { class: 'dk-print', html: cleanHtml(html, { own: true }) }));
   }
 
-  render({ entrance = false, born = null } = {}) {
+  render({ entrance = false, born = null, reorder = false } = {}) {
     const docs = this.sorted();
+    this.sortBtn.replaceChildren(h('span', { class: 'dk-sort-label' }, 'Sort'), SORTS[this.sort].label);
+    this.sortBtn.hidden = docs.length < 2;
+    // Where each page was, so a new order glides into place.
+    const before = reorder && moving()
+      ? new Map([...this.grid.children].map((el) => [el.dataset.id, el.getBoundingClientRect()]))
+      : null;
     const total = docs.reduce((a, b) => a + wordsIn(b.content), 0);
     this.count.textContent = docs.length ? `${docs.length} · ${plural(total, 'word')}` : '';
     this.others.hidden = !this.collection.blocks.length;
@@ -183,6 +221,17 @@ export class DeskView {
     if (!cards.length) cards.push(h('p', { class: 'dk-empty' }, this.editable ? 'No documents here yet.' : 'No documents here yet.'));
     this.grid.replaceChildren(...cards);
     requestAnimationFrame(() => this.fit());
+    if (before) {
+      for (const el of this.grid.children) {
+        const was = before.get(el.dataset.id);
+        if (!was) continue;
+        const now = el.getBoundingClientRect();
+        const dx = was.left - now.left;
+        const dy = was.top - now.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+        el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 520, easing: EASE });
+      }
+    }
     if (moving() && (entrance || born)) {
       [...this.grid.children].forEach((el, n) => {
         if (born && el.dataset.id !== born) return;

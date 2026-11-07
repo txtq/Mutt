@@ -700,6 +700,7 @@ export const planetView = {
 
     const makeDeskView = (blocks) => new DeskView({
       drawer, blocks, editable: mine, makeCollection, onChange: changed, onOpen: (bid) => openDoc(bid), onNew: () => newDoc(),
+      onSort: (sort) => saveDocs({ sort }),
     });
     let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
     let shelf = !listView && !isMoon && drawer.modes?.reading?.on ? makeShelfView(data.blocks) : null;

@@ -174,6 +174,8 @@ def clean_modes(value, current):
         for key, v in given.items():
             if key in ('on', 'dismissed') and isinstance(v, bool):
                 merged[key] = v
+            elif key == 'sort' and v in documents.SORTS:
+                merged[key] = v
             else:
                 raise HttpError(400, 'Those document settings could not be saved.')
         modes['documents'] = merged

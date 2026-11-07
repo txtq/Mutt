@@ -25,34 +25,56 @@
 .dk-head { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 15px; font-weight: 600; color: var(--ink-2); }
 .dk-count { font-size: 13px; font-weight: 500; color: var(--ink-4); }
 .dk-new { display: inline-flex; align-items: center; gap: 6px; }
+.dk-bar-end { display: flex; align-items: center; gap: 8px; }
+.dk-sort {
+  position: relative; display: inline-flex; align-items: baseline; gap: 6px; height: 34px; padding: 0 26px 0 12px;
+  border: 0; border-radius: 999px; background: none; color: var(--ink); font: 500 13px var(--sans); cursor: pointer; white-space: nowrap;
+}
+.dk-sort[hidden] { display: none; }
+.dk-sort::after { content: ''; position: absolute; right: 12px; top: 50%; width: 5px; height: 5px; margin-top: -4px; border: solid var(--ink-3); border-width: 0 1.4px 1.4px 0; transform: rotate(45deg); }
+.dk-sort:hover { background: var(--tint); }
+.dk-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dk-sort-label { color: var(--ink-4); }
 .dk-new span { font-size: 17px; line-height: 1; margin-top: -1px; }
 .dk-others[hidden], .dk-now[hidden] { display: none; }
 .dk-others .dk-head { margin-bottom: 14px; }
 
 .dk-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  column-gap: 26px;
-  row-gap: 30px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  column-gap: 30px;
+  row-gap: 34px;
   align-items: start;
 }
 .dk-doc { min-width: 0; }
 .dk-open { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 3px; }
 .dk-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
-/* A page, at the size of a real one, scaled to the card (--k). */
+/* A page, drawn at a smaller-than-real width so its words read on the card,
+   then scaled to fit (--k). Its edge catches the planet's colour (--pc). */
 .dk-paper {
+  --dk-rim: color-mix(in oklab, var(--pc, #8fb0ff) 58%, #ffffff);
   position: relative; display: block; width: 100%; aspect-ratio: 1 / 1.4142; overflow: hidden;
   border-radius: 7px;
   background: var(--de-paper);
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.18), 0 14px 28px -14px rgba(0, 0, 10, 0.8);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--dk-rim) 80%, transparent),
+    0 0 22px -2px color-mix(in srgb, var(--dk-rim) 42%, transparent),
+    0 14px 28px -14px rgba(0, 0, 10, 0.8);
   transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease);
+}
+/* A soft sheen of light across the paper, brightest at the top corner. */
+.dk-paper::before {
+  content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(140deg, color-mix(in srgb, var(--pc, #8fb0ff) 9%, transparent), transparent 60%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
 }
 .dk-paper::after { content: ''; position: absolute; inset: auto 0 0; height: 26%; background: linear-gradient(transparent, var(--de-paper)); }
 .dk-print {
-  position: absolute; left: 0; top: 0; width: 640px; padding: 64px 70px;
-  transform: scale(var(--k, 0.27)); transform-origin: 0 0;
-  color: var(--de-ink); font: 400 17px/1.5 var(--de-serif); text-align: left; pointer-events: none;
+  position: absolute; left: 0; top: 0; width: 440px; padding: 42px 44px;
+  transform: scale(var(--k, 0.5)); transform-origin: 0 0;
+  color: var(--de-ink); font: 400 18px/1.45 var(--de-serif); text-align: left; pointer-events: none;
   white-space: pre-wrap; overflow-wrap: break-word;
 }
 .dk-paper[data-font="sans"] .dk-print { font-family: var(--de-sans); }
@@ -66,30 +88,37 @@
 .dk-print ul, .dk-print ol { padding-left: 1.4em; }
 .dk-print ul.check { display: block; margin: 0 0 0.75em; list-style: "☐  "; font-size: inherit; line-height: inherit; }
 .dk-print blockquote { padding-left: 0.9em; border-left: 2px solid var(--de-rule); font-style: italic; }
-.dk-paper.is-poem .dk-print { padding-left: 150px; line-height: 1.6; }
-.dk-paper.is-poem .dk-print :is(h1, h2, h3, .title) { margin-left: -80px; }
-.dk-open:hover .dk-paper { transform: translateY(-4px) rotate(-0.4deg); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 2px 2px rgba(0, 0, 0, 0.16), 0 22px 36px -16px rgba(0, 0, 10, 0.85); }
+.dk-paper.is-poem .dk-print { padding-left: 84px; line-height: 1.55; }
+.dk-paper.is-poem .dk-print :is(h1, h2, h3, .title) { margin-left: -40px; }
+.dk-open:hover .dk-paper, .dk-now-card:hover .dk-paper, .dk-doc.is-ctx .dk-paper {
+  box-shadow:
+    0 0 0 1.5px var(--dk-rim),
+    0 0 30px 0 color-mix(in srgb, var(--dk-rim) 58%, transparent),
+    0 22px 36px -16px rgba(0, 0, 10, 0.85);
+}
+.dk-open:hover .dk-paper { transform: translateY(-4px) rotate(-0.4deg); }
 .dk-doc.is-ctx .dk-paper { transform: translateY(-4px); }
 .dk-badge {
   position: absolute; right: -6px; top: -6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
   display: grid; place-items: center; background: #f0c24a; color: #2a2108; font: 700 11.5px var(--sans);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
-.dk-name { margin: 11px 0 1px; font: 600 14.5px/1.25 var(--de-serif); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-name { margin: 12px 0 2px; font: 600 15.5px/1.25 var(--de-serif); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dk-meta { margin: 0; font-size: 12px; color: var(--ink-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dk-empty { grid-column: 1 / -1; margin: 0; padding: 22px 0; color: var(--ink-3); font-size: 14px; }
 
 .dk-now-card {
-  display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 22px; align-items: center;
-  width: 100%; padding: 18px 22px 18px 18px; text-align: left; cursor: pointer; border-radius: 18px; color: var(--ink); font: inherit;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  width: 100%; padding: 10px 12px 10px 12px; text-align: left; cursor: pointer; border-radius: 14px; color: var(--ink); font: inherit;
 }
-.dk-now-card .dk-paper { width: 116px; }
+.dk-now-card .dk-paper { width: 40px; border-radius: 4px; }
+.dk-now-card .dk-paper::before { box-shadow: none; }
 .dk-now-card:hover .dk-paper { transform: translateY(-3px) rotate(-0.6deg); }
-.dk-now-text { display: grid; gap: 4px; min-width: 0; justify-items: start; }
-.dk-now-label { font-size: 12.5px; color: var(--ink-3); }
-.dk-now-title { font: 600 22px/1.2 var(--de-serif); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-width: 100%; }
-.dk-now-meta { font-size: 12.5px; color: var(--ink-3); }
-.dk-now-go { margin-top: 8px; }
+.dk-now-text { display: grid; gap: 1px; min-width: 0; justify-items: start; }
+.dk-now-label { font-size: 11.5px; color: var(--ink-3); }
+.dk-now-title { font: 600 16px/1.25 var(--de-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.dk-now-meta { font-size: 11.5px; color: var(--ink-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.dk-now-go { padding-inline: 16px; }
 
 .dk-offer-icon {
   position: relative; width: 34px; height: 42px; align-self: start; border-radius: 2px 3px 3px 2px;
@@ -107,10 +136,13 @@
 
 @media (max-width: 640px) {
   .dk { margin-left: 0; }
-  .dk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; row-gap: 22px; }
-  .dk-now-card { grid-template-columns: 84px minmax(0, 1fr); gap: 14px; padding: 14px; }
-  .dk-now-card .dk-paper { width: 84px; }
-  .dk-now-title { font-size: 18px; }
+  .dk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; row-gap: 24px; }
+  .dk-bar { flex-wrap: wrap; }
+  .dk-sort { padding-left: 8px; }
+  .dk-now-card { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; padding: 9px 10px; }
+  .dk-now-card .dk-paper { width: 34px; }
+  .dk-now-title { font-size: 15px; }
+  .dk-now-meta { display: none; }
 }
 
 /* ------------------------------------------------------------ the editor */

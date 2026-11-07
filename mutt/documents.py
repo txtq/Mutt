@@ -109,6 +109,9 @@ LAYOUTS = ('auto', 'poem', 'prose')
 NUMBERS = ('off', 'center', 'right')
 VIEWS = ('pages', 'flow')
 
+# How the desk can order a planet's documents (kept per planet in modes.documents.sort).
+SORTS = ('edited', 'newest', 'oldest', 'name', 'longest', 'shortest')
+
 DEFAULTS = {'page': 'a4', 'margins': 'normal', 'font': 'serif', 'size': 12, 'spacing': 1.15,
             'layout': 'auto', 'numbers': 'center', 'header': '', 'footer': '', 'view': 'pages'}
 

@@ -21,6 +21,8 @@ Q=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(note "$POEM" "$P")" 
 echo "named poems: $(curl -s "${C[@]}" $B/api/drawers/$P/modes | j "d['documents']['fits'], d['documents']['signs']")"
 echo "turn on: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"documents":{"on":true}}}' | j "d['drawer']['modes']['documents']")"
 echo "bad mode: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"documents":{"on":1}}}' | j "d['error']")"
+echo "sort by name: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"documents":{"sort":"name"}}}' | j "d['drawer']['modes']['documents']")"
+echo "bad sort: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"documents":{"sort":"colour"}}}' | j "d['error']")"
 echo "open (no doc yet): $(curl -s "${C[@]}" $B/api/docs/$A | j "d['doc']['html'], d['doc']['reads'], d['doc']['settings']['page'], d['comments']")"
 echo "poem reads: $(curl -s "${C[@]}" $B/api/docs/$Q | j "d['doc']['reads']")"
 python3 - "$SP" <<'PY'

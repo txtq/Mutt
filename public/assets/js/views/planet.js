@@ -8,6 +8,7 @@ import { drift } from '../drift.js';
 import { ListView, listOffer, listSettings } from '../listmode.js';
 import { nav } from '../nav.js';
 import { ShelfView, readingOffer } from '../reading.js';
+import { RecipeBoxView, cookbookOffer } from '../cookbook.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { EASE, PALETTE, autosize, bus, h, plural, reducedMotion, timeAgo, wait } from '../util.js';
@@ -521,11 +522,14 @@ export const planetView = {
     // and stays here after the offer is waved away or the list is turned off.
     const listItems = () => [
       listView ? { label: 'List options…', run: () => listOptions() } : null,
-      !listView && !shelf && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
+      !listView && !shelf && !cookbook && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
       // And reading mode, once it holds books.
       shelf ? { label: 'Show as files again', run: () => unshelve() } : null,
-      !listView && !shelf && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
-      listView || listFits || shelf || shelfFits ? '-' : null,
+      !listView && !shelf && !cookbook && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
+      // And cookbook mode, once it holds recipes.
+      cookbook ? { label: 'Show as files again', run: () => uncook() } : null,
+      !listView && !shelf && !cookbook && cookFits ? { label: 'Make it a cookbook', run: () => makeCookbook() } : null,
+      listView || listFits || shelf || shelfFits || cookbook || cookFits ? '-' : null,
     ];
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
       ...listItems(),
@@ -578,6 +582,7 @@ export const planetView = {
       ...over,
     });
     const makeShelfView = (blocks) => new ShelfView({ drawer, blocks, editable: mine, makeCollection, onChange: changed });
+    const makeBoxView = (blocks, box = null) => new RecipeBoxView({ drawer, blocks, box, editable: mine, makeCollection, onChange: changed });
     const makeListView = (blocks) => new ListView({
       blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions, targets,
     });
@@ -586,11 +591,13 @@ export const planetView = {
 
     let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
     let shelf = !listView && !isMoon && drawer.modes?.reading?.on ? makeShelfView(data.blocks) : null;
-    let collection = listView || shelf ? null : makeCollection(data.blocks);
+    let cookbook = !listView && !shelf && !isMoon && drawer.modes?.cookbook?.on ? makeBoxView(data.blocks) : null;
+    let collection = listView || shelf || cookbook ? null : makeCollection(data.blocks);
     let listFits = false;
     let shelfFits = false;
+    let cookFits = false;
     let offer = null;
-    const view = () => listView || shelf || collection;
+    const view = () => listView || shelf || cookbook || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
     const stopDrift = drift(body);
 
@@ -605,7 +612,8 @@ export const planetView = {
       old.destroy();
       listView = next instanceof ListView ? next : null;
       shelf = next instanceof ShelfView ? next : null;
-      collection = listView || shelf ? null : next;
+      cookbook = next instanceof RecipeBoxView ? next : null;
+      collection = listView || shelf || cookbook ? null : next;
       outgoing.replaceWith(next.el);
       if (!reducedMotion() && !listView) {
         next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
@@ -695,15 +703,58 @@ export const planetView = {
       });
     }
 
-    // Does it read as a list, or a bookshelf? That decides what the ••• menu offers.
+    // ------------------------------------------------------------ cookbook mode
+
+    async function saveCookbook(patch) {
+      try {
+        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { cookbook: patch } }));
+        inst.drawer = drawer;
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    async function makeCookbook() {
+      try {
+        const res = await api.post(`/api/drawers/${id}/cookify`, {});
+        ({ drawer } = res);
+        inst.drawer = drawer;
+        offer?.remove();
+        offer = null;
+        const blocks = (view().list ? view().list() : data.blocks).filter((b) => !String(b.id).startsWith('tmp-'));
+        await swapTo(makeBoxView(blocks, res.box));
+        const n = res.box.recipes.length;
+        toast(n ? `Now a cookbook: ${plural(n, 'recipe')} in the box` : 'Now a cookbook');
+        return true;
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+    }
+
+    async function uncook() {
+      if (!(await saveCookbook({ on: false, dismissed: true }))) return;
+      const blocks = cookbook.list();
+      await swapTo(makeCollection(blocks));
+      toast('Showing it as files again', {
+        action: { label: 'Undo', run: async () => { if (await saveCookbook({ on: true })) swapTo(makeBoxView(blocks)); } },
+      });
+    }
+
+    // Does it read as a list, a bookshelf or a cookbook? That decides what the ••• menu offers.
     let readingSigns = null;
+    let cookSigns = null;
     async function readListSigns() {
       if (!mine) return null;
       try {
-        const { list, reading } = await api.get(`/api/drawers/${id}/modes`);
+        const { list, reading, cookbook: cooking } = await api.get(`/api/drawers/${id}/modes`);
         listFits = !!list?.fits;
         shelfFits = !isMoon && !!reading?.fits;
+        cookFits = !isMoon && !!cooking?.fits;
         readingSigns = reading;
+        cookSigns = cooking;
         return list;
       } catch {
         return null;
@@ -715,7 +766,7 @@ export const planetView = {
       if (!mine) return;
       const list = await readListSigns();
       try {
-        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf) {
+        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !cookbook) {
           offer = readingOffer({
             signs: readingSigns.signs,
             pdfs: readingSigns.pdfs,
@@ -725,7 +776,16 @@ export const planetView = {
           body.prepend(offer);
           return;
         }
-        if (shelf) return;
+        if (shelf || cookbook) return;
+        if (cookFits && !drawer.modes?.cookbook?.dismissed && el.isConnected && !listView) {
+          offer = cookbookOffer({
+            signs: cookSigns.signs,
+            onAccept: makeCookbook,
+            onDecline: () => { offer = null; saveCookbook({ dismissed: true }); },
+          });
+          body.prepend(offer);
+          return;
+        }
         if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
         offer = listOffer({
           signs: list.signs,

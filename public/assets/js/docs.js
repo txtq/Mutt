@@ -200,8 +200,8 @@ export class DeskView {
         h('span', { class: 'dk-now-text' },
           h('span', { class: 'dk-now-label' }, 'Continue writing'),
           h('span', { class: 'dk-now-title' }, titleOf(recent)),
-          h('span', { class: 'dk-now-meta' }, `${plural(wordsIn(recent.content), 'word')} · edited ${timeAgo(recent.updatedAt)}`),
-          h('span', { class: 'vbtn vbtn-blue dk-now-go' }, 'Continue'))));
+          h('span', { class: 'dk-now-meta' }, `${plural(wordsIn(recent.content), 'word')} · edited ${timeAgo(recent.updatedAt)}`)),
+        h('span', { class: 'vbtn vbtn-blue dk-now-go' }, 'Continue')));
       this.now.hidden = false;
     } else {
       this.now.hidden = true;

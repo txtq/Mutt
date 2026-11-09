@@ -38,6 +38,22 @@ note $'Had pasta at Luigis tonight, the garlic bread was amazing and the tiramis
 note $'Autumn\nleaves fall softly\nthe kettle sings' "$X" >/dev/null
 note $'Standup\nAlice, Bob, Carol\nship the release, fix login' "$X" >/dev/null
 echo "not food (no): $(curl -s "${C[@]}" $B/api/drawers/$X/modes | j "d['cookbook']['fits']")"
+# Notes that only name a dish ("fish w/couscous") and notes listing meals.
+CB=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"cook book"}' | j "d['drawer']['id']")
+for t in "beck's curry with big couscous" 'beef slop w/potato onion pepper mushroom' 'fish w/couscous' 'portabello and chickpea' 'feta and crackers'; do note "$t" "$CB" >/dev/null; done
+echo "dish names, cook book: $(curl -s "${C[@]}" $B/api/drawers/$CB/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+UN=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Stuff 2"}' | j "d['drawer']['id']")
+for t in 'fish w/couscous' 'portabello and chickpea' 'chicken katsu' 'buy stamps'; do note "$t" "$UN" >/dev/null; done
+echo "dish names, unnamed: $(curl -s "${C[@]}" $B/api/drawers/$UN/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+DL=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Ideas"}' | j "d['drawer']['id']")
+LIST=$(note $'Dinners\n- lasagne\n- fish w/couscous\n- chicken katsu\n- tomato soup\n- beans on toast' "$DL")
+echo "a list of meals: $(curl -s "${C[@]}" $B/api/drawers/$DL/modes | j "d['cookbook']['fits'], d['cookbook']['signs']")"
+GL=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Weekly"}' | j "d['drawer']['id']")
+note $'milk\neggs\n2 onions\nchicken thighs\nbeef mince\nrice\nfrozen peas' "$GL" >/dev/null
+echo "an unnamed grocery list isn't: $(curl -s "${C[@]}" $B/api/drawers/$GL/modes | j "d['cookbook']['fits']")"
+echo "dish cards: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$CB/cookify | j "sorted(r['title'] for r in d['box']['recipes'])")"
+echo "list split into cards: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$DL/cookify | j "sorted(r['title'] for r in d['box']['recipes'])")"
+echo "split once: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$DL/cookify | j "len(d['box']['recipes'])") $(curl -s "${C[@]}" $B/api/blocks/$LIST | j "d['block']['content'].count(chr(10))")"
 echo "casual cards read: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$F/cookify | j "[(r['title'], len(r['ingredients']), len(r['steps'])) for r in d['box']['recipes']]")"
 echo "cookify: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$D/cookify | j "d['drawer']['modes']['cookbook'], [(r['title'], r['chapter'], r['serves'], r['prep'], r['cook'], len(r['ingredients']), len(r['steps'])) for r in d['box']['recipes']], d['box']['chapters']")"
 echo "save card: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/blocks/$R2/recipe -d '{"title":"Chicken curry","serves":6,"prep":10,"ingredients":["600g chicken thighs","For the rice:","300 g basmati"],"notes":"Good with naan.","chapter":"Weeknights"}' | j "d['recipe']['title'], d['recipe']['chapter'], d['recipe']['serves']")"

@@ -896,6 +896,42 @@ RECIPE_NAMES = (
 ).split()
 RECIPE_EMOJI = '🍳🥘🍲🍝🍜🍛🍕🍔🌮🌯🥗🥪🍞🥐🥖🥯🧁🍰🎂🍪🥧🍩🍫🍮🍦🍨🍧🥞🧇🍱🍣🍤🥟🍙🍚🫕🥙🧆🍹🍸🍷🍺☕🍵🧑‍🍳👩‍🍳👨‍🍳🔪🥄🍴🍽️🥕🍅🥑🧄🧅🌶️🫑🍋🍓🫐'
 
+# Foods and dishes, for telling a note that names a meal ("fish w/couscous",
+# "portabello and chickpea") from any other short note. Singular forms; a
+# plural "s" is understood. DISHES are words that name a whole meal on their
+# own ("lasagne"), so one of them is enough; a lone FOOD ("eggs") isn't.
+FOODS = (
+    'beef pork lamb chicken turkey duck mince steak sausage sausages bacon ham chorizo salami prosciutto pancetta '
+    'meatball meatballs fish salmon tuna cod haddock trout mackerel sardine anchovy prawn prawns shrimp crab '
+    'lobster mussel mussels clam squid calamari scallop tofu tempeh seitan halloumi paneer feta mozzarella '
+    'cheddar parmesan ricotta brie camembert goat_cheese cheese cream butter yogurt yoghurt milk egg '
+    'potato potatoes sweet_potato onion garlic leek shallot pepper peppers chilli chili jalapeno tomato tomatoes '
+    'mushroom portobello portabello portabella shiitake carrot celery courgette zucchini aubergine eggplant '
+    'broccoli cauliflower cabbage kale spinach chard lettuce rocket arugula cucumber beetroot beet squash '
+    'pumpkin butternut corn sweetcorn pea peas bean beans green_beans chickpea lentil lentils edamame '
+    'avocado olive olives artichoke asparagus fennel radish parsnip turnip okra bok_choy pak_choi '
+    'rice couscous quinoa bulgur barley farro polenta oats noodle noodles pasta spaghetti penne fusilli '
+    'macaroni linguine tagliatelle orzo gnocchi bread toast baguette pita pitta naan tortilla tortillas '
+    'wrap crackers cracker crisps chips fries bagel croissant flatbread dumpling dumplings '
+    'apple banana lemon lime orange berries strawberry blueberry raspberry mango pineapple peach pear '
+    'plum cherry grape grapes date dates fig coconut nuts almond almonds walnut peanut cashew pistachio '
+    'tahini miso kimchi harissa curry_paste '
+    'chocolate honey jam caramel custard maple'
+).split()
+DISHES = (
+    'curry stew soup salad pasta risotto lasagne lasagna bolognese carbonara pie quiche tart pizza '
+    'burger burgers sandwich sandwiches taco tacos burrito burritos enchilada enchiladas quesadilla fajitas '
+    'nachos chili chilli stirfry stir_fry stir_fried fried_rice ramen pho pad_thai laksa noodle_soup '
+    'dal daal dhal tagine casserole bake traybake tray_bake roast hotpot hash goulash paella gumbo '
+    'jambalaya chowder broth omelette omelet frittata shakshuka pancakes waffles porridge granola '
+    'smoothie crumble cake cookies brownies muffins scones flapjacks cheesecake pudding mousse trifle '
+    'dumplings gyoza sushi poke bibimbap katsu teriyaki kebab kebabs souvlaki gyros falafel shawarma '
+    'meatloaf pot_pie mac_and_cheese mash slop skillet bowl buddha_bowl tikka korma masala biryani '
+    'jalfrezi vindaloo rendang satay schnitzel stroganoff ragu cacciatore gratin moussaka ratatouille '
+    'minestrone gazpacho chili_con_carne cottage_pie shepherds_pie fish_and_chips bangers toastie '
+    'wraps sliders kofta lentil_soup hummus pesto salsa guacamole gravy chutney dip coleslaw slaw spag_bol spaghetti_bolognese beans_on_toast'
+).split()
+
 # Notes with these names are lists of food, not recipes.
 NOT_RECIPE_NAMES = (
     'shopping groceries grocery to_buy shopping_list pantry_list restaurants places_to_eat reservations '

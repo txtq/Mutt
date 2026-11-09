@@ -1145,6 +1145,7 @@ def cookbook_signs(req, row):
         purpose = None
     signs = recipes.signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in files], purpose)
     signs.pop('recipes')
+    signs.pop('lists')
     return signs
 
 
@@ -1160,8 +1161,8 @@ def read_recipe(row, meta, lenient=False):
             rec = dict(old)
         else:
             # A note edited somewhere else is read again; its chapter and photo stay.
-            found = (recipes.parse(row['content'], row['title']) if old or lenient
-                     else recipes.is_recipe_note(row['content'], row['title'], food=True))
+            found = ((recipes.parse(row['content'], row['title']) or recipes.stub(row['content'], row['title']))
+                     if old or lenient else recipes.is_recipe_note(row['content'], row['title'], food=True))
             if not found:
                 return None, False
             keep = {k: old[k] for k in ('chapter', 'chapterSet', 'photo') if old and k in old}
@@ -1277,6 +1278,28 @@ def read_recipe_links(req, rows):
         req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), row['id']))
 
 
+def split_dish_lists(req, drawer):
+    """A note listing meals ("curry, fish w/couscous, lasagne") gives each
+    meal its own card: a new note per dish, beside the list. The list itself
+    stays on the planet (out of sight in the box) and is only split once."""
+    for row in drawer_files(req, drawer['id']):
+        if row['kind'] != 'text' or row['user_id'] != req.user['id']:
+            continue
+        meta = json.loads(row['meta'] or '{}')
+        if meta.get('dishesSplit'):
+            continue
+        dishes = recipes.dish_list(row['content'], row['title'])
+        if not dishes:
+            continue
+        place = req.db.execute('SELECT position FROM connections WHERE drawer_id = ? AND block_id = ?',
+                               (drawer['id'], row['id'])).fetchone()[0]
+        for dish in dishes[:60]:
+            block_id = insert_block(req, kind='text', title='', content=dish[:200])
+            connect(req.db, block_id, drawer['id'], place)
+        meta['dishesSplit'] = True
+        req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), row['id']))
+
+
 @route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/cookify')
 def cookify_drawer(req, drawer_id):
     """Turn cookbook mode on: every recipe note and recipe link on the planet
@@ -1284,6 +1307,7 @@ def cookify_drawer(req, drawer_id):
     row = own_drawer(req, drawer_id)
     if row['parent_id']:
         raise HttpError(400, 'Moons can’t be cookbooks.')
+    split_dish_lists(req, row)
     box = recipe_box(req, row, refresh_links=True)
     modes = clean_modes({'cookbook': {'on': True, 'dismissed': False}}, drawer_modes(row))
     req.db.execute('UPDATE drawers SET modes = ?, updated_at = ? WHERE id = ?', (json.dumps(modes), now(), drawer_id))

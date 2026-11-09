@@ -53,6 +53,104 @@ _NOT_RECIPE = set(lexicon.NOT_RECIPE_NAMES)
 FOOD_WORDS = set(' '.join(lexicon.TOPICS['Recipes'][:2]).split()) - {'menu', 'cafe', 'restaurant', 'tasty',
                                                                       'delicious', 'bowl', 'pan', 'sheet', 'tray'}
 _COOK_VERBS = set(lexicon.COOK_VERBS)
+# The more casual foods and dish words count too, except a few that mean other things.
+FOOD_WORDS |= {w for w in lexicon.FOODS + lexicon.DISHES if '_' not in w} - {
+    'bowl', 'date', 'dates', 'hash', 'wrap', 'wraps', 'orange', 'chips', 'bake', 'roast', 'skillet', 'slop',
+    'mash', 'jam', 'nuts', 'squash', 'toast', 'crab', 'plum'}
+
+# Naming a dish: "fish w/couscous", "beck's curry", "portabello and chickpea".
+_DISHES = set(lexicon.DISHES)
+_WEAK_DISHES = {'bowl', 'bake', 'roast', 'hash', 'mash', 'slop', 'skillet', 'wrap', 'wraps', 'broth', 'toast'}
+_FOODS = (set(lexicon.FOODS) | _DISHES | FOOD_WORDS) - {
+    'dinner', 'lunch', 'breakfast', 'brunch', 'food', 'foods', 'meal', 'meals', 'cook', 'cooking', 'cookbook',
+    'cooker', 'kitchen', 'recipes', 'ingredient', 'ingredients', 'serves', 'servings', 'oven', 'tbsp', 'tsp',
+    'cup', 'cups', 'grams', 'teaspoon', 'tablespoon', 'tin', 'tins', 'eats', 'snacks', 'drinks', 'dishes',
+    'cuisine', 'dessert', 'desserts', 'baking', 'airfryer', 'slow', 'wok', 'preheat', 'stir', 'boil', 'chop',
+    'chopped', 'whisk', 'knead', 'simmer', 'fry', 'saute', 'grill', 'vegan', 'vegetarian', 'crispy', 'shin',
+    'date', 'dates', 'orange'}
+_JOIN_RE = re.compile(r'\b(?:with|w/?|and|n|on|over|in)\b|[&+/]', re.I)
+_NOT_DISH = {'i', 'im', 'ive', 'id', 'me', 'my', 'we', 'our', 'us', 'you', 'your', 'buy', 'get', 'order',
+             'call', 'book', 'email', 'text', 'remind', 'need', 'pick', 'return', 'pay', 'meeting', 'appointment'}
+
+
+def _food_hits(words):
+    return sum(1 for w in words if w in _FOODS or (w.endswith('s') and w[:-1] in _FOODS)
+               or (w.endswith('es') and w[:-2] in _FOODS))
+
+
+def is_dish(line):
+    """Does this short line name a meal, rather than one thing to buy?
+    'fish w/couscous' and 'lasagne' do; 'eggs', '2 onions' and 'beef mince' don't."""
+    line = NUMBER_RE.sub('', _clean_line(line or '')).strip(' -–:*_#')
+    if not line or len(line) > 80 or '?' in line or '://' in line or line.endswith(':'):
+        return False
+    if AMOUNT_RE.match(line) or sorting.QUANTITY_RE.search(line) or re.search(r'[$£€]\s*\d', line):
+        return False  # an amount or a price: shopping
+    words = _words(line)
+    if not words or len(words) > 10 or set(words) & _NOT_DISH or _phrase_hit(words, _NOT_RECIPE):
+        return False
+    if VERB_RE.match(line) and len(words) > 4:
+        return False  # a cooking step
+    hits = _food_hits(words)
+    strong = _phrase_hit(words, _DISHES - _WEAK_DISHES)
+    weak = _phrase_hit(words, _WEAK_DISHES)
+    if strong:
+        return True
+    if weak and hits >= 1 and len(words) >= 2:
+        return True
+    return hits >= 2 and bool(_JOIN_RE.search(line))
+
+
+def dish_name(text, title=''):
+    """A note that's only the name of a dish (the recipe still in your head):
+    the name, or None."""
+    lines = [l.strip() for l in (text or '').split('\n') if l.strip()]
+    if len(lines) == 1 and is_dish(lines[0]):
+        return _clean_line(lines[0])
+    if not lines and title and is_dish(title):
+        return title.strip()
+    return None
+
+
+def dish_list(text, title=''):
+    """A note listing meals ("dinners: curry, fish w/couscous, lasagne"),
+    not a shopping list: the dishes, or None. Needs 3+, and most of the list."""
+    lines = [l.strip() for l in (text or '').replace('\r', '').split('\n') if l.strip()]
+    if not lines or len(lines) > MAX_LINES:
+        return None
+    head = title or lines[0]
+    if _phrase_hit(_words(head), _NOT_RECIPE):
+        return None
+    if any(HEAD_RE.match(l) or INLINE_HEAD_RE.match(l) for l in lines):
+        return None  # written as a recipe
+    items = []
+    for i, line in enumerate(lines):
+        clean = _clean_line(line)
+        if i == 0 and len(lines) > 1 and (clean.endswith(':') or not is_dish(clean)) and len(clean) <= 60:
+            continue  # a heading
+        parts = [p.strip() for p in re.split(r'\s*[,;]\s*', clean.rstrip('.')) if p.strip()]
+        items += parts if len(parts) > 1 and all(len(p.split()) <= 8 for p in parts) else [clean]
+    dishes = [NUMBER_RE.sub('', x).strip() for x in items if is_dish(x)]
+    if len(dishes) >= 3 and len(dishes) >= 0.6 * len(items):
+        return dishes
+    return None
+
+
+def _groceries(read):
+    """A list of things with no name of its own ("milk / eggs / 2 onions")
+    is shopping, not a recipe: its first line is just another food."""
+    name = read.get('title') or ''
+    words = _words(name)
+    return not name or (len(words) <= 3 and _food_hits(words) >= 1 and not is_dish(name))
+
+
+def stub(text, title=''):
+    """A card for a note that's just a dish's name."""
+    name = dish_name(text, title)
+    if not name:
+        return None
+    return {'title': name[:200], 'serves': None, 'makes': '', 'prep': None, 'cook': None,
+            'ingredients': [], 'steps': [], 'notes': ''}
 
 
 def food_name(title):
@@ -276,9 +374,11 @@ def is_recipe_note(text, title='', food=False):
     first = next((l for l in (text or '').split('\n') if l.strip()), '')
     if _phrase_hit(_words(title or first), _NOT_RECIPE):
         return None
+    if dish_list(text, title):
+        return None  # a list of meals is many recipes, not one
     read = parse(text, title)
     if not read:
-        return None
+        return stub(text, title) if food else None
     found = sorting.form(text)
     quantities = len(sorting.QUANTITY_RE.findall(text or ''))
     headed = bool(re.search(r'^\s*(?:#+\s*)?(?:\*\*)?ingredients?\b', text or '', re.I | re.M))
@@ -294,7 +394,7 @@ def is_recipe_note(text, title='', food=False):
         return None
     if len(ings) >= 2 and foodish >= 2 and (read['steps'] or headed or quantities >= 2):
         return read
-    if len(ings) >= 3 and foodish >= 3 and foodish >= 0.6 * len(ings):
+    if len(ings) >= 3 and foodish >= 3 and foodish >= 0.6 * len(ings) and not _groceries(read):
         return read  # what goes in it, method to come
     if read['steps'] and verbs >= 2 and food_count(text) >= 3:
         return read  # how to make it, in a few sentences
@@ -560,14 +660,21 @@ def signs(title, files, purpose=None):
     about = topics.get('Recipes', 0) >= 0.4 and next(iter(topics), None) == 'Recipes'
     food = named or about or food_photos >= 0.4
     n = len(files)
-    notes, sites = [], []
+    notes, sites, named_dishes, lists = [], [], [], []
+    listed = 0
     for row, meta in files:
         if isinstance(meta.get('recipe'), dict):
             (sites if row['kind'] == 'link' else notes).append(row['id'])
+        elif row['kind'] == 'text' and dish_list(row['content'], row['title']):
+            lists.append(row['id'])
+            listed += len(dish_list(row['content'], row['title']))
+        elif row['kind'] == 'text' and dish_name(row['content'], row['title']):
+            named_dishes.append(row['id'])
         elif row['kind'] == 'text' and is_recipe_note(row['content'], row['title'], food=food):
             notes.append(row['id'])
         elif is_recipe_link(row, meta, food=food):
             sites.append(row['id'])
+    dishes = len(named_dishes) + listed
     found = len(notes) + len(sites)
     out = []
     if named:
@@ -577,6 +684,11 @@ def signs(title, files, purpose=None):
     if notes:
         out.append(f'{_count(len(notes), "note")} {"is" if len(notes) == 1 else "are"} '
                    f'{"a recipe" if len(notes) == 1 else "recipes"}.')
+    if named_dishes:
+        out.append(f'{_count(len(named_dishes), "note")} {"names a dish" if len(named_dishes) == 1 else "name dishes"}.')
+    if lists:
+        out.append(f'{"A note lists" if len(lists) == 1 else _count(len(lists), "note") + " list"} '
+                   f'{listed} dishes.')
     if sites:
         out.append(f'{_count(len(sites), "link")} {"goes" if len(sites) == 1 else "go"} to recipes.')
     if food_photos >= 0.4:
@@ -585,7 +697,13 @@ def signs(title, files, purpose=None):
         out.append('Everything on it is a recipe.')
     fits = bool(found) and (found >= 4 or (found >= 2 and found >= 0.3 * n)
                             or (food and (found >= 2 or found >= 0.2 * n)))
-    return {'fits': fits, 'signs': out, 'recipes': notes + sites, 'food': food}
+    # Meals named or listed (the recipes not written down yet) count too:
+    # on a food planet a couple will do; elsewhere they have to be most of it.
+    meals = found + dishes
+    share = (found + len(named_dishes) + len(lists)) / n if n else 0
+    if not fits and dishes:
+        fits = (meals >= 2 and (food or share >= 0.5) and (meals >= 3 or food)) or (listed >= 5 and share >= 0.3)
+    return {'fits': fits, 'signs': out, 'recipes': notes + sites + named_dishes, 'lists': lists, 'food': food}
 
 
 def _count(n, word):

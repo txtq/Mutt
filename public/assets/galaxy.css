@@ -138,7 +138,7 @@ body {
 
 /* ------------------------------------------------------------------ glass & controls */
 
-.sheet, .dialog, .pop, .liv-head, .toast, .tray, .login-box, .fx-chip {
+.sheet, .dialog, .pop, .liv-head, .toast, .tray, .fx-chip {
   background: var(--glass-fill);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-shadow);
@@ -1595,86 +1595,162 @@ html[data-vt="viewer"] .viewer { backdrop-filter: none; -webkit-backdrop-filter:
 .pin.is-ok .pin-cell { background: var(--accent-gloss); border-color: transparent; }
 .pin.is-ok .pin-dot { background: #fff; }
 
-/* sign in, floating in the sky (always night), with a little pixel
-   horizon along the bottom */
-.login { position: relative; z-index: 0; isolation: isolate; padding-top: 6vh; padding-bottom: 18vh; }
-.nightscene { position: fixed; left: 0; right: 0; bottom: 0; height: 100lvh; z-index: -1; overflow: hidden; pointer-events: none; }
-.nightscene-canvas { position: absolute; left: 0; bottom: 0; image-rendering: crisp-edges; image-rendering: pixelated; }
+/* sign in: the void fills the screen, with dust spiralling into it. It opens,
+   and everything you read (the logo, your name, your code) sits in dark ink
+   on its light, never on its speckled cage. */
+.login { position: relative; z-index: 0; isolation: isolate; min-height: max(100svh, 460px); overflow: clip; }
+.login-eye { position: absolute; left: 50%; top: 48%; width: 0; height: 0; }
+.login-dust { position: absolute; left: 0; top: 0; display: block; transform: translate(-50%, -50%); pointer-events: none; }
+.login-eye .void-art { pointer-events: none; }
 
-/* A warm light from just past the top-right corner, like a low sun. */
-.login-light {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
+/* In the light the ink is the void's own, so the usual tokens turn dark. */
+.login-core {
+  --ink: #0c0911;
+  --ink-2: rgba(12, 9, 17, 0.74);
+  --ink-3: rgba(12, 9, 17, 0.56);
+  --ink-4: rgba(12, 9, 17, 0.36);
+  --line-2: rgba(12, 9, 17, 0.28);
+  --tint-2: rgba(12, 9, 17, 0.08);
+  --danger: #a3241d;
+  --bg: #fdfcff;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 236px;
+  transform: translate(-50%, -50%) scale(var(--k, 1));
+  color: var(--ink);
+  text-align: center;
+}
+.login-mark { position: relative; margin: 0 0 4px; }
+/* Bigger, and its ink bleeds into the light round it, so it doesn't sit hard
+   on the white. The bleed breathes. */
+.login-mark .logo { position: relative; z-index: 1; color: var(--ink); font-size: 80px; }
+.login-mark > .logo .logo-word {
+  text-shadow: 0 0 1px rgba(12, 9, 17, 0.5), 0 0 7px rgba(12, 9, 17, 0.26), 0 0 20px rgba(58, 40, 104, 0.24);
+  animation: login-bleed 4.2s ease-in-out infinite;
+}
+@keyframes login-bleed {
+  50% { text-shadow: 0 0 1px rgba(12, 9, 17, 0.5), 0 0 11px rgba(12, 9, 17, 0.32), 0 0 30px rgba(58, 40, 104, 0.3); }
+}
+/* A haze of ink behind it, dotted like the void's print, slowly swelling. */
+.login-haze {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  width: 112%;
+  height: 125%;
+  translate: -50% -50%;
+  background: radial-gradient(closest-side, rgba(28, 18, 52, 0.42), rgba(28, 18, 52, 0.16) 50%, transparent);
+  -webkit-mask: radial-gradient(circle at 1.5px 1.5px, #000 0.7px, transparent 1.1px) 0 0 / 3px 3px;
+  mask: radial-gradient(circle at 1.5px 1.5px, #000 0.7px, transparent 1.1px) 0 0 / 3px 3px;
   pointer-events: none;
-  background:
-    radial-gradient(24% 18% at 96% -4%, rgba(255, 214, 150, 0.32), transparent 70%),
-    radial-gradient(70% 55% at 100% -10%, rgba(255, 142, 64, 0.3), rgba(255, 120, 60, 0.09) 50%, transparent 74%);
+  animation: login-haze 4.2s ease-in-out infinite;
 }
+@keyframes login-haze { 50% { scale: 1.08; opacity: 0.7; } }
+/* The word leaving itself: copies that swell outward and fade. */
+.login-echo { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; animation: login-echo 3.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite; }
+.login-echo + .login-echo { animation-delay: -1.9s; }
+@keyframes login-echo {
+  from { transform: scale(1); opacity: 0.2; filter: blur(0.5px); }
+  to { transform: scale(1.28); opacity: 0; filter: blur(4px); }
+}
+/* The smaller words give off a little too. */
+.login-form { text-shadow: 0 0 8px rgba(58, 40, 104, 0.2); }
 
-
-/* The box catches the warm light: a bright line along its top edge, toward
-   the right where the sun is, and a soft warm wash across the glass. */
-.login-box {
-  position: relative;
-  z-index: 0;
-  width: min(380px, 100%);
-  padding: 36px 32px 30px;
-  border-radius: 26px;
-  border-top-color: rgba(255, 216, 172, 0.34);
-  box-shadow: inset 0 1px 0 rgba(255, 224, 184, 0.24), var(--glass-shadow);
+.login-form { width: 100%; margin-top: 6px; }
+.login-prompt { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.25; color: var(--ink); overflow-wrap: anywhere; }
+.login-name-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 8px;
+  border-bottom: 1.5px solid var(--line-2);
+  transition: border-color 0.35s var(--ease);
 }
-.login-box::before, .login-box::after { content: ""; position: absolute; pointer-events: none; }
-.login-box::before {
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: radial-gradient(90% 60% at 100% 0%, rgba(255, 178, 110, 0.18), transparent 72%);
+.login-name-row:focus-within { border-color: var(--ink); }
+.login-at { font-size: 17px; color: var(--ink-4); }
+.login-name {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  caret-color: var(--ink);
+  font-size: 17px;
+  text-shadow: inherit;
+  letter-spacing: -0.02em;
 }
-.login-box::after {
-  top: -1px;
-  left: 34%;
-  right: 8%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 230, 192, 0.85) 75%, transparent);
-}
-.login-mark .logo { color: var(--ink); }
-.login-name-row { border-bottom-color: var(--line-2); }
-.login-name-row:focus-within { border-color: var(--accent); }
-.login-go:hover { background: var(--tint-2); }
-
-.login[data-stage="ask"] .login-steps, .login[data-stage="form"] .login-ask { display: none; }
-.login-ask { margin-top: 30px; animation: rise 1s var(--ease) 0.42s backwards; }
-.login-q { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink); }
-.login-heading { margin: 0 0 26px; font-size: 20px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); }
-.login-choices { display: grid; gap: 10px; margin-top: 24px; }
-.login .login-choice { height: 46px; font-size: 15px; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255, 230, 196, 0.42), 0 1px 3px rgba(0, 0, 20, 0.22); }
-.login .login-choice.vbtn-blue { box-shadow: inset 0 1px 0 rgba(255, 238, 210, 0.7), 0 6px 14px -8px rgba(10, 40, 150, 0.7); }
-.login .login-choice:active { box-shadow: inset 0 1px 3px rgba(0, 0, 20, 0.3); }
+.login-name::placeholder { color: var(--ink-4); }
 .login-name:focus-visible { outline: none; } /* the underline already shows focus */
-.login .pin-cell { box-shadow: var(--well-shadow), inset 0 -1px 0 rgba(255, 210, 160, 0.12); }
-.login-form { margin-top: 34px; }
-
-.login-switch { margin-top: 30px; }
-.login-back { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-3); font-size: 13px; transition: color 0.2s; }
-.login-back:hover { color: var(--ink); }
-.login-back-key {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--btn-edge);
+.login-go {
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: var(--btn-fill);
-  box-shadow: inset 0 1px 0 rgba(255, 230, 196, 0.38), 0 1px 3px rgba(0, 0, 20, 0.22);
-  color: var(--btn-ink);
-  font-size: 16px;
-  line-height: 1;
-  padding-bottom: 2px;
-  transition: transform 0.3s var(--spring);
+  font-size: 17px;
+  color: var(--ink-3);
+  transition: background 0.3s, color 0.3s, transform 0.5s var(--ease);
 }
-.login-back:active .login-back-key { transform: translateY(1px); }
+.login-go:hover { background: var(--tint-2); color: var(--ink); transform: translateX(2px); }
+/* Once the name is given it stays in the page (for password managers) but
+   out of sight; the prompt above says whose code this is. */
+.login-form:not([data-step="name"]) .login-name-row {
+  position: absolute;
+  height: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.login-pin { display: none; margin-top: 6px; }
+.login-form:not([data-step="name"]) .login-pin { display: block; }
+.login-label { margin: 0 0 2px; font-size: 12px; color: var(--ink-3); }
+
+/* The code is four ink rings on the light; each fills as you type. */
+.login .pin { margin: 0 auto; gap: 4px; }
+.login .pin-cell { width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; box-shadow: none; }
+.login .pin-cell.is-current::after { display: none; }
+.login .pin-dot {
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--ink);
+  filter: drop-shadow(0 0 3px rgba(58, 40, 104, 0.3));
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  transition: background 0.25s, border-color 0.3s, transform 0.5s var(--ease);
+}
+.login .pin-cell.is-filled .pin-dot { background: var(--ink); transform: scale(1.12); }
+.login .pin-cell.is-current .pin-dot { animation: login-next 1.2s ease-in-out infinite; }
+@keyframes login-next { 50% { transform: scale(1.3); } }
+.login .pin.is-ok .pin-cell { background: none; }
+.login .pin.is-ok .pin-dot { background: var(--ink); transform: scale(0); }
+.login .pin.is-error .pin-dot { border-color: var(--danger); }
+.login .pin.is-error .pin-cell.is-filled .pin-dot { background: var(--danger); }
+
+.login-msg {
+  min-height: 18px;
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.login-msg.is-on { opacity: 1; }
+.login-msg.is-error { color: var(--danger); }
+.login-other { margin-top: 2px; padding: 4px 10px; font-size: 11.5px; color: var(--ink-3); text-decoration: underline; text-decoration-color: var(--ink-4); text-underline-offset: 3px; transition: color 0.2s; }
+.login-other:hover { color: var(--ink); }
+.login-form[data-step="name"] .login-other { display: none; }
+
+/* The void's light, swelling over the whole screen on the way in. */
+.login-flash { position: fixed; z-index: 900; border-radius: 50%; background: #fdfcff; pointer-events: none; }
 
 /* ------------------------------------------------------------------ calmer motion */
 
@@ -1769,9 +1845,6 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   .uvg-name { font-size: 12px; }
   /* only names out in the universe: a phone has no room for the counts */
   .uvg-meta { display: none; }
-  .login { padding-bottom: 16vh; }
-  .login-box { padding: 30px 24px 26px; }
-  .login-q { font-size: 22px; }
 }
 
 @media (max-width: 720px), (max-height: 560px) {

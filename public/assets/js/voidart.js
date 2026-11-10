@@ -222,7 +222,11 @@ for (const ring of RINGS) {
 
 // ---------------------------------------------------------------- the painter
 
-export function voidArt() {
+// The sign-in page shapes it a little differently when open: openMin is the
+// light's least width (in radii), openCage how far the cage stands off the
+// open light, and haloReach keeps the light's stippled glow inside the cage
+// (0 lets it spread, as in a galaxy).
+export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) {
   const canvas = h('canvas', { class: 'void-art', 'aria-hidden': 'true' });
   const ctx = canvas.getContext('2d');
   // The cells, rays and the light's halo are drawn here first, then stippled.
@@ -265,7 +269,7 @@ export function voidArt() {
     open.o = lerp(open.from, open.to, open.to > open.from ? easeOut(t) : easeInOut(t));
     return t;
   }
-  const wideR = (now) => Math.max(openR(now), R * 2.2);
+  const wideR = (now) => Math.max(openR(now), R * openMin);
 
   // Where each strand runs this frame: the rings turned and laid flat. The
   // points are kept and moved, not made anew each frame.
@@ -406,7 +410,8 @@ export function voidArt() {
     const g = clamp((now - gulpAt) / 700);
     const gulp = g < 1 ? Math.sin(Math.PI * g) : 0;
     const rc = lerp(R * 0.9, wideR(now), o) * (1 - gulp * 0.08) * (1 + hunger * 0.05);
-    const S = Math.max(R * CAGE, rc * 1.32) * (1 + hunger * 0.03);
+    const S = Math.max(R * CAGE, rc * openCage) * (1 + hunger * 0.03);
+    const glow = (reach) => (haloReach ? Math.max(rc * 1.05, Math.min(rc * reach, S * haloReach)) : rc * reach);
     const centre = () => ctx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
     // Only the square round the ball needs redrawing on the layers.
     const half = Math.max(S * 1.12, rc * 2.6);
@@ -455,24 +460,24 @@ export function voidArt() {
       rays(rc, S);
     });
     pass([41, 171], () => {
-      const halo = lctx.createRadialGradient(0, 0, rc * 0.85, 0, 0, rc * 2.6);
+      const halo = lctx.createRadialGradient(0, 0, rc * 0.85, 0, 0, glow(2.6));
       halo.addColorStop(0, 'rgba(255, 255, 255, 1)');
       halo.addColorStop(0.35, 'rgba(255, 255, 255, 1)');
       halo.addColorStop(0.65, `rgba(${LILAC}, 0.55)`);
       halo.addColorStop(1, `rgba(${LILAC}, 0)`);
       lctx.fillStyle = halo;
       lctx.beginPath();
-      lctx.arc(0, 0, rc * 2.6, 0, TAU);
+      lctx.arc(0, 0, glow(2.6), 0, TAU);
       lctx.fill();
       rays(rc, S * 0.8);
     });
     pass([173, 89], () => {
-      const core = lctx.createRadialGradient(0, 0, rc * 0.9, 0, 0, rc * 1.8);
+      const core = lctx.createRadialGradient(0, 0, rc * 0.9, 0, 0, glow(1.8));
       core.addColorStop(0, 'rgba(255, 255, 255, 1)');
       core.addColorStop(1, 'rgba(255, 255, 255, 0)');
       lctx.fillStyle = core;
       lctx.beginPath();
-      lctx.arc(0, 0, rc * 1.8, 0, TAU);
+      lctx.arc(0, 0, glow(1.8), 0, TAU);
       lctx.fill();
     });
 

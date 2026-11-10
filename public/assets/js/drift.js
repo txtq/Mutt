@@ -12,7 +12,7 @@
 import { reducedMotion } from './util.js';
 
 const FOLLOW_MS = 260; // how long the lean takes to catch most of the way up
-const BOX = '.cell-fill';
+const BOX = '.cell-fill, .dk-paper';   // file boxes, and the pages on a documents desk
 
 export function drift(el) {
   const fine = matchMedia('(hover: hover) and (pointer: fine)');

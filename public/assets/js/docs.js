@@ -108,9 +108,10 @@ export class DeskView {
 
   list() { return [...this.docs(), ...this.collection.list()]; }
 
-  // For the editor's side list.
-  summaries() {
-    return this.sorted().map((b) => ({ id: b.id, title: titleOf(b), words: wordsIn(b.content) }));
+  // This document's page on the desk: where the editor lifts it from, and
+  // sets it back down.
+  pageOf(id) {
+    return this.grid.querySelector(`[data-id="${CSS.escape(id)}"] .dk-paper`);
   }
 
   sorted() { return [...this.docs()].sort(SORTS[this.sort].by); }

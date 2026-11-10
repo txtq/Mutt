@@ -66,10 +66,12 @@ function reset(letter) {
   letter.style.removeProperty('font-style');
   letter.style.removeProperty('font-weight');
   letter.style.removeProperty('--gx');
+  letter.style.removeProperty('opacity');
   letter.classList.remove('is-inv');
 }
 
-export async function glitch(el, { quick = false } = {}) {
+// hard: a longer, rougher run (the sign-in page, as the logo leaves the void).
+export async function glitch(el, { quick = false, hard = false } = {}) {
   if (!el || reducedMotion() || el.classList.contains('is-glitching')) return;
   await runFonts();
   const word = el.querySelector('.logo-word');
@@ -77,7 +79,8 @@ export async function glitch(el, { quick = false } = {}) {
   // Hold the logo's footprint so the bar doesn't jump while letters swap.
   word.style.width = `${word.getBoundingClientRect().width}px`;
   el.classList.add('is-glitching');
-  const total = quick ? 420 : 1250;
+  const total = hard ? 2300 : quick ? 420 : 1250;
+  const shove = hard ? 9 : 2.4;
   const start = performance.now();
   await Promise.all(letters.map((letter, i) => new Promise((resolve) => {
     // Letters land left to right, each a little unpredictably.
@@ -95,8 +98,9 @@ export async function glitch(el, { quick = false } = {}) {
       letter.style.fontFamily = `"${family}"`;
       letter.style.fontStyle = style;
       letter.style.fontWeight = weight;
-      letter.style.setProperty('--gx', `${(Math.random() * 2.4 - 1.2).toFixed(1)}px`);
-      letter.classList.toggle('is-inv', Math.random() < 0.07);
+      letter.style.setProperty('--gx', `${((Math.random() - 0.5) * shove).toFixed(1)}px`);
+      letter.classList.toggle('is-inv', Math.random() < (hard ? 0.16 : 0.07));
+      if (hard) letter.style.opacity = Math.random() < 0.14 ? '0' : '';
       setTimeout(step, 36 + Math.random() * 54);
     };
     step();

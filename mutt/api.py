@@ -523,9 +523,12 @@ def me(req):
 def username_available(req):
     name = auth.normalize_username(req.arg('username'))
     problem = auth.username_problem(name)
-    if not problem and req.db.execute('SELECT 1 FROM users WHERE username = ?', (name,)).fetchone():
+    taken = not problem and bool(req.db.execute('SELECT 1 FROM users WHERE username = ?', (name,)).fetchone())
+    if taken:
         problem = 'That username is taken.'
-    return json_response({'available': not problem, 'reason': problem})
+    # `taken` lets the sign-in page tell "this is someone, ask for their code"
+    # from "this name can't be used".
+    return json_response({'available': not problem, 'reason': problem, 'taken': taken})
 
 
 @route('POST', r'/api/auth/signup', auth=False)

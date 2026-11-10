@@ -1034,79 +1034,6 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 
 /* ------------------------------------------------------------------ sign in */
 
-.login { min-height: 100svh; display: grid; place-items: center; padding: 32px 20px 12vh; }
-.login-box { width: min(330px, 100%); }
-.login-mark { margin: 0; animation: letter-in 1s var(--ease) 0.1s backwards; }
-@keyframes letter-in { from { opacity: 0; transform: translateY(18px); filter: blur(10px); } }
-.login-form { margin-top: 42px; animation: rise 1s var(--ease) 0.52s backwards; }
-.login-label { display: block; margin-bottom: 10px; font-size: 12px; color: var(--ink-3); }
-.login-name-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  border-bottom: 1px solid var(--line-2);
-  transition: border-color 0.35s var(--ease), opacity 0.4s;
-}
-.login-name-row:focus-within { border-color: var(--ink); }
-.login-at { font-size: 20px; color: var(--ink-4); }
-.login-name {
-  flex: 1;
-  min-width: 0;
-  height: 48px;
-  border: 0;
-  outline: none;
-  background: transparent;
-  font-size: 20px;
-  letter-spacing: -0.02em;
-}
-.login-name::placeholder { color: var(--ink-4); }
-.login-go {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  font-size: 17px;
-  color: var(--ink-3);
-  transition: background 0.3s, color 0.3s, transform 0.5s var(--ease), opacity 0.3s;
-}
-.login-go:hover { background: var(--tint); color: var(--ink); transform: translateX(2px); }
-.login-form[data-step="pin"] .login-go, .login-form[data-step="confirm"] .login-go { opacity: 0; pointer-events: none; }
-.login-form:not([data-step="name"]) .login-name-row { border-color: transparent; }
-.login-form:not([data-step="name"]) .login-name { color: var(--ink-2); }
-
-.login-pin {
-  max-height: 0;
-  margin: 0 -10px;
-  padding: 0 10px;
-  overflow: hidden;
-  opacity: 0;
-  filter: blur(6px);
-  transform: translateY(10px);
-  pointer-events: none;
-  transition: max-height 0.8s var(--ease), margin-top 0.8s var(--ease), opacity 0.5s var(--ease), transform 0.8s var(--ease), filter 0.5s;
-}
-.login-form:not([data-step="name"]) .login-pin {
-  max-height: 200px;
-  margin-top: 26px;
-  opacity: 1;
-  filter: none;
-  transform: none;
-  pointer-events: auto;
-}
-.login-pin .login-label { padding-top: 4px; }
-.login-msg {
-  min-height: 20px;
-  margin-top: 18px;
-  font-size: 13px;
-  color: var(--ink-2);
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.3s, transform 0.5s var(--ease);
-}
-.login-msg.is-on { opacity: 1; transform: none; }
-.login-msg.is-error { color: var(--danger); }
-.login-switch { margin-top: 38px; font-size: 13px; color: var(--ink-3); animation: rise 1s var(--ease) 0.62s backwards; }
-.login-switch .link { color: var(--ink); }
-
 /* PIN cells */
 .pin { position: relative; display: flex; gap: 10px; width: max-content; }
 .pin-cell {
@@ -1365,6 +1292,7 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
   }

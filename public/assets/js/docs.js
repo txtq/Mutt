@@ -10,6 +10,7 @@
 import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
+import { modeOffer } from './offers.js';
 import { openContextMenu, openMenu, toast } from './ui.js';
 import { EASE, bus, h, plural, reducedMotion, timeAgo } from './util.js';
 
@@ -270,33 +271,18 @@ export class DeskView {
 // ------------------------------------------------------------ the offer
 
 export function deskOffer({ signs, onAccept, onDecline }) {
-  const accept = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Open it in Mutt Documents');
-  const decline = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Not now');
-  const el = h('div', { class: 'lm-offer dk-offer', role: 'region', 'aria-label': 'This planet looks like writing' },
-    h('span', { class: 'dk-offer-icon', 'aria-hidden': 'true' }, h('i'), h('i')),
-    h('div', { class: 'lm-offer-text' },
-      h('p', { class: 'lm-offer-title' }, 'This planet looks like writing'),
-      h('ul', { class: 'lm-offer-signs' }, signs.map((s) => h('li', null, s))),
-      h('p', { class: 'lm-offer-note' }, 'Its notes become documents on paper pages, with headings, page setup, comments, versions, and downloads as PDF or Word. Poems are set as poems.')),
-    h('div', { class: 'lm-offer-btns' }, decline, accept));
-  const close = async () => {
-    if (moving()) {
-      const height = el.getBoundingClientRect().height;
-      await el.animate([{ opacity: 1, height: `${height}px` }, { opacity: 0, height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px' }],
-        { duration: 320, easing: EASE, fill: 'forwards' }).finished.catch(() => {});
-    }
-    el.remove();
-  };
-  accept.addEventListener('click', async () => {
-    accept.disabled = decline.disabled = true;
-    accept.textContent = 'Opening…';
-    const ok = await onAccept();
-    if (ok === false) { accept.disabled = decline.disabled = false; accept.textContent = 'Open it in Mutt Documents'; return; }
-    close();
+  return modeOffer({
+    kind: 'dk-offer',
+    icon: 'dk-offer-icon',
+    strokes: 2,
+    title: 'This planet looks like writing',
+    signs,
+    note: 'Its notes become documents on paper pages, with headings, page setup, comments, versions, and downloads as PDF or Word. Poems are set as poems.',
+    accept: 'Open it in Mutt Documents',
+    busy: 'Opening…',
+    onAccept,
+    onDecline,
   });
-  decline.addEventListener('click', () => { close(); onDecline(); });
-  if (moving()) requestAnimationFrame(() => el.animate([{ opacity: 0, transform: 'translateY(-8px) scale(0.99)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: EASE }));
-  return el;
 }
 
 // ------------------------------------------------------------ while you're writing a note

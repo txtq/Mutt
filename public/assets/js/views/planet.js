@@ -604,7 +604,7 @@ export const planetView = {
         .finished.then(() => tip.remove(), () => tip.remove());
     };
     const showShareTip = () => {
-      if (!mine || isMoon || !drawer.modes?.shareTip || shareTip || !shareBtn?.isConnected) return;
+      if (!mine || isMoon || !drawer.modes?.shareTip || shareTip || offer || !shareBtn?.isConnected) return;
       const now = drawer.community ? 'Everyone on Mutt can see it and add files.'
         : { public: 'Everyone on Mutt can see it, but only you can add files.',
             private: 'Only you can see it.', pin: 'Only people with its code can see it.',
@@ -637,30 +637,21 @@ export const planetView = {
     });
 
     const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
-    // List mode shows up here only once the planet (or moon) has earned it,
-    // and stays here after the offer is waved away or the list is turned off.
-    const listItems = () => [
-      listView ? { label: 'List options…', run: () => listOptions() } : null,
-      !listView && !shelf && !desk && !cookbook && listFits ? { label: 'Make it a list', run: () => makeList() } : null,
-      // And reading mode, once it holds books.
-      shelf ? { label: 'Show as files again', run: () => unshelve() } : null,
-      !listView && !shelf && !desk && !cookbook && shelfFits ? { label: 'Make it a reading planet', run: () => makeShelf() } : null,
-      // And cookbook mode, once it holds recipes.
-      cookbook ? { label: 'Show as files again', run: () => uncook() } : null,
-      !listView && !shelf && !desk && !cookbook && cookFits ? { label: 'Make it a cookbook', run: () => makeCookbook() } : null,
-      // And Mutt documents, once it holds writing.
-      desk ? { label: 'New document', run: () => newDoc() } : null,
-      desk ? { label: 'Show as files again', run: () => undesk() } : null,
-      !listView && !shelf && !desk && !cookbook && deskFits ? { label: 'Open in Mutt Documents', run: () => makeDesk() } : null,
-      listView || listFits || shelf || shelfFits || desk || deskFits || cookbook || cookFits ? '-' : null,
-    ];
+    // A mode shows up here only once the planet (or moon) has earned it, and
+    // stays here after its offer is waved away or it's turned off.
+    const modeItems = () => {
+      const items = active
+        ? MODES[active.key].menu()
+        : MENU_ORDER.filter((key) => fits[key]).map((key) => ({ label: MODES[key].label, run: () => turnOn(key) }));
+      return items.length ? [...items, '-'] : [];
+    };
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
-      ...listItems(),
+      ...modeItems(),
       { label: 'Moon type…', run: pickMoonLook },
       '-',
       { label: 'Delete moon…', danger: true, run: remove },
     ].filter(Boolean) : [
-      ...listItems(),
+      ...modeItems(),
       { label: 'Planet type…', run: pickLook },
       { label: 'Planet colour…', run: pickColor },
       (drawer.moons || []).length < 4 ? { label: 'Add a moon…', run: addMoon } : null,
@@ -704,59 +695,148 @@ export const planetView = {
       onChange: changed,
       ...over,
     });
-    const makeShelfView = (blocks) => new ShelfView({ drawer, blocks, editable: mine, makeCollection, onChange: changed });
-    const makeBoxView = (blocks, box = null) => new RecipeBoxView({ drawer, blocks, box, editable: mine, makeCollection, onChange: changed });
-    const makeListView = (blocks) => new ListView({
-      blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions, targets,
-    });
+    const notTmp = (b) => !String(b.id).startsWith('tmp-');
 
-    // ------------------------------------------------------------ list mode
+    // ------------------------------------------------------------ modes
+    //
+    // Every way a planet can show itself other than as plain files. A mode is
+    // one entry here, and everything else (the offer, the ••• menu, turning it
+    // on and off, Undo) is shared, so a new mode is one more entry:
+    //   label   what its menu item and offer button say
+    //   moons   whether a moon can be one too
+    //   view    builds its view from the planet's files
+    //   start   turns it on at the server; gives the view to show and what to say
+    //   blocks  the files its view holds, for showing them as files again
+    //   offer   the quiet box that suggests it, from what the server noticed
+    //   menu    what the ••• menu holds while it's on
+    const showAsFiles = (key) => ({ label: 'Show as files again', run: () => turnOff(key) });
+    const MODES = {
+      list: {
+        label: 'Make it a list',
+        moons: true,
+        view: (blocks) => new ListView({
+          blocks, drawer, editable: mine, options: drawer.modes?.list, onChange: changed, onOptions: listOptions, targets,
+        }),
+        start: async () => {
+          const res = await api.post(`/api/drawers/${id}/listify`, {});
+          setDrawer(res.drawer);
+          return {
+            view: MODES.list.view(res.blocks),
+            after: () => changed(res.blocks),
+            say: res.split ? `Now a list. ${plural(res.split, 'note')} became one item per line.` : 'Now a list',
+          };
+        },
+        blocks: (v) => v.blocks.filter(notTmp),
+        offer: (signs, on) => listOffer({ signs: signs.signs, split: signs.split, ...on }),
+        menu: () => [{ label: 'List options…', run: () => listOptions() }],
+      },
+      reading: {
+        label: 'Make it a reading planet',
+        moons: false,
+        view: (blocks) => new ShelfView({ drawer, blocks, editable: mine, makeCollection, onChange: changed }),
+        start: async () => {
+          const blocks = filesNow();
+          await patchMode('reading', { on: true, dismissed: false });
+          return { view: MODES.reading.view(blocks), say: 'Now a reading planet' };
+        },
+        blocks: (v) => v.blocks,
+        offer: (signs, on) => readingOffer({ signs: signs.signs, pdfs: signs.pdfs, ...on }),
+        menu: () => [showAsFiles('reading')],
+      },
+      cookbook: {
+        label: 'Make it a cookbook',
+        moons: false,
+        view: (blocks, box = null) => new RecipeBoxView({ drawer, blocks, box, editable: mine, makeCollection, onChange: changed }),
+        start: async () => {
+          const blocks = filesNow();
+          const res = await api.post(`/api/drawers/${id}/cookify`, {});
+          setDrawer(res.drawer);
+          const n = res.box.recipes.length;
+          return { view: MODES.cookbook.view(blocks, res.box), say: n ? `Now a cookbook: ${plural(n, 'recipe')} in the box` : 'Now a cookbook' };
+        },
+        blocks: (v) => v.list(),
+        offer: (signs, on) => cookbookOffer({ signs: signs.signs, ...on }),
+        menu: () => [showAsFiles('cookbook')],
+      },
+      documents: {
+        label: 'Open in Mutt Documents',
+        moons: true,
+        view: (blocks) => new DeskView({
+          drawer, blocks, editable: mine, makeCollection, onChange: changed, onOpen: (bid) => openDoc(bid), onNew: () => newDoc(),
+          onSort: (sort) => saveMode('documents', { sort }),
+        }),
+        start: async () => {
+          const blocks = filesNow();
+          await patchMode('documents', { on: true, dismissed: false });
+          return { view: MODES.documents.view(blocks), say: 'Now in Mutt Documents' };
+        },
+        blocks: (v) => v.list(),
+        offer: (signs, on) => deskOffer({ signs: signs.signs, ...on }),
+        menu: () => [{ label: 'New document', run: () => newDoc() }, showAsFiles('documents')],
+      },
+    };
+    // A planet saved with more than one mode on shows the first of these.
+    const SHOW_ORDER = ['list', 'reading', 'documents', 'cookbook'];
+    // Which is suggested first when a planet fits more than one.
+    const OFFER_ORDER = ['reading', 'cookbook', 'documents', 'list'];
+    const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents'];
+    const allowed = (key) => MODES[key].moons || !isMoon;
 
-    const makeDeskView = (blocks) => new DeskView({
-      drawer, blocks, editable: mine, makeCollection, onChange: changed, onOpen: (bid) => openDoc(bid), onNew: () => newDoc(),
-      onSort: (sort) => saveDocs({ sort }),
-    });
-    let listView = drawer.modes?.list?.on ? makeListView(data.blocks) : null;
-    let shelf = !listView && !isMoon && drawer.modes?.reading?.on ? makeShelfView(data.blocks) : null;
-    let desk = !listView && !shelf && drawer.modes?.documents?.on ? makeDeskView(data.blocks) : null;
-    let cookbook = !listView && !shelf && !desk && !isMoon && drawer.modes?.cookbook?.on ? makeBoxView(data.blocks) : null;
-    let collection = listView || shelf || desk || cookbook ? null : makeCollection(data.blocks);
-    let listFits = false;
-    let shelfFits = false;
-    let deskFits = false;
-    let cookFits = false;
+    const setDrawer = (next) => {
+      drawer = next;
+      inst.drawer = drawer;
+      if (active?.key === 'list') active.view.drawer = drawer;
+    };
+
+    // The mode that's on ({ key, view }), or null when it shows as plain files.
+    const startKey = SHOW_ORDER.find((key) => allowed(key) && drawer.modes?.[key]?.on);
+    let active = startKey ? { key: startKey, view: MODES[startKey].view(data.blocks) } : null;
+    let collection = active ? null : makeCollection(data.blocks);
+    const view = () => active?.view || collection;
+    const modeView = (key) => (active?.key === key ? active.view : null);
+    // The planet's files as they stand, whatever is showing them.
+    const filesNow = () => (active ? MODES[active.key].blocks(active.view) : collection.list()).filter(notTmp);
+    // What the server noticed about each mode, and whether the planet fits it.
+    const fits = {};
+    const signs = {};
     let offer = null;
-    const view = () => listView || shelf || desk || cookbook || collection;
     const body = h('div', { class: 'liv-body' }, view().el);
     const stopDrift = drift(body);
 
-    // Swap what the page shows, with a soft cross-fade.
-    async function swapTo(next) {
+    // Swap what the page shows, with a soft cross-fade. An offer still up
+    // goes with the old view.
+    async function swapTo(key, next) {
       const old = view();
       const outgoing = old.el;
+      const gone = offer;
+      offer = null;
       if (!reducedMotion()) {
-        await outgoing.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px)' }],
-          { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+        await Promise.all([
+          outgoing.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px)' }],
+            { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {}),
+          gone?.fade(),
+        ]);
       }
+      gone?.remove();
       old.destroy();
-      listView = next instanceof ListView ? next : null;
-      shelf = next instanceof ShelfView ? next : null;
-      desk = next instanceof DeskView ? next : null;
-      cookbook = next instanceof RecipeBoxView ? next : null;
-      collection = listView || shelf || desk || cookbook ? null : next;
+      active = key ? { key, view: next } : null;
+      collection = key ? null : next;
       outgoing.replaceWith(next.el);
-      el.classList.toggle('is-desk', !!desk);
+      el.classList.toggle('is-desk', key === 'documents');
       attachHint();
-      if (!reducedMotion() && !listView) {
+      if (!reducedMotion() && key !== 'list') {
         next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
       }
     }
 
-    async function saveList(patch) {
+    async function patchMode(key, patch) {
+      const res = await api.patch(`/api/drawers/${id}`, { modes: { [key]: patch } });
+      setDrawer(res.drawer);
+    }
+
+    async function saveMode(key, patch) {
       try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { list: patch } }));
-        inst.drawer = drawer;
-        if (listView) listView.drawer = drawer;
+        await patchMode(key, patch);
         return true;
       } catch (err) {
         toast(err.message);
@@ -764,21 +844,28 @@ export const planetView = {
       }
     }
 
-    async function makeList() {
+    async function turnOn(key, { quiet = false } = {}) {
       try {
-        const res = await api.post(`/api/drawers/${id}/listify`, {});
-        ({ drawer } = res);
-        inst.drawer = drawer;
-        offer?.remove();
-        offer = null;
-        await swapTo(makeListView(res.blocks));
-        changed(res.blocks);
-        toast(res.split ? `Now a list. ${plural(res.split, 'note')} became one item per line.` : 'Now a list');
+        const made = await MODES[key].start();
+        await swapTo(key, made.view);
+        made.after?.();
+        if (!quiet) toast(made.say);
         return true;
       } catch (err) {
         toast(err.message);
         return false;
       }
+    }
+
+    // Back to plain files, with Undo. The mode stays in the ••• menu if it still fits.
+    async function turnOff(key) {
+      if (active?.key !== key || !(await saveMode(key, { on: false, dismissed: true }))) return;
+      const blocks = MODES[key].blocks(active.view);
+      await swapTo(null, makeCollection(blocks));
+      readSigns();
+      toast('Showing it as files again', {
+        action: { label: 'Undo', run: async () => { if (!active && await saveMode(key, { on: true })) swapTo(key, MODES[key].view(blocks)); } },
+      });
     }
 
     // From the list's own ⋯ button (anchor), or the planet's ••• menu.
@@ -790,123 +877,12 @@ export const planetView = {
         anchor,
         onClose: () => { listPanel = null; },
         options: drawer.modes?.list,
-        onChange: (patch) => { listView?.setOptions(patch); saveList(patch); },
-        onTurnOff: async () => {
-          if (!(await saveList({ on: false, dismissed: true }))) return;
-          const blocks = listView.blocks.filter((b) => !String(b.id).startsWith('tmp-'));
-          await swapTo(makeCollection(blocks));
-          readListSigns();
-          toast('Showing it as files again', {
-            action: { label: 'Undo', run: async () => { if (await saveList({ on: true })) swapTo(makeListView(blocks)); } },
-          });
-        },
-      });
-    }
-
-    // ------------------------------------------------------------ reading mode
-
-    async function saveReading(patch) {
-      try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { reading: patch } }));
-        inst.drawer = drawer;
-        return true;
-      } catch (err) {
-        toast(err.message);
-        return false;
-      }
-    }
-
-    async function makeShelf() {
-      if (!(await saveReading({ on: true, dismissed: false }))) return false;
-      offer?.remove();
-      offer = null;
-      const blocks = view().list ? view().list() : data.blocks;
-      await swapTo(makeShelfView(blocks.filter((b) => !String(b.id).startsWith('tmp-'))));
-      toast('Now a reading planet');
-      return true;
-    }
-
-    async function unshelve() {
-      if (!(await saveReading({ on: false, dismissed: true }))) return;
-      const blocks = shelf.blocks;
-      await swapTo(makeCollection(blocks));
-      toast('Showing it as files again', {
-        action: { label: 'Undo', run: async () => { if (await saveReading({ on: true })) swapTo(makeShelfView(blocks)); } },
+        onChange: (patch) => { modeView('list')?.setOptions(patch); saveMode('list', patch); },
+        onTurnOff: () => turnOff('list'),
       });
     }
 
     // ------------------------------------------------------------ Mutt documents
-
-    async function saveDocs(patch) {
-      try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { documents: patch } }));
-        inst.drawer = drawer;
-        return true;
-      } catch (err) {
-        toast(err.message);
-        return false;
-      }
-    }
-
-    async function saveCookbook(patch) {
-      try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { modes: { cookbook: patch } }));
-        inst.drawer = drawer;
-        return true;
-      } catch (err) {
-        toast(err.message);
-        return false;
-      }
-    }
-
-    // ------------------------------------------------------------ cookbook mode
-
-    async function makeCookbook() {
-      try {
-        const res = await api.post(`/api/drawers/${id}/cookify`, {});
-        ({ drawer } = res);
-        inst.drawer = drawer;
-        offer?.remove();
-        offer = null;
-        const blocks = (view().list ? view().list() : data.blocks).filter((b) => !String(b.id).startsWith('tmp-'));
-        await swapTo(makeBoxView(blocks, res.box));
-        const n = res.box.recipes.length;
-        toast(n ? `Now a cookbook: ${plural(n, 'recipe')} in the box` : 'Now a cookbook');
-        return true;
-      } catch (err) {
-        toast(err.message);
-        return false;
-      }
-    }
-
-    async function uncook() {
-      if (!(await saveCookbook({ on: false, dismissed: true }))) return;
-      const blocks = cookbook.list();
-      await swapTo(makeCollection(blocks));
-      toast('Showing it as files again', {
-        action: { label: 'Undo', run: async () => { if (await saveCookbook({ on: true })) swapTo(makeBoxView(blocks)); } },
-      });
-    }
-
-    async function makeDesk({ quiet = false } = {}) {
-      if (!(await saveDocs({ on: true, dismissed: false }))) return false;
-      offer?.remove();
-      offer = null;
-      const blocks = view().list ? view().list() : data.blocks;
-      await swapTo(makeDeskView(blocks.filter((b) => !String(b.id).startsWith('tmp-'))));
-      if (!quiet) toast('Now in Mutt Documents');
-      return true;
-    }
-
-    async function undesk() {
-      if (!(await saveDocs({ on: false, dismissed: true }))) return;
-      const blocks = desk.list();
-      await swapTo(makeCollection(blocks));
-      readListSigns();
-      toast('Showing it as files again', {
-        action: { label: 'Undo', run: async () => { if (await saveDocs({ on: true })) swapTo(makeDeskView(blocks)); } },
-      });
-    }
 
     // The editor's address is the planet's with ?doc=, so a reload or Back finds it.
     let docPushed = false;
@@ -923,10 +899,10 @@ export const planetView = {
       openDocEditor(bid, {
         drawer,
         fresh,
-        card: (bid) => desk?.pageOf(bid) || null,
+        card: (bid) => modeView('documents')?.pageOf(bid) || null,
         onClose: ({ switching }) => {
           if (switching) return;
-          desk?.refreshSoon();
+          modeView('documents')?.refreshSoon();
           const u = new URL(location.href);
           if (!u.searchParams.get('doc')) return;
           if (docPushed) { docPushed = false; history.back(); } else nav.go(`/p/${id}`, { replace: true });
@@ -934,12 +910,17 @@ export const planetView = {
       });
     }
 
+    // A document made here opens on the desk, turning the planet into one if it isn't yet.
+    async function deskWith(block, opts) {
+      if (!modeView('documents') && !(await turnOn('documents', { quiet: true }))) return;
+      modeView('documents')?.add(block);
+      openDoc(block.id, opts);
+    }
+
     async function newDoc() {
       try {
         const { block } = await api.post('/api/docs', { drawer: id });
-        if (!desk) await makeDesk({ quiet: true });
-        desk?.add(block);
-        openDoc(block.id, { fresh: true });
+        await deskWith(block, { fresh: true });
       } catch (err) {
         toast(err.message);
       }
@@ -960,9 +941,7 @@ export const planetView = {
         hint.check('');
         try {
           const { block } = await api.post('/api/blocks', { content: text, drawer: id });
-          await makeDesk({ quiet: true });
-          desk?.add(block);
-          openDoc(block.id);
+          await deskWith(block);
         } catch (err) {
           area.value = text;
           toast(err.message);
@@ -972,76 +951,39 @@ export const planetView = {
       area.addEventListener('input', () => hint.check(area.value));
     }
 
-    // Does it read as a list, a bookshelf, recipes or writing? That decides what the ••• menu offers.
-    let readingSigns = null;
-    let deskSigns = null;
-    let cookSigns = null;
-    async function readListSigns() {
-      if (!mine) return null;
+    // Does it read as a list, a bookshelf, recipes or writing? That decides
+    // what the ••• menu offers.
+    async function readSigns() {
+      if (!mine) return;
       try {
-        const { list, reading, documents, cookbook: cooking } = await api.get(`/api/drawers/${id}/modes`);
-        listFits = !!list?.fits;
-        shelfFits = !isMoon && !!reading?.fits;
-        deskFits = !!documents?.fits;
-        deskSigns = documents;
-        cookFits = !isMoon && !!cooking?.fits;
-        readingSigns = reading;
-        cookSigns = cooking;
-        return list;
-      } catch {
-        return null;
-      }
+        const res = await api.get(`/api/drawers/${id}/modes`);
+        for (const key of Object.keys(MODES)) {
+          signs[key] = res[key] || null;
+          fits[key] = allowed(key) && !!res[key]?.fits;
+        }
+      } catch { /* nothing offered, then */ }
     }
 
-    // Is it being used as a list, or a bookshelf? Ask once the page is up, and offer it once.
-    async function lookForList() {
+    // Once the page is up: suggest the first mode it fits, once, in place.
+    async function lookForModes() {
       if (!mine) return;
-      const list = await readListSigns();
+      await readSigns();
+      if (active || offer || !el.isConnected) return;
+      const key = OFFER_ORDER.find((k) => fits[k] && !drawer.modes?.[k]?.dismissed);
+      if (!key) return;
       try {
-        if (shelfFits && !drawer.modes?.reading?.dismissed && el.isConnected && !listView && !shelf && !desk && !cookbook) {
-          offer = readingOffer({
-            signs: readingSigns.signs,
-            pdfs: readingSigns.pdfs,
-            onAccept: makeShelf,
-            onDecline: () => { offer = null; saveReading({ dismissed: true }); },
-          });
-          body.prepend(offer);
-          return;
-        }
-        if (shelf || desk || cookbook) return;
-        if (cookFits && !drawer.modes?.cookbook?.dismissed && el.isConnected && !listView) {
-          offer = cookbookOffer({
-            signs: cookSigns.signs,
-            onAccept: makeCookbook,
-            onDecline: () => { offer = null; saveCookbook({ dismissed: true }); },
-          });
-          body.prepend(offer);
-          return;
-        }
-        if (deskFits && !drawer.modes?.documents?.dismissed && el.isConnected && !listView) {
-          offer = deskOffer({
-            signs: deskSigns.signs,
-            onAccept: () => makeDesk(),
-            onDecline: () => { offer = null; saveDocs({ dismissed: true }); },
-          });
-          body.prepend(offer);
-          return;
-        }
-        if (!listFits || drawer.modes?.list?.dismissed || listView || !el.isConnected) return;
-        offer = listOffer({
-          signs: list.signs,
-          split: list.split,
-          onAccept: makeList,
-          onDecline: () => { offer = null; saveList({ dismissed: true }); },
+        offer = MODES[key].offer(signs[key], {
+          onAccept: () => turnOn(key),
+          onDecline: () => { offer = null; saveMode(key, { dismissed: true }); setTimeout(showShareTip, 500); },
         });
-        body.prepend(offer);
-      } catch { /* no offer, then */ }
+        offer.show(body);
+      } catch { offer = null; }
     }
 
     // Previews for the big planet's surface come from what's here.
     world.update({ ...drawer, previews: data.blocks.slice(0, 12) });
 
-    const el = h('div', { class: `page liv${desk ? ' is-desk' : ''}` },
+    const el = h('div', { class: `page liv${active?.key === 'documents' ? ' is-desk' : ''}` },
       h('header', { class: 'liv-head' },
         worldBox,
         h('div', { class: 'liv-info' },
@@ -1064,13 +1006,14 @@ export const planetView = {
       // arrow pulls out to the universe.
       homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
       goHome: () => nav.go(home),
-      list: () => (listView ? listView.blocks.filter((b) => !String(b.id).startsWith('tmp-')) : view().list()),
+      list: () => filesNow(),
       // A moon takes new things just like a planet: typed, pasted or dropped.
       dropTarget: () => view().dropTarget(),
       pasteText: (text) => view().pasteText(text),
       mounted: () => {
-        setTimeout(lookForList, 700);
-        setTimeout(showShareTip, 900);
+        // One thing at a time: the sharing tip waits while a mode is being offered
+        // (it would hang over the offer's buttons).
+        setTimeout(async () => { await lookForModes(); showShareTip(); }, 700);
         attachHint();
         const bid = new URL(location.href).searchParams.get('doc');
         if (bid) showDoc(bid);

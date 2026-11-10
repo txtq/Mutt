@@ -390,7 +390,9 @@ export const loginView = {
       if (key === sized) return;
       sized = key;
       R = Math.round(clamp(Math.min(innerHeight * 0.155, innerWidth * 0.3), 80, 170));
-      art.resize(R, innerWidth + 40, Math.max(innerHeight * 1.2, R * 7));
+      // Wide enough for the whole cage even where the screen isn't (a phone),
+      // so its picture has no edge to show while it grows in.
+      art.resize(R, Math.max(innerWidth + 40, R * 6.4), Math.max(innerHeight * 1.2, R * 7));
       fit();
     }
 

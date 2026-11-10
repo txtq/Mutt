@@ -1,6 +1,11 @@
 // Mutt documents: the editor. A note opened as a document fills the screen as
-// paper pages on a dark desk: a frosted toolbar above, the planet's other
-// documents and the outline on the left, comments in the right margin.
+// paper pages hung in the night sky over its planet: a slim frosted toolbar
+// above, the outline on the left when asked for, comments in the right margin.
+// The page lifts off the desk to open and settles back onto it to close.
+//
+// Like the rest of Mutt, its tools wait until they're wanted: select words
+// and a formatting bubble rises beside them, type "/" on an empty line for
+// things to insert, and once you're writing steadily the bars fade back.
 //
 // The pages are one editable flow. While you write, it's measured and pushed
 // apart where a page ends (`paginate`): a block that would cross the bottom
@@ -20,6 +25,9 @@ const moving = () => !reducedMotion();
 const PX = 96 / 72;            // screen pixels per point
 const GAP = 26;                // between pages on the desk
 const SAVE_AFTER = 900;
+const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';   // the page's flight to and from the desk
+const QUIET_AFTER = 7000;      // steady typing for this long, and the bars fade back
+const QUIET_KEYS = 30;
 
 const svg = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 const ICONS = {
@@ -53,6 +61,15 @@ const ICONS = {
   up: svg('<path d="M6 15l6-6 6 6"/>'),
   down: svg('<path d="M6 9l6 6 6-6"/>'),
   done: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  type: svg('<path d="M3.5 18L8.5 6l5 12M5.2 14h6.6"/><path d="M20.5 18v-6.2a2.6 2.6 0 0 0-5.2 0M20.5 15.2a2.6 2.8 0 1 1-5.2 0 2.6 2.8 0 0 1 5.2 0z"/>'),
+  mark: svg('<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12 7l5 5"/><path class="de-ic-mark" d="M3.5 21.5h17"/>'),
+  heading: svg('<path d="M5 5v14M14 5v14M5 12h9M18 10.5l2-1.5v10"/>'),
+  quote: svg('<path d="M5 7v10M9.5 8.5h10M9.5 12h10M9.5 15.5h6"/>'),
+  table: svg('<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 10h17M3.5 14.5h17M9.5 5v14M15 5v14"/>'),
+  picture: svg('<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17l5-4.5 3.5 3 3-2.5 4 3.5"/>'),
+  line: svg('<path d="M4 12h16"/>'),
+  pagebreak: svg('<path d="M6 3.5v5h12v-5M6 20.5v-5h12v5M3.5 12h2M8 12h2.5M13.5 12H16M18.5 12h2"/>'),
+  code: svg('<path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/>'),
   page: svg('<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/>'),
 };
 const icon = (name) => h('span', { class: 'de-ic', html: ICONS[name] });
@@ -183,14 +200,14 @@ export async function openDocEditor(id, opts = {}) {
 export const docEditorOpen = () => openOne;
 
 class DocEditor {
-  constructor(id, { drawer = null, docs = null, onClose, onSwitch, onNew, fresh = false } = {}) {
+  constructor(id, { drawer = null, onClose, fresh = false, card = null } = {}) {
     this.id = id;
     this.drawer = drawer;
-    this.docsOf = docs;
     this.onClose = onClose;
-    this.onSwitch = onSwitch;
-    this.onNew = onNew;
     this.fresh = fresh;
+    this.cardOf = card;          // (id) => this document's page on the desk, if it's there
+    this.sheetCount = 0;
+    this.run = { from: 0, last: 0, keys: 0 };
     this.off = [];
     this.history = [];
     this.at = -1;
@@ -244,16 +261,21 @@ class DocEditor {
     this.side = h('aside', { class: 'de-side fglass', 'aria-label': 'Outline' });
     this.panel = h('aside', { class: 'de-panel fglass', hidden: true });
     this.findBar = h('div', { class: 'de-find fglass', hidden: true, role: 'search' });
-    this.selBar = h('div', { class: 'de-selbar', hidden: true });
+    this.selBar = h('div', { class: 'de-selbar', hidden: true, role: 'toolbar', 'aria-label': 'Selected words' });
+    this.slash = h('div', { class: 'de-slash fglass', hidden: true, role: 'listbox', 'aria-label': 'Insert' });
+    // A point for menus to hang from when they belong to a place in the text.
+    this.spot = h('span', { class: 'de-spot', 'aria-hidden': 'true' });
+    // The night behind the pages: the galaxy's own sky, and the planet's edge below.
+    this.bg = h('div', { class: 'de-bg', 'aria-hidden': 'true' }, h('i', { class: 'de-limb' }));
     this.banner = h('div', { class: 'de-banner fglass', hidden: true });
     this.countBtn = h('button', { type: 'button', class: 'de-wc' });
     this.countBtn.addEventListener('click', () => this.countDetails());
     this.loading = h('div', { class: 'de-loading' }, h('span', { class: 'de-spin' }));
 
     this.el = h('div', { class: 'de', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Document' },
-      this.top, this.tools,
+      this.bg, this.top, this.tools,
       h('div', { class: 'de-main' }, this.side, this.desk, this.panel),
-      this.findBar, this.banner, this.selBar, this.countBtn, this.loading);
+      this.findBar, this.banner, this.selBar, this.slash, this.spot, this.countBtn, this.loading);
   }
 
   async open() {
@@ -262,7 +284,17 @@ class DocEditor {
     this.prevFocus = document.activeElement;
     document.body.append(this.el);
     document.documentElement.classList.add('is-writing');
-    if (moving()) this.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: EASE });
+    const card = this.cardOf?.(this.id) || null;
+    if (moving()) {
+      // The sky dims, then the bars drop in one after another. Each fades by
+      // itself, so the glass keeps its frost all the way through.
+      const drop = (el, delay) => el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay, easing: EASE, fill: 'backwards' });
+      this.bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 520, easing: 'ease-out' });
+      this.bg.firstChild.animate([{ transform: 'translate(-50%, 70px)' }, { transform: 'translate(-50%, 0)' }], { duration: 1100, easing: EASE });
+      drop(this.top, 140);
+      drop(this.tools, 210);
+      this.countBtn.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay: 420, easing: EASE, fill: 'backwards' });
+    }
     try {
       const data = await api.get(`/api/docs/${this.id}`);
       this.block = data.block;
@@ -288,6 +320,8 @@ class DocEditor {
       await document.fonts?.ready;
       this.layout();
       this.loading.hidden = true;
+      this.arrive(card);
+      this.settled = true;
       if (this.mine) {
         const end = this.fresh || !this.block.content?.trim();
         this.flow.focus({ preventScroll: true });
@@ -317,31 +351,22 @@ class DocEditor {
       return el;
     };
     this.styleBtn = pick('de-pick-style', 'Text style', (el) => this.styleMenu(el));
-    this.fontBtn = pick('de-pick-font', 'Typeface', (el) => this.fontMenu(el));
-    this.sizeBtn = pick('de-pick-size', 'Text size', (el) => this.sizeMenu(el));
     this.toggles = {
       bold: b('bold', 'Bold (⌘B)', () => this.exec('bold')),
       italic: b('italic', 'Italic (⌘I)', () => this.exec('italic')),
       underline: b('underline', 'Underline (⌘U)', () => this.exec('underline')),
-      strikeThrough: b('strike', 'Strikethrough', () => this.exec('strikeThrough')),
     };
-    this.aligns = {
-      left: b('left', 'Align left', () => this.align('Left')),
-      center: b('center', 'Centre', () => this.align('Center')),
-      right: b('right', 'Align right', () => this.align('Right')),
-      justify: b('justify', 'Justify', () => this.align('Full')),
-    };
-    this.colorBtn = b('color', 'Text colour and highlight', (e, el) => this.colorMenu(el));
+    this.typeBtn = b('type', 'Type, colour and spacing', (e, el) => this.typePanel(el), { 'aria-haspopup': 'dialog' });
     this.contextTools = h('span', { class: 'de-context' });
+    // Only what's reached for all the time. Typeface, size, colour, alignment
+    // and spacing are one panel (Aa); links and comments come up beside the
+    // words you select; a table's or a picture's tools show while you're in one.
     this.tools.append(
       b('undo', 'Undo (⌘Z)', () => this.undo()), b('redo', 'Redo (⇧⌘Z)', () => this.redo()), sep(),
-      this.styleBtn, this.fontBtn, this.sizeBtn, sep(),
-      ...Object.values(this.toggles), this.colorBtn, sep(),
-      b('link', 'Link (⌘K)', (e, el) => this.linkBox(el)), b('comment', 'Comment (⌥⌘M)', () => this.startComment()), sep(),
-      ...Object.values(this.aligns), b('spacing', 'Line spacing', (e, el) => this.spacingMenu(el)), sep(),
-      b('bullets', 'Bulleted list', () => this.list('ul')), b('numbers', 'Numbered list', () => this.list('ol')), b('check', 'Checklist', () => this.list('check')),
-      b('outdent', 'Less indent', () => this.indent(-1)), b('indent', 'More indent', () => this.indent(1)), sep(),
-      b('plus', 'Insert', (e, el) => this.insertMenu(el)), b('clear', 'Clear formatting', () => this.clearFormat()),
+      this.styleBtn, sep(),
+      ...Object.values(this.toggles), sep(),
+      b('bullets', 'Bulleted list', () => this.list('ul')), b('numbers', 'Numbered list', () => this.list('ol')), b('check', 'Checklist', () => this.list('check')), sep(),
+      b('plus', 'Insert (or type / on an empty line)', (e, el) => this.insertMenu(el)), this.typeBtn,
       this.contextTools);
   }
 
@@ -352,25 +377,13 @@ class DocEditor {
     this.styleBtn.textContent = STYLE_LABELS[this.styleOf(block)] || 'Normal text';
     const sel = getSelection();
     const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
-    const fam = anchor && this.flow.contains(anchor) ? (getComputedStyle(anchor).fontFamily || '') : '';
-    const fontKey = !fam ? this.settings.font : /Courier Prime/.test(fam) ? 'type' : /Mono/.test(fam) ? 'mono' : /Red Hat Text/.test(fam) ? 'sans' : 'serif';
-    this.fontBtn.textContent = FONT_LABELS[fontKey];
-    const px = anchor && this.flow.contains(anchor) ? parseFloat(getComputedStyle(anchor).fontSize) : this.settings.size * PX;
-    this.sizeBtn.textContent = String(Math.round(px / PX));
-    for (const [cmd, el] of Object.entries(this.toggles)) {
-      let on = false;
-      try { on = document.queryCommandState(cmd); } catch { /* old browsers */ }
-      el.classList.toggle('is-on', on);
-    }
-    const align = block ? getComputedStyle(block).textAlign : 'left';
-    for (const [k, el] of Object.entries(this.aligns)) el.classList.toggle('is-on', (align === 'start' ? 'left' : align) === k);
+    for (const [cmd, el] of Object.entries(this.toggles)) el.classList.toggle('is-on', this.state(cmd));
     // Tools that only make sense where you are: in a table, or on a picture.
     const cell = anchor?.closest?.('td, th');
     const picked = this.flow.querySelector('img.is-picked');
     const key = cell && this.flow.contains(cell) ? 'table' : picked ? 'img' : '';
     if (this.contextTools.dataset.key === key) return;
     this.contextTools.dataset.key = key;
-    const b = this.btn;
     const word = (label, run, title = label) => {
       const el = h('button', { type: 'button', class: 'de-word', title }, label);
       el.addEventListener('pointerdown', (e) => e.preventDefault());
@@ -391,7 +404,32 @@ class DocEditor {
     } else {
       this.contextTools.replaceChildren();
     }
-    void b;
+    if (key && moving()) {
+      [...this.contextTools.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }],
+        { duration: 320, delay: n * 24, easing: EASE, fill: 'backwards' }));
+      this.contextTools.lastChild?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  state(cmd) {
+    try { return document.queryCommandState(cmd); } catch { return false; }
+  }
+
+  // What the words at the caret are set in.
+  typeAt() {
+    const sel = getSelection();
+    const node = sel.anchorNode && this.inFlow(sel.anchorNode) ? sel.anchorNode : this.range?.startContainer;
+    const at = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
+    const block = this.blockAtCaret();
+    if (!at || !this.flow.contains(at)) return { font: this.settings.font, size: this.settings.size, align: 'left' };
+    const cs = getComputedStyle(at);
+    const fam = cs.fontFamily || '';
+    const align = block ? getComputedStyle(block).textAlign : 'left';
+    return {
+      font: /Courier Prime/.test(fam) ? 'type' : /Mono/.test(fam) ? 'mono' : /Red Hat Text/.test(fam) ? 'sans' : 'serif',
+      size: Math.round(parseFloat(cs.fontSize) / PX),
+      align: align === 'start' ? 'left' : align,
+    };
   }
 
   // -------------------------------------------------------- settings and pages
@@ -570,6 +608,95 @@ class DocEditor {
     }
     this.sheets.replaceChildren(...sheets);
     this.stack.style.height = `${total}px`;
+    // A new page slides out from under the one before it.
+    if (this.settled && moving() && n > this.sheetCount && !this.previewing) {
+      sheets.slice(this.sheetCount).forEach((sheet, i) => {
+        sheet.animate([{ transform: `translateY(${-(GAP + 46)}px) scale(0.985)` }, { transform: 'none' }], { duration: 640, delay: i * 60, easing: EASE, fill: 'backwards' });
+        sheet.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, delay: i * 60, fill: 'backwards' });
+      });
+    }
+    this.sheetCount = n;
+  }
+
+  // -------------------------------------------------------- to and from the desk
+
+  // Where the page-shaped window of the stack that's on screen sits, and how
+  // to map it onto `card` (this document's page on the planet's desk).
+  flight(card) {
+    const c = card.getBoundingClientRect();
+    const st = this.stack.getBoundingClientRect();
+    if (!c.width || !st.width || c.bottom < 0 || c.top > innerHeight || c.right < 0 || c.left > innerWidth) return null;
+    const desk = this.desk.getBoundingClientRect();
+    const k = c.width / st.width;
+    const winTop = Math.max(0, desk.top - st.top);
+    const winH = Math.min(st.height - winTop, c.height / k);
+    const below = Math.max(0, st.height - winTop - winH);
+    return {
+      c, k,
+      small: { transform: `translate(${c.left - st.left}px, ${c.top - st.top - k * winTop}px) scale(${k})`, clipPath: `inset(${winTop}px 0px ${below}px 0px round ${7 / k}px)` },
+      big: { transform: 'translate(0px, 0px) scale(1)', clipPath: 'inset(-90px -90px -90px -90px round 10px)' },
+      ghostBig: `translate(${st.left - c.left}px, ${st.top + winTop - c.top}px) scale(${1 / k})`,
+    };
+  }
+
+  // The desk's own little page, laid over the real one so the words cross-fade.
+  ghostOf(card, f) {
+    const ghost = card.cloneNode(true);
+    ghost.classList.add('de-ghost');
+    Object.assign(ghost.style, { left: `${f.c.left}px`, top: `${f.c.top}px`, width: `${f.c.width}px`, height: `${f.c.height}px`, opacity: '' });
+    for (const v of ['--k', '--pc']) ghost.style.setProperty(v, getComputedStyle(card).getPropertyValue(v));
+    this.el.append(ghost);
+    return ghost;
+  }
+
+  // Opening: the page lifts off the desk and grows into the sheet. With no
+  // page to lift (a reload, a link), it rises into place.
+  arrive(card) {
+    if (!moving()) return;
+    const f = card?.isConnected ? this.flight(card) : null;
+    if (!f) {
+      this.stack.animate([{ opacity: 0, transform: 'translateY(34px) scale(0.985)' }, { opacity: 1, transform: 'none' }], { duration: 720, easing: EASE });
+      return;
+    }
+    const ghost = this.ghostOf(card, f);
+    card.style.opacity = '0';
+    this.el.classList.add('is-flying');
+    const opts = { duration: 760, easing: GLIDE };
+    // The little page's words fade off the paper, then the real ones fade on,
+    // so the two sizes of type are never seen together.
+    ghost.animate([{ transform: 'none' }, { transform: f.ghostBig }], opts);
+    ghost.firstElementChild?.animate([{ opacity: 1 }, { opacity: 0, offset: 0.2 }, { opacity: 0 }], { duration: 760 });
+    ghost.animate([{ opacity: 1 }, { opacity: 1, offset: 0.2 }, { opacity: 0, offset: 0.36 }, { opacity: 0 }], { duration: 760 });
+    this.flow.animate([{ opacity: 0 }, { opacity: 0, offset: 0.24 }, { opacity: 1, offset: 0.62 }, { opacity: 1 }], { duration: 760 });
+    this.stack.animate([f.small, f.big], opts).finished.catch(() => {}).then(() => {
+      ghost.remove();
+      this.el.classList.remove('is-flying');
+    });
+  }
+
+  // Closing: back down onto its place on the desk, if that's in sight.
+  async depart() {
+    if (!moving()) return;
+    this.el.classList.add('is-closing');
+    const card = this.cardOf?.(this.id);
+    // Let the page out from behind the bars without losing how far it's scrolled.
+    const scrolled = this.desk.scrollTop;
+    this.el.classList.add('is-flying');
+    this.canvas.style.marginTop = `${-scrolled}px`;
+    const f = card?.isConnected && this.d ? this.flight(card) : null;
+    if (!f) {
+      await this.stack.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px) scale(0.985)' }], { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }).finished.catch(() => {});
+      return;
+    }
+    const ghost = this.ghostOf(card, f);
+    card.style.opacity = '0';
+    const opts = { duration: 620, easing: GLIDE, fill: 'forwards' };
+    ghost.animate([{ transform: f.ghostBig }, { transform: 'none' }], opts);
+    ghost.firstElementChild?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], { duration: 620, fill: 'forwards' });
+    ghost.animate([{ opacity: 0 }, { opacity: 0, offset: 0.2 }, { opacity: 1, offset: 0.42 }, { opacity: 1 }], { duration: 620, fill: 'forwards' });
+    this.flow.animate([{ opacity: 1 }, { opacity: 0, offset: 0.3 }, { opacity: 0 }], { duration: 620, fill: 'forwards' });
+    await this.stack.animate([f.big, f.small], opts).finished.catch(() => {});
+    card.style.opacity = '';
   }
 
   // -------------------------------------------------------- caret and selection
@@ -774,32 +901,6 @@ class DocEditor {
     })), { className: 'de-menu de-style-menu' });
   }
 
-  fontMenu(anchor) {
-    this.remember();
-    const sel = !(this.range?.collapsed ?? true);
-    openMenu(anchor, [
-      ...Object.entries(FONT_LABELS).map(([k, label]) => ({
-        label, hint: !sel && this.settings.font === k ? '✓' : null,
-        run: () => (sel ? this.exec('fontName', k) : this.setSettings({ font: k })),
-      })),
-      '-',
-      { label: sel ? 'Changes the selected words' : 'Changes the whole document', run: () => {} },
-    ], { className: 'de-menu de-font-menu' });
-  }
-
-  sizeMenu(anchor) {
-    this.remember();
-    const sel = !(this.range?.collapsed ?? true);
-    openMenu(anchor, [
-      ...SIZES.map((n) => ({
-        label: String(n), hint: !sel && this.settings.size === n ? '✓' : null,
-        run: () => (sel ? this.sizeSelection(n) : this.setSettings({ size: n })),
-      })),
-      '-',
-      { label: sel ? 'Changes the selected words' : 'Changes the whole document', run: () => {} },
-    ], { className: 'de-menu de-size-menu' });
-  }
-
   sizeSelection(pt) {
     this.exec('fontSize', '7');
     for (const el of this.flow.querySelectorAll('[style*="xxx-large"], font[size="7"]')) {
@@ -812,39 +913,64 @@ class DocEditor {
     this.changed({ now: true });
   }
 
-  colorMenu(anchor) {
+  // Aa: how the words look. It changes the selected words, or the whole
+  // document when nothing's selected, and says which.
+  typePanel(anchor) {
     this.remember();
-    const swatch = (c, run, label) => h('button', { type: 'button', class: 'de-swatch', style: { '--c': c }, 'aria-label': label, title: label, onclick: () => { pop.close(); run(); } });
-    const body = h('div', { class: 'de-colors' },
-      h('p', { class: 'de-pop-label' }, 'Text'),
-      h('div', { class: 'de-swatches' }, INKS.map((c, i) => swatch(c, () => this.exec('foreColor', c), i ? c : 'Ink'))),
-      h('p', { class: 'de-pop-label' }, 'Highlight'),
-      h('div', { class: 'de-swatches' },
-        MARKS.map((c) => swatch(c, () => this.exec('hiliteColor', c), c)),
-        h('button', { type: 'button', class: 'de-swatch is-none', 'aria-label': 'No highlight', title: 'No highlight', onclick: () => { pop.close(); this.exec('hiliteColor', 'transparent'); } })));
-    const pop = openPopover(anchor, body, { className: 'de-pop' });
-  }
-
-  spacingMenu(anchor) {
-    this.remember();
-    openMenu(anchor, [
-      ...[1, 1.15, 1.5, 2].map((v) => ({
-        label: v === 1 ? 'Single' : v === 2 ? 'Double' : String(v),
-        run: () => {
-          this.restore();
-          this.record();
-          for (const el of this.selectedBlocks()) {
-            if (/^(TABLE|HR)$/.test(el.tagName)) continue;
-            if (v === this.settings.spacing) el.style.removeProperty('line-height');
-            else el.style.lineHeight = String(v === 1 ? 1 : v);
-            if (!el.getAttribute('style')) el.removeAttribute('style');
-          }
-          this.changed({ now: true });
-        },
-      })),
-      '-',
-      { label: 'Whole document…', run: () => this.pageSetup() },
-    ], { className: 'de-menu' });
+    const body = h('div', { class: 'de-aa' });
+    body.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
+    const row = (label, ...kids) => h('div', { class: 'de-aa-row' }, h('span', { class: 'de-aa-label' }, label), h('div', { class: 'de-aa-ctl' }, ...kids));
+    const opt = (label, on, run, extra = {}) => h('button', { type: 'button', class: `de-aa-opt${on ? ' is-on' : ''}`, 'aria-pressed': String(!!on), onclick: () => { run(); draw(); }, ...extra }, label);
+    const ic = (name, label, on, run) => opt(icon(name), on, run, { 'aria-label': label, title: label });
+    const swatch = (c, run, label, cls = '') => h('button', { type: 'button', class: `de-swatch ${cls}`, style: { '--c': c }, 'aria-label': label, title: label, onclick: () => { run(); draw(); } });
+    const spaceBlocks = (v) => {
+      this.restore();
+      this.record();
+      for (const el of this.selectedBlocks()) {
+        if (/^(TABLE|HR)$/.test(el.tagName)) continue;
+        if (v === this.settings.spacing) el.style.removeProperty('line-height'); else el.style.lineHeight = String(v);
+        if (!el.getAttribute('style')) el.removeAttribute('style');
+      }
+      this.changed({ now: true });
+    };
+    const draw = () => {
+      const some = !(this.range?.collapsed ?? true);
+      const now = this.typeAt();
+      const block = this.blockAtCaret();
+      const lh = block?.style.lineHeight ? Number(block.style.lineHeight) : this.settings.spacing;
+      const at = SIZES.indexOf(now.size);
+      const step = (dir) => {
+        const next = SIZES[at < 0 ? SIZES.findIndex((n) => n >= now.size) + (dir > 0 ? 0 : -1) : at + dir];
+        if (!next) return;
+        if (some) this.sizeSelection(next); else this.setSettings({ size: next });
+      };
+      body.replaceChildren(
+        row('Typeface', h('div', { class: 'de-aa-seg' }, Object.entries(FONT_LABELS).map(([k, label]) =>
+          opt(label, now.font === k, () => (some ? this.exec('fontName', k) : this.setSettings({ font: k })), { dataset: { font: k } })))),
+        row('Size', h('div', { class: 'de-aa-step' },
+          ic('line', 'Smaller', false, () => step(-1)), h('span', { class: 'de-aa-num' }, String(now.size)), ic('plus', 'Bigger', false, () => step(1))),
+          h('div', { class: 'de-aa-seg de-aa-end' },
+            ic('strike', 'Strikethrough', this.state('strikeThrough'), () => this.exec('strikeThrough')),
+            ic('clear', 'Clear formatting (⌘\\)', false, () => this.clearFormat()))),
+        row('Colour', h('div', { class: 'de-swatches' }, INKS.slice(0, 11).map((c, i) => swatch(c, () => this.exec('foreColor', c), i ? c : 'Ink')))),
+        row('Highlight', h('div', { class: 'de-swatches' },
+          MARKS.map((c) => swatch(c, () => this.exec('hiliteColor', c), c)),
+          swatch('transparent', () => this.exec('hiliteColor', 'transparent'), 'No highlight', 'is-none'))),
+        h('div', { class: 'de-aa-rule' }),
+        row('Align', h('div', { class: 'de-aa-seg' },
+          ...[['left', 'Left', 'Align left'], ['center', 'Center', 'Centre'], ['right', 'Right', 'Align right'], ['justify', 'Full', 'Justify']]
+            .map(([k, cmd, label]) => ic(k, label, now.align === k, () => this.align(cmd)))),
+          h('div', { class: 'de-aa-seg de-aa-end' },
+            ic('outdent', 'Less indent', false, () => this.indent(-1)), ic('indent', 'More indent', false, () => this.indent(1)))),
+        row('Spacing', h('div', { class: 'de-aa-seg' }, [[1, 'Single'], [1.15, '1.15'], [1.5, '1.5'], [2, 'Double']].map(([v, label]) =>
+          opt(label, lh === v, () => (some ? spaceBlocks(v) : this.setSettings({ spacing: v })))))),
+        h('div', { class: 'de-aa-foot' },
+          h('span', null, some ? 'Changes the selected words' : 'Typeface, size and spacing change the whole document'),
+          h('button', { type: 'button', class: 'de-word', onclick: () => { pop.close(); this.pageSetup(); } }, 'Page setup…')));
+    };
+    draw();
+    this.typeBtn.classList.add('is-on');
+    const pop = openPopover(anchor, body, { className: 'de-pop de-aa-pop', align: 'end', onClose: () => this.typeBtn.classList.remove('is-on') });
   }
 
   insertMenu(anchor) {
@@ -852,6 +978,7 @@ class DocEditor {
     openMenu(anchor, [
       { label: 'Picture…', run: () => this.pickPicture() },
       { label: 'Table', run: () => this.insertTable() },
+      { label: 'Link…', hint: '⌘K', run: () => this.linkBox(anchor) },
       { label: 'Line', run: () => this.insertHtml('<hr><p><br></p>') },
       { label: 'Page break', hint: '⌘↵', run: () => this.pageBreak() },
     ], { className: 'de-menu' });
@@ -1064,13 +1191,14 @@ class DocEditor {
       this.remember();
       this.syncToolsSoon ||= debounce(() => { this.syncTools(); this.selectionBar(); }, 80);
       this.syncToolsSoon();
+      if (this.slashFor && this.blockAtCaret() !== this.slashFor.block) this.closeSlash();
     });
     on(window, 'pagehide', () => { if (this.dirty) this.save(); });
     on(this.titleIn, 'input', () => {
       if (this.nameOnPage()) this.layoutSoon();
       this.dirty = true; this.typed = true; this.setStatus('Editing…'); this.saveSoon(); });
     on(this.titleIn, 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.flow.focus(); } });
-    on(this.desk, 'scroll', () => this.selectionBar());
+    on(this.desk, 'scroll', () => { this.selectionBar(); this.closeSlash(); });
     // A click on the paper outside the words puts the caret at the nearest end.
     on(this.stack, 'mousedown', (e) => {
       if (!this.mine || e.target !== this.stack && !e.target.closest('.de-sheet')) return;
@@ -1105,8 +1233,20 @@ class DocEditor {
     });
     on(this.flow, 'input', (e) => {
       if (e.inputType === 'insertText' && e.data === ' ') this.autoformat();
+      if (e.inputType === 'insertText' && e.data && '"\'-.'.includes(e.data)) this.smarten(e.data);
       this.changed();
+      this.slashCheck();
+      if (e.inputType === 'insertText' || e.inputType === 'insertParagraph') this.typing(); else this.wake();
     });
+    // Anything but writing brings the bars back.
+    let far = null;
+    on(this.el, 'pointermove', (e) => {
+      if (!this.quiet || e.pointerType === 'touch') return;
+      far ||= { x: e.clientX, y: e.clientY };
+      if (Math.hypot(e.clientX - far.x, e.clientY - far.y) > 14) { far = null; this.wake(); }
+    });
+    on(this.el, 'pointerdown', (e) => { far = null; if (!this.flow.contains(e.target) || e.pointerType !== 'touch') this.wake(); if (!this.slash.contains(e.target)) this.closeSlash(); });
+    on(this.flow, 'blur', () => { this.wake(); this.closeSlash(); });
     on(this.flow, 'paste', (e) => this.paste(e));
     on(this.flow, 'drop', (e) => {
       const files = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'));
@@ -1180,10 +1320,17 @@ class DocEditor {
     const mod = e.metaKey || e.ctrlKey;
     const inFlow = this.flow.contains(document.activeElement) || document.activeElement === this.flow;
     const k = e.key.toLowerCase();
+    if (this.slashFor && !mod) {
+      const n = this.slashFor.items.length;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); this.slashMove((this.slashFor.at + (e.key === 'ArrowDown' ? 1 : n - 1)) % n); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); this.slashPick(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.closeSlash(); return; }
+    }
     if (e.key === 'Escape') {
       if (document.querySelector('.pop, .scrim')) return;
       e.stopPropagation();
       e.preventDefault();
+      if (this.quiet) { this.wake(); return; }
       if (!this.findBar.hidden) { this.closeFind(); return; }
       if (!this.panel.hidden) { this.closePanel(); return; }
       if (this.previewing) { this.endPreview(); return; }
@@ -1199,7 +1346,7 @@ class DocEditor {
     if (!inFlow || !this.mine) return;
     if (mod && k === 'z') { e.preventDefault(); e.stopPropagation(); if (e.shiftKey) this.redo(); else this.undo(); return; }
     if (mod && k === 'y') { e.preventDefault(); e.stopPropagation(); this.redo(); return; }
-    if (mod && k === 'k') { e.preventDefault(); e.stopPropagation(); this.linkBox(this.tools.querySelector('[aria-label^="Link"]') || this.titleIn); return; }
+    if (mod && k === 'k') { e.preventDefault(); e.stopPropagation(); const sr = getSelection().rangeCount ? getSelection().getRangeAt(0).getBoundingClientRect() : null; this.linkBox(sr && (sr.width || sr.height) ? this.spotAt(sr) : this.typeBtn); return; }
     if (mod && e.altKey && (k === 'm' || e.code === 'KeyM')) { e.preventDefault(); this.startComment(); return; }
     if (mod && e.altKey && /^Digit[0-3]$/.test(e.code)) { e.preventDefault(); this.setStyle(e.code === 'Digit0' ? 'p' : `h${e.code.slice(-1)}`); return; }
     if (mod && e.shiftKey && (e.code === 'Digit7' || e.code === 'Digit8' || e.code === 'Digit9')) { e.preventDefault(); this.list(e.code === 'Digit7' ? 'ol' : e.code === 'Digit8' ? 'ul' : 'check'); return; }
@@ -1548,21 +1695,242 @@ class DocEditor {
 
   // -------------------------------------------------------- comments
 
+  // Select some words and a small bubble rises beside them: the formatting
+  // you'd reach for, a link, a highlight, and a comment. Someone reading
+  // another person's document gets only Comment.
   selectionBar() {
     const sel = getSelection();
-    if (!sel.rangeCount || sel.isCollapsed || !this.inFlow(sel.anchorNode) || !this.inFlow(sel.focusNode) || this.previewing) { this.selBar.hidden = true; return; }
+    const hide = () => { this.selBar.hidden = true; };
+    if (!sel.rangeCount || sel.isCollapsed || !this.inFlow(sel.anchorNode) || !this.inFlow(sel.focusNode) || this.previewing || this.closing) { hide(); return; }
+    if (!sel.toString().trim()) { hide(); return; }
     const r = sel.getRangeAt(0).getBoundingClientRect();
-    if (!r.width && !r.height) { this.selBar.hidden = true; return; }
+    if (!r.width && !r.height) { hide(); return; }
     if (!this.selBar.firstChild) {
-      const b = h('button', { type: 'button', class: 'de-selbtn' }, icon('comment'), 'Comment');
-      b.addEventListener('pointerdown', (e) => e.preventDefault());
-      b.addEventListener('click', () => this.startComment());
-      this.selBar.append(b);
+      const tap = (el, run) => {
+        el.addEventListener('pointerdown', (e) => e.preventDefault());
+        el.addEventListener('click', run);
+        return el;
+      };
+      const b = (name, label, run) => tap(h('button', { type: 'button', class: 'de-bub', 'aria-label': label, title: label }, icon(name)), run);
+      this.bubToggles = this.mine ? {
+        bold: b('bold', 'Bold', () => { this.exec('bold'); this.selectionBar(); }),
+        italic: b('italic', 'Italic', () => { this.exec('italic'); this.selectionBar(); }),
+        underline: b('underline', 'Underline', () => { this.exec('underline'); this.selectionBar(); }),
+      } : {};
+      this.markBtn = this.mine ? b('mark', 'Highlight', () => { this.exec('hiliteColor', this.marked() ? 'transparent' : MARKS[0]); this.selectionBar(); }) : null;
+      const comment = tap(h('button', { type: 'button', class: 'de-bub de-bub-word' }, icon('comment'), 'Comment'), () => this.startComment());
+      this.selBar.append(h('div', { class: 'de-bubble' }, ...[
+        ...Object.values(this.bubToggles),
+        this.mine ? b('link', 'Link (⌘K)', () => this.linkBox(this.spotAt(sel.getRangeAt(0).getBoundingClientRect()))) : null,
+        this.markBtn,
+        this.mine ? h('span', { class: 'de-sep' }) : null,
+        comment].filter(Boolean)));
     }
+    for (const [cmd, el] of Object.entries(this.bubToggles)) el.classList.toggle('is-on', this.state(cmd));
+    this.markBtn?.classList.toggle('is-on', this.marked());
+    const was = this.selBar.hidden;
     this.selBar.hidden = false;
     const w = this.selBar.offsetWidth || 110;
+    const floor = this.desk.getBoundingClientRect().top + 6;
+    const above = r.top - 48 >= floor;
     this.selBar.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
-    this.selBar.style.top = `${Math.max(110, r.top - 46)}px`;
+    this.selBar.style.top = `${above ? r.top - 48 : Math.min(innerHeight - 52, r.bottom + 10)}px`;
+    if (was && moving()) {
+      this.selBar.firstChild.animate([{ opacity: 0, transform: `translateY(${above ? 8 : -8}px) scale(0.92)` }, { opacity: 1, transform: 'none' }], { duration: 300, easing: 'cubic-bezier(0.2, 1.3, 0.4, 1)' });
+    }
+  }
+
+  // Whether the selected words (the first of them) carry a highlight.
+  marked() {
+    const sel = getSelection();
+    if (!sel.rangeCount) return false;
+    const r = sel.getRangeAt(0);
+    const walker = document.createTreeWalker(r.commonAncestorContainer.nodeType === 3 ? r.commonAncestorContainer.parentNode : r.commonAncestorContainer, NodeFilter.SHOW_TEXT);
+    let node = r.startContainer.nodeType === 3 && r.startOffset < r.startContainer.length ? r.startContainer : null;
+    for (let n = node ? null : walker.nextNode(); n && !node; n = walker.nextNode()) {
+      if (n.length && r.comparePoint(n, n.length) >= 0 && r.comparePoint(n, 0) <= 0 && r.intersectsNode(n) && !(n === r.startContainer)) node = n;
+    }
+    for (let el = node?.parentElement; el && el !== this.flow; el = el.parentElement) {
+      const bg = el.style?.backgroundColor;
+      if (bg && bg !== 'transparent' && !/rgba\(0, 0, 0, 0\)/.test(bg)) return true;
+    }
+    return false;
+  }
+
+  // Put the hanging point at a place on screen, and hand it back as an anchor.
+  spotAt(rect) {
+    Object.assign(this.spot.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${Math.max(1, rect.width)}px`, height: `${Math.max(1, rect.height)}px` });
+    return this.spot;
+  }
+
+  // -------------------------------------------------------- "/" on an empty line
+
+  slashItems() {
+    return [
+      { icon: 'heading', label: 'Heading', hint: 'Big', words: 'h1 title', run: () => this.setStyle('h1') },
+      { icon: 'heading', label: 'Subheading', hint: 'Medium', words: 'h2', run: () => this.setStyle('h2') },
+      { icon: 'heading', label: 'Small heading', hint: 'Small', words: 'h3', run: () => this.setStyle('h3') },
+      { icon: 'bullets', label: 'Bulleted list', words: 'bullets points ul', run: () => this.list('ul') },
+      { icon: 'numbers', label: 'Numbered list', words: 'ol steps 123', run: () => this.list('ol') },
+      { icon: 'check', label: 'Checklist', words: 'todo tasks tick boxes', run: () => this.list('check') },
+      { icon: 'quote', label: 'Quote', words: 'blockquote', run: () => this.setStyle('quote') },
+      { icon: 'table', label: 'Table', words: 'grid rows columns', run: () => this.insertTable() },
+      { icon: 'picture', label: 'Picture', words: 'image photo', run: () => this.pickPicture() },
+      { icon: 'line', label: 'Line', words: 'rule divider hr separator', run: () => this.insertHtml('<hr><p><br></p>') },
+      { icon: 'pagebreak', label: 'Page break', words: 'new page', run: () => this.pageBreak() },
+      { icon: 'code', label: 'Code', words: 'pre monospace', run: () => this.setStyle('pre') },
+    ];
+  }
+
+  // Called as you type: a line that is only "/" (and the start of a word) opens it.
+  slashCheck() {
+    const block = this.mine && getSelection().isCollapsed ? this.blockAtCaret() : null;
+    const m = block && block.tagName === 'P' && !block.classList.length && block.parentElement === this.flow
+      ? /^\/([\p{L}\d ]{0,14})$/u.exec(block.textContent.replace(/\u200b/g, '')) : null;
+    if (!m) { this.closeSlash(); return; }
+    const q = m[1].trim().toLowerCase();
+    const items = this.slashItems().filter((it) => !q || `${it.label} ${it.words}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(q)) || it.label.toLowerCase().startsWith(q));
+    if (!items.length) { this.closeSlash(); return; }
+    const fresh = this.slash.hidden;
+    this.slashFor = { block, items, at: fresh ? 0 : Math.min(this.slashFor?.at || 0, items.length - 1) };
+    this.slash.replaceChildren(h('p', { class: 'de-slash-label' }, 'Insert'), ...items.map((it, n) => {
+      const row = h('button', { type: 'button', class: 'de-slash-item', role: 'option' }, icon(it.icon), h('span', null, it.label), it.hint ? h('span', { class: 'de-slash-hint' }, it.hint) : null);
+      row.addEventListener('pointerdown', (e) => e.preventDefault());
+      row.addEventListener('pointermove', () => this.slashMove(n, { scroll: false }));
+      row.addEventListener('click', () => this.slashPick(n));
+      return row;
+    }));
+    this.slash.hidden = false;
+    const r = block.getBoundingClientRect();
+    const line = parseFloat(getComputedStyle(block).lineHeight) || 24;
+    const hgt = this.slash.offsetHeight;
+    const up = r.top + line + 6 + hgt > innerHeight - 10 && r.top - hgt - 6 > 60;
+    this.slash.style.left = `${Math.max(8, Math.min(innerWidth - this.slash.offsetWidth - 8, r.left - 6))}px`;
+    this.slash.style.top = `${up ? r.top - hgt - 6 : r.top + line + 6}px`;
+    this.slash.style.transformOrigin = up ? '18px 100%' : '18px 0';
+    this.slashMove(this.slashFor.at);
+    if (fresh && moving()) {
+      this.slash.animate([{ transform: 'scale(0.94)' }, { transform: 'none' }], { duration: 340, easing: 'cubic-bezier(0.2, 1.25, 0.4, 1)' });
+      [...this.slash.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: Math.min(n, 8) * 18, easing: EASE, fill: 'backwards' }));
+    }
+  }
+
+  slashMove(n, { scroll = true } = {}) {
+    if (!this.slashFor) return;
+    this.slashFor.at = n;
+    const rows = this.slash.querySelectorAll('.de-slash-item');
+    rows.forEach((el, i) => { el.classList.toggle('is-on', i === n); el.setAttribute('aria-selected', String(i === n)); });
+    if (scroll) rows[n]?.scrollIntoView({ block: 'nearest' });
+  }
+
+  slashPick(n = this.slashFor?.at) {
+    const it = this.slashFor?.items[n];
+    const block = this.slashFor?.block;
+    this.closeSlash();
+    if (!it || !block?.isConnected) return;
+    // Take the "/…" away, then do what was asked on the empty line.
+    this.record();
+    block.replaceChildren(h('br'));
+    const r = document.createRange();
+    r.setStart(block, 0);
+    r.collapse(true);
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+    this.range = r.cloneRange();
+    it.run();
+    // A list made on an empty line can come out wrapped in that line: let it stand alone.
+    for (const list of this.flow.querySelectorAll(':scope > p > ul, :scope > p > ol')) {
+      const wrap = list.parentElement;
+      wrap.replaceWith(...wrap.childNodes);
+      const li = list.querySelector('li');
+      if (li) {
+        const c = document.createRange();
+        c.setStart(li, 0);
+        c.collapse(true);
+        getSelection().removeAllRanges();
+        getSelection().addRange(c);
+        this.range = c.cloneRange();
+      }
+    }
+    this.changed({ now: true });
+  }
+
+  closeSlash() {
+    if (this.slash.hidden) return;
+    this.slash.hidden = true;
+    this.slashFor = null;
+  }
+
+  // -------------------------------------------------------- smart punctuation
+
+  // Straight quotes turn curly, two hyphens make a dash, three dots an
+  // ellipsis. Undo gives back exactly what was typed.
+  smarten(ch) {
+    const sel = getSelection();
+    const node = sel.anchorNode;
+    const o = sel.anchorOffset;
+    if (!sel.isCollapsed || node?.nodeType !== 3 || o < 1 || node.data[o - 1] !== ch) return;
+    if (node.parentElement.closest('pre, code')) return;
+    const block = this.blockAtCaret();
+    if (!block) return;
+    const lead = document.createRange();
+    lead.setStart(block, 0);
+    lead.setEnd(node, o - 1);
+    const before = lead.toString();
+    const prev = before.slice(-1);
+    let take = 1;
+    let put = '';
+    if (ch === '"' || ch === "'") {
+      const opens = !prev || /[\s(\[{\u2014\u2013\u201c\u2018\/-]/.test(prev);
+      put = ch === '"' ? (opens ? '\u201c' : '\u201d') : (opens ? '\u2018' : '\u2019');
+    } else if (ch === '-' && prev === '-' && o >= 2 && node.data[o - 2] === '-' && !/--$/.test(before.slice(0, -1) + '-')) {
+      take = 2; put = '\u2014';
+    } else if (ch === '.' && o >= 3 && node.data.slice(o - 3, o) === '...') {
+      take = 3; put = '\u2026';
+    }
+    if (!put) return;
+    this.record();
+    node.replaceData(o - take, take, put);
+    const r = document.createRange();
+    r.setStart(node, o - take + put.length);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    this.lastInput = 'smart';
+  }
+
+  // -------------------------------------------------------- quiet writing
+
+  // Once you've been typing steadily, the bars fade back so it's just you and
+  // the page. Move the pointer and they return.
+  typing() {
+    const now = performance.now();
+    const run = this.run;
+    if (now - run.last > 3500) { run.from = now; run.keys = 0; }
+    run.last = now;
+    run.keys++;
+    if (now - run.from >= QUIET_AFTER && run.keys >= QUIET_KEYS && !this.quiet && moving()
+        && this.panel.hidden && this.findBar.hidden && !this.el.classList.contains('has-side') && !document.querySelector('.pop')) {
+      this.quiet = true;
+      this.el.classList.add('is-quiet');
+    }
+  }
+
+  wake() {
+    this.run.keys = 0;
+    this.run.from = performance.now();
+    if (!this.quiet) return;
+    this.quiet = false;
+    this.el.classList.remove('is-quiet');
+    // The first time, say what happened.
+    try {
+      if (!localStorage.getItem('mutt:docs-quiet')) {
+        localStorage.setItem('mutt:docs-quiet', '1');
+        const was = this.status.textContent;
+        this.setStatus('The bars step back while you write');
+        setTimeout(() => { if (this.status.textContent === 'The bars step back while you write') this.setStatus(was === 'Editing…' ? 'Saved' : was); }, 4200);
+      }
+    } catch { /* private window */ }
   }
 
   anchorOf(c) {
@@ -1849,10 +2217,18 @@ class DocEditor {
     CSS.highlights?.delete('de-c-on');
     CSS.highlights?.delete('de-find');
     CSS.highlights?.delete('de-find-on');
-    if (moving() && !switching) await this.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+    this.closeSlash();
+    this.selBar.hidden = true;
+    // The planet's page comes back up underneath while the page flies home.
+    if (!switching) {
+      const root = document.documentElement;
+      root.classList.add('is-unwriting');
+      root.classList.remove('is-writing');
+      await this.depart();
+      root.classList.remove('is-unwriting');
+    }
     this.el.remove();
     if (openOne === this) openOne = null;
-    if (!switching) document.documentElement.classList.remove('is-writing');
     if (!switching) this.prevFocus?.focus?.({ preventScroll: true });
     this.onClose?.({ id: this.id, block: this.block, gone, switching });
   }

@@ -923,9 +923,7 @@ export const planetView = {
       openDocEditor(bid, {
         drawer,
         fresh,
-        docs: () => (desk ? desk.summaries() : []),
-        onSwitch: (other) => openDoc(other),
-        onNew: () => newDoc(),
+        card: (bid) => desk?.pageOf(bid) || null,
         onClose: ({ switching }) => {
           if (switching) return;
           desk?.refreshSoon();

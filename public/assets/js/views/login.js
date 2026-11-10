@@ -31,26 +31,40 @@ const lastName = () => {
 };
 const remember = (name) => { try { localStorage.setItem(BEEN, name); } catch { /* private mode */ } };
 
-// What surrounds the void: fine dust circling it and slowly spiralling in
-// (the print's stippling come loose), and further out, stars stretched into
-// short streaks falling toward it along the same swirl. Both quicken when the void is fed.
+// What surrounds the void, all of it the print's stippling come loose:
+//  - a haze of dots hugging the cage, gathered into three spiral arms that
+//    slowly turn with it;
+//  - dotted orbits, broken rings turning at their own speeds;
+//  - dust circling and spiralling in;
+//  - dust thrown out of the void along the arms, slowing and fading;
+//  - further out, stars stretched into streaks falling in along the swirl.
+// All of it quickens when the void is fed, and a fed void throws out a burst.
 function dustField() {
   const canvas = h('canvas', { class: 'login-dust', 'aria-hidden': 'true' });
   const ctx = canvas.getContext('2d');
+  const ARMS = 3;
+  // Each orbit: how far out (in cage radii), how fast it turns, how strong.
+  const ORBITS = [[1.13, 0.06, 1], [1.4, -0.035, 0.8], [1.82, 0.02, 0.55]].map(([at, speed, o]) => ({ at, speed, o, a: Math.random() * TAU }));
   let W = 0;
   let H = 0;
   let dpr = 1;
-  let inner = 200; // the cage's edge: dust is swallowed here
+  let inner = 200; // the cage's edge: dust is swallowed here, and thrown out from here
   let far = 600;
   let motes = [];
   let streaks = [];
+  let sprays = [];
+  let haze = null;
+  let hazeFor = 0;
+  let spin = 0;
   let frame = 0;
   let last = 0;
   let boost = 0;
   let push = 0;
   let falling = false;
 
-  const band = () => inner * 1.35; // how far out the dust reaches
+  const band = () => inner * 1.35; // how far out the circling dust reaches
+  // How much of an arm passes through (a, r): the arms trail as they go out.
+  const arm = (a, r) => 0.5 + 0.5 * Math.cos(ARMS * (a + 1.5 * Math.log(r / inner)));
   const mote = (m, fresh) => {
     m.r = fresh ? inner + Math.random() ** 1.5 * band() : inner + band() * (0.9 + Math.random() * 0.1);
     m.a = Math.random() * TAU;
@@ -67,15 +81,78 @@ function dustField() {
     s.k = 0.5 + Math.random();
     return s;
   };
+  // A grain leaves the cage's edge where an arm meets it.
+  const spray = (p, burst) => {
+    p.a = spin + Math.floor(Math.random() * ARMS) * (TAU / ARMS) + (Math.random() - 0.5) * (burst ? 1.6 : 0.9);
+    p.r = inner * (0.97 + Math.random() * 0.05);
+    p.v = (46 + Math.random() * 110) * (burst ? 2.2 : 1) * (inner / 250);
+    p.t = 0;
+    p.life = 2.4 + Math.random() * 3.4;
+    p.wait = burst ? Math.random() * 0.15 : Math.random() * 1.6;
+    p.w = 0.6 + Math.random() * 1.2;
+    p.o = 0.4 + Math.random() * 0.6;
+    p.k = 0.6 + Math.random() * 0.8;
+    return p;
+  };
+
+  // The haze is dotted once and then only turned.
+  function dotHaze() {
+    const reach = inner * 2;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(reach * 2);
+    c.height = c.width;
+    const g = c.getContext('2d');
+    g.translate(c.width / 2, c.width / 2);
+    g.fillStyle = 'rgb(236, 231, 247)';
+    const n = Math.round(clamp((inner * inner) / 2.4, 7000, 30000));
+    for (let i = 0; i < n; i += 1) {
+      const t = Math.random() ** 1.5;
+      const r = inner * (0.95 + t * 1.03);
+      const a = Math.random() * TAU;
+      const d = arm(a, r);
+      if (Math.random() > 0.14 + 0.86 * d * d) continue;
+      g.globalAlpha = (1 - t) ** 1.1 * (0.35 + Math.random() * 0.65);
+      g.beginPath();
+      g.arc(Math.cos(a) * r, Math.sin(a) * r, 0.4 + Math.random() * 0.65, 0, TAU);
+      g.fill();
+    }
+    haze = c;
+    hazeFor = inner;
+  }
 
   function draw(dt) {
     boost -= boost * Math.min(1, dt * 1.8);
     push -= push * Math.min(1, dt * 3);
     const rush = falling ? 1 : 0;
+    const quick = 1 + boost * 4 + rush * 9;
+    spin += 0.03 * quick * dt;
     ctx.setTransform(dpr, 0, 0, dpr, (W / 2) * dpr, (H / 2) * dpr);
     ctx.clearRect(-W / 2, -H / 2, W, H);
     ctx.strokeStyle = 'rgb(236, 231, 247)';
     ctx.lineCap = 'round';
+
+    if (haze) {
+      const reach = hazeFor * 2;
+      ctx.save();
+      ctx.rotate(spin);
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(haze, -reach, -reach, reach * 2, reach * 2);
+      ctx.restore();
+    }
+
+    ctx.lineWidth = 1.3;
+    ctx.setLineDash([0.1, 7]);
+    for (const ring of ORBITS) {
+      ring.a += ring.speed * quick * dt;
+      ctx.globalAlpha = 0.62 * ring.o;
+      for (let j = 0; j < 2; j += 1) {
+        ctx.beginPath();
+        ctx.arc(0, 0, inner * ring.at, ring.a + j * Math.PI, ring.a + j * Math.PI + 2.1);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+
     const edge = inner * 0.97;
     for (const m of motes) {
       const near = inner / m.r;
@@ -94,6 +171,33 @@ function dustField() {
       ctx.arc(0, 0, m.r, m.a - Math.min(0.7, turn * 0.14 + 0.004), m.a);
       ctx.stroke();
     }
+
+    for (const p of sprays) {
+      if (!p.o) continue;
+      if (p.wait > 0) { p.wait -= dt; continue; }
+      p.t += dt;
+      if (falling) {
+        p.r -= 620 * dt;
+        if (p.r < edge) { p.o = 0; continue; }
+      } else if (p.t > p.life) {
+        spray(p, false);
+        continue;
+      }
+      const u = clamp(p.t / p.life);
+      const v = p.v * (1 - u) ** 1.5;
+      const turn = (0.1 + 0.3 * (inner / p.r) ** 2) * p.k * (1 + boost * 2);
+      if (!falling) p.r += (v * (1 + boost) + push * 220) * dt;
+      p.a += turn * dt;
+      const len = Math.min(30, v * 0.17 + 1.2);
+      const back = p.a - Math.min(0.5, turn * 0.3);
+      ctx.globalAlpha = p.o * Math.min(1, u * 9) * (1 - u) ** 1.2;
+      ctx.lineWidth = p.w;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(p.a) * p.r, Math.sin(p.a) * p.r);
+      ctx.lineTo(Math.cos(back) * (p.r - len), Math.sin(back) * (p.r - len));
+      ctx.stroke();
+    }
+
     for (const s of streaks) {
       const near = inner / s.r;
       s.r -= (5 + 34 * near) * s.k * (1 + boost * 3 + rush * 30) * dt;
@@ -131,6 +235,7 @@ function dustField() {
     // A canvas w × hgt round the void, whose cage reaches r from its centre.
     resize(r, w, hgt) {
       inner = r;
+      if (!haze || Math.abs(inner - hazeFor) > inner * 0.03) dotHaze();
       if (Math.round(w) === W && Math.round(hgt) === H) return;
       W = Math.round(w);
       H = Math.round(hgt);
@@ -140,7 +245,8 @@ function dustField() {
       canvas.height = Math.round(H * dpr);
       canvas.style.width = `${W}px`;
       canvas.style.height = `${H}px`;
-      motes = Array.from({ length: Math.round(clamp((W * H) / 3600, 120, 340)) }, () => mote({}, true));
+      motes = Array.from({ length: Math.round(clamp((W * H) / 2200, 200, 560)) }, () => mote({}, true));
+      sprays = Array.from({ length: Math.round(clamp((W * H) / 1700, 260, 620)) }, () => spray({}, false));
       streaks = Array.from({ length: Math.round(clamp((W * H) / 11000, 36, 110)) }, () => streak({}, true));
       draw(0);
     },
@@ -151,8 +257,13 @@ function dustField() {
       else frame = requestAnimationFrame(step);
     },
     stop() { cancelAnimationFrame(frame); },
-    // Fed: everything quickens for a moment.
-    surge(by) { boost = Math.min(2, boost + by); },
+    // Fed: everything quickens for a moment, and a good mouthful makes the
+    // void throw out a burst.
+    surge(by) {
+      boost = Math.min(2, boost + by);
+      if (by < 0.3 || falling) return;
+      for (const p of sprays) if (Math.random() < 0.3) spray(p, true);
+    },
     // Refused: the dust is thrown back.
     repel() { push = 1; },
     // Taken: all of it goes in, and none comes back.

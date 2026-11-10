@@ -14,6 +14,7 @@ import { deleteBlock } from './actions.js';
 import { convertible, convertText, fraction, showLine, splitLine, systemOf } from './amounts.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
+import { modeOffer } from './offers.js';
 import { openContextMenu, openDialog, openMenu, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
 import { EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
@@ -1078,36 +1079,18 @@ function cook(r, serves, units) {
 
 // Said once, quietly, in place: what we noticed, and the choice.
 export function cookbookOffer({ signs, onAccept, onDecline }) {
-  const accept = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Make it a cookbook');
-  const decline = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Not now');
-  const el = h('div', { class: 'lm-offer cb-offer', role: 'region', 'aria-label': 'This planet looks like a cookbook' },
-    h('span', { class: 'cb-offer-icon', 'aria-hidden': 'true' }, h('i'), h('i')),
-    h('div', { class: 'lm-offer-text' },
-      h('p', { class: 'lm-offer-title' }, 'This planet looks like a cookbook'),
-      h('ul', { class: 'lm-offer-signs' }, signs.map((s) => h('li', null, s))),
-      h('p', { class: 'lm-offer-note' }, 'Recipes become index cards in a recipe box, sorted into chapters. Each card has the amounts (scaled for however many you’re cooking for, in metric or US), the method, your notes and a photo of the finished dish, and a cooking mode that goes one step at a time.')),
-    h('div', { class: 'lm-offer-btns' }, decline, accept));
-  const close = async () => {
-    if (moving()) {
-      const height = el.getBoundingClientRect().height;
-      await el.animate([{ opacity: 1, height: `${height}px` }, { opacity: 0, height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px' }],
-        { duration: 320, easing: EASE, fill: 'forwards' }).finished.catch(() => {});
-    }
-    el.remove();
-  };
-  accept.addEventListener('click', async () => {
-    accept.disabled = decline.disabled = true;
-    accept.textContent = 'Reading the recipes…';
-    const ok = await onAccept();
-    if (ok === false) { accept.disabled = decline.disabled = false; accept.textContent = 'Make it a cookbook'; return; }
-    close();
+  return modeOffer({
+    kind: 'cb-offer',
+    icon: 'cb-offer-icon',
+    strokes: 2,
+    title: 'This planet looks like a cookbook',
+    signs,
+    note: 'Recipes become index cards in a recipe box, sorted into chapters. Each card has the amounts (scaled for however many you’re cooking for, in metric or US), the method, your notes and a photo of the finished dish, and a cooking mode that goes one step at a time.',
+    accept: 'Make it a cookbook',
+    busy: 'Reading the recipes…',
+    onAccept,
+    onDecline,
   });
-  decline.addEventListener('click', () => { close(); onDecline(); });
-  if (moving()) {
-    requestAnimationFrame(() => el.animate([{ opacity: 0, transform: 'translateY(-8px) scale(0.99)' }, { opacity: 1, transform: 'none' }],
-      { duration: 520, easing: EASE }));
-  }
-  return el;
 }
 
 // ------------------------------------------------------------ little drawings

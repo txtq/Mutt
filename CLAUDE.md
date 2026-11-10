@@ -46,7 +46,12 @@ What already exists to read a planet's purpose (reuse it, don't start a second c
 - `sorting.form()` reads how one note is written (checklist, list, tasks, poem, prose, story, chapter, quote, recipe, code, tab, table, dated, diary, measured, idea, contact, priced, appointment), for modes that respond to what you're writing.
 - The words live in `mutt/lexicon.py`: `TOPICS`, `CONCEPTS` (finer subjects inside a topic), `ROLES`, `EMOJI`, places, sites. Add vocabulary there, not in the scoring code.
 
-Suggested shape for the mechanism (not yet agreed with the user; ask before building):
+How the modes are wired today (front end, 2026-11-09):
+- `views/planet.js` has one table, `MODES` (list, reading, cookbook, documents). An entry says what the mode is called, whether a moon can be one, how to build its view, how to turn it on at the server, and what its offer and ••• menu hold. Turning on and off, Undo, the menu and the offer are shared (`turnOn`, `turnOff`, `swapTo`, `lookForModes`). **A new mode is one more entry in that table** plus its view and its signs from `GET /api/drawers/<id>/modes`; don't hand-wire another.
+- Every offer is the one box in `offers.js` (`modeOffer`): a mode only supplies its words. It glides what's below it down when it arrives and back up when waved away (transforms only).
+- One thing at a time on a planet page: the sharing tip waits while a mode is being offered.
+
+Suggested shape for the rest of the mechanism (not yet agreed with the user; ask before building):
 - One registry of modes. Each has a test against a planet (or a file being edited) and what it adds when it's on.
 - Work out a planet's purpose from the share of its files with each kind, topic and shape, so one odd file doesn't switch a mode on. Use a higher bar to turn on than to stay on, so modes don't flicker.
 - When a mode first appears, say so once, quietly, in place. Let the owner turn it off for that planet, and remember that.
@@ -91,6 +96,8 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - Planet positions: `drawers.x`/`y` are offsets from the void in desktop pixels (empty means "scatter it"), saved by `PUT /api/galaxy/layout`. `scatter()` in `views/galaxy.js` places the saved ones first, then scatters the rest; `movable()` in `drag.js` does the dragging.
 - `sky.js` is the fixed background. Pages can give it a lens (the void bends stars) and a night amount.
 - `fx.js` holds the motion helpers; `drag.js` handles pointer drag onto targets.
+- `drift.js` leans a planet's file boxes toward the pointer. It writes `--mx`/`--my` on each box that's on screen (registered in `galaxy.css` so they don't inherit), never on the page around them.
+- Motion: Still (`data-motion="off"`) and the system's reduced-motion setting run every CSS animation once in no time, so entrances land on their last frame. Never pause animations to stop them: a paused entrance stays on its first, invisible frame (that once left planet pages blank under Still).
 
 **CSS:**
 - Stylesheets sit directly in `public/assets/` (there is no `css/` folder). `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.

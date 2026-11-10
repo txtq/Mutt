@@ -9,6 +9,7 @@
 import { blockContextMenu, deleteBlock } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
+import { modeOffer } from './offers.js';
 import { openContextMenu, openDialog, openPopover, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
 import { EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
@@ -957,34 +958,18 @@ export class ListView {
 
 // Said once, quietly, in place: what we noticed, and the choice.
 export function listOffer({ signs, split, onAccept, onDecline }) {
-  const accept = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Make it a list');
-  const decline = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Not now');
-  const note = split?.length
-    ? h('p', { class: 'lm-offer-note' }, split.length === 1
+  return modeOffer({
+    icon: 'lm-offer-icon',
+    title: 'This planet looks like a list',
+    signs,
+    note: !split?.length ? null : split.length === 1
       ? 'The note written as a list will become one item per line.'
-      : `The ${split.length} notes written as lists will become one item per line.`)
-    : null;
-  const el = h('div', { class: 'lm-offer', role: 'region', 'aria-label': 'This planet looks like a list' },
-    h('span', { class: 'lm-offer-icon', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
-    h('div', { class: 'lm-offer-text' },
-      h('p', { class: 'lm-offer-title' }, 'This planet looks like a list'),
-      h('ul', { class: 'lm-offer-signs' }, signs.map((s) => h('li', null, s))),
-      note),
-    h('div', { class: 'lm-offer-btns' }, decline, accept));
-  const close = async () => { await shrink(el); };
-  accept.addEventListener('click', async () => {
-    accept.disabled = decline.disabled = true;
-    accept.textContent = 'Making it a list…';
-    const ok = await onAccept();
-    if (ok === false) { accept.disabled = decline.disabled = false; accept.textContent = 'Make it a list'; return; }
-    close();
+      : `The ${split.length} notes written as lists will become one item per line.`,
+    accept: 'Make it a list',
+    busy: 'Making it a list…',
+    onAccept,
+    onDecline,
   });
-  decline.addEventListener('click', () => { close(); onDecline(); });
-  if (moving()) {
-    requestAnimationFrame(() => el.animate([{ opacity: 0, transform: 'translateY(-8px) scale(0.99)' }, { opacity: 1, transform: 'none' }],
-      { duration: 520, easing: EASE }));
-  }
-  return el;
 }
 
 // ------------------------------------------------------------ options

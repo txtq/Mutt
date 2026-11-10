@@ -9,6 +9,7 @@
 import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
+import { modeOffer } from './offers.js';
 import { openReader } from './reader.js';
 import { openContextMenu } from './ui.js';
 import { contextKey } from './uploads.js';
@@ -225,37 +226,17 @@ export class ShelfView {
 
 // Said once, quietly, in place: what we noticed, and the choice.
 export function readingOffer({ signs, pdfs, onAccept, onDecline }) {
-  const accept = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Make it a reading planet');
-  const decline = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Not now');
-  const note = h('p', { class: 'lm-offer-note' }, pdfs
-    ? 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes. PDFs can be turned into reading format when you open them.'
-    : 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes.');
-  const el = h('div', { class: 'lm-offer rp-offer', role: 'region', 'aria-label': 'This planet looks like a bookshelf' },
-    h('span', { class: 'rp-offer-icon', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
-    h('div', { class: 'lm-offer-text' },
-      h('p', { class: 'lm-offer-title' }, 'This planet looks like a bookshelf'),
-      h('ul', { class: 'lm-offer-signs' }, signs.map((s) => h('li', null, s))),
-      note),
-    h('div', { class: 'lm-offer-btns' }, decline, accept));
-  const close = async () => {
-    if (moving()) {
-      const height = el.getBoundingClientRect().height;
-      await el.animate([{ opacity: 1, height: `${height}px` }, { opacity: 0, height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px' }],
-        { duration: 320, easing: EASE, fill: 'forwards' }).finished.catch(() => {});
-    }
-    el.remove();
-  };
-  accept.addEventListener('click', async () => {
-    accept.disabled = decline.disabled = true;
-    accept.textContent = 'Making it a reading planet…';
-    const ok = await onAccept();
-    if (ok === false) { accept.disabled = decline.disabled = false; accept.textContent = 'Make it a reading planet'; return; }
-    close();
+  return modeOffer({
+    kind: 'rp-offer',
+    icon: 'rp-offer-icon',
+    title: 'This planet looks like a bookshelf',
+    signs,
+    note: pdfs
+      ? 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes. PDFs can be turned into reading format when you open them.'
+      : 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes.',
+    accept: 'Make it a reading planet',
+    busy: 'Making it a reading planet…',
+    onAccept,
+    onDecline,
   });
-  decline.addEventListener('click', () => { close(); onDecline(); });
-  if (moving()) {
-    requestAnimationFrame(() => el.animate([{ opacity: 0, transform: 'translateY(-8px) scale(0.99)' }, { opacity: 1, transform: 'none' }],
-      { duration: 520, easing: EASE }));
-  }
-  return el;
 }

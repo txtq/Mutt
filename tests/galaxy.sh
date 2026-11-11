@@ -1,5 +1,6 @@
 #!/bin/bash
 SP="$1"; B=localhost:8099
+. "$(dirname "$0")/lib.sh"
 J=(-H Content-Type:application/json -H X-Mutt:1)
 A=(-b "$SP/ga.txt" -c "$SP/ga.txt"); U=(-b "$SP/gb.txt" -c "$SP/gb.txt"); W=(-b "$SP/gc.txt" -c "$SP/gc.txt")
 rm -f "$SP/ga.txt" "$SP/gb.txt" "$SP/gc.txt"
@@ -30,6 +31,13 @@ echo "bo galaxies: $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], g['
 echo "bo's universe worlds of alma (private ones blurred, no files): $(curl -s "${U[@]}" $B/api/galaxies | j "[(w['locked'], w['private'], w['n']) for g in d['galaxies'] if g['username'] == 'alma' for w in g['worlds']]")"
 echo "bo reads: pub $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PUB) ppl $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PPL) pin $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PIN) priv $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PRIV)"
 echo "cy reads ppl: $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/drawers/$PPL)  blocks: pub $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/blocks/$NPUB) ppl $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/blocks/$NPPL) star $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api/blocks/$STAR)"
+rule "a visitor could open a private planet" "$(status "${U[@]}" $B/api/drawers/$PRIV)" 404
+rule "a visitor could read a file on a private planet" "$(status "${U[@]}" $B/api/blocks/$NPRIV)" 404
+rule "a Code planet opened without its code" "$(status "${U[@]}" $B/api/drawers/$PIN)" 403
+rule "someone not on a People planet's list could open it" "$(status "${W[@]}" $B/api/drawers/$PPL)" 404
+rule "a visitor could read someone's star" "$(status "${W[@]}" $B/api/blocks/$STAR)" 404
+rule "a private planet's name showed in a visitor's view of the galaxy" "$(curl -s "${U[@]}" $B/api/galaxy/alma | j "'Diary' in json.dumps(d)")" False
+rule "someone signed out could read a galaxy" "$(status $B/api/galaxy/alma)" 401
 echo "locked body: $(curl -s "${U[@]}" $B/api/drawers/$PIN | j "d.get('locked'), d.get('owner'), d['drawer']['title']")"
 LOGIN_CODE="{\"pin\":\"1357\",\"drawer\":\"$PIN\"}"; RIGHT_CODE="{\"pin\":\"4242\",\"drawer\":\"$PIN\"}"
 code() { curl -s -o /dev/null -w '%{http_code}' "${U[@]}" "${J[@]}" -X POST $B/api/galaxy/alma/unlock -d "$1"; }

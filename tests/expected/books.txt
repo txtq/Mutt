@@ -1,0 +1,32 @@
+epub upload: ({'title': 'The Harbour Light', 'author': 'Mara Ellison'}, True)
+pdf hints: (['copyright', 'isbn'], 60)
+offer: {'fits': True, 'signs': ['Everything on it is a book: 1 EPUB and 1 PDF that reads like a book.'], 'pdfs': 1}
+offer with a note: True ['2 of its 3 files are books: 1 EPUB and 1 PDF that reads like a book.']
+no books, no offer: False
+turn on: {'on': True, 'dismissed': False}
+bad setting: Those reading settings could not be saved.
+shelf: [('pdf', 'The Quiet Coast', 'June Alder', False, 0, True), ('epub', 'The Harbour Light', 'Mara Ellison', True, 0, True)]
+book: ('The Harbour Light', 'Mara Ellison', 9, ['Chapter 1', 'Chapter 2', 'Chapter 3'], 'OEBPS/text/ch1.xhtml', None, [])
+part: 200 text/plain; charset=utf-8
+picture: 200 image/png
+missing part: 404
+escape: 404
+progress: 3:1200 0.41
+recolour + note: blue lovely
+bookmark: bookmark
+bad colour: That colour doesn’t exist.
+reopen: 3:1200 [('highlight', 'blue'), ('bookmark', None)]
+shelf percent: [('The Quiet Coast', 0), ('The Harbour Light', 0.41)]
+pdf book: pdf False 60
+pdf text missing: 404
+save text: {'ok': True, 'chapters': 1}
+bad text: That book text could not be read.
+text back: {'t': 'p', 'x': 'Words.'}
+now converted: True
+private book to others: 200 200 200
+public: False None []
+visitor's own place: 1:5 / owner still 3:1200
+visitor can't convert: 404
+visitor can't touch owner's mark: 404
+delete book: True
+marks gone: 0 0

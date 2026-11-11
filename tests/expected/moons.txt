@@ -1,0 +1,31 @@
+moon made: Food True public False
+5th moon: A planet can have up to 4 moons.
+moon of moon: Moons can't have moons.
+community moon: Moons can only be added to by their owner.
+oto can't add moon to mira's: 404
+moon look io: io
+moon look lava (planet kind): That kind of moon does not exist.
+planet look io: That kind of planet does not exist.
+own galaxy: [('Japan trip', 1, [('Food', 1, 'io', False), ('Temples', 0, None, False), ('Trains', 0, None, False), ('Words', 0, None, False)])] [] {'files': 2, 'drawers': 1, 'stars': 0}
+drawers list: ['Japan trip']
+moon page: Food Japan trip ['ramen in Fukuoka'] False
+planet page moons: ['Food', 'Temples', 'Trains', 'Words'] ['Kyoto itinerary']
+oto sees: [('Japan trip', [('Food', False), ('Trains', True), ('Words', False)])]
+oto reads: public moon 200 private moon 404 pin moon 403 file 200
+universe: [(None, [{'id': '<id>', 'look': 'io'}, {'id': '<id>', 'look': None}, {'id': '<id>', 'look': None}])]
+planet made private, oto reads public moon: 404 file 404 galaxy 1
+layout with moon id: 404
+autosort never a moon: Japan trip None
+move file to moon: 200
+delete moon: {'ok': True, 'deletedBlocks': 0, 'movedBlocks': 2}
+planet after: ['Food', 'Trains', 'Words'] ['Kyoto itinerary', 'Nara deer', 'ramen in Fukuoka again, ramen']
+orphans of planet (planet + moons): 4
+delete planet: {'ok': True, 'deletedBlocks': 4}
+after: [] [] moon gone 404 file gone 404
+listify: True check
+existing moons after (empty one on, pictures one off): True dash None
+new moon is a list: True dash check
+its signs: True ['It’s a moon of “Shopping”, which is a list.']
+turn off: False still offered in menu: True
+pictures moon signs: False
+moon of a plain planet: {}

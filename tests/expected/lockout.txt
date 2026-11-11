@@ -1,0 +1,25 @@
+signup: 200
+device cookie: 1
+1.1.1.1 miss 1: {"error":"That username and code don't match."}
+1.1.1.1 miss 2: {"error":"That username and code don't match."}
+1.1.1.1 miss 3: {"error":"That username and code don't match.","<id>":2}
+1.1.1.1 miss 4: {"error":"That username and code don't match.","<id>":1}
+1.1.1.1 miss 5: {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
+1.1.1.1 miss 6: {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
+1.1.1.1 right code (expect 429): 429
+2.2.2.2 right code, new browser (expect 200): 200
+same IPv6 /64, 7th address (expect 429): {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
+after 40+ misses, new browser (expect 429): {"error":"Too many wrong codes. Try again in 24 hours.","retryAfter":86399}
+after 40+ misses, owner's browser (expect 200): 200
+owner's browser, wrong code (expect 401): 401
+x.html served as: <id>: text/plain; charset=utf-8 Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'
+x.svg served as: <id>: image/svg+xml Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'
+planet code miss 1: That code isn't right.
+planet code miss 2: That code isn't right.
+planet code miss 3: That code isn't right.
+planet code miss 4: That code isn't right.
+planet code miss 5: Too many wrong codes. Try again in 30 seconds.
+planet code miss 6: Too many wrong codes. Try again in 30 seconds.
+right planet code after misses (expect wait): Too many wrong codes. Try again in 30 seconds.
+other place, right planet code: ['<id>']
+sharer signs in from the guessing place (expect 200): 200

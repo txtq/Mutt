@@ -58,16 +58,24 @@ Suggested shape for the rest of the mechanism (not yet agreed with the user; ask
 
 ## Commands
 
-No dependencies, no build step, and no Node in this environment. The browser is the only JS syntax check.
+No dependencies, no build step, and no Node in this environment. The browser is the only JS syntax check (the browser paths below load every page, so they catch a script that won't parse).
 
 ```bash
 python3 server.py                                    # http://localhost:8080, data in ./data
 MUTT_DATA_DIR=/some/dir PORT=8123 python3 server.py   # separate data folder / port
-tests/run.sh                                         # all API suites, each on a fresh server (port 8099)
-tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout | search | autosort | moons | books | docs | cookbook | comments
+tests/run.sh                                         # every check; prints ~3 lines, details only for failures
 ```
 
-The suites are curl scripts that **print** what the API returned; nothing asserts. Read the output for wrong values, and `run.sh` dumps any server Traceback. Mutating requests need the `X-Mutt: 1` header (CSRF guard), as the scripts show.
+## Checks (run before going live)
+
+`tests/run.sh` is the one command: 11 API suites (~25 s), then 13 browser paths in a hidden browser (~70 s). It prints a pass/fail line for each and `ALL PASSED` or `FAILED`; only failures get detail. **Every session runs it before going live and doesn't deploy on a failure.** While working, run only what you touched: `tests/run.sh docs`, `tests/run.sh api`, `tests/run.sh browser undo`.
+
+- **API suites** (`tests/<name>.sh`: smoke, galaxy, preview, lockout, search, autosort, moons, books, docs, cookbook, comments) are curl scripts that print one `label: answer` line per check. The right answers are in `tests/expected/<name>.txt`; a different line fails. Ids and times are masked. Mutating requests need the `X-Mutt: 1` header.
+- **Browser paths** (`tests/browser.py`, the `PATHS` list) walk the site in a hidden browser against a made-up account (`seed`); nothing shows on screen. Each saves pictures to `tests/shots/latest` (not in git). Don't open the pictures unless the user asks about looks; `tests/run.sh browser --keep` saves a "before" set to compare by eye. The hidden browser (Chrome's headless shell) lives in `~/.cache/mutt-tests`, fetched once by `python3 tests/get_browser.py`; without it the paths fall back to Safari, whose window must be left alone. `MUTT_BROWSER=safari tests/run.sh browser` checks Safari on purpose (only when the user asks: it takes over a window).
+- **Adding a check for a new feature** (one or two, not more):
+  - Server: add an `echo "label: $(curl ...)"` line to the fitting suite, run `tests/run.sh -v <suite>`, read the new line, then `tests/run.sh --accept <suite>`. For a promise that must never break (privacy, sign-in) use `rule "what went wrong" "$got" "$should_be"` from `tests/lib.sh`.
+  - Browser: only if the feature adds a path people walk. Write `def my_path(s, seeded)` in `tests/browser.py` (get there, do the one thing, check one result, `s.shot('name')`), add it to `PATHS`; seed what it needs in `seed()` so it doesn't depend on another path.
+- **When a check fails**: the app is wrong unless you changed that behaviour on purpose. Only then `--accept`, after reading every changed line. Never accept to make a failure go away.
 
 ## Architecture
 

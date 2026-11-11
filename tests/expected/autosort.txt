@@ -1,0 +1,35 @@
+note 'Banana bread: 3 ripe bananas, 250g flour, 1 tsp baking soda. Bake 50 min.' -> Recipes
+note 'Osaka day: Dotonbori street food, Kuromon market' -> Japan trip
+note 'Agenda for Monday standup: blockers, sprint review, hiring' -> Work
+note '"Be yourself; everyone else is already taken." — Oscar Wilde' -> Quotes (new)
+note 'Buy milk, call the dentist, pick up dry cleaning' -> To do (new)
+file notes.txt -> Recipes  gist: 0
+file 2026-10-12.md -> Work  gist: 0
+file Untitled 3.txt -> Garden  gist: 0
+file packing.txt -> Japan trip  gist: 0
+file Document1.docx -> Japan trip  gist: 103
+file scan0042.pdf -> Recipes  gist: 76
+file letter.rtf -> Work  gist: 78
+star -> Garden
+search finds the word inside the PDF: ['scan0042']
+purpose: Recipes -> Cooking | role None | [['Recipes', 0.97]] [['cooking', 0.73]] | minutes, garlic, flour, bake
+purpose: Japan trip -> Planning a trip | role planning | [['Travel', 0.89]] [['trip planning', 1.0]] | osaka, kyoto, inari, fushimi
+purpose: Work -> Meetings | role None | [['Work', 0.82]] [['meetings', 0.45]] | hiring, roadmap, proposal, meeting
+purpose: Garden -> Gardening | role None | [['Nature', 0.82]] [['gardening', 0.91]] | tomatoes, feed, water, sungold
+note 'frost on the car
+I write your name in it
+and it stays
+all morning' -> Writing (new)
+note '8 Nov. Woke early and wrote for an hour. I felt calm.' -> Morning pages
+note 'Sea bass with lemon and capers: 2 fillets, 1 lemon, 1 tbsp capers. Pan fry 4 min each side.' -> Recipes
+someone else asking: That drawer does not exist.
+photo details: {'camera': 'SONY ILCE-7M3', 'device': 'camera', 'taken': 1791813791, 'gps': [35.0116, 135.7681]}
+file DSC_0413.jpg -> Kyoto  gist: 0
+file 02 Blue in Green.mp3 -> Records  gist: 0
+purpose: Kyoto -> Photos from Kyoto | contains [['photo', 1.0]] | cameras {'camera': 2} | music None
+purpose: Records -> Songs (jazz) | contains [['song', 1.0]] | cameras None | music {'artists': ['miles davis'], 'genres': ['jazz']}
+sorting a file that's already on a planet: None
+bad reading: That picture reading is not one Mutt understands.
+good reading, as the owner sees it: {'v': 1}
+pictures still to read: ['DSC_0413']
+someone else sees: {'media': {'device': 'camera'}}

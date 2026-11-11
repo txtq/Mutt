@@ -1,0 +1,43 @@
+one long note + short: {'fits': True, 'signs': ['One of its notes runs to 259 words, more than fits in a note.', 'It holds only text.'], 'long': 1, 'notes': 2, 'poems': 0}
+short notes: False
+named poems: True ['It’s called “Poems”, which sounds like writing.', 'Its one note is longer than a sentence or two.']
+turn on: {'on': True, 'dismissed': False}
+bad mode: Those document settings could not be saved.
+sort by name: {'on': True, 'dismissed': False, 'sort': 'name'}
+bad sort: Those document settings could not be saved.
+open (no doc yet): None prose a4 []
+poem reads: poem
+SCRIPT reads: script
+DIARY reads: journal
+LETTER reads: letter
+set as script: script
+bad kind: Those page settings could not be saved.
+desk kinds: ['journal', 'letter', 'script', 'script']
+save: Harbour # Harbour
+Hello **there** ok
+stored html: <h1 style="text-align: center">Harbour</h1><p>Hello <strong>there</strong> <a>bad</a> <a href="https://ex.com" target="_blank" rel="noopener noreferrer">ok</a></p><div class="pb"></div><ul class="check"><li data-done="">done</li></ul><ol class="roman"><li>one</li></ol><p class="sc-char">TOM</p><h2 class="dated">Monday</h2>
+versions after first save: [('', 5), ('As a note', 259)]
+settings: {'page': 'letter', 'margins': 'wide', 'font': 'serif', 'size': 14, 'spacing': 1.5, 'layout': 'auto', 'numbers': 'right', 'header': 'Draft', 'footer': '', 'view': 'pages'}
+bad settings: Those page settings could not be saved.
+html kept after settings: <h1 style="text-align: c
+edited as a note -> html dropped: None edited as a note
+name a version: ['First draft', '', 'As a note']
+a version: As a note None The harbour was quie
+picture: /api/docs/<id>/img/<id> 200 image/png
+bad picture: Pictures in a document can be PNG, JPEG, WebP or GIF.
+picture kept in html: <p>x</p><img src="/api/docs/<id>/img/<id>" alt="">
+new doc: text ' '
+desk: [(0, False, 0, False), (1, False, 0, False), (1, False, 0, True)]
+visitor opens: False <p>x</p>
+visitor saves: That file does not exist.
+visitor versions: That file does not exist.
+reply: [('friend', 'Lovely line', False), ('writer', 'Thanks', True)]
+owner can't change friend's words: Only who wrote a comment can change it.
+owner marks done: [True]
+desk counts open only: [0, 0, 0]
+empty comment: Write a comment first.
+friend deletes own: 0
+private -> visitor: That file does not exist.
+private -> picture: 404
+not text: link Only text files open as documents.
+delete note -> doc gone: True 404 404

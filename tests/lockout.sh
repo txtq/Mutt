@@ -29,7 +29,7 @@ done
 P=(-b "$SP/p.txt" -c "$SP/p.txt"); G=(-b "$SP/g.txt" -c "$SP/g.txt"); rm -f "$SP/p.txt" "$SP/g.txt"
 curl -s -o /dev/null "${P[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"sharer","pin":"5555"}'
 curl -s -o /dev/null "${G[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"guesser","pin":"6666"}'
-PL=$(curl -s "${P[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Shared"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['drawer']['id'])")
+PL=$(curl -s "${P[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Shared","visibility":"pin"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['drawer']['id'])")
 curl -s -o /dev/null "${P[@]}" "${J[@]}" -X PUT $B/api/drawers/$PL/code -d '{"code":"7070"}'
 guess() { curl -s "${G[@]}" "${J[@]}" -H "X-Forwarded-For: $1" -X POST $B/api/galaxy/sharer/unlock -d "{\"pin\":\"$2\",\"drawer\":\"$PL\"}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error') or d.get('opened'))"; }
 for i in 1 2 3 4 5 6; do echo "planet code miss $i: $(guess 5.5.5.5 0000)"; done

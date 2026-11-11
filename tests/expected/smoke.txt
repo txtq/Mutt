@@ -1,0 +1,13 @@
+signup: tester
+text: text
+upload: <id> code /f/<id>/a.py
+range: 206 5
+link: link Example Domain
+drawer has: ['code', 'text']
+no csrf header: 403
+spa route: 200
+{"error":"That username and code don't match."}
+{"error":"That username and code don't match."}
+{"error":"That username and code don't match.","<id>":2}
+{"error":"That username and code don't match.","<id>":1}
+right code while locked: 200

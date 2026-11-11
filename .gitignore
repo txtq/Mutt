@@ -8,3 +8,6 @@ secret.key
 *.db
 *.db-wal
 *.db-shm
+
+# Pictures from the browser checks (made fresh each run)
+tests/shots/

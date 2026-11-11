@@ -1,18 +1,7 @@
 #!/bin/bash
-# Runs API test suites against a fresh server on port 8099 with a throwaway
-# data folder. Usage: tests/run.sh [smoke|galaxy|preview|lockout|search|autosort|moons|books|docs|cookbook|comments ...]  (default: all)
-# MUTT_TRUST_PROXY lets the lockout suite pose as different IPs.
-# The suites print what the API answered; read the output for wrong values.
-cd "$(dirname "$0")/.." || exit 1
-SUITES=("$@"); [ ${#SUITES[@]} -eq 0 ] && SUITES=(smoke galaxy preview lockout search autosort moons books docs cookbook comments)
-for N in "${SUITES[@]}"; do
-  WORK=$(mktemp -d)
-  MUTT_SEE=0 MUTT_TRUST_PROXY=1 MUTT_DATA_DIR="$WORK/data" PORT=8099 python3 server.py > "$WORK/server.log" 2>&1 &
-  PID=$!
-  for i in $(seq 1 30); do curl -s -o /dev/null localhost:8099/api/health && break; sleep 0.2; done
-  echo "== $N"
-  bash "tests/$N.sh" "$WORK"
-  kill $PID 2>/dev/null; wait $PID 2>/dev/null
-  if grep -q Traceback "$WORK/server.log"; then echo "!! server errors:"; grep -A20 Traceback "$WORK/server.log"; fi
-  rm -rf "$WORK"
-done
+# One command for every check. Prints a few lines; details only for failures.
+#   tests/run.sh            everything (API suites, then the browser paths in Safari)
+#   tests/run.sh api        API suites only        tests/run.sh browser   browser only
+#   tests/run.sh galaxy     one suite              tests/run.sh -v galaxy  ...and print all it said
+#   tests/run.sh --accept galaxy   save its answers as the right ones (read the changes first)
+exec python3 "$(dirname "$0")/runner.py" "$@"

@@ -25,11 +25,24 @@ echo "sort by name: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d 
 echo "bad sort: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"documents":{"sort":"colour"}}}' | j "d['error']")"
 echo "open (no doc yet): $(curl -s "${C[@]}" $B/api/docs/$A | j "d['doc']['html'], d['doc']['reads'], d['doc']['settings']['page'], d['comments']")"
 echo "poem reads: $(curl -s "${C[@]}" $B/api/docs/$Q | j "d['doc']['reads']")"
+# Kinds of writing: a script, a journal and a letter are read as such; a kind can be set by hand.
+SCRIPT=$'INT. KITCHEN - NIGHT\nRain on the window.\nMARIA\nYou are late.\nEXT. GARDEN - DAY\nTom stands alone.'
+DIARY=$'Monday 3 March 2025\nWent to the sea. It was cold.\n\nTuesday 4 March 2025\nWork all day, tired.'
+LETTER=$'Dear Sam,\n\nThank you for the books. I loved them.\n\nLove,\nEd'
+for k in SCRIPT DIARY LETTER; do
+  X=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(note "${!k}" "$P")" | j "d['block']['id']")
+  echo "$k reads: $(curl -s "${C[@]}" $B/api/docs/$X | j "d['doc']['reads']")"
+done
+echo "set as script: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/docs/$Q -d '{"settings":{"layout":"script"}}' | j "d['doc']['settings']['layout']")"
+echo "bad kind: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/docs/$Q -d '{"settings":{"layout":"novel"}}' | j "d['error']")"
+echo "desk kinds: $(curl -s "${C[@]}" $B/api/drawers/$P/docs | j "sorted(x['kind'] or '-' for x in d['docs'])")"
+curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/docs/$Q -d '{"settings":{"layout":"auto"}}' >/dev/null
 python3 - "$SP" <<'PY'
 import json, sys
 html = ('<h1 style="text-align:center;position:fixed">Harbour</h1><p onclick="x">Hello <b>there</b><script>alert(1)</script> '
         '<a href="javascript:alert(1)">bad</a> <a href="https://ex.com">ok</a></p><img src="https://evil/x.png">'
-        '<div class="pb"></div><ul class="check"><li data-done>done</li></ul>')
+        '<div class="pb"></div><ul class="check"><li data-done>done</li></ul>'
+        '<ol class="roman evil"><li>one</li></ol><p class="sc-char x" data-hint="NAME">TOM</p><h2 class="dated">Monday</h2>')
 json.dump({'html': html, 'text': '# Harbour\n\nHello **there** ok', 'title': 'Harbour'}, open(sys.argv[1] + '/save.json', 'w'))
 PY
 echo "save: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/docs/$A --data-binary @"$SP/save.json" | j "d['block']['title'], d['block']['content'][:30]")"

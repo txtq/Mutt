@@ -11,7 +11,7 @@
 // lists, tables, pictures, links, page size and margins, header, footer and
 // page numbers.
 
-import { BLOCK_SCALE, MARGIN_PT, PAGE_SIZES, cleanCopy, readBlocks, toMarkdown, toPlain } from './docformat.js';
+import { BLOCK_SCALE, MARGIN_PT, PAGE_SIZES, SCRIPT_PLACE, cleanCopy, listMark, readBlocks, toMarkdown, toPlain } from './docformat.js';
 
 const PDF_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
 
@@ -141,7 +141,8 @@ export async function exportPdf(flow, { title, named, settings, author } = {}) {
   const CW = W - M * 2;
   const base = settings.size || 12;
   const spacing = settings.spacing || 1.15;
-  const docFont = settings.font || 'serif';
+  const script = flow.classList.contains('is-script');
+  const docFont = script ? 'type' : settings.font || 'serif';
   const ink = rgb(0.11, 0.1, 0.09);
   const grey = rgb(0.45, 0.44, 0.42);
   const copy = cleanCopy(flow);
@@ -257,9 +258,9 @@ export async function exportPdf(flow, { title, named, settings, author } = {}) {
   };
 
   // A block of text: wrapped, split across pages where it has to be.
-  const textBlock = async (runs, { size, font, b, i, align = 'left', indent = 0, width = CW, before = 0, after = 0, lineFactor = spacing, color = ink, marker = null, bar = false, shade = false, keep = false }) => {
+  const textBlock = async (runs, { size, font, b, i, align = 'left', indent = 0, right = 0, width = CW, before = 0, after = 0, lineFactor = spacing, color = ink, marker = null, bar = false, shade = false, keep = false }) => {
     const pieces = await piecesOf(runs.length ? runs : [{ text: '' }], size, font, { b, i });
-    const lines = linesOf(pieces, width - indent);
+    const lines = linesOf(pieces, width - indent - right);
     const lineHs = lines.map((l) => Math.max(size, ...l.items.map((p) => p.size)) * 1.2 * lineFactor);
     if (y > M + 0.5) y += before;
     ensure(keep ? lineHs.slice(0, 2).reduce((a, b2) => a + b2, 0) + size * 3 : lineHs[0]);
@@ -269,7 +270,7 @@ export async function exportPdf(flow, { title, named, settings, author } = {}) {
       if (shade) page.drawRectangle({ x: M - 4, y: H - y - lineHs[n], width: CW + 8, height: lineHs[n], color: rgb(0.95, 0.94, 0.92) });
       if (bar) page.drawRectangle({ x: M + indent - 14, y: H - y - lineHs[n], width: 2.2, height: lineHs[n], color: rgb(0.78, 0.76, 0.72) });
       if (n === 0 && marker) await marker(x0, y, lineHs[0]);
-      drawLine(lines[n], x0, width - indent, align, n === lines.length - 1, color, lineHs[n]);
+      drawLine(lines[n], x0, width - indent - right, align, n === lines.length - 1, color, lineHs[n]);
       y += lineHs[n];
     }
     y += after;
@@ -354,9 +355,10 @@ export async function exportPdf(flow, { title, named, settings, author } = {}) {
           }
         } else {
           const font = await faceOf(docFont, false, false);
-          const mark = bl.list.kind === 'ol' ? `${bl.list.index}.` : ['•', '–', '·'][bl.list.level % 3];
+          const counted = ['ol', 'alpha', 'roman'].includes(bl.list.kind);
+          const mark = counted ? listMark(bl.list.kind, bl.list.index) : bl.list.kind === 'dash' ? '–' : ['•', '–', '·'][bl.list.level % 3];
           const w = font.widthOfTextAtSize(mark, base);
-          page.drawText(mark, { x: bl.list.kind === 'ol' ? x0 - 5 - w : mx, y: H - top - (lh - base) / 2 - base * 0.8, size: base, font, color: ink });
+          page.drawText(mark, { x: counted ? x0 - 5 - w : mx, y: H - top - (lh - base) / 2 - base * 0.8, size: base, font, color: ink });
         }
       };
       const done = bl.list.kind === 'check' && bl.list.done;
@@ -366,6 +368,19 @@ export async function exportPdf(flow, { title, named, settings, author } = {}) {
     }
     if (bl.type === 'code') {
       await textBlock(bl.runs, { size, font: 'mono', after: base * 0.6, before: base * 0.3, lineFactor: 1.1, shade: true });
+      continue;
+    }
+    // A script's parts sit where a screenplay puts them, single spaced.
+    if (script && bl.script) {
+      const at = SCRIPT_PLACE[bl.script];
+      await textBlock(bl.runs, { size: base, font: docFont, b: bl.script === 'scene', align: at.align || bl.align, indent: CW * at.left, right: CW * at.right,
+        before: at.above * base * 1.2, after: 0, lineFactor: 1, keep: bl.script === 'scene' || bl.script === 'char' });
+      continue;
+    }
+    // A journal's entries open under their date, small and spaced out.
+    if (bl.entry) {
+      await textBlock(bl.runs.map((r) => ({ ...r, text: r.text.toUpperCase() })), { size: base * 0.85, font: docFont, b: true, align: bl.align,
+        before: base * 1.8, after: base * 0.6, lineFactor: 1.1, color: grey, keep: true });
       continue;
     }
     const heading = /^(h\d|title|subtitle)$/.test(bl.type);
@@ -423,7 +438,8 @@ const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/m
 export async function exportDocx(flow, { title, named, settings, author } = {}) {
   const base = settings.size || 12;
   const spacing = settings.spacing || 1.15;
-  const docFont = WORD_FONTS[settings.font] || 'Georgia';
+  const script = flow.classList.contains('is-script');
+  const docFont = WORD_FONTS[script ? 'type' : settings.font] || 'Georgia';
   const [Wpt, Hpt] = PAGE_SIZES[settings.page] || PAGE_SIZES.a4;
   const M = MARGIN_PT[settings.margins] || 72;
   const contentEmu = (Wpt - M * 2) * 12700;
@@ -469,7 +485,6 @@ export async function exportDocx(flow, { title, named, settings, author } = {}) 
   };
   const jc = (align) => (align && align !== 'left' ? `<w:jc w:val="${align === 'justify' ? 'both' : align}"/>` : '');
 
-  let olCount = 0;
   const nums = [];
   let lastGroup = null;
   const body = [];
@@ -512,13 +527,23 @@ export async function exportDocx(flow, { title, named, settings, author } = {}) 
         body.push(`<w:p><w:pPr><w:spacing w:after="60"/><w:ind w:left="${360 + level * 360}" w:hanging="360"/>${jc(bl.align)}</w:pPr>${runXml({ text: done ? '☒\t' : '☐\t' })}${runsXml(bl.runs, done ? { s: true, color: [0.5, 0.49, 0.47] } : {})}</w:p>`);
         continue;
       }
-      let numId = 1;
-      if (kind === 'ol') {
-        if (lastGroup !== group) { olCount++; nums.push(olCount); }
-        numId = olCount + 1;
+      let numId = kind === 'dash' ? 2 : 1;
+      if (kind === 'ol' || kind === 'alpha' || kind === 'roman') {
+        if (lastGroup !== group || !nums.length) nums.push({ id: nums.length + 3, abs: { ol: 1, alpha: 2, roman: 3 }[kind] });
+        numId = nums[nums.length - 1].id;
       }
       lastGroup = group;
       body.push(`<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="${Math.min(level, 8)}"/><w:numId w:val="${numId}"/></w:numPr>${jc(bl.align)}</w:pPr>${runsXml(bl.runs)}</w:p>`);
+      continue;
+    }
+    if (script && bl.script) {
+      const at = SCRIPT_PLACE[bl.script];
+      const tw = (Wpt - M * 2) * 20;
+      body.push(`<w:p><w:pPr><w:spacing w:before="${Math.round(at.above * base * 20)}" w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:left="${Math.round(tw * at.left)}" w:right="${Math.round(tw * at.right)}"/>${jc(at.align || bl.align)}${bl.script === 'scene' || bl.script === 'char' ? '<w:keepNext/>' : ''}</w:pPr>${runsXml(bl.runs, bl.script === 'scene' ? { b: true } : undefined)}</w:p>`);
+      continue;
+    }
+    if (bl.entry) {
+      body.push(`<w:p><w:pPr><w:keepNext/><w:spacing w:before="${Math.round(base * 34)}" w:after="${Math.round(base * 10)}"/>${jc(bl.align)}</w:pPr>${runsXml(bl.runs.map((r) => ({ ...r, text: r.text.toUpperCase() })), { b: true, color: [0.45, 0.44, 0.42] })}</w:p>`);
       continue;
     }
     const heading = /^(h\d|title|subtitle)$/.test(bl.type);
@@ -566,8 +591,10 @@ ${[1, 2, 3, 4].map((n) => `<w:style w:type="paragraph" w:styleId="Heading${n}"><
 
   const level = (n, fmt, text) => `<w:lvl w:ilvl="${n}"><w:start w:val="1"/><w:numFmt w:val="${fmt}"/><w:lvlText w:val="${text}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${720 + n * 360}" w:hanging="360"/></w:pPr>${fmt === 'bullet' ? '<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/></w:rPr>' : ''}</w:lvl>`;
   const bullets = Array.from({ length: 9 }, (_, n) => level(n, 'bullet', ['•', '–', '▪'][n % 3])).join('');
-  const decimals = Array.from({ length: 9 }, (_, n) => level(n, ['decimal', 'lowerLetter', 'lowerRoman'][n % 3], `%${n + 1}.`)).join('');
-  const numberingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ${W_NS}><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>${bullets}</w:abstractNum><w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>${decimals}</w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>${nums.map((n) => `<w:num w:numId="${n + 1}"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>`).join('')}</w:numbering>`;
+  const counted = (fmts) => Array.from({ length: 9 }, (_, n) => level(n, fmts[n % 3], `%${n + 1}.`)).join('');
+  const dashes = Array.from({ length: 9 }, (_, n) => level(n, 'bullet', ['–', '•', '▪'][n % 3])).join('');
+  const abstract = (id, lvls) => `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="hybridMultilevel"/>${lvls}</w:abstractNum>`;
+  const numberingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ${W_NS}>${abstract(0, bullets)}${abstract(1, counted(['decimal', 'lowerLetter', 'lowerRoman']))}${abstract(2, counted(['lowerLetter', 'lowerRoman', 'decimal']))}${abstract(3, counted(['lowerRoman', 'decimal', 'lowerLetter']))}${abstract(4, dashes)}<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="4"/></w:num>${nums.map((n) => `<w:num w:numId="${n.id}"><w:abstractNumId w:val="${n.abs}"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>`).join('')}</w:numbering>`;
 
   const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>${rels.join('')}</Relationships>`;
   const settingsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings ${W_NS}><w:defaultTabStop w:val="720"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`;

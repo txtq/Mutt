@@ -2610,7 +2610,7 @@ def drawer_docs(req, drawer_id):
         settings = documents.settings_of(r['settings'])
         fresh = r['synced_at'] is not None and r['synced_at'] >= r['updated_at'] - 0.001 and r['html']
         layout = settings['layout'] if settings['layout'] != 'auto' else documents.reads_as(r['content'])
-        out.append({'id': r['id'], 'words': documents.word_count(r['content']), 'poem': layout == 'poem',
+        out.append({'id': r['id'], 'words': documents.word_count(r['content']), 'poem': layout == 'poem', 'kind': layout,
                     'font': settings['font'], 'comments': r['open'], 'html': doc_preview(r['html']) if fresh else None,
                     'editedAt': ms(r['updated_at'])})
     return json_response({'docs': out})

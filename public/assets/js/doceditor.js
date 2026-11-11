@@ -15,7 +15,11 @@
 // the clean HTML and where the caret was) instead of the browser's.
 
 import { api, sendFile, session } from './api.js';
-import { MARGIN_PT, PAGE_SIZES, cleanCopy, cleanHtml, escapeHtml, fromMarkdown, looksLikePoem, toMarkdown } from './docformat.js';
+import { MARGIN_PT, PAGE_SIZES, cleanCopy, cleanHtml, escapeHtml, fromMarkdown, toMarkdown } from './docformat.js';
+import {
+  ELEMENTS, KINDS, SIGNOFFS, castOf, dayOf, elementOf, formOf, isDateLine, isScene, isSignoff, isTransition, letterDate, longDate,
+  markEntries, poemLines, readsAs, rhymeScheme, setElement, stillReads, syllables, toScript, today,
+} from './docwriting.js';
 import { docTitle } from './docs.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
@@ -71,14 +75,69 @@ const ICONS = {
   pagebreak: svg('<path d="M6 3.5v5h12v-5M6 20.5v-5h12v5M3.5 12h2M8 12h2.5M13.5 12H16M18.5 12h2"/>'),
   code: svg('<path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/>'),
   page: svg('<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/>'),
+  dash: svg('<path d="M3.5 7h3.5M3.5 12h3.5M3.5 17h3.5"/><path d="M10 7h10M10 12h10M10 17h10"/>'),
+  alpha: svg('<g fill="currentColor" stroke="none" font-family="Red Hat Text, sans-serif" font-size="6.6" font-weight="600"><text x="2.6" y="9">a</text><text x="2.6" y="14.3">b</text><text x="2.8" y="19.6">c</text></g><path d="M10 7h10M10 12h10M10 17h10"/>'),
+  roman: svg('<g fill="currentColor" stroke="none" font-family="Georgia, serif" font-size="6.6"><text x="3.6" y="9">i</text><text x="2.6" y="14.3">ii</text><text x="1.6" y="19.6">iii</text></g><path d="M10 7h10M10 12h10M10 17h10"/>'),
+  auto: svg('<circle cx="12" cy="12" r="8.2"/><path d="M8.9 15.6L12 8.2l3.1 7.4M10 13.2h4"/>'),
+  prose: svg('<path d="M5 6.5h14M5 10.5h14M5 14.5h14M5 18.5h8.5"/>'),
+  poem: svg('<path d="M19.5 4C12 5 8 10 7 17.5L5.5 20"/><path d="M8.6 13.6c4.4.2 7.6-2.6 9.2-7.4"/><path d="M11 10.6c2.2-.1 3.9-1 5.3-2.6"/>'),
+  script: svg('<rect x="3.5" y="9.5" width="17" height="10" rx="1.6"/><path d="M3.8 9.4l1.4-4.6 14.6 3.6"/><path d="M8.8 5.7l1.6 3.6M14 7l1.6 2.4"/>'),
+  journal: svg('<path d="M6.5 3.5h11a1 1 0 0 1 1 1v16h-11a2 2 0 0 1-2-2v-14a1 1 0 0 1 1-1z"/><path d="M5.5 17.5a2 2 0 0 1 2-1.5h11"/><path d="M13.5 3.5v6l-1.6-1.2-1.6 1.2v-6"/>'),
+  letter: svg('<rect x="3.5" y="6" width="17" height="12.5" rx="1.6"/><path d="M4.2 7l7.8 6.2L19.8 7"/>'),
+  scene: svg('<path d="M4 7h16M4 12h11M4 17h13"/>'),
+  sign: svg('<path d="M4 17c2.5-6 4.5-9 6-9 2.2 0-1.8 8.5.6 8.5 1.6 0 2.6-4 4-4 1 0 .8 2.5 2 2.5 1 0 1.6-1 2.4-2"/><path d="M4 20.5h16"/>'),
+  date: svg('<rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>'),
 };
 const icon = (name) => h('span', { class: 'de-ic', html: ICONS[name] });
+
+// A menu whose rows can carry an icon, a line saying what they are, and a tick.
+function richMenu(anchor, rows, { label = '', className = '', align = 'start' } = {}) {
+  let pop;
+  const list = h('div', { class: 'menu de-rich', role: 'menu', 'aria-label': label || null },
+    label ? h('p', { class: 'de-rich-label' }, label) : null,
+    rows.filter(Boolean).map((r) => (r === '-' ? h('div', { class: 'menu-sep' }) : h('button', {
+      type: 'button', role: 'menuitemradio', 'aria-checked': String(!!r.on),
+      class: `menu-item de-rich-item${r.on ? ' is-on' : ''}`,
+      onclick: () => { pop.close(); r.run(); },
+    }, r.icon ? icon(r.icon) : null,
+    h('span', { class: 'de-rich-text' }, h('span', { class: 'de-rich-name' }, r.label), r.note ? h('span', { class: 'de-rich-note' }, r.note) : null),
+    r.hint ? h('span', { class: 'menu-hint' }, r.hint) : null))));
+  list.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
+  pop = openPopover(anchor, list, { className: `de-menu ${className}`, align });
+  return pop;
+}
 
 const FONT_LABELS = { serif: 'Serif', sans: 'Sans', mono: 'Mono', type: 'Typewriter' };
 const STYLE_LABELS = { p: 'Normal text', title: 'Title', subtitle: 'Subtitle', h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', quote: 'Quote', pre: 'Code' };
 const INKS = ['#1d1b18', '#5c5852', '#9a948a', '#b3261e', '#c45a16', '#9a6b00', '#2e7d32', '#00796b', '#1f5fbf', '#5b3cc4', '#8e2a72'];
 const MARKS = ['#fff1a8', '#d7f5c3', '#cfe6ff', '#ffd6e5', '#e6dbff', '#ffe0c2'];
 const SIZES = [9, 10, 11, 12, 14, 16, 18, 20, 24];
+
+// The kinds of list, all behind one button.
+const LISTS = {
+  ul: { label: 'Bulleted', icon: 'bullets', tag: 'UL', cls: '', hint: '⇧⌘8' },
+  dash: { label: 'Dashes', icon: 'dash', tag: 'UL', cls: 'dash' },
+  ol: { label: 'Numbered', icon: 'numbers', tag: 'OL', cls: '', hint: '⇧⌘7' },
+  alpha: { label: 'Lettered', icon: 'alpha', tag: 'OL', cls: 'alpha' },
+  roman: { label: 'Roman numerals', icon: 'roman', tag: 'OL', cls: 'roman' },
+  check: { label: 'Checklist', icon: 'check', tag: 'UL', cls: 'check', hint: '⇧⌘9' },
+};
+const LIST_CLASSES = ['check', 'dash', 'alpha', 'roman'];
+const listKindOf = (list) => {
+  if (!list) return null;
+  if (list.tagName === 'OL') return list.classList.contains('alpha') ? 'alpha' : list.classList.contains('roman') ? 'roman' : 'ol';
+  return list.classList.contains('check') ? 'check' : list.classList.contains('dash') ? 'dash' : 'ul';
+};
+
+// A poem's helpers in the margin (syllables, rhymes, line numbers), kept per device.
+const AIDS_KEY = 'mutt:docs-poem';
+const RHYME_INKS = 6;
+function readAids() {
+  try { return { syllables: false, rhymes: false, lines: false, ...JSON.parse(localStorage.getItem(AIDS_KEY) || '{}') }; } catch { return { syllables: false, rhymes: false, lines: false }; }
+}
+function saveAids(aids) {
+  try { localStorage.setItem(AIDS_KEY, JSON.stringify(aids)); } catch { /* fine */ }
+}
 
 let fontsAsked = false;
 function loadFonts() {
@@ -183,6 +242,28 @@ function textIndex(root) {
 
 const words = (text) => (text.match(/\S+/g) || []).length;
 
+// Within a range of text, a way to make a smaller range by character offsets.
+function textIndexOfRange(range) {
+  const nodes = [];
+  let at = 0;
+  const root = range.commonAncestorContainer.nodeType === 3 ? range.commonAncestorContainer.parentNode : range.commonAncestorContainer;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!range.intersectsNode(n) || n.parentElement.closest('.de-gap')) continue;
+    const from = n === range.startContainer ? range.startOffset : 0;
+    const to = n === range.endContainer ? range.endOffset : n.length;
+    nodes.push({ n, from, to, start: at });
+    at += to - from;
+  }
+  if (!nodes.length) return null;
+  const point = (i) => {
+    for (const x of nodes) if (i <= x.start + (x.to - x.from)) return [x.n, x.from + i - x.start];
+    const last = nodes[nodes.length - 1];
+    return [last.n, last.to];
+  };
+  return (a, b) => { const r = document.createRange(); r.setStart(...point(a)); r.setEnd(...point(b)); return r; };
+}
+
 // ------------------------------------------------------------ the editor
 
 let openOne = null;
@@ -219,6 +300,9 @@ class DocEditor {
     this.layoutSoon = debounce(() => this.layout(), 70);
     this.recordSoon = debounce(() => this.record(), 650);
     this.marksSoon = debounce(() => this.paintMarks(), 120);
+    this.aidsSoon = debounce(() => this.drawAids(), 140);
+    this.kindSoon = debounce(() => this.checkKind(), 700);
+    this.aids = readAids();
   }
 
   // -------------------------------------------------------- building
@@ -253,7 +337,8 @@ class DocEditor {
     this.tools = h('div', { class: 'de-tools fglass', role: 'toolbar', 'aria-label': 'Formatting' });
     this.flow = h('div', { class: 'de-flow', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Document' });
     this.sheets = h('div', { class: 'de-sheets', 'aria-hidden': 'true' });
-    this.stack = h('div', { class: 'de-stack' }, this.sheets, this.flow);
+    this.aidsLayer = h('div', { class: 'de-aids', 'aria-hidden': 'true' });
+    this.stack = h('div', { class: 'de-stack' }, this.sheets, this.flow, this.aidsLayer);
     this.rail = h('div', { class: 'de-rail', 'aria-label': 'Comments' });
     this.canvas = h('div', { class: 'de-canvas' }, this.stack, this.rail);
     this.desk = h('div', { class: 'de-desk' }, this.canvas);
@@ -311,6 +396,8 @@ class DocEditor {
       this.flow.contentEditable = this.mine ? 'true' : 'false';
       this.el.classList.toggle('is-reading-only', !this.mine);
       this.historyBtn.hidden = !this.mine;
+      this.kind = this.kindNow();
+      this.shape(this.kind);
       this.buildTools();
       this.applySettings();
       this.renderSide();
@@ -342,39 +429,109 @@ class DocEditor {
 
   buildTools() {
     if (!this.mine) { this.tools.hidden = true; return; }
+    const kind = this.kind;
+    this.toolsKind = kind;
     const b = this.btn;
     const sep = () => h('span', { class: 'de-sep' });
-    const pick = (cls, label, run) => {
-      const el = h('button', { type: 'button', class: `de-pick ${cls}`, title: label, 'aria-label': label, 'aria-haspopup': 'menu' });
+    const pick = (cls, label, run, ...kids) => {
+      const el = h('button', { type: 'button', class: `de-pick ${cls}`, title: label, 'aria-label': label, 'aria-haspopup': 'menu' }, ...kids);
       el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
       el.addEventListener('click', () => run(el));
       return el;
     };
-    this.styleBtn = pick('de-pick-style', 'Text style', (el) => this.styleMenu(el));
+    this.pick = pick;
+    // What it's being written as, first: the rest of the toolbar follows from it.
+    this.kindBtn = pick('de-pick-kind', 'Writing as', (el) => this.kindMenu(el));
+    this.paintKindBtn();
+    // A script is written in its parts (scene, character, dialogue…), not in text styles.
+    this.styleBtn = kind === 'script' ? null : pick('de-pick-style', 'Text style', (el) => this.styleMenu(el));
+    this.elementBtn = kind === 'script' ? pick('de-pick-style de-pick-element', 'Part of the script (Tab changes it)', (el) => this.elementMenu(el)) : null;
     this.toggles = {
       bold: b('bold', 'Bold (⌘B)', () => this.exec('bold')),
       italic: b('italic', 'Italic (⌘I)', () => this.exec('italic')),
       underline: b('underline', 'Underline (⌘U)', () => this.exec('underline')),
     };
+    // Lists are one button; a poem and a script don't need them.
+    this.listBtn = kind === 'poem' || kind === 'script' ? null
+      : pick('de-pick-list', 'Lists', (el) => this.listMenu(el), h('span', { class: 'de-list-ic' }, icon('bullets')));
     this.typeBtn = b('type', 'Type, colour and spacing', (e, el) => this.typePanel(el), { 'aria-haspopup': 'dialog' });
     this.contextTools = h('span', { class: 'de-context' });
+    const own = this.kindTools(kind);
     // Only what's reached for all the time. Typeface, size, colour, alignment
     // and spacing are one panel (Aa); links and comments come up beside the
     // words you select; a table's or a picture's tools show while you're in one.
-    this.tools.append(
+    this.tools.replaceChildren(...[
       b('undo', 'Undo (⌘Z)', () => this.undo()), b('redo', 'Redo (⇧⌘Z)', () => this.redo()), sep(),
-      this.styleBtn, sep(),
+      this.kindBtn, sep(),
+      this.styleBtn || this.elementBtn, sep(),
       ...Object.values(this.toggles), sep(),
-      b('bullets', 'Bulleted list', () => this.list('ul')), b('numbers', 'Numbered list', () => this.list('ol')), b('check', 'Checklist', () => this.list('check')), sep(),
+      this.listBtn, ...own, this.listBtn || own.length ? sep() : null,
       b('plus', 'Insert (or type / on an empty line)', (e, el) => this.insertMenu(el)), this.typeBtn,
-      this.contextTools);
+      this.contextTools].filter(Boolean));
+    this.syncTools();
+  }
+
+  // The tools that only this kind of writing has.
+  kindTools(kind) {
+    const word = (label, title, run, extra = {}) => {
+      const el = h('button', { type: 'button', class: 'de-word', title, ...extra }, label);
+      el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
+      el.addEventListener('click', () => run(el));
+      return el;
+    };
+    this.aidBtns = null;
+    this.entryBtn = null;
+    if (kind === 'poem') {
+      const aid = (key, label, title) => word(label, title, (el) => {
+        this.aids = { ...this.aids, [key]: !this.aids[key] };
+        saveAids(this.aids);
+        el.classList.toggle('is-on', this.aids[key]);
+        el.setAttribute('aria-pressed', String(this.aids[key]));
+        this.drawAids();
+      }, { class: `de-word de-aid${this.aids[key] ? ' is-on' : ''}`, 'aria-pressed': String(!!this.aids[key]) });
+      this.aidBtns = [
+        aid('syllables', 'Syllables', 'Count the syllables in each line'),
+        aid('rhymes', 'Rhymes', 'Show which lines rhyme (A, B, A, B…)'),
+        aid('lines', 'Line numbers', 'Number every fifth line'),
+      ];
+      return this.aidBtns;
+    }
+    if (kind === 'journal') {
+      this.entryBtn = word('New entry', 'Start today’s entry', () => this.newEntry(), { class: 'de-word de-word-ic' });
+      this.entryBtn.prepend(icon('date'));
+      this.paintEntryBtn();
+      return [this.entryBtn];
+    }
+    if (kind === 'letter') {
+      const date = word('Date', 'Put today’s date at the top', () => this.dateLetter(), { class: 'de-word de-word-ic' });
+      date.prepend(icon('date'));
+      const sign = this.pick('de-pick-sign', 'Sign it off', (el) => this.signMenu(el), icon('sign'), h('span', null, 'Sign-off'));
+      return [date, sign];
+    }
+    return [];
+  }
+
+  paintKindBtn() {
+    if (!this.kindBtn) return;
+    const auto = this.settings?.layout === 'auto';
+    this.kindBtn.replaceChildren(...[icon(this.kind || 'prose'), h('span', { class: 'de-kind-name' }, KINDS[this.kind]?.label || 'Prose'),
+      auto ? h('span', { class: 'de-kind-auto' }, 'Auto') : null].filter(Boolean));
+    this.kindBtn.title = auto ? `Writing as ${KINDS[this.kind]?.label || 'Prose'} (read from what you write)` : `Writing as ${KINDS[this.kind]?.label || 'Prose'}`;
   }
 
   // What the toolbar shows for where the caret is.
   syncTools() {
-    if (!this.mine || !this.styleBtn) return;
+    if (!this.mine || !this.toggles) return;
     const block = this.blockAtCaret();
-    this.styleBtn.textContent = STYLE_LABELS[this.styleOf(block)] || 'Normal text';
+    if (this.styleBtn) this.styleBtn.textContent = STYLE_LABELS[this.styleOf(block)] || 'Normal text';
+    if (this.elementBtn) this.elementBtn.textContent = ELEMENTS[elementOf(block)].label;
+    if (this.listBtn) {
+      const kind = listKindOf(block?.closest?.('ul, ol'));
+      const want = LISTS[kind || 'ul'].icon;
+      if (this.listBtn.dataset.icon !== want) { this.listBtn.dataset.icon = want; this.listBtn.firstChild.replaceChildren(icon(want)); }
+      this.listBtn.classList.toggle('is-on', !!kind);
+    }
+    this.hintAt(block);
     const sel = getSelection();
     const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
     for (const [cmd, el] of Object.entries(this.toggles)) el.classList.toggle('is-on', this.state(cmd));
@@ -436,14 +593,140 @@ class DocEditor {
 
   applySettings() {
     const s = this.settings;
-    const poem = s.layout === 'poem' || (s.layout === 'auto' && (this.doc.reads === 'poem' || (!this.doc.reads && looksLikePoem(this.flow))));
-    this.flow.classList.toggle('is-poem', poem);
+    const was = this.kind;
+    const kind = this.kindNow();
+    this.kind = kind;
+    for (const k of Object.keys(KINDS)) this.flow.classList.toggle(`is-${k}`, kind === k);
+    this.el.dataset.kind = kind;
+    const poem = kind === 'poem';
     this.nameOnPage();
     this.flow.dataset.font = s.font;
     this.flow.style.setProperty('--de-size', `${s.size * PX}px`);
-    this.flow.style.setProperty('--de-lh', String(poem ? Math.max(1.5, s.spacing * 1.25) : s.spacing * 1.25));
+    this.flow.style.setProperty('--de-lh', String(poem ? Math.max(1.5, s.spacing * 1.25) : kind === 'script' ? 1.2 : s.spacing * 1.25));
     this.el.dataset.view = s.view;
+    if (this.toolsKind && this.toolsKind !== kind) this.retool();
+    else this.paintKindBtn();
     this.layout();
+    if (was && was !== kind) this.renderOutline();
+  }
+
+  // -------------------------------------------------------- kinds of writing
+
+  // What it's written as: picked by hand, or read from the words (Auto).
+  kindNow() {
+    const l = this.settings.layout;
+    if (KINDS[l]) return l;
+    if (!this.autoKind) this.autoKind = (KINDS[this.doc.reads] && this.doc.reads) || readsAs(this.flow) || 'prose';
+    return this.autoKind;
+  }
+
+  // The toolbar changes with the kind: the old tools fade, the new ones arrive.
+  retool() {
+    this.buildTools();
+    if (!moving()) return;
+    [...this.tools.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 320, delay: Math.min(n, 14) * 16, easing: EASE, fill: 'backwards' }));
+  }
+
+  // Left on Auto, it's read again as you write. It takes clearer signs to
+  // become a kind than to stay one, so it doesn't flick back and forth.
+  checkKind() {
+    if (!this.flow?.isConnected || !this.settings) return;
+    const kind = this.kind;
+    if (kind === 'journal' && this.mine) this.shape('journal');
+    if (this.settings.layout !== 'auto') return;
+    const now = readsAs(this.flow) || 'prose';
+    let next = kind;
+    if (now !== 'prose' && now !== kind && (kind === 'prose' || !stillReads(kind, this.flow))) next = now;
+    else if (now === 'prose' && kind !== 'prose' && !stillReads(kind, this.flow)) next = 'prose';
+    this.doc.reads = null;
+    if (next === kind) return;
+    this.autoKind = next;
+    this.shape(next);
+    this.applySettings();
+    this.tell(next === 'prose' ? 'Set as prose again' : `This reads as ${KINDS[next].a}, so it’s set as one`);
+  }
+
+  // Say once, quietly, what changed, and let the kind button catch the eye.
+  tell(text) {
+    this.toldUntil = Date.now() + 5000;
+    this.setStatus(text, { told: true });
+    clearTimeout(this.toldLater);
+    this.toldLater = setTimeout(() => { if (this.status.textContent === text) this.setStatus(this.dirty ? 'Editing…' : 'Saved', { told: true }); }, 5200);
+    if (this.kindBtn && moving()) {
+      this.kindBtn.animate([{ backgroundColor: 'rgba(200, 215, 255, 0.26)' }, { backgroundColor: 'rgba(200, 215, 255, 0)' }], { duration: 1600, easing: 'ease-out' });
+    }
+  }
+
+  // Shape the words for a kind: a script's lines become its parts, a
+  // journal's date lines head its entries, a new letter gets its frame.
+  shape(kind, { chosen = false } = {}) {
+    const empty = !this.flow.textContent.replace(/[\u200b\s]/g, '');
+    const keep = this.mine && this.flow.contains(getSelection().anchorNode) ? this.caret() : null;
+    const done = () => {
+      if (keep) this.placeCaret(keep.start, keep.end);
+      if (this.mine && this.settled) this.changed({ now: true });
+    };
+    if (kind === 'script' && !this.flow.querySelector(':scope > [class*="sc-"]')) {
+      if (this.settled) this.record();
+      toScript(this.flow);
+      done();
+      if (empty && this.mine) this.placeCaret(0);
+    } else if (kind === 'journal') {
+      const caretBlock = this.settled ? this.topBlockAtCaret() : null;
+      const was = caretBlock?.textContent;
+      // The line being written isn't turned into a date heading under the caret.
+      if (caretBlock) caretBlock.dataset.keep = '';
+      const changed = markEntries(this.flow);
+      if (caretBlock) delete caretBlock.dataset.keep;
+      void was;
+      if (changed) { if (this.settled) this.record(); done(); }
+      if (chosen && this.mine && !this.flow.querySelector(':scope > h2.dated')) this.newEntry();
+    } else if (kind === 'letter' && chosen && empty && this.mine) {
+      this.record();
+      const date = h('p', { style: { 'text-align': 'right' } }, letterDate());
+      const dear = h('p', null, 'Dear ');
+      this.flow.replaceChildren(date, h('p', null, h('br')), dear);
+      const r = document.createRange();
+      r.selectNodeContents(dear);
+      r.collapse(false);
+      getSelection().removeAllRanges();
+      getSelection().addRange(r);
+      this.range = r.cloneRange();
+      this.changed({ now: true });
+    }
+  }
+
+  topBlockAtCaret() {
+    const sel = getSelection();
+    let el = sel.anchorNode;
+    if (!el || !this.flow.contains(el)) return null;
+    if (el.nodeType === 3) el = el.parentNode;
+    while (el && el.parentNode !== this.flow) el = el.parentNode;
+    return el;
+  }
+
+  kindMenu(anchor) {
+    const auto = this.settings.layout === 'auto';
+    richMenu(anchor, [
+      { icon: 'auto', label: 'Auto', note: `Follows what you write · now ${KINDS[this.kind].label.toLowerCase()}`, on: auto, run: () => this.chooseKind('auto') },
+      '-',
+      ...Object.entries(KINDS).map(([k, v]) => ({ icon: k, label: v.label, note: v.blurb, on: !auto && this.kind === k, run: () => this.chooseKind(k) })),
+    ], { label: 'Writing as', className: 'de-kinds' });
+  }
+
+  async chooseKind(layout) {
+    const target = KINDS[layout] ? layout : (readsAs(this.flow) || 'prose');
+    const from = this.kind;
+    const patch = { layout };
+    // A script is typed on a typewriter, single spaced; leaving it puts that back.
+    if (target === 'script' && from !== 'script' && layout !== 'auto') Object.assign(patch, { font: 'type', size: 12, spacing: 1 });
+    if (from === 'script' && target !== 'script' && this.settings.font === 'type' && this.settings.spacing === 1) Object.assign(patch, { font: 'serif', spacing: 1.15 });
+    this.autoKind = KINDS[layout] ? null : target;
+    if (this.mine) this.shape(target, { chosen: true });
+    await this.setSettings(patch);
+    if (target !== from) this.tell(layout === 'auto' ? `Auto: it reads as ${KINDS[target].label.toLowerCase()}` : `Set as ${KINDS[target].a}`);
+    else this.paintKindBtn();
   }
 
   dims() {
@@ -488,6 +771,7 @@ class DocEditor {
     this.updateCount();
     this.renderOutline();
     this.marksSoon();
+    this.aidsSoon();
   }
 
   // A poem sits as one block in the middle of the page, its lines as written.
@@ -501,6 +785,78 @@ class DocEditor {
     this.flow.classList.remove('is-measuring');
     const inner = d.W - d.mx * 2;
     this.flow.style.setProperty('--poem-in', `${Math.max(0, Math.min(inner * 0.4, (inner - longest) / 2))}px`);
+  }
+
+  // A poem's helpers in the margin: each line's syllables and the letter of
+  // its rhyme on the right (rhyming ends underlined in the same colour),
+  // every fifth line numbered on the left. The form's name, when it has a
+  // well-known one, goes in the word count.
+  drawAids() {
+    const layer = this.aidsLayer;
+    if (!layer) return;
+    CSS.highlights?.forEach((v, k) => { if (k.startsWith('de-rh-')) CSS.highlights.delete(k); });
+    if (this.kind !== 'poem') { layer.replaceChildren(); this.poem = null; return; }
+    const lines = poemLines(this.flow);
+    const sylls = lines.map((l) => syllables(l.text));
+    const { letters, rhymes } = rhymeScheme(lines);
+    this.poem = { lines: lines.length, stanzas: new Set(lines.map((l) => l.stanza)).size, syllables: sylls.reduce((a, b) => a + b, 0),
+      form: lines.length >= 3 ? formOf(lines, sylls, letters) : null, scheme: letters.join('') };
+    this.updateCount();
+    const aids = this.aids;
+    if (!this.mine || !(aids.syllables || aids.rhymes || aids.lines) || !lines.length) { layer.replaceChildren(); return; }
+    const base = this.stack.getBoundingClientRect();
+    const rects = lines.map((l) => [...l.range.getClientRects()].find((r) => r.width > 0 && r.height > 0) || l.range.getBoundingClientRect());
+    // The poem's column (the widest a line runs, not where a wrapped one ends).
+    const right = Math.min(Math.max(...rects.map((r) => r.right)) - base.left, (this.d?.W || base.width) - (this.d?.mx || 0));
+    const left = Math.min(...rects.map((r) => r.left)) - base.left;
+    const W = this.d?.W || base.width;
+    const out = [];
+    const firstOf = new Map();
+    letters.forEach((l, i) => { if (rhymes[i] && !firstOf.has(l)) firstOf.set(l, firstOf.size); });
+    const paints = [];
+    // Beside the lines when the page has room (a desk); on a narrow page
+    // (a phone) the counts move into the left margin and the letters to the edge.
+    const wide = W - right >= (aids.syllables && aids.rhymes ? 70 : 44);
+    const sylLeft = !wide && aids.syllables;
+    rects.forEach((r, i) => {
+      const top = r.top - base.top + r.height / 2;
+      if (aids.lines && (i + 1) % 5 === 0 && !(sylLeft && left < 64)) {
+        out.push(h('span', { class: 'de-aid-num', style: { top: `${top}px`, left: `${Math.max(2, left - (sylLeft ? 62 : 40))}px` } }, String(i + 1)));
+      }
+      let x = right + 22;
+      if (aids.syllables) {
+        const sx = sylLeft ? Math.max(0, left - 24) : x;
+        out.push(h('span', { class: 'de-aid-syl', style: { top: `${top}px`, left: `${sx}px` } }, String(sylls[i])));
+        if (!sylLeft) x += 26;
+      }
+      if (aids.rhymes) {
+        if (!wide) x = Math.max(right + 4, W - 19);
+        const hue = rhymes[i] ? firstOf.get(letters[i]) % RHYME_INKS : -1;
+        out.push(h('span', { class: `de-aid-rhyme${hue >= 0 ? ` is-h${hue}` : ''}`, style: { top: `${top}px`, left: `${x}px` } }, letters[i]));
+        if (hue >= 0) {
+          // Underline the word the rhyme falls on.
+          const text = lines[i].range.toString();
+          const m = /([\p{L}'’]+)[^\p{L}]*$/u.exec(text);
+          if (m) paints.push([hue, lines[i].range, text.length - m[0].length, m[1].length]);
+        }
+      }
+    });
+    layer.replaceChildren(...out);
+    if (paints.length && CSS.highlights && window.Highlight) {
+      const groups = new Map();
+      for (const [hue, range, from, len] of paints) {
+        const idx = textIndexOfRange(range);
+        const r = idx?.(from, from + len);
+        if (!r) continue;
+        if (!groups.has(hue)) groups.set(hue, []);
+        groups.get(hue).push(r);
+      }
+      for (const [hue, ranges] of groups) CSS.highlights.set(`de-rh-${hue}`, new Highlight(...ranges));
+    }
+    if (!this.aidsShown && moving()) {
+      this.aidsShown = true;
+      layer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 360, easing: 'ease-out' });
+    }
   }
 
   paginate(d) {
@@ -815,20 +1171,281 @@ class DocEditor {
 
   align(side) { this.exec(`justify${side}`); }
 
+  // Make the lines a list of this kind, change the list to it, or (the same
+  // kind again) take the list away.
   list(kind) {
     this.restore();
+    // Where the caret is, counted from the end: turning lines into a list
+    // changes what comes before it, never what comes after.
+    const total = () => posOf(this.flow, this.flow, this.flow.childNodes.length);
+    const at = this.caret();
+    const where = at && { start: total() - at.start, end: total() - at.end, total };
+    const want = LISTS[kind];
     const inList = this.blockAtCaret()?.closest('ul, ol');
-    if (kind === 'check') {
-      if (inList?.classList.contains('check')) { this.exec('insertUnorderedList'); return; }
-      if (inList?.tagName === 'UL') { this.record(); inList.classList.add('check'); this.changed({ now: true }); return; }
-      this.exec(inList?.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList');
-      if (inList?.tagName === 'OL') this.exec('insertUnorderedList');
-      this.blockAtCaret()?.closest('ul')?.classList.add('check');
+    const now = listKindOf(inList);
+    const cmd = (tag) => (tag === 'OL' ? 'insertOrderedList' : 'insertUnorderedList');
+    if (now === kind) { this.exec(cmd(want.tag)); this.unwrapLists(where); return; }
+    // Changing a list's kind keeps its items: only the list around them changes.
+    if (inList) {
+      this.record();
+      const next = inList.tagName === want.tag ? inList : document.createElement(want.tag);
+      if (next !== inList) {
+        for (const a of ['style']) if (inList.getAttribute(a)) next.setAttribute(a, inList.getAttribute(a));
+        next.append(...inList.childNodes);
+        inList.replaceWith(next);
+      }
+      next.classList.remove(...LIST_CLASSES);
+      if (want.cls) next.classList.add(want.cls);
+      if (!next.className) next.removeAttribute('class');
+      if (at) this.placeCaret(at.start, at.end);
       this.changed({ now: true });
       return;
     }
-    if (kind === 'ul' && inList?.classList.contains('check')) { this.record(); inList.classList.remove('check'); this.changed({ now: true }); return; }
-    this.exec(kind === 'ol' ? 'insertOrderedList' : 'insertUnorderedList');
+    this.exec(cmd(want.tag));
+    this.unwrapLists(where);
+    const made = this.blockAtCaret()?.closest('ul, ol');
+    if (made) {
+      made.classList.remove(...LIST_CLASSES);
+      if (want.cls) made.classList.add(want.cls);
+      if (!made.className) made.removeAttribute('class');
+    }
+    this.changed({ now: true });
+  }
+
+  // Chrome can make a list inside the paragraph it came from, and leave the
+  // caret at its start: let the list stand alone, the caret where it was.
+  unwrapLists(where) {
+    let moved = false;
+    for (const list of this.flow.querySelectorAll(':scope > p > ul, :scope > p > ol')) {
+      const wrap = list.parentElement;
+      wrap.replaceWith(...wrap.childNodes);
+      moved = true;
+    }
+    if (!where) return;
+    void moved;
+    const n = where.total();
+    this.placeCaret(Math.max(0, n - where.start), Math.max(0, n - where.end));
+  }
+
+  listMenu(anchor) {
+    this.remember();
+    const now = listKindOf(this.blockAtCaret()?.closest('ul, ol'));
+    richMenu(anchor, [
+      ...Object.entries(LISTS).map(([k, v]) => ({ icon: v.icon, label: v.label, hint: v.hint, on: now === k, run: () => this.list(k) })),
+      now ? '-' : null,
+      now ? { label: 'Not a list', run: () => this.list(now) } : null,
+    ], { label: 'Lists', className: 'de-lists' });
+  }
+
+  // -------------------------------------------------------- a script's parts
+
+  elementMenu(anchor) {
+    this.remember();
+    const now = elementOf(this.blockAtCaret());
+    richMenu(anchor, Object.entries(ELEMENTS).map(([k, v]) => ({
+      label: v.label, note: v.hint, hint: `⌥⌘${v.key}`, on: now === k, run: () => this.setElementHere(k),
+    })), { label: 'Part of the script', className: 'de-elements' });
+  }
+
+  // Turn the line (or the selected lines) into this part of the script.
+  setElementHere(kind) {
+    const where = this.caret();
+    const blocks = this.selectedBlocks().filter((el) => /^(P|H[1-4])$/.test(el.tagName));
+    if (!blocks.length) return;
+    this.record();
+    for (let el of blocks) {
+      if (el.tagName !== 'P') {
+        const p = document.createElement('p');
+        p.append(...el.childNodes);
+        el.replaceWith(p);
+        el = p;
+      }
+      setElement(el, kind);
+      el.removeAttribute('data-hint');
+      if (ELEMENTS[kind].caps) this.capitals(el);
+      // A parenthetical comes with its brackets.
+      if (kind === 'paren' && blocks.length === 1 && !el.textContent.replace(/\u200b/g, '').trim()) {
+        el.replaceChildren('()');
+        this.placeCaret(posOf(this.flow, el.firstChild, 1));
+        this.changed({ now: true });
+        return;
+      }
+    }
+    if (where) this.placeCaret(where.start, where.end);
+    this.changed({ now: true });
+  }
+
+  // Scene headings, names and transitions are in capitals: the letters
+  // themselves, so they stay that way in a download.
+  capitals(block) {
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    const keep = this.flow.contains(getSelection().anchorNode) ? this.caret() : null;
+    let changed = false;
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const up = n.data.toUpperCase();
+      if (up !== n.data && up.length === n.data.length) { n.data = up; changed = true; }
+    }
+    if (changed && keep) this.placeCaret(keep.start, keep.end);
+  }
+
+  // As you type in a script: "INT." starts a scene, "CUT TO:" is a
+  // transition, a bracket under a name is a parenthetical.
+  scriptInput() {
+    const block = this.blockAtCaret();
+    if (!block || block.tagName !== 'P' || block.parentElement !== this.flow || this.composing) return;
+    const text = block.textContent.replace(/\u200b/g, '');
+    const el = elementOf(block);
+    if (!block.className.includes('sc-')) setElement(block, 'action');
+    if (el === 'action' && isScene(`${text} `) && /^\s*(?:int|ext|est|i\/e)[.\s/]/i.test(text)) setElement(block, 'scene');
+    else if (el === 'action' && isTransition(text) && /TO:$/.test(text.trim())) setElement(block, 'trans');
+    else if (el === 'dial' && text === '(') { setElement(block, 'paren'); block.append(')'); this.placeCaret(posOf(this.flow, block.firstChild, 1)); }
+    if (ELEMENTS[elementOf(block)].caps) this.capitals(block);
+  }
+
+  // Enter in a script moves on to the part that usually comes next: a name
+  // is followed by what they say, a scene heading by what we see. Enter on
+  // an empty line changes what it is instead.
+  scriptEnter() {
+    const block = this.blockAtCaret();
+    if (!block || block.tagName !== 'P' || block.parentElement !== this.flow) return false;
+    const el = elementOf(block);
+    const text = block.textContent.replace(/\u200b/g, '');
+    this.record();
+    if (!text.trim()) { this.setElementHere(ELEMENTS[el].blank); return true; }
+    const sel = getSelection();
+    const r = sel.getRangeAt(0);
+    const after = document.createRange();
+    after.setStart(r.endContainer, r.endOffset);
+    after.setEnd(block, block.childNodes.length);
+    const rest = after.toString().replace(/\u200b/g, '');
+    if (rest === ')' ) this.placeCaret(posOf(this.flow, block, block.childNodes.length));
+    const atEnd = !rest.trim() || rest === ')';
+    document.execCommand('insertParagraph', false);
+    const next = this.blockAtCaret();
+    if (next && next !== block && next.tagName === 'P') {
+      setElement(next, atEnd ? ELEMENTS[el].after : el);
+      if (!next.textContent.replace(/\u200b/g, '')) next.replaceChildren(h('br'));
+      const c = document.createRange();
+      c.setStart(next, 0);
+      c.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(c);
+    }
+    this.changed({ now: true });
+    return true;
+  }
+
+  // The faint word in an empty line that says what it's for.
+  hintAt(block) {
+    if (this.hinted && this.hinted !== block) { this.hinted.removeAttribute('data-hint'); this.hinted = null; }
+    if (this.kind !== 'script' || !block || block.tagName !== 'P' || block.parentElement !== this.flow) return;
+    if (block.textContent.replace(/\u200b/g, '')) { block.removeAttribute('data-hint'); return; }
+    block.dataset.hint = ELEMENTS[elementOf(block)].hint;
+    this.hinted = block;
+  }
+
+  // -------------------------------------------------------- journals and letters
+
+  todaysEntry() {
+    const now = today();
+    return [...this.flow.querySelectorAll(':scope > h2.dated')].find((el) => dayOf(el.textContent) === now) || null;
+  }
+
+  paintEntryBtn() {
+    if (!this.entryBtn) return;
+    const has = !!this.todaysEntry();
+    this.entryBtn.lastChild.textContent = has ? 'Today' : 'New entry';
+    this.entryBtn.title = has ? 'Go to today’s entry' : 'Start today’s entry';
+  }
+
+  // A new entry under today's date (or back to today's, if it's begun).
+  // Entries go where the journal adds them: at the end, or at the top if
+  // the newest are first.
+  newEntry() {
+    const entries = [...this.flow.querySelectorAll(':scope > h2.dated')];
+    const at = this.todaysEntry();
+    let into;
+    if (at) {
+      let end = at;
+      while (end.nextElementSibling && !(end.nextElementSibling.tagName === 'H2' && end.nextElementSibling.classList.contains('dated'))) end = end.nextElementSibling;
+      into = end === at ? null : end;
+      if (!into) { into = h('p', null, h('br')); at.after(into); }
+    } else {
+      this.record();
+      const days = entries.map((el) => dayOf(el.textContent)).filter(Boolean).map((d) => { const [y, m, n] = d.split('-').map(Number); return new Date(y, m, n).getTime(); });
+      const newestFirst = days.length >= 2 && days[0] > days[days.length - 1];
+      const head = h('h2', { class: 'dated' }, longDate());
+      into = h('p', null, h('br'));
+      const blank = !this.flow.textContent.replace(/[\u200b\s]/g, '');
+      if (blank) this.flow.replaceChildren(head, into);
+      else if (newestFirst) {
+        entries[0].before(head, into);
+      } else {
+        const last = this.flow.lastElementChild;
+        if (last && !last.textContent.replace(/[\u200b\s]/g, '') && last.tagName === 'P' && !last.querySelector('img')) last.replaceWith(head, into);
+        else this.flow.append(head, into);
+      }
+      this.changed({ now: true });
+    }
+    this.flow.focus({ preventScroll: true });
+    const r = document.createRange();
+    r.selectNodeContents(into);
+    r.collapse(false);
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+    this.range = r.cloneRange();
+    this.layout();
+    this.scrollTo(into.previousElementSibling || into);
+    this.paintEntryBtn();
+    if (!at && moving()) {
+      const head = into.previousElementSibling;
+      head?.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+    }
+  }
+
+  // Today's date at the top of a letter, or the date that's there brought up to today.
+  dateLetter() {
+    this.record();
+    const first = [...this.flow.children].slice(0, 3).find((el) => el.tagName === 'P' && isDateLine(el.textContent.trim()));
+    if (first) first.textContent = letterDate();
+    else this.flow.prepend(h('p', { style: { 'text-align': 'right' } }, letterDate()), h('p', null, h('br')));
+    this.changed({ now: true });
+    this.scrollTo(this.flow.firstElementChild);
+  }
+
+  signMenu(anchor) {
+    this.remember();
+    const tail = [...this.flow.children].slice(-4).find((el) => el.tagName === 'P' && isSignoff(el.textContent.trim()));
+    const now = tail?.textContent.trim();
+    richMenu(anchor, SIGNOFFS.map((words) => ({ label: words.replace(/,$/, ''), on: now === words, run: () => this.signOff(words) })),
+      { label: tail ? 'Change the sign-off' : 'Sign it off', className: 'de-signs' });
+  }
+
+  signOff(words) {
+    this.record();
+    const tail = [...this.flow.children].slice(-4).find((el) => el.tagName === 'P' && isSignoff(el.textContent.trim()));
+    let name;
+    if (tail) {
+      tail.textContent = words;
+      name = tail.nextElementSibling;
+    } else {
+      const last = this.flow.lastElementChild;
+      const sign = h('p', null, words);
+      name = h('p', null, h('br'));
+      if (last && last.tagName === 'P' && !last.textContent.replace(/[\u200b\s]/g, '')) last.replaceWith(sign, name);
+      else this.flow.append(sign, name);
+    }
+    this.changed({ now: true });
+    if (name) {
+      this.flow.focus({ preventScroll: true });
+      const r = document.createRange();
+      r.selectNodeContents(name);
+      r.collapse(false);
+      getSelection().removeAllRanges();
+      getSelection().addRange(r);
+      this.range = r.cloneRange();
+      this.scrollTo(name);
+    }
   }
 
   indent(dir) {
@@ -1164,8 +1781,8 @@ class DocEditor {
     this.saveSoon();
     this.layoutSoon();
     this.syncTools();
-    this.poemSoon ||= debounce(() => this.checkPoem(), 700);
-    this.poemSoon();
+    this.kindSoon();
+    this.paintEntryBtn();
   }
 
   // A poem with no heading of its own shows its name above it (drawn, not part of the text).
@@ -1176,12 +1793,6 @@ class DocEditor {
     return true;
   }
 
-  // Once someone writes, what's on the page decides whether it's set as a poem.
-  checkPoem() {
-    if (!this.flow || this.settings.layout !== 'auto') return;
-    this.doc.reads = null;
-    if (looksLikePoem(this.flow) !== this.flow.classList.contains('is-poem')) this.applySettings();
-  }
 
   wire() {
     const on = (target, type, fn, opts) => { target.addEventListener(type, fn, opts); this.off.push(() => target.removeEventListener(type, fn, opts)); };
@@ -1234,6 +1845,7 @@ class DocEditor {
     on(this.flow, 'input', (e) => {
       if (e.inputType === 'insertText' && e.data === ' ') this.autoformat();
       if (e.inputType === 'insertText' && e.data && '"\'-.'.includes(e.data)) this.smarten(e.data);
+      if (this.kind === 'script') this.scriptInput();
       this.changed();
       this.slashCheck();
       if (e.inputType === 'insertText' || e.inputType === 'insertParagraph') this.typing(); else this.wake();
@@ -1274,7 +1886,7 @@ class DocEditor {
     before.setEnd(r.startContainer, r.startOffset);
     const lead = before.toString().replace(/ /g, ' ');
     if (lead !== text.slice(0, lead.length)) return;
-    const m = /^(#{1,3}|[-*]|1[.)]|>|\[\]|\[ \])\s$/.exec(lead);
+    const m = /^(#{1,3}|[-*]|1[.)]|a[.)]|i[.)]|>|\[\]|\[ \])\s$/.exec(lead);
     if (!m) return;
     this.record();
     // Take the marks away, then turn the block.
@@ -1284,6 +1896,8 @@ class DocEditor {
     else if (mark === '>') this.setStyle('quote');
     else if (mark === '-' || mark === '*') this.list('ul');
     else if (/^1/.test(mark)) this.list('ol');
+    else if (/^a/.test(mark)) this.list('alpha');
+    else if (/^i/.test(mark)) this.list('roman');
     else this.list('check');
   }
 
@@ -1348,6 +1962,12 @@ class DocEditor {
     if (mod && k === 'y') { e.preventDefault(); e.stopPropagation(); this.redo(); return; }
     if (mod && k === 'k') { e.preventDefault(); e.stopPropagation(); const sr = getSelection().rangeCount ? getSelection().getRangeAt(0).getBoundingClientRect() : null; this.linkBox(sr && (sr.width || sr.height) ? this.spotAt(sr) : this.typeBtn); return; }
     if (mod && e.altKey && (k === 'm' || e.code === 'KeyM')) { e.preventDefault(); this.startComment(); return; }
+    if (mod && e.altKey && this.kind === 'script' && /^Digit[1-6]$/.test(e.code)) {
+      e.preventDefault();
+      const k = Object.keys(ELEMENTS).find((x) => ELEMENTS[x].key === e.code.slice(-1));
+      this.setElementHere(k);
+      return;
+    }
     if (mod && e.altKey && /^Digit[0-3]$/.test(e.code)) { e.preventDefault(); this.setStyle(e.code === 'Digit0' ? 'p' : `h${e.code.slice(-1)}`); return; }
     if (mod && e.shiftKey && (e.code === 'Digit7' || e.code === 'Digit8' || e.code === 'Digit9')) { e.preventDefault(); this.list(e.code === 'Digit7' ? 'ol' : e.code === 'Digit8' ? 'ul' : 'check'); return; }
     if (mod && e.shiftKey && ['l', 'e', 'r', 'j'].includes(k)) { e.preventDefault(); this.align({ l: 'Left', e: 'Center', r: 'Right', j: 'Full' }[k]); return; }
@@ -1365,8 +1985,20 @@ class DocEditor {
         return;
       }
       e.preventDefault();
+      // In a script, Tab changes what the line is (action → name → transition → scene…).
+      const top = this.blockAtCaret();
+      if (this.kind === 'script' && top?.tagName === 'P' && top.parentElement === this.flow) {
+        const now = elementOf(top);
+        const back = Object.keys(ELEMENTS).find((k) => ELEMENTS[k].tab === now) || now;
+        this.setElementHere(e.shiftKey ? back : ELEMENTS[now].tab);
+        return;
+      }
       if (this.blockAtCaret()?.closest('li')) this.indent(e.shiftKey ? -1 : 1);
       else if (!e.shiftKey) { this.record(); document.execCommand('insertText', false, '\t'); }
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey && this.kind === 'script') {
+      if (this.scriptEnter()) e.preventDefault();
       return;
     }
     // In a poem, Enter starts a new line in the stanza; Enter on an empty line starts a new stanza.
@@ -1415,7 +2047,11 @@ class DocEditor {
 
   // -------------------------------------------------------- saving
 
-  setStatus(text) { this.status.textContent = text; }
+  // A note about the kind of writing stays up a few seconds, over "Saving…".
+  setStatus(text, { told = false } = {}) {
+    if (!told && this.toldUntil > Date.now() && !/^Not saved/.test(text)) return;
+    this.status.textContent = text;
+  }
 
   async save() {
     if (!this.mine || !this.dirty || this.previewing) return;
@@ -1472,15 +2108,21 @@ class DocEditor {
     this.renderOutline();
   }
 
+  // The outline is what this kind is made of: headings, a script's scenes, a journal's days.
   renderOutline() {
     if (!this.outline) return;
-    const heads = [...this.flow.querySelectorAll(':scope > h1, :scope > h2, :scope > h3, :scope > p.title')].filter((el) => el.textContent.trim());
-    this.outline.replaceChildren(...(heads.length ? heads.map((el) => {
-      const lvl = el.classList.contains('title') ? 0 : Number(el.tagName[1]);
-      const b = h('button', { type: 'button', class: `de-out is-l${lvl}` }, el.textContent.trim());
+    const kind = this.kind;
+    const label = this.side.querySelector('.de-side-label');
+    if (label) label.textContent = kind === 'script' ? 'Scenes' : kind === 'journal' ? 'Entries' : 'Outline';
+    const pick = kind === 'script' ? ':scope > p.sc-scene' : ':scope > h1, :scope > h2, :scope > h3, :scope > p.title';
+    const heads = [...this.flow.querySelectorAll(pick)].filter((el) => el.textContent.trim());
+    const empty = kind === 'script' ? 'Scene headings (INT. or EXT.) show up here.' : kind === 'journal' ? 'Each day’s entry shows up here.' : 'Headings you add show up here.';
+    this.outline.replaceChildren(...(heads.length ? heads.map((el, n) => {
+      const lvl = kind === 'script' || el.classList.contains('title') || el.classList.contains('dated') ? 0 : Number(el.tagName[1]);
+      const b = h('button', { type: 'button', class: `de-out is-l${lvl}` }, kind === 'script' ? h('span', { class: 'de-out-n' }, String(n + 1)) : null, el.textContent.trim());
       b.addEventListener('click', () => this.scrollTo(el));
       return b;
-    }) : [h('p', { class: 'de-side-hint' }, 'Headings you add show up here.')]));
+    }) : [h('p', { class: 'de-side-hint' }, empty)]));
   }
 
   scrollTo(el, rect = null) {
@@ -1492,11 +2134,21 @@ class DocEditor {
   // -------------------------------------------------------- counting
 
   updateCount() {
-    const text = cleanCopy(this.flow).innerText ?? '';
     this.wordCount = words(this.flow.innerText || '');
-    void text;
     const pages = this.settings.view === 'pages' ? ` · ${plural(this.pages || 1, 'page')}` : '';
-    this.countBtn.textContent = `${plural(this.wordCount, 'word')}${pages}`;
+    const kind = this.kind;
+    let text = `${plural(this.wordCount, 'word')}${pages}`;
+    if (kind === 'poem' && this.poem?.lines) {
+      text = `${this.poem.form ? `${this.poem.form} · ` : ''}${plural(this.poem.lines, 'line')}${this.poem.stanzas > 1 ? ` · ${plural(this.poem.stanzas, 'stanza')}` : ''}`;
+    } else if (kind === 'script') {
+      const scenes = this.flow.querySelectorAll(':scope > p.sc-scene').length;
+      // A page of script is about a minute on screen.
+      text = `${plural(scenes, 'scene')} · ${plural(this.pages || 1, 'page')} · about ${plural(this.pages || 1, 'minute')}`;
+    } else if (kind === 'journal') {
+      const entries = this.flow.querySelectorAll(':scope > h2.dated').length;
+      if (entries) text = `${plural(entries, 'dated', 'entries')} · ${plural(this.wordCount, 'word')}`;
+    }
+    this.countBtn.textContent = text;
   }
 
   countDetails() {
@@ -1511,6 +2163,20 @@ class DocEditor {
       ['Pages', this.pages || 1],
       ['Reading time', `${Math.max(1, Math.round(words(text) / 230))} min`],
     ];
+    if (this.kind === 'poem' && this.poem) {
+      rows.splice(0, rows.length, ['Words', words(text)], ['Lines', this.poem.lines], ['Stanzas', this.poem.stanzas], ['Syllables', this.poem.syllables]);
+      if (this.poem.lines >= 2) rows.push(['Rhymes', this.poem.scheme.length > 24 ? `${this.poem.scheme.slice(0, 24)}…` : this.poem.scheme]);
+      if (this.poem.form) rows.unshift(['Form', this.poem.form]);
+    } else if (this.kind === 'script') {
+      const cast = castOf(this.flow);
+      rows.splice(0, rows.length, ['Scenes', this.flow.querySelectorAll(':scope > p.sc-scene').length], ['Pages', this.pages || 1],
+        ['Screen time', `about ${plural(this.pages || 1, 'minute')}`], ['Characters', cast.length], ['Words', words(text)]);
+      if (cast.length) rows.push(['Who speaks most', cast.slice(0, 3).join(', ')]);
+    } else if (this.kind === 'journal') {
+      const entries = this.flow.querySelectorAll(':scope > h2.dated').length;
+      rows.unshift(['Entries', entries]);
+      if (entries) rows.push(['Words an entry', Math.round(words(text) / entries)]);
+    }
     if (selected) rows.unshift(['Selected words', words(selected)]);
     openDialog({
       title: 'Word count',
@@ -1551,7 +2217,13 @@ class DocEditor {
         row('Typeface', mk('font', Object.entries(FONT_LABELS))),
         row('Text size', size),
         row('Line spacing', mk('spacing', [[1, 'Single'], [1.15, '1.15'], [1.5, '1.5'], [2, 'Double']], Number)),
-        row('Set as', mk('layout', [['auto', 'Auto'], ['prose', 'Prose'], ['poem', 'Poem']])),
+        row('Writing as', (() => {
+          const sel = h('select', { class: 'input de-select', 'aria-label': 'Writing as' },
+            h('option', { value: 'auto', selected: s.layout === 'auto' }, `Auto (now ${KINDS[this.kind].label.toLowerCase()})`),
+            Object.entries(KINDS).map(([k, v]) => h('option', { value: k, selected: s.layout === k }, v.label)));
+          sel.addEventListener('change', () => this.chooseKind(sel.value));
+          return sel;
+        })()),
         row('Page numbers', mk('numbers', [['off', 'None'], ['center', 'Centre'], ['right', 'Right']])),
         row('Header', text('header', 'Nothing at the top')),
         row('Footer', text('footer', 'Nothing at the bottom'))),
@@ -1766,13 +2438,28 @@ class DocEditor {
   // -------------------------------------------------------- "/" on an empty line
 
   slashItems() {
+    if (this.kind === 'script') {
+      return [
+        ...Object.entries(ELEMENTS).map(([k, v]) => ({ label: v.label, hint: v.hint, words: `${k} ${v.label}`, run: () => this.setElementHere(k) })),
+        { icon: 'pagebreak', label: 'Page break', words: 'new page', run: () => this.pageBreak() },
+      ];
+    }
+    const lists = this.kind === 'poem' ? [] : [
+      { icon: 'bullets', label: 'Bulleted list', words: 'bullets points ul', run: () => this.list('ul') },
+      { icon: 'dash', label: 'Dashed list', words: 'dashes', run: () => this.list('dash') },
+      { icon: 'numbers', label: 'Numbered list', words: 'ol steps 123', run: () => this.list('ol') },
+      { icon: 'alpha', label: 'Lettered list', words: 'abc letters', run: () => this.list('alpha') },
+      { icon: 'roman', label: 'Roman numerals', words: 'roman iii', run: () => this.list('roman') },
+      { icon: 'check', label: 'Checklist', words: 'todo tasks tick boxes', run: () => this.list('check') },
+    ];
+    const own = this.kind === 'journal' ? [{ icon: 'date', label: 'New entry', hint: 'Today', words: 'date day today entry', run: () => this.newEntry() }]
+      : this.kind === 'letter' ? [{ icon: 'date', label: 'Date', words: 'today', run: () => this.dateLetter() }] : [];
     return [
+      ...own,
       { icon: 'heading', label: 'Heading', hint: 'Big', words: 'h1 title', run: () => this.setStyle('h1') },
       { icon: 'heading', label: 'Subheading', hint: 'Medium', words: 'h2', run: () => this.setStyle('h2') },
       { icon: 'heading', label: 'Small heading', hint: 'Small', words: 'h3', run: () => this.setStyle('h3') },
-      { icon: 'bullets', label: 'Bulleted list', words: 'bullets points ul', run: () => this.list('ul') },
-      { icon: 'numbers', label: 'Numbered list', words: 'ol steps 123', run: () => this.list('ol') },
-      { icon: 'check', label: 'Checklist', words: 'todo tasks tick boxes', run: () => this.list('check') },
+      ...lists,
       { icon: 'quote', label: 'Quote', words: 'blockquote', run: () => this.setStyle('quote') },
       { icon: 'table', label: 'Table', words: 'grid rows columns', run: () => this.insertTable() },
       { icon: 'picture', label: 'Picture', words: 'image photo', run: () => this.pickPicture() },
@@ -1785,16 +2472,36 @@ class DocEditor {
   // Called as you type: a line that is only "/" (and the start of a word) opens it.
   slashCheck() {
     const block = this.mine && getSelection().isCollapsed ? this.blockAtCaret() : null;
-    const m = block && block.tagName === 'P' && !block.classList.length && block.parentElement === this.flow
+    if (block && this.kind === 'script' && block.classList.contains('sc-char')) { this.nameCheck(block); return; }
+    const plain = block && (!block.classList.length || (block.classList.length === 1 && block.classList.contains('sc-action')));
+    const m = block && block.tagName === 'P' && plain && block.parentElement === this.flow
       ? /^\/([\p{L}\d ]{0,14})$/u.exec(block.textContent.replace(/\u200b/g, '')) : null;
     if (!m) { this.closeSlash(); return; }
     const q = m[1].trim().toLowerCase();
     const items = this.slashItems().filter((it) => !q || `${it.label} ${it.words}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(q)) || it.label.toLowerCase().startsWith(q));
     if (!items.length) { this.closeSlash(); return; }
+    this.suggest(block, this.kind === 'script' ? 'Make this line' : 'Insert', items);
+  }
+
+  // In a script, a name being typed is finished from the names already in it.
+  nameCheck(block) {
+    const typed = block.textContent.replace(/\u200b/g, '').trim().toUpperCase();
+    const names = typed ? castOf(this.flow, block).filter((n) => n.startsWith(typed) && n !== typed).slice(0, 6) : [];
+    if (!names.length) { this.closeSlash(); return; }
+    this.suggest(block, 'Characters', names.map((name) => ({
+      label: name, run: () => {
+        block.textContent = name;
+        this.placeCaret(posOf(this.flow, block, block.childNodes.length));
+      },
+    })));
+  }
+
+  // The little list under the line ("/" things to insert, or names).
+  suggest(block, label, items) {
     const fresh = this.slash.hidden;
     this.slashFor = { block, items, at: fresh ? 0 : Math.min(this.slashFor?.at || 0, items.length - 1) };
-    this.slash.replaceChildren(h('p', { class: 'de-slash-label' }, 'Insert'), ...items.map((it, n) => {
-      const row = h('button', { type: 'button', class: 'de-slash-item', role: 'option' }, icon(it.icon), h('span', null, it.label), it.hint ? h('span', { class: 'de-slash-hint' }, it.hint) : null);
+    this.slash.replaceChildren(h('p', { class: 'de-slash-label' }, label), ...items.map((it, n) => {
+      const row = h('button', { type: 'button', class: 'de-slash-item', role: 'option' }, it.icon ? icon(it.icon) : null, h('span', null, it.label), it.hint ? h('span', { class: 'de-slash-hint' }, it.hint) : null);
       row.addEventListener('pointerdown', (e) => e.preventDefault());
       row.addEventListener('pointermove', () => this.slashMove(n, { scroll: false }));
       row.addEventListener('click', () => this.slashPick(n));

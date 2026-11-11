@@ -15,6 +15,7 @@ import { openContextMenu, openMenu, toast } from './ui.js';
 import { EASE, bus, h, plural, reducedMotion, timeAgo } from './util.js';
 
 const moving = () => !reducedMotion();
+const KIND_NAMES = { poem: 'Poem', script: 'Script', journal: 'Journal', letter: 'Letter' };
 
 // Longer than this and a note is more than a note (mutt/documents.py NOTE_FITS).
 export const NOTE_FITS = 1000;
@@ -178,7 +179,7 @@ export class DeskView {
     const i = this.info.get(b.id) || {};
     let html = i.html || fromMarkdown((b.content || '').slice(0, 4000));
     if (i.poem && b.title && !/^\s*<(h[1-3]|p class="title")/.test(html)) html = `<h2>${escapeHtml(b.title)}</h2>${html}`;
-    return h('span', { class: `dk-paper${i.poem ? ' is-poem' : ''}`, dataset: { font: i.font || 'serif' }, 'aria-hidden': 'true' },
+    return h('span', { class: `dk-paper${i.poem ? ' is-poem' : ''}${i.kind && i.kind !== 'poem' && i.kind !== 'prose' ? ` is-${i.kind}` : ''}`, dataset: { font: i.font || 'serif' }, 'aria-hidden': 'true' },
       h('span', { class: 'dk-print', html: cleanHtml(html, { own: true }) }));
   }
 
@@ -216,7 +217,7 @@ export class DeskView {
           this.paper(b),
           i.comments ? h('span', { class: 'dk-badge', title: plural(i.comments, 'open comment') }, String(i.comments)) : null),
         h('p', { class: 'dk-name', title: titleOf(b) }, titleOf(b)),
-        h('p', { class: 'dk-meta' }, `${i.poem ? 'Poem · ' : ''}${plural(wordsIn(b.content), 'word')} · ${timeAgo(b.updatedAt)}`));
+        h('p', { class: 'dk-meta' }, `${KIND_NAMES[i.kind] ? `${KIND_NAMES[i.kind]} · ` : ''}${plural(wordsIn(b.content), 'word')} · ${timeAgo(b.updatedAt)}`));
       el.addEventListener('contextmenu', (e) => this.context(e, el, b));
       return el;
     });

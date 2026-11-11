@@ -37,8 +37,68 @@ def sentences(text):
     return len(SENTENCE_RE.findall(text or ''))
 
 
+# ---------------------------------------------------------------- kinds of writing
+
+# A document is set for the kind of writing it is: each kind has its own page
+# and tools in the editor. 'auto' reads it from the words (the editor reads the
+# same signs again as you write; docwriting.js `readsAs`).
+KINDS = ('prose', 'poem', 'script', 'journal', 'letter')
+
+SCENE_RE = re.compile(r'^\s*(?:#+\s*)?(?:INT|EXT|EST|INT\.?\s*/\s*EXT|I/E)[.\s]', re.I)
+CUE_RE = re.compile(r"^\s*[A-Z][A-Z0-9 .'\-]{0,28}(?:\s*\((?:V\.O\.|O\.S\.|O\.C\.|CONT'D|CONT’D)\))?\s*$")
+TRANSITION_RE = re.compile(r'^\s*(?:[A-Z ]+ TO:|FADE (?:IN|OUT)[.:]|CUT TO BLACK\.?)\s*$')
+MONTHS = (r'(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|'
+          r'sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)')
+WEEKDAY = r'(?:(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\.?,?\s+)?'
+DATE_LINE_RE = re.compile(
+    r'^\s*(?:#+\s*)?' + WEEKDAY + r'(?:'
+    r'\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?' + MONTHS + r'\.?(?:,?\s+\d{4})?'
+    r'|' + MONTHS + r'\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?'
+    r'|\d{4}-\d{2}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4})'
+    r'(?:\s*[,·–—-]\s*.{0,30})?\s*$', re.I)
+GREETING_RE = re.compile(r'^\s*(?:dear|dearest|my dear|hi|hello|hey|to)\s+[^\n]{1,40}[,:!—–-]\s*$', re.I)
+SIGNOFF_RE = re.compile(
+    r'^\s*(?:love|lots of love|all my love|with love|yours(?: truly| sincerely| faithfully| ever| always)?|'
+    r'sincerely(?: yours)?|best(?: wishes)?|all the best|warmly|warm(?:est)? regards|kind regards|regards|'
+    r'cheers|thanks|thank you|many thanks|until soon|see you soon|x+|xo+)\s*[,.!]?\s*$', re.I)
+
+
+def lines_of(text):
+    return [ln for ln in (text or '').splitlines() if ln.strip()]
+
+
+def is_script(lines):
+    scenes = sum(1 for ln in lines if SCENE_RE.match(ln))
+    cues = sum(1 for i, ln in enumerate(lines[:-1]) if CUE_RE.match(ln) and not SCENE_RE.match(ln)
+               and not CUE_RE.match(lines[i + 1]) and len(ln.split()) <= 4)
+    fade = any(TRANSITION_RE.match(ln) for ln in lines)
+    return scenes >= 2 or (scenes >= 1 and (cues >= 2 or fade)) or (cues >= 4 and cues >= len(lines) * 0.2)
+
+
+def is_journal(lines):
+    dates = sum(1 for ln in lines if len(ln) <= 60 and DATE_LINE_RE.match(ln))
+    return dates >= 2 and len(lines) >= dates * 2
+
+
+def is_letter(lines):
+    if not lines:
+        return False
+    opening = lines[:3]
+    greet = any(GREETING_RE.match(ln) for ln in opening)
+    signed = any(SIGNOFF_RE.match(ln) for ln in lines[-4:])
+    return greet and (signed or bool(re.match(r'^\s*(?:dear|dearest|my dear)\b', ' '.join(opening), re.I)))
+
+
 def reads_as(text):
-    """'poem', 'prose' or None, from how a note is written (sorting.form)."""
+    """The kind of writing a note is ('poem', 'script', 'journal', 'letter',
+    'prose'), or None for a scrap too short to say."""
+    lines = lines_of(text)
+    if is_script(lines):
+        return 'script'
+    if is_journal(lines):
+        return 'journal'
+    if is_letter(lines):
+        return 'letter'
     found = sorting.form(text or '')
     if found.get('poem'):
         return 'poem'
@@ -105,7 +165,7 @@ MARGINS = ('narrow', 'normal', 'wide')
 FONTS = ('serif', 'sans', 'mono', 'type')
 SPACINGS = (1.0, 1.15, 1.5, 2.0)
 SIZES = tuple(range(9, 25))
-LAYOUTS = ('auto', 'poem', 'prose')
+LAYOUTS = ('auto',) + KINDS
 NUMBERS = ('off', 'center', 'right')
 VIEWS = ('pages', 'flow')
 
@@ -149,7 +209,8 @@ DROP_WITH_CONTENT = {'script', 'style', 'iframe', 'object', 'embed', 'noscript',
                      'svg', 'math', 'video', 'audio', 'canvas', 'form', 'select', 'textarea', 'button', 'input'}
 RENAME = {'b': 'strong', 'i': 'em', 'strike': 's', 'del': 's', 'font': 'span'}
 
-CLASSES = {'pb', 'check', 'done', 'title', 'subtitle', 'stanza', 'wide', 'left', 'right', 'center'}
+CLASSES = {'pb', 'check', 'done', 'title', 'subtitle', 'stanza', 'wide', 'left', 'right', 'center',
+           'dash', 'alpha', 'roman', 'dated', 'sc-scene', 'sc-action', 'sc-char', 'sc-paren', 'sc-dial', 'sc-trans'}
 COLOR_RE = re.compile(r'^(?:#[0-9a-f]{3,8}|rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*(?:,\s*[\d.]+%?\s*)?\)|'
                       r'transparent|inherit)$', re.I)
 FONT_FAMILIES = {'serif', 'sans', 'mono', 'type'}

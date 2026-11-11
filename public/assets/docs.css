@@ -255,6 +255,37 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 .de-pick:hover { background: var(--tint-2); }
 .de-pick-style { min-width: 112px; text-align: left; }
 .de-context { display: contents; }
+/* What it's written as: the first thing on the toolbar. */
+.de-pick-kind { display: inline-flex; align-items: center; gap: 6px; padding-left: 8px; }
+.de-pick-kind .de-ic, .de-pick-kind svg { width: 17px; height: 17px; opacity: 0.85; }
+.de-kind-auto {
+  padding: 1px 5px; border-radius: 5px; background: rgba(200, 215, 255, 0.12);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3);
+}
+.de-pick-list { display: inline-flex; align-items: center; padding: 0 20px 0 7px; }
+.de-pick-list::after { right: 8px; }
+.de-pick-list .de-ic, .de-pick-list svg { width: 18px; height: 18px; }
+.de-pick-list.is-on, .de-aid.is-on { background: var(--tint-2); color: #fff; }
+.de-pick-element { min-width: 128px; }
+.de-pick-sign { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.de-word-ic { display: inline-flex; align-items: center; gap: 6px; }
+.de-word-ic .de-ic, .de-word-ic svg, .de-pick-sign .de-ic, .de-pick-sign svg { width: 16px; height: 16px; }
+.de-aid { color: var(--ink-2); }
+.de-out-n { display: inline-block; min-width: 20px; margin-right: 4px; color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+/* Menus with icons and a line each: kinds of writing, lists, a script's parts. */
+.de-rich { min-width: 210px; }
+.de-kinds .de-rich { width: min(318px, calc(100vw - 32px)); }
+.de-rich-label { margin: 4px 10px 4px; font-size: 11.5px; font-weight: 600; color: rgba(215, 224, 255, 0.5); }
+.de-rich-item { display: flex; align-items: center; gap: 10px; text-align: left; }
+.de-rich-item > .de-ic, .de-rich-item > .de-ic svg { flex: none; width: 18px; height: 18px; opacity: 0.8; }
+.de-rich-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.de-rich-name { font-weight: 500; }
+.de-rich-note { font-size: 11.5px; line-height: 1.3; color: rgba(215, 224, 255, 0.55); white-space: normal; }
+.de-rich-item.is-on { background: rgba(200, 215, 255, 0.14); }
+.de-rich-item.is-on .de-rich-name::after { content: ''; display: inline-block; width: 8px; height: 4px; margin: 0 0 3px 8px; border: solid currentColor; border-width: 0 0 1.6px 1.6px; transform: rotate(-45deg); opacity: 0.8; }
+.de-rich-item .menu-hint { margin-left: auto; padding-left: 10px; }
+
 .de-ctx-label { flex: none; padding: 0 6px 0 2px; font-size: 12px; color: var(--ink-3); }
 .de-word {
   flex: none; height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--ink);
@@ -368,6 +399,62 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
   font-size: 1.45em; font-weight: 650; line-height: 1.25; color: var(--de-ink, #1c1a17); pointer-events: none;
 }
 .de-flow.is-measuring > :is(p, blockquote) { width: max-content; max-width: 100%; margin-left: 0 !important; }
+
+/* Lists: bullets, dashes, numbers, letters, roman numerals, checkboxes. */
+:is(.de-flow, .dk-print, .de-print) ul.dash { list-style: "–  "; }
+:is(.de-flow, .dk-print, .de-print) ol.alpha { list-style: lower-alpha; }
+:is(.de-flow, .dk-print, .de-print) ol.roman { list-style: lower-roman; padding-left: 2em; }
+:is(.de-flow, .dk-print, .de-print) ol.alpha ol, :is(.de-flow, .dk-print, .de-print) ol.roman ol { list-style: decimal; }
+
+/* A script, set like a screenplay: typewriter type, single spaced, each part
+   in its place across the page (shares match SCRIPT_PLACE in docformat.js). */
+:is(.de-flow, .de-print).is-script, .dk-paper.is-script .dk-print { font-family: var(--de-type); }
+:is(.de-flow, .de-print).is-script > p, .dk-paper.is-script .dk-print > p { margin: calc(var(--de-lh, 1.2) * 1em) 0 0; }
+:is(.de-flow, .de-print).is-script > :first-child, .dk-paper.is-script .dk-print > :first-child { margin-top: 0; }
+:is(.de-flow, .de-print).is-script > p.sc-scene, .dk-paper.is-script .dk-print > p.sc-scene { margin-top: calc(var(--de-lh, 1.2) * 2em); font-weight: 700; }
+:is(.de-flow, .de-print).is-script > p.sc-char, .dk-paper.is-script .dk-print > p.sc-char { margin-left: 37%; }
+:is(.de-flow, .de-print).is-script > p.sc-paren, .dk-paper.is-script .dk-print > p.sc-paren { margin: 0 38% 0 27%; }
+:is(.de-flow, .de-print).is-script > p.sc-dial, .dk-paper.is-script .dk-print > p.sc-dial { margin: 0 25% 0 17%; }
+:is(.de-flow, .de-print).is-script > p.sc-trans, .dk-paper.is-script .dk-print > p.sc-trans { text-align: right; }
+.de-flow.is-script > p { position: relative; }
+.de-flow.is-script > p[data-hint]::before {
+  content: attr(data-hint); position: absolute; left: 0; top: 0; pointer-events: none; user-select: none;
+  color: var(--de-ink-3); opacity: 0.75; white-space: nowrap;
+}
+.de-flow.is-script > p.sc-trans[data-hint]::before { left: auto; right: 0; }
+
+/* A journal: each entry opens under its date. */
+:is(.de-flow, .de-print).is-journal > h2.dated, .dk-print > h2.dated {
+  margin: 2.2em 0 0.7em; padding-top: 0.9em; border-top: 1px solid var(--de-rule, #ddd6c8);
+  font: 650 0.78em/1.3 var(--de-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--de-ink-2, #5c5852);
+}
+:is(.de-flow, .de-print).is-journal > h2.dated:first-child, .dk-print > h2.dated:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.de-flow.is-journal > h2.dated + p::first-letter { font-size: 1.05em; }
+
+/* A letter: airy paragraphs, the sign-off with room for a name. */
+:is(.de-flow, .de-print).is-letter > p { margin-bottom: 1em; }
+
+/* A poem's helpers, in the margins beside its lines. */
+.de-aids { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.de-aids > span {
+  position: absolute; transform: translateY(-50%); font: 600 10.5px/1 var(--sans); font-variant-numeric: tabular-nums;
+  color: #a39d92; letter-spacing: 0.02em; white-space: nowrap;
+}
+.de-aid-num { width: 28px; text-align: right; font-weight: 500 !important; color: #b8b2a6 !important; }
+.de-aid-syl { min-width: 16px; text-align: right; }
+.de-aid-rhyme { min-width: 15px; height: 15px; display: inline-grid; place-items: center; border-radius: 4px; font-size: 10px !important; color: #b3ada2 !important; }
+.de-aid-rhyme.is-h0 { color: #fff !important; background: #b3261e; }
+.de-aid-rhyme.is-h1 { color: #fff !important; background: #1f5fbf; }
+.de-aid-rhyme.is-h2 { color: #fff !important; background: #2e7d32; }
+.de-aid-rhyme.is-h3 { color: #fff !important; background: #9a6b00; }
+.de-aid-rhyme.is-h4 { color: #fff !important; background: #5b3cc4; }
+.de-aid-rhyme.is-h5 { color: #fff !important; background: #00796b; }
+::highlight(de-rh-0) { text-decoration: underline 2px; text-decoration-color: rgba(179, 38, 30, 0.6); text-underline-offset: 3px; }
+::highlight(de-rh-1) { text-decoration: underline 2px; text-decoration-color: rgba(31, 95, 191, 0.6); text-underline-offset: 3px; }
+::highlight(de-rh-2) { text-decoration: underline 2px; text-decoration-color: rgba(46, 125, 50, 0.6); text-underline-offset: 3px; }
+::highlight(de-rh-3) { text-decoration: underline 2px; text-decoration-color: rgba(154, 107, 0, 0.6); text-underline-offset: 3px; }
+::highlight(de-rh-4) { text-decoration: underline 2px; text-decoration-color: rgba(91, 60, 196, 0.6); text-underline-offset: 3px; }
+::highlight(de-rh-5) { text-decoration: underline 2px; text-decoration-color: rgba(0, 121, 107, 0.6); text-underline-offset: 3px; }
 
 /* Highlights drawn over the words, without touching them. */
 ::highlight(de-c) { background-color: rgba(240, 194, 74, 0.32); }

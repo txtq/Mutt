@@ -145,7 +145,12 @@ export function toMarkdown(root) {
       continue;
     } else {
       const text = inlineMd(el).replace(/\n+$/, '');
-      if (text.trim()) parts.push(text.replace(/[ \t]+$/gm, ''));
+      if (!text.trim()) continue;
+      // In a script a name, its parenthetical and its lines sit together.
+      const prev = el.previousElementSibling;
+      if (/\bsc-(?:paren|dial)\b/.test(el.className) && prev && /\bsc-(?:char|paren|dial)\b/.test(prev.className) && parts.length) {
+        parts[parts.length - 1] += `\n${text.replace(/[ \t]+$/gm, '')}`;
+      } else parts.push(text.replace(/[ \t]+$/gm, ''));
     }
   }
   return parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -182,7 +187,8 @@ const BLOCK = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre', 'ul', '
 const INLINE = new Set(['strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'sub', 'sup', 'code', 'a', 'span', 'mark', 'br', 'img', 'hr', 'font']);
 const DROP = new Set(['script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template', 'head', 'title', 'svg', 'math', 'video', 'audio', 'canvas', 'form', 'select', 'textarea', 'button', 'input', 'meta', 'link']);
 const RENAME = { b: 'strong', i: 'em', strike: 's', del: 's', font: 'span' };
-const CLASSES = new Set(['pb', 'check', 'done', 'title', 'subtitle', 'stanza', 'wide', 'left', 'right', 'center']);
+const CLASSES = new Set(['pb', 'check', 'done', 'title', 'subtitle', 'stanza', 'wide', 'left', 'right', 'center',
+  'dash', 'alpha', 'roman', 'dated', 'sc-scene', 'sc-action', 'sc-char', 'sc-paren', 'sc-dial', 'sc-trans']);
 const COLOR = /^(?:#[0-9a-f]{3,8}|rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*(?:,\s*[\d.]+%?\s*)?\)|transparent|inherit)$/i;
 const FAMILIES = new Set(['serif', 'sans', 'mono', 'type']);
 const STYLES = {
@@ -365,7 +371,8 @@ export function readBlocks(root, base = 12) {
   const lists = (list, level) => {
     if (!level) group++;
     let n = Number(list.getAttribute('start')) || 1;
-    const kind = list.tagName === 'OL' ? 'ol' : list.classList.contains('check') ? 'check' : 'ul';
+    const kind = list.tagName === 'OL' ? (list.classList.contains('alpha') ? 'alpha' : list.classList.contains('roman') ? 'roman' : 'ol')
+      : list.classList.contains('check') ? 'check' : list.classList.contains('dash') ? 'dash' : 'ul';
     for (const li of list.children) {
       if (li.tagName !== 'LI') continue;
       blocks.push({ type: 'li', list: { kind, level, group, index: n++, done: li.hasAttribute('data-done') }, align: alignOf(li), runs: runsOf(li, base) });
@@ -396,7 +403,8 @@ export function readBlocks(root, base = 12) {
     let type = /^h[1-4]$/.test(tag) ? tag : 'p';
     if (el.classList.contains('title')) type = 'title';
     if (el.classList.contains('subtitle')) type = 'subtitle';
-    blocks.push({ type, align: alignOf(el), indent: indentOf(el), spacing: Number(el.style.lineHeight) || null, runs });
+    const script = /\bsc-(scene|action|char|paren|dial|trans)\b/.exec(el.className)?.[1] || null;
+    blocks.push({ type, script, entry: el.classList.contains('dated'), align: alignOf(el), indent: indentOf(el), spacing: Number(el.style.lineHeight) || null, runs });
     blocks.push(...imgs);
   }
   return blocks;
@@ -422,3 +430,31 @@ export function looksLikePoem(root) {
 // Page sizes (points) and margins (points), shared by the editor and the makers.
 export const PAGE_SIZES = { a4: [595.28, 841.89], letter: [612, 792] };
 export const MARGIN_PT = { narrow: 36, normal: 72, wide: 108 };
+
+// How a list counts: 1. 2. 3., a. b. c. or i. ii. iii.
+export function listMark(kind, n) {
+  if (kind === 'alpha') {
+    let out = '';
+    for (let k = n; k > 0; k = Math.floor((k - 1) / 26)) out = String.fromCharCode(97 + ((k - 1) % 26)) + out;
+    return `${out}.`;
+  }
+  if (kind === 'roman') {
+    const table = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
+    let out = '';
+    let k = n;
+    for (const [v, s] of table) while (k >= v) { out += s; k -= v; }
+    return `${out}.`;
+  }
+  return `${n}.`;
+}
+
+// Where each part of a script sits across the page, as shares of the text's
+// width (a screenplay's usual places), and the space above it in lines.
+export const SCRIPT_PLACE = {
+  scene: { left: 0, right: 0, above: 2 },
+  action: { left: 0, right: 0, above: 1 },
+  char: { left: 0.37, right: 0, above: 1 },
+  paren: { left: 0.27, right: 0.38, above: 0 },
+  dial: { left: 0.17, right: 0.25, above: 0 },
+  trans: { left: 0, right: 0, above: 1, align: 'right' },
+};

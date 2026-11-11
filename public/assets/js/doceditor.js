@@ -17,6 +17,7 @@
 import { api, sendFile, session } from './api.js';
 import { MARGIN_PT, PAGE_SIZES, cleanCopy, cleanHtml, escapeHtml, fromMarkdown, looksLikePoem, toMarkdown } from './docformat.js';
 import { docTitle } from './docs.js';
+import { DocSpelling, autocorrectOn, setAutocorrect } from './docspell.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
 import { EASE, bus, debounce, h, plural, reducedMotion, timeAgo } from './util.js';
@@ -315,6 +316,7 @@ class DocEditor {
       this.applySettings();
       this.renderSide();
       this.wire();
+      this.spelling = new DocSpelling(this);
       this.record();
       this.setStatus(this.mine ? `Saved ${timeAgo(this.doc.savedAt)}` : `@${this.block.owner}’s document`);
       await document.fonts?.ready;
@@ -488,6 +490,7 @@ class DocEditor {
     this.updateCount();
     this.renderOutline();
     this.marksSoon();
+    this.spelling?.scanSoon?.();
   }
 
   // A poem sits as one block in the middle of the page, its lines as written.
@@ -1192,6 +1195,7 @@ class DocEditor {
       this.syncToolsSoon ||= debounce(() => { this.syncTools(); this.selectionBar(); }, 80);
       this.syncToolsSoon();
       if (this.slashFor && this.blockAtCaret() !== this.slashFor.block) this.closeSlash();
+      this.spelling?.moved();
     });
     on(window, 'pagehide', () => { if (this.dirty) this.save(); });
     on(this.titleIn, 'input', () => {
@@ -1233,6 +1237,7 @@ class DocEditor {
     });
     on(this.flow, 'input', (e) => {
       if (e.inputType === 'insertText' && e.data === ' ') this.autoformat();
+      this.spelling?.typed(e);
       if (e.inputType === 'insertText' && e.data && '"\'-.'.includes(e.data)) this.smarten(e.data);
       this.changed();
       this.slashCheck();
@@ -1601,6 +1606,7 @@ class DocEditor {
       this.mine ? { label: 'Find and replace', hint: '⌘⇧H', run: () => this.openFind(true) } : null,
       { label: 'Word count', run: () => this.countDetails() },
       this.mine ? { label: 'Version history', run: () => this.togglePanel('history') } : null,
+      this.mine && !this.spelling?.dead ? { label: autocorrectOn() ? 'Turn off autocorrect' : 'Turn on autocorrect', run: () => { setAutocorrect(!autocorrectOn()); toast(autocorrectOn() ? 'Autocorrect is on' : 'Autocorrect is off'); } } : null,
     ].filter(Boolean), { align: 'end', className: 'de-menu' });
   }
 
@@ -2213,6 +2219,7 @@ class DocEditor {
       try { await api.del(`/api/blocks/${this.id}`); bus.emit('block:deleted', { id: this.id }); gone = true; } catch { /* keep it */ }
     }
     this.off.forEach((off) => off());
+    this.spelling?.destroy();
     CSS.highlights?.delete('de-c');
     CSS.highlights?.delete('de-c-on');
     CSS.highlights?.delete('de-find');

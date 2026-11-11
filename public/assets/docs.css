@@ -585,3 +585,7 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
   .de-print.is-poem > :is(p, blockquote) { margin-left: var(--poem-in, 0); margin-bottom: 1.25em; }
   .de-print.is-poem > :is(h1, h2, h3, .title) { text-align: center; }
 }
+
+/* Spelling (docspell.js): a misspelt word, and one just corrected. */
+::highlight(mutt-spell) { text-decoration: underline wavy rgba(196, 64, 44, 0.85) 1.5px; text-decoration-skip-ink: none; }
+::highlight(mutt-fixed) { text-decoration: underline dotted rgba(31, 95, 191, 0.75) 2px; text-decoration-skip-ink: none; }

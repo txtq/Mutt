@@ -1,0 +1,8 @@
+The spellchecker's word list (en.txt), built by tools/make_words.py.
+
+Words: SCOWL (Spell Checker Oriented Word Lists) by Kevin Atkinson, sizes 10–60,
+English, American, British and Canadian spellings, via the npm package
+wordlist-english. Copyright notice in SCOWL-COPYRIGHT.
+
+Order (most common first): word frequencies from hermitdave/FrequencyWords
+(OpenSubtitles 2018), CC BY-SA 4.0, https://github.com/hermitdave/FrequencyWords.

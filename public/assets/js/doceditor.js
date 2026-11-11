@@ -247,8 +247,8 @@ class DocEditor {
     this.moreBtn = btn('more', 'More', (e, b) => this.moreMenu(b));
     this.top = h('header', { class: 'de-top' },
       back, this.sideBtn,
-      h('div', { class: 'de-heading' }, this.titleIn, this.status),
-      h('div', { class: 'de-top-tools' }, this.commentsBtn, this.historyBtn, this.downloadBtn, this.moreBtn));
+      h('div', { class: 'de-heading' }, this.titleIn),
+      h('div', { class: 'de-top-tools' }, this.status, this.commentsBtn, this.historyBtn, this.downloadBtn, this.moreBtn));
 
     this.tools = h('div', { class: 'de-tools fglass', role: 'toolbar', 'aria-label': 'Formatting' });
     this.flow = h('div', { class: 'de-flow', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Document' });

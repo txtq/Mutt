@@ -3146,3 +3146,28 @@ html[data-motion="off"] .cb-steam { display: none; }
 .cell-comments { display: inline-flex; align-items: center; gap: 3px; flex: none; font: 400 11px/1 var(--mono); color: var(--ink-4); }
 .cell:hover .cell-comments { color: var(--ink-3); }
 .vw-cm-list.is-settled .vw-cm-item:not(.is-new), .vw-cm-list.is-settled .vw-cm-item:not(.is-new) > * { animation: none; }
+
+/* ---------------------------------------------------------------- spelling in text boxes
+   spellfield.js lays a see-through copy of a text box over it; only the
+   underlines under misspelt words show. */
+.spell-veil {
+  position: absolute;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  background: none !important;
+  border-style: solid;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  user-select: none;
+  animation: none !important;
+  transition: none !important;
+}
+.spell-bad {
+  text-decoration: underline wavy rgba(255, 120, 108, 0.9);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}

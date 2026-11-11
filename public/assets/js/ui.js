@@ -252,8 +252,10 @@ export function openMenu(anchor, items, opts = {}) {
 // A right-click menu, opened where the pointer is. Items are like openMenu's,
 // plus `{ heading }` for a small section label and `icon` (an element) before
 // the label. It grows out of the pointer, its rows arrive one after another,
-// and one highlight glides between them.
-export function openContextMenu(e, items, { title, target, onClose } = {}) {
+// and one highlight glides between them. With `keepFocus` the text being
+// written in keeps the focus (and its caret) while the menu is open, and the
+// keys still work the menu.
+export function openContextMenu(e, items, { title, target, onClose, keepFocus = false } = {}) {
   e.preventDefault();
   closeAllPopovers();
   // The thing it's about stays lit while the menu is open.
@@ -313,11 +315,15 @@ export function openContextMenu(e, items, { title, target, onClose } = {}) {
   };
   list.addEventListener('pointerover', (ev) => {
     const btn = ev.target.closest?.('.ctx-item');
-    if (btn) { light(btn); btn.focus({ preventScroll: true }); }
+    if (btn) { light(btn); if (!keepFocus) btn.focus({ preventScroll: true }); }
   });
   list.addEventListener('pointerleave', () => { light(null); if (el.contains(document.activeElement)) list.focus?.(); });
   list.tabIndex = -1;
-  list.addEventListener('keydown', (ev) => {
+  const keys = (ev) => {
+    if (keepFocus && ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); return; }
+    // Typing on (or Enter before choosing anything) goes to the words, and the menu goes.
+    if (keepFocus && (!/^(Arrow(Up|Down)|Enter|Tab)$/.test(ev.key) || (ev.key === 'Enter' && !current))) { close(); return; }
+    if (keepFocus) ev.stopPropagation();
     const i = rows.indexOf(current);
     let next = null;
     if (ev.key === 'ArrowDown') next = rows[(i + 1) % rows.length];
@@ -329,9 +335,16 @@ export function openContextMenu(e, items, { title, target, onClose } = {}) {
     if (!next) return;
     ev.preventDefault();
     light(next);
-    next.focus({ preventScroll: true });
-  });
-  requestAnimationFrame(() => list.focus({ preventScroll: true }));
+    if (!keepFocus) next.focus({ preventScroll: true });
+  };
+  if (keepFocus) {
+    // Clicking a row mustn't take the focus from the words either.
+    el.addEventListener('mousedown', (ev) => ev.preventDefault());
+    document.addEventListener('keydown', keys, true);
+  } else {
+    list.addEventListener('keydown', keys);
+    requestAnimationFrame(() => list.focus({ preventScroll: true }));
+  }
 
   // A chosen row blinks once, then the menu folds back into the pointer.
   let busy = false;
@@ -351,6 +364,7 @@ export function openContextMenu(e, items, { title, target, onClose } = {}) {
     if (closed) return;
     closed = true;
     document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', keys, true);
     removeEventListener('resize', close);
     removeEventListener('scroll', scrolled, true);
     removeEventListener('blur', close);

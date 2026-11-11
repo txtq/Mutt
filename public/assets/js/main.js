@@ -14,9 +14,11 @@ import { galaxyView, universeView } from './views/galaxy.js';
 import { loginView } from './views/login.js';
 import { planetView } from './views/planet.js';
 import { catchUp } from './see.js';
+import { watchSpelling } from './spellfield.js';
 
 bootPrefs();
 startMusic();
+watchSpelling();
 
 route(/^\/login$/, loginView);
 route(/^\/$/, galaxyView);

@@ -474,7 +474,8 @@ export const loginView = {
         session.stats = res.stats;
         setPrefs(res.prefs);
         const next = url.searchParams.get('next') || '';
-        nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
+        // The light stays until the galaxy is in place underneath it.
+        await nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
         if (flash) {
           flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, delay: 140, easing: 'ease-out', fill: 'forwards' })
             .finished.then(() => flash.remove(), () => flash.remove());

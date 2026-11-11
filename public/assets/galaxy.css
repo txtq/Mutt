@@ -1560,6 +1560,9 @@ html[data-vt="viewer"] .viewer { backdrop-filter: none; -webkit-backdrop-filter:
 .vw-btn:hover { background: var(--tint-2); }
 .vw-codebox { background: var(--well); border-color: var(--line); }
 .vw-text-area { background: var(--well); }
+/* The file's name and description: the old white editing box washed out the
+   light text; edit them in the same dark well as a planet's name. */
+.vw-title:focus, .vw-desc:focus { outline: none; background: var(--well); box-shadow: 0 0 0 6px var(--well), 0 0 0 7px var(--line-2); }
 .vw-link-bar { background: var(--well); }
 .vw-pdf-page { background: #fff; }
 .vw-conn:hover { background: var(--tint-2); }

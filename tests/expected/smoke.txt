@@ -1,4 +1,12 @@
 signup: tester
+signup with 4821: Your code needs to be 6 digits.
+signup with 123456: A run of digits in order is too easy to guess.
+signup with 654321: A run of digits in order is too easy to guess.
+signup with 111111: One digit over and over is too easy to guess. Mix them up.
+signup with 121212: A repeating pattern is too easy to guess.
+signup with 199004: Codes with a year in them are easy to guess. Try another.
+signup with 147258: That code is one lots of people pick. Try another.
+check a code: A repeating pattern is too easy to guess. / None
 text: text
 upload: <id> code /f/<id>/a.py
 range: 206 5

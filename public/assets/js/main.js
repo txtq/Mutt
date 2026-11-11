@@ -15,6 +15,7 @@ import { loginView } from './views/login.js';
 import { planetView } from './views/planet.js';
 import { catchUp } from './see.js';
 import { watchSpelling } from './spellfield.js';
+import { phoneNote } from './phonenote.js';
 
 bootPrefs();
 startMusic();
@@ -159,6 +160,7 @@ async function boot() {
   await startRouter({ rootEl: view, topbar: bar });
   // Once the page has settled, read pictures uploaded before the picture reader existed.
   if (session.user) setTimeout(() => catchUp(), 6000);
+  if (session.user) phoneNote();
 }
 
 boot();

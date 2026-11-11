@@ -7,7 +7,7 @@
 SP="$1"; B=localhost:8099
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
-curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"maker","pin":"4821"}' >/dev/null
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"maker","pin":"482193"}' >/dev/null
 planet() { curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"$1\"}" | j "d['drawer']['id']"; }
 note() { curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(python3 -c "import json,sys; print(json.dumps(dict(content=sys.argv[2], drawer=sys.argv[1])))" "$1" "$2")" | j "d['block']['id']"; }
 signs() { curl -s "${C[@]}" $B/api/drawers/$1/modes | j "$2"; }

@@ -759,7 +759,7 @@ function spinnable(el, globe) {
 
 // ---------------------------------------------------------------- the planet
 
-export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true, tag = href ? 'a' : 'div', peek = false, orbit = false } = {}) {
+export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true, tag = href ? 'a' : 'div', orbit = false } = {}) {
   const rand = seeded(planet.id);
   const tilt = Math.round((rand() - 0.5) * 36);
   const ringTilt = Math.round((rand() - 0.5) * 24);
@@ -777,11 +777,10 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const bubble = h('span', { class: 'planet-bubble', 'aria-hidden': 'true' });
   const name = h('span', { class: 'planet-name' });
   const meta = h('span', { class: 'planet-meta' });
-  const peekRow = peek ? h('span', { class: 'planet-peek', 'aria-hidden': 'true' }) : null;
   const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, bubble);
   const el = h(tag, { class: `planet${canPaint() ? ' is-gl' : ''}${isMoon ? ' is-moon' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
     body,
-    label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta, peekRow) : null);
+    label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta) : null);
 
   el.style.setProperty('--tilt', `${tilt}deg`);
   el.style.setProperty('--ring-tilt', `${ringTilt}deg`);
@@ -816,7 +815,6 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     el.addEventListener('focusout', () => { host.hovered = false; wakeOrbits(); });
   }
 
-  let peekFor = '';
   let shownWorld = '';
   el.update = (next, opts = {}) => {
     planet = next;
@@ -855,18 +853,10 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     if (next.locked) bits.push(glyph('lock', 10));
     bits.push(h('span', null, next.count ? plural(next.count, 'file') : 'empty'));
     meta.replaceChildren(...bits);
-    if (peekRow) {
-      const pics = next.locked ? [] : (next.recent || previews).slice(0, 4);
-      const sig = pics.map((b) => b.id).join();
-      if (sig !== peekFor) { peekFor = sig; peekRow.replaceChildren(...pics.map((b) => fileFace(b, { lazy: true }))); }
-    }
     el.setAttribute('aria-label', `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}`);
   };
   el.update(planet);
 
-  el.addEventListener('pointerenter', () => {
-    for (const img of el.querySelectorAll('.planet-peek img[data-src]')) { img.src = img.dataset.src; img.removeAttribute('data-src'); }
-  });
   el.ball = ball;
   el.body = body;
   spinnable(el, globeApi);

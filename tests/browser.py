@@ -25,7 +25,7 @@ PORT, DRIVER_PORT = 8098, 4498
 SITE = f'http://localhost:{PORT}'
 SHOTS = os.path.join(HERE, 'shots', 'latest')
 ELEMENT = 'element-6066-11e4-a52e-4f735466cecf'
-NAME, CODE = 'tester', '4821'
+NAME, CODE = 'tester', '482193'
 DESK, PHONE = (1280, 800), (375, 812)
 ENTER = '\ue007'
 
@@ -232,7 +232,7 @@ def seed():
     # and a neighbour, for the universe
     other = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     other.open(urllib.request.Request(SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
-                                      data=json.dumps({'username': 'neighbour', 'pin': '2580'}).encode()), timeout=20)
+                                      data=json.dumps({'username': 'neighbour', 'pin': '258093'}).encode()), timeout=20)
 
     # the seed itself is checked: each planet must be offered the mode its path expects
     for title, mode in (('Shopping', 'list'), ('Recipes to try', 'cookbook'), ('Essays', 'documents'), ('Shelf', 'reading')):
@@ -261,10 +261,10 @@ def sign_up(s, seeded):
     give_name(s, 'newcomer')
     s.wait('return /free/i.test(document.querySelector(".login-prompt")?.textContent || "")',
            'a new name was not told it is free')
-    enter_code(s, '7391')
+    enter_code(s, '739193')
     s.wait('return /once more/i.test(document.querySelector(".login-label")?.textContent || "")',
            'a new name was not asked for its code a second time')
-    enter_code(s, '7391')
+    enter_code(s, '739193')
     s.wait('return location.pathname === "/" && !!document.querySelector(".void-core")',
            'picking a code did not land in the new galaxy', 12)
     s.settle(1.5)
@@ -280,7 +280,7 @@ def sign_in(s, seeded):
     give_name(s, NAME)
     s.wait('return /welcome back/i.test(document.querySelector(".login-prompt")?.textContent || "")',
            'a known name was not welcomed back')
-    enter_code(s, '0000')
+    enter_code(s, '000093')
     s.wait('return (document.querySelector(".login-msg")?.textContent || "").trim().length > 0',
            'a wrong code gave no message')
     if s.path() != '/login':

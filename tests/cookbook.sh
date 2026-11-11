@@ -6,7 +6,7 @@ J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.tx
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 note() { python3 -c "import json,sys; print(json.dumps({'content': sys.argv[1], 'drawer': sys.argv[2]}))" "$1" "$2" |
   curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d @- | j "d['block']['id']"; }
-curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cook","pin":"4821"}' >/dev/null
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cook","pin":"482193"}' >/dev/null
 D=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Stuff"}' | j "d['drawer']['id']")
 R1=$(note $'Banana bread\nServes 8 · Prep 15 min · Cook 1 hr\n\nIngredients\n- 3 ripe bananas\n- 100 g butter, melted\n- 150 g sugar\n- 190 g flour\n\nMethod\n1. Preheat the oven to 175°C.\n2. Mash the bananas and mix in the rest.\n3. Bake for 60 minutes.' "$D")
 echo "one recipe on its own: $(curl -s "${C[@]}" $B/api/drawers/$D/modes | j "d['cookbook']")"
@@ -76,7 +76,7 @@ echo "chapter order: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d
 echo "bad setting: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"modes":{"cookbook":{"on":"yes"}}}' | j "d['error']")"
 # A visitor sees the cards of a public planet, read-only.
 curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"visibility":"public"}' >/dev/null
-curl -s "${V[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"guest","pin":"5930"}' >/dev/null
+curl -s "${V[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"guest","pin":"593093"}' >/dev/null
 echo "visitor: $(curl -s "${V[@]}" $B/api/drawers/$D/recipes | j "[(r['title'], r['mine']) for r in d['recipes']]")"
 echo "visitor photo: $(curl -s "${V[@]}" -o /dev/null -w '%{http_code}' "$B/f/$P/dish.png")"
 echo "visitor can't save: $(curl -s "${V[@]}" "${J[@]}" -X PUT $B/api/blocks/$R1/recipe -d '{"title":"x"}' | j "d['error']")"

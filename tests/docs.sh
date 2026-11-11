@@ -6,7 +6,7 @@ SP="$1"; B=localhost:8099
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt"); O=(-b "$SP/o.txt" -c "$SP/o.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 note() { python3 -c "import json,sys; print(json.dumps({'content': sys.argv[1], 'drawer': sys.argv[2]}))" "$1" "$2"; }
-curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"writer","pin":"4821"}' >/dev/null
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"writer","pin":"482193"}' >/dev/null
 D=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Stuff"}' | j "d['drawer']['id']")
 LONG="The harbour was quiet that morning. Nobody had come down to the boats yet, and the gulls had the place to themselves. I walked along the wall to the end, where the light stands, and sat for a while. $(printf 'It was the kind of day that asks nothing of you. %.0s' {1..20})"
 A=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(note "$LONG" "$D")" | j "d['block']['id']")
@@ -67,7 +67,7 @@ echo "new doc: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/docs -d "{\"drawer\"
 echo "desk: $(curl -s "${C[@]}" $B/api/drawers/$D/docs | j "sorted((x['words'], x['poem'], x['comments'], bool(x['html'])) for x in d['docs'])")"
 # Someone the planet is shared with can read and comment, not edit.
 curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"visibility":"public"}' >/dev/null
-curl -s "${O[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"friend","pin":"1357"}' >/dev/null
+curl -s "${O[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"friend","pin":"135793"}' >/dev/null
 echo "visitor opens: $(curl -s "${O[@]}" $B/api/docs/$A | j "d['doc']['mine'], d['doc']['html'][:8]")"
 echo "visitor saves: $(curl -s "${O[@]}" "${J[@]}" -X PUT $B/api/docs/$A -d '{"text":"mine now"}' | j "d.get('error')")"
 echo "visitor versions: $(curl -s "${O[@]}" $B/api/docs/$A/versions | j "d.get('error')")"

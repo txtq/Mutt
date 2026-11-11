@@ -23,7 +23,8 @@ sign-in code as planet code: That's your sign-in code. Pick a different one, so 
 bad planet code: 400
 bo sets alma's code: 404
 set planet code: True False
-sign-in code to a planet's: That's the code for one of your planets. Pick a different one.
+change to a 4-digit code: Your new code needs to be 6 digits.
+change to an easy code: A repeating pattern is too easy to guess.
 bo sees hasCode: [('', True, False), ('Recipes', True, True), ('Zines', False, False), ('Gifts', False, False)]
 wrong code: 403
 alma's sign-in code no longer opens it: 403 then pin 403

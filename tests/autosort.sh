@@ -6,7 +6,7 @@ SP="$1"; B=localhost:8099
 J=(-H Content-Type:application/json -H X-Mutt:1); A=(-b "$SP/a.txt" -c "$SP/a.txt")
 rm -f "$SP/a.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
-curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"sorter","pin":"4821"}' > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"sorter","pin":"482193"}' > /dev/null
 planet() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"$1\"}" | j "d['drawer']['id']"; }
 put() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(python3 -c 'import json,sys; print(json.dumps({"content": sys.argv[1], "drawer": sys.argv[2]}))' "$2" "$1")" > /dev/null; }
 R=$(planet Recipes); T=$(planet "Japan trip"); W=$(planet Work); G=$(planet Garden)
@@ -82,7 +82,7 @@ all morning'
 note '8 Nov. Woke early and wrote for an hour. I felt calm.'
 note 'Sea bass with lemon and capers: 2 fillets, 1 lemon, 1 tbsp capers. Pan fry 4 min each side.'
 # Someone else can't read your planet's purpose.
-curl -s -b /dev/null -c "$SP/b.txt" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"nosy","pin":"4822"}' > /dev/null
+curl -s -b /dev/null -c "$SP/b.txt" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"nosy","pin":"482293"}' > /dev/null
 echo "someone else asking: $(curl -s -b "$SP/b.txt" "$B/api/drawers/$R/purpose" | j "d.get('error')")"
 
 # Photos and songs: the camera, when and where, and song tags are read from the file itself.

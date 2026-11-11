@@ -282,6 +282,7 @@ def drawer_visible(req, row):
     if row['user_id'] == req.user['id']:
         return True
     parent_id = row['parent_id'] if 'parent_id' in row.keys() else None
+    parent = None
     if parent_id:
         parent = req.db.execute('SELECT * FROM drawers WHERE id = ?', (parent_id,)).fetchone()
         if not parent or not drawer_visible(req, parent):
@@ -294,6 +295,9 @@ def drawer_visible(req, row):
     if visibility == 'people':
         return bool(req.db.execute('SELECT 1 FROM drawer_access WHERE drawer_id = ? AND user_id = ?',
                                    (row['id'], req.user['id'])).fetchone())
+    if (visibility == 'pin' and parent and parent['visibility'] == 'pin'
+            and not (row['share_hash'] if 'share_hash' in row.keys() else None)):
+        return True  # a Code moon of a Code planet, with no code of its own, opens with its planet's
     return visibility == 'pin' and is_unlocked(req, row)
 
 
@@ -480,8 +484,9 @@ def signup(req):
     if problem:
         raise HttpError(400, problem)
     pin = str(body.get('pin') or '')
-    if not auth.PIN_RE.match(pin):
-        raise HttpError(400, 'Your code needs to be 4 digits.')
+    problem = auth.pin_problem(pin)
+    if problem:
+        raise HttpError(400, problem, weakPin=True)
     pin_hash, salt = auth.new_pin_hash(pin)
     try:
         with db.transaction(req.db):
@@ -497,6 +502,12 @@ def signup(req):
                          headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
 
+@route('POST', r'/api/auth/check-pin', auth=False)
+def check_new_pin(req):
+    """Is a code someone is picking too easy to guess? Says why, or nothing."""
+    return json_response({'problem': auth.pin_problem(str(req.json().get('pin') or ''))})
+
+
 def pin_gate(req, user, pin, wrong_status=401, device=None):
     """Raise unless `pin` opens `user`'s account (counting toward its lockout).
 
@@ -508,7 +519,7 @@ def pin_gate(req, user, pin, wrong_status=401, device=None):
     if wait:
         raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
     if not auth.PIN_RE.match(pin):
-        raise HttpError(400, 'Codes are 4 digits.')
+        raise HttpError(400, 'Codes are 4 or 6 digits.')
     failure = auth.try_pin(req.db, user, pin, ip, device)
     if failure:
         status, message, extra = failure
@@ -563,8 +574,9 @@ def change_pin(req):
         raise HttpError(429, 'Too many tries. Wait a few minutes.')
     require_pin(req, str(body.get('current') or ''), 'current code')
     new_pin = str(body.get('next') or '')
-    if not auth.PIN_RE.match(new_pin):
-        raise HttpError(400, 'Your new code needs to be 4 digits.')
+    problem = auth.pin_problem(new_pin)
+    if problem:
+        raise HttpError(400, problem.replace('Your code', 'Your new code'), weakPin=True)
     if uses_planet_code(req, new_pin):
         raise HttpError(400, "That's the code for one of your planets. Pick a different one.")
     pin_hash, salt = auth.new_pin_hash(new_pin)
@@ -766,7 +778,7 @@ def unlock_galaxy(req, username):
         wait = auth.login_failures_by_ip.retry_after(req.client_ip)
         if wait:
             raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
-        if not auth.PIN_RE.match(code):
+        if not auth.CODE_RE.match(code):
             raise HttpError(400, 'Codes are 4 digits.')
         failure, opened = auth.try_share_code(req.db, owner, code, req.client_ip)
         if failure:
@@ -786,7 +798,7 @@ def set_planet_code(req, drawer_id):
     Changing it closes the planet again to everyone who had the old one."""
     own_drawer(req, drawer_id)
     code = str(req.json().get('code') or '')
-    if not auth.PIN_RE.match(code):
+    if not auth.CODE_RE.match(code):
         raise HttpError(400, 'The code needs to be 4 digits.')
     if auth.check_pin(code, req.user['pin_salt'], req.user['pin_hash']):
         raise HttpError(400, "That's your sign-in code. Pick a different one, so sharing this planet "
@@ -929,10 +941,11 @@ def create_drawer(req):
     stamp = now()
     with db.transaction(req.db):
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, parent_id, modes) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, '
+            'parent_id, modes, own_sharing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp,
-             1 if body.get('community') else 0, visibility, parent_id, json.dumps(modes)))
+             1 if body.get('community') else 0, visibility, parent_id, json.dumps(modes),
+             1 if parent_id and 'visibility' in body else 0))
         for user_id in people:
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
         position = 0
@@ -1007,13 +1020,32 @@ def update_drawer(req, drawer_id):
             # Back to private: other people's files leave with them.
             req.db.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id IN '
                            '(SELECT id FROM blocks WHERE user_id != ?)', (drawer_id, req.user['id']))
+    sharing = 'visibility' in body or 'people' in body
+    if sharing and moon:
+        updates['own_sharing'] = 1  # the owner chose for this moon: it stops following its planet
     if updates:
         updates['updated_at'] = now()
         assignments = ', '.join(f'{k} = ?' for k in updates)
         req.db.execute(f'UPDATE drawers SET {assignments} WHERE id = ?', (*updates.values(), drawer_id))
+    if sharing and not moon:
+        follow_planet_sharing(req, drawer_id)
     row = own_drawer(req, drawer_id)
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
     return json_response({'drawer': planet_json(req, row, count)})
+
+
+def follow_planet_sharing(req, planet_id):
+    """Moons whose owner never set their sharing take their planet's again."""
+    planet = own_drawer(req, planet_id)
+    people = [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (planet_id,))]
+    with db.transaction(req.db):
+        for (moon_id,) in req.db.execute('SELECT id FROM drawers WHERE parent_id = ? AND own_sharing = 0',
+                                         (planet_id,)).fetchall():
+            req.db.execute('UPDATE drawers SET visibility = ? WHERE id = ?', (planet['visibility'], moon_id))
+            req.db.execute('DELETE FROM drawer_access WHERE drawer_id = ?', (moon_id,))
+            for user_id in people:
+                req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (moon_id, user_id))
+            req.db.execute('DELETE FROM drawer_unlocks WHERE drawer_id = ?', (moon_id,))
 
 
 def set_planet_people(req, drawer_id, names):

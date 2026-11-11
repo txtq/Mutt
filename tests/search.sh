@@ -6,7 +6,7 @@ J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.tx
 rm -f "$SP/c.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 names="[b.get('title') or b.get('fileName') or b['content'][:20] for b in d['blocks']]"
-curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"Finder","pin":"4821"}' > /dev/null
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"Finder","pin":"482193"}' > /dev/null
 D=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Beach trip"}' | j "d['drawer']['id']")
 note() { curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"$1\"}" | j "d['block']['id']"; }
 up() { printf '%s' "$2" > "$SP/$1"; curl -s "${C[@]}" -H X-Mutt:1 -H "Content-Type: $3" --data-binary @"$SP/$1" "$B/api/upload?name=$1" | j "d['block']['id']"; }

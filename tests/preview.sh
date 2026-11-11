@@ -3,8 +3,8 @@ SP="$1"; B=localhost:8099
 J=(-H Content-Type:application/json -H X-Mutt:1); A=(-b "$SP/pa.txt" -c "$SP/pa.txt"); U=(-b "$SP/pb.txt" -c "$SP/pb.txt")
 rm -f "$SP/pa.txt" "$SP/pb.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
-curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"alma","pin":"1357"}' > /dev/null
-curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"bo","pin":"2468"}' > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"alma","pin":"135793"}' > /dev/null
+curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"bo","pin":"246893"}' > /dev/null
 L=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"https://example.com"}' | j "d['block']['id'] + ' ' + str(d['block']['meta'].get('shot'))")
 echo "new link: $L"
 ID=${L%% *}

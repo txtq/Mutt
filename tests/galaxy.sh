@@ -5,9 +5,10 @@ J=(-H Content-Type:application/json -H X-Mutt:1)
 A=(-b "$SP/ga.txt" -c "$SP/ga.txt"); U=(-b "$SP/gb.txt" -c "$SP/gb.txt"); W=(-b "$SP/gc.txt" -c "$SP/gc.txt")
 rm -f "$SP/ga.txt" "$SP/gb.txt" "$SP/gc.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
-curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"alma","pin":"1357"}' > /dev/null
-curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"bo","pin":"2468"}' > /dev/null
-curl -s "${W[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cy","pin":"1111"}' > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"alma","pin":"135793"}' > /dev/null
+old_code "$SP" alma 1357  # alma signed up before codes were 6 digits
+curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"bo","pin":"246893"}' > /dev/null
+curl -s "${W[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cy","pin":"111193"}' > /dev/null
 mk() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$1" | j "d['drawer']['id']"; }
 PRIV=$(mk '{"title":"Diary","visibility":"private"}')
 PIN=$(mk '{"title":"Recipes","visibility":"pin"}')
@@ -46,7 +47,8 @@ echo "sign-in code as planet code: $(curl -s "${A[@]}" "${J[@]}" -X PUT $B/api/d
 echo "bad planet code: $(curl -s -o /dev/null -w '%{http_code}' "${A[@]}" "${J[@]}" -X PUT $B/api/drawers/$PIN/code -d '{"code":"12a4"}')"
 echo "bo sets alma's code: $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" "${J[@]}" -X PUT $B/api/drawers/$PIN/code -d '{"code":"4242"}')"
 echo "set planet code: $(curl -s "${A[@]}" "${J[@]}" -X PUT $B/api/drawers/$PIN/code -d '{"code":"4242"}' | j "d['drawer']['hasCode'], 'shareHash' in d['drawer']")"
-echo "sign-in code to a planet's: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/me/pin -d '{"current":"1357","next":"4242"}' | j "d['error']")"
+echo "change to a 4-digit code: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/me/pin -d '{"current":"1357","next":"4242"}' | j "d['error']")"
+echo "change to an easy code: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/me/pin -d '{"current":"1357","next":"121212"}' | j "d['error']")"
 echo "bo sees hasCode: $(curl -s "${U[@]}" $B/api/galaxy/alma | j "[(p['title'], p.get('locked', False), p['hasCode']) for p in d['planets']]")"
 echo "wrong code: $(code '{"pin":"0000"}')"
 echo "alma's sign-in code no longer opens it: $(code "$LOGIN_CODE") then pin $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PIN)"

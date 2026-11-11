@@ -1,4 +1,4 @@
-"""Usernames, 4-digit PINs, sessions and brute-force protection.
+"""Usernames, sign-in codes (6 digits, or 4 for older accounts), sessions and brute-force protection.
 
 A 4-digit PIN only has 10,000 possibilities, so every guess is expensive
 (scrypt + server-side pepper) and misses are limited at three levels:
@@ -29,7 +29,17 @@ from . import db
 SESSION_COOKIE = 'mutt_session'
 SESSION_TTL = 60 * 60 * 24 * 30
 USERNAME_RE = re.compile(r'^[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9]$')
-PIN_RE = re.compile(r'^[0-9]{4}$')
+# Sign-in codes: new ones are 6 digits; 4-digit codes made before that keep working.
+PIN_RE = re.compile(r'^[0-9]{4}(?:[0-9]{2})?$')
+NEW_PIN_RE = re.compile(r'^[0-9]{6}$')
+# A planet's own code (for Code sharing) stays 4 digits.
+CODE_RE = re.compile(r'^[0-9]{4}$')
+# Codes people pick most often that the rules below don't already catch.
+COMMON_PINS = {
+    '123321', '654456', '112233', '332211', '111222', '222111', '102030', '147258', '258369', '369258',
+    '159357', '357159', '147852', '258456', '852456', '456852', '789456', '456789', '987654', '159753',
+    '753951', '951753', '135790', '246810', '696969', '420420', '520520', '131313', '007007', '010203',
+}
 RESERVED = {
     'admin', 'administrator', 'all', 'api', 'assets', 'bundles', 'drawers', 'everything',
     'help', 'login', 'logout', 'me', 'mutt', 'null', 'root', 'search', 'settings',
@@ -312,3 +322,23 @@ def cookie_header(req, token, max_age=SESSION_TTL, name=SESSION_COOKIE):
 
 def clear_cookie_header(req):
     return cookie_header(req, '', max_age=0)
+
+
+def pin_problem(pin):
+    """Why a new sign-in code is too easy to guess, or None if it's fine."""
+    if not NEW_PIN_RE.match(pin):
+        return 'Your code needs to be 6 digits.'
+    if len(set(pin)) == 1:
+        return 'One digit over and over is too easy to guess. Mix them up.'
+    steps = {(int(b) - int(a)) % 10 for a, b in zip(pin, pin[1:])}
+    if steps in ({1}, {9}):
+        return 'A run of digits in order is too easy to guess.'
+    for size in (2, 3):  # 121212, 123123
+        if pin == pin[:size] * (6 // size):
+            return 'A repeating pattern is too easy to guess.'
+    if pin in COMMON_PINS or pin == pin[::-1] and len(set(pin)) <= 2:
+        return 'That code is one lots of people pick. Try another.'
+    for year in (pin[:4], pin[2:]):  # 1990xx, xx1990: a birth year with a month or day
+        if 1940 <= int(year) <= 2039:
+            return 'Codes with a year in them are easy to guess. Try another.'
+    return None

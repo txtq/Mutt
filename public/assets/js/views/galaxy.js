@@ -866,7 +866,7 @@ class Galaxy {
   // ------------------------------------------------------------ planets
 
   addPlanet(planet, { born = false } = {}) {
-    const el = planetEl(planet, { peek: true, orbit: true });
+    const el = planetEl(planet, { orbit: true });
     el.body.dataset.vt = `planet-${planet.id}`;
     if (planet.private) {
       el.addEventListener('click', (e) => { e.preventDefault(); toast(`@${this.owner} keeps this planet private.`); });

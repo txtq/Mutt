@@ -5,7 +5,7 @@ SP="$1"; B=localhost:8099
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt"); O=(-b "$SP/o.txt" -c "$SP/o.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 python3 tests/make_books.py "$SP" >/dev/null
-curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"reader","pin":"4821"}' >/dev/null
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"reader","pin":"482193"}' >/dev/null
 D=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Stuff"}' | j "d['drawer']['id']")
 up() { curl -s "${C[@]}" -H X-Mutt:1 -H "Content-Type: $2" --data-binary @"$SP/$1" "$B/api/upload?drawer=$D&name=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1")"; }
 E=$(up 'The Harbour Light.epub' application/epub+zip | j "d['block']['id']")
@@ -41,7 +41,7 @@ echo "bad text: $(curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/books/$P/text -d '{"
 echo "text back: $(curl -s "${C[@]}" --compressed $B/api/books/$P/text | j "d['chapters'][0]['blocks'][1]")"
 echo "now converted: $(curl -s "${C[@]}" $B/api/books/$P | j "d['book']['converted']")"
 # Someone else
-curl -s "${O[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"visitor","pin":"7391"}' >/dev/null
+curl -s "${O[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"visitor","pin":"739193"}' >/dev/null
 echo "private book to others: $(curl -s "${O[@]}" -o /dev/null -w '%{http_code}' $B/api/books/$E) $(curl -s "${O[@]}" -o /dev/null -w '%{http_code}' $B/api/books/$E/part/OEBPS/text/ch1.xhtml) $(curl -s "${O[@]}" -o /dev/null -w '%{http_code}' $B/api/drawers/$D/shelf)"
 curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/drawers/$D -d '{"visibility":"public"}' >/dev/null
 echo "public: $(curl -s "${O[@]}" $B/api/books/$E | j "d['book']['mine'], d['progress'], d['marks']")"

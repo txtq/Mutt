@@ -6,8 +6,8 @@ A=(-b "$SP/ma.txt" -c "$SP/ma.txt"); U=(-b "$SP/mb.txt" -c "$SP/mb.txt")
 rm -f "$SP/ma.txt" "$SP/mb.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
-curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"mira","pin":"1357"}' > /dev/null
-curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"oto","pin":"2468"}' > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"mira","pin":"135793"}' > /dev/null
+curl -s "${U[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"oto","pin":"246893"}' > /dev/null
 mk() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$1" | j "d['drawer']['id']"; }
 add() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"$1\",\"drawer\":\"$2\"}" | j "d['block']['id']"; }
 
@@ -37,6 +37,11 @@ echo "oto reads: public moon $(code "${U[@]}" $B/api/drawers/$FOOD) private moon
 echo "universe: $(curl -s "${U[@]}" $B/api/galaxies | j "[(w['look'], w['moons']) for g in d['galaxies'] if g['username'] == 'mira' for w in g['worlds']]")"
 curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$TRIP -d '{"visibility":"private"}' > /dev/null
 echo "planet made private, oto reads public moon: $(code "${U[@]}" $B/api/drawers/$FOOD) file $(code "${U[@]}" $B/api/blocks/$N1) galaxy $(curl -s "${U[@]}" $B/api/galaxy/mira | j "len(d['planets'])")"
+echo "moons follow it to private: $(curl -s "${A[@]}" $B/api/drawers/$TRIP | j "[(m['title'], m['visibility']) for m in d['drawer']['moons']]")"
+curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$TRIP -d '{"visibility":"public"}' > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$M4 -d '{"visibility":"private"}' > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$TRIP -d '{"visibility":"people","people":["oto"]}' > /dev/null
+echo "moons follow it to people, unless set by hand: $(curl -s "${A[@]}" $B/api/drawers/$TRIP | j "[(m['title'], m['visibility']) for m in d['drawer']['moons']]") oto reads Food $(code "${U[@]}" $B/api/drawers/$FOOD)"
 curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$TRIP -d '{"visibility":"public"}' > /dev/null
 
 BODY="{\"planets\":[{\"id\":\"$FOOD\",\"x\":1,\"y\":1}]}"; echo "layout with moon id: $(code "${A[@]}" "${J[@]}" -X PUT $B/api/galaxy/layout -d "$BODY")"

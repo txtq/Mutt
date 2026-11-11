@@ -183,6 +183,12 @@ def migrate(conn):
         # A moon belongs to a planet; empty = a planet. Moons go with their planet.
         conn.execute('ALTER TABLE drawers ADD COLUMN parent_id TEXT REFERENCES drawers(id) ON DELETE CASCADE')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_drawers_parent ON drawers(parent_id)')
+    if 'own_sharing' not in drawer_columns:
+        # A moon follows its planet's sharing until its owner sets the moon's own.
+        # Moons made before this keep whatever they have if it already differs.
+        conn.execute('ALTER TABLE drawers ADD COLUMN own_sharing INTEGER NOT NULL DEFAULT 0')
+        conn.execute('UPDATE drawers SET own_sharing = 1 WHERE parent_id IS NOT NULL AND visibility != '
+                     '(SELECT p.visibility FROM drawers p WHERE p.id = drawers.parent_id)')
     conn.execute('CREATE TABLE IF NOT EXISTS drawer_access ('
                  'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '

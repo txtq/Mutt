@@ -3,7 +3,7 @@
 A personal place to keep things and connect them, like Are.na with only
 what's needed, dressed up as a little galaxy in PS Vita blues.
 
-- **Accounts**: a username and a 4-digit code.
+- **Accounts**: a username and a 6-digit code (accounts made before 2026-11-11 keep their 4-digit one until they change it).
 - **Your galaxy** is the whole app. A thin bar along the top says whose
   galaxy it is; tap your name for your account (files, planets and stars)
   and settings, or the magnifier (or press `/`) to search.
@@ -226,8 +226,12 @@ Every push to the deployed branch redeploys; your data stays on the volume.
 Once your friends have accounts, set `MUTT_ALLOW_SIGNUPS=0` if you want to
 keep it closed.
 
-## About 4-digit PINs
+## About sign-in codes
 
+New codes are 6 digits, and easy ones are turned away: one digit repeated,
+runs in order (123456, 654321), repeating patterns (121212, 123123), codes
+with a year in them (1990xx, xx1990) and a short list of favourites. Older
+accounts can keep signing in with their 4-digit code; changing it asks for 6.
 A 4-digit code only has 10,000 options, so Mutt slows guessing down hard:
 
 - Each PIN is hashed with scrypt plus a server-side secret.

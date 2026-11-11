@@ -4,7 +4,7 @@
 SP="$1"; B=localhost:8099
 J=(-H Content-Type:application/json -H X-Mutt:1); A=(-b "$SP/a.txt" -c "$SP/a.txt"); V=(-b "$SP/v.txt" -c "$SP/v.txt"); X=(-b "$SP/x.txt" -c "$SP/x.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
-for who in "A owner 4821" "V visitor 1357" "X other 2468"; do set -- $who; eval "curl -s \"\${$1[@]}\" \"\${J[@]}\" -X POST $B/api/auth/signup -d '{\"username\":\"$2\",\"pin\":\"$3\"}' >/dev/null"; done
+for who in "A owner 482193" "V visitor 135793" "X other 246893"; do set -- $who; eval "curl -s \"\${$1[@]}\" \"\${J[@]}\" -X POST $B/api/auth/signup -d '{\"username\":\"$2\",\"pin\":\"$3\"}' >/dev/null"; done
 D=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Photos"}' | j "d['drawer']['id']")
 P=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Diary","visibility":"private"}' | j "d['drawer']['id']")
 F=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"A walk by the sea\",\"drawer\":\"$D\"}" | j "d['block']['id']")

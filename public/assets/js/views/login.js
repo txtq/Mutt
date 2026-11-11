@@ -5,6 +5,7 @@
 // knows is asked for its code; a new one is free to take by picking a code.
 // The void answers every key, and the right code lets its light take you.
 
+import { phoneNote } from '../phonenote.js';
 import { api, session } from '../api.js';
 import { shockwave } from '../fx.js';
 import { glitch, logo } from '../logo.js';
@@ -291,7 +292,7 @@ export const loginView = {
       maxlength: '24', placeholder: 'your name', 'aria-label': 'Username',
     });
     const goBtn = h('button', { type: 'submit', class: 'login-go', 'aria-label': 'Continue' }, '→');
-    const pin = pinField({ autocomplete: 'current-password', label: 'Code', onComplete: (digits) => submitPin(digits) });
+    const pin = pinField({ autocomplete: 'current-password', label: 'Code', either: true, onComplete: (digits) => submitPin(digits) });
     const prompt = h('h2', { class: 'login-prompt', 'aria-live': 'polite' });
     const pinLabel = h('p', { class: 'login-label' });
     const msg = h('p', { class: 'login-msg', 'aria-live': 'polite' });
@@ -356,10 +357,12 @@ export const loginView = {
         other.textContent = 'Not you?';
       } else {
         prompt.textContent = `@${name} is free`;
-        pinLabel.textContent = step === 'pin' ? 'Pick a 4-digit code' : 'Once more, to be sure';
+        pinLabel.textContent = step === 'pin' ? 'Pick a 6-digit code' : 'Once more, to be sure';
         other.textContent = 'Another name';
       }
       pin.input.autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
+      // Signing in takes 6 digits, or 4 for older accounts; new codes are 6.
+      pin.configure(mode === 'signin' ? { either: true } : { length: 6 });
       say('');
       if (!ready) return;
       appear(prompt);
@@ -448,6 +451,9 @@ export const loginView = {
     async function submitPin(digits) {
       if (busy) return;
       if (mode === 'signup' && step === 'pin') {
+        // Too easy to guess? Say so now, before asking for it twice.
+        const problem = await api.post('/api/auth/check-pin', { pin: digits }).then((r) => r.problem, () => null);
+        if (problem) { await fail(problem); return; }
         firstPin = digits;
         await wait(320);
         setStep('confirm');
@@ -476,6 +482,7 @@ export const loginView = {
         const next = url.searchParams.get('next') || '';
         // The light stays until the galaxy is in place underneath it.
         await nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
+        phoneNote();
         if (flash) {
           flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, delay: 140, easing: 'ease-out', fill: 'forwards' })
             .finished.then(() => flash.remove(), () => flash.remove());

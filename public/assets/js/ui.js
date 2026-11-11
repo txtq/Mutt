@@ -405,42 +405,67 @@ export function closeTopLayer() {
 
 // ---------------------------------------------------------------- PIN field
 
-export function pinField({ autocomplete = 'current-password', onComplete, label = 'PIN' } = {}) {
+// `length` is how many digits it takes. `either` is for typing in a sign-in
+// code you already have: 6 digits, or 4 for older accounts, which goes in on
+// Enter or after a short pause (the two extra rings stay faint until used).
+export function pinField({ autocomplete = 'current-password', onComplete, label = 'PIN', length = 4, either = false } = {}) {
   const input = h('input', {
-    class: 'pin-input', type: 'password', inputmode: 'numeric', pattern: '[0-9]*', maxlength: '4',
+    class: 'pin-input', type: 'password', inputmode: 'numeric', pattern: '[0-9]*',
     autocomplete, 'aria-label': label, spellcheck: 'false',
   });
-  const cells = Array.from({ length: 4 }, (_, i) =>
-    h('div', { class: 'pin-cell', style: { '--i': i } }, h('span', { class: 'pin-dot' })));
-  const el = h('div', { class: 'pin' }, cells, input);
-
+  const el = h('div', { class: 'pin' }, input);
+  let cells = [];
+  let most = 4;
+  let short = false;
+  let pause = 0;
+  const configure = (opts) => {
+    short = !!opts.either;
+    most = short ? 6 : (opts.length || 4);
+    input.maxLength = most;
+    for (const c of cells) c.remove();
+    cells = Array.from({ length: most }, (_, i) =>
+      h('div', { class: `pin-cell${short && i >= 4 ? ' is-extra' : ''}`, style: { '--i': i } }, h('span', { class: 'pin-dot' })));
+    input.before(...cells);
+    el.classList.toggle('is-six', most === 6);
+    input.value = input.value.slice(0, most);
+    sync();
+  };
   const sync = () => {
-    const digits = input.value.replace(/\D/g, '').slice(0, 4);
+    const digits = input.value.replace(/\D/g, '').slice(0, most);
     if (digits !== input.value) input.value = digits;
     cells.forEach((cell, i) => {
       cell.classList.toggle('is-filled', i < digits.length);
-      cell.classList.toggle('is-current', document.activeElement === input && i === Math.min(digits.length, 3) && digits.length < 4);
+      cell.classList.toggle('is-current', document.activeElement === input && i === Math.min(digits.length, most - 1) && digits.length < most);
     });
+    el.classList.toggle('is-long', digits.length > 4);
     return digits;
   };
+  const done = (digits) => (digits.length === most || (short && digits.length === 4));
   input.addEventListener('input', () => {
     el.classList.remove('is-error');
+    clearTimeout(pause);
     const digits = sync();
-    if (digits.length === 4) onComplete?.(digits);
+    if (digits.length === most) onComplete?.(digits);
+    else if (short && digits.length === 4) {
+      pause = setTimeout(() => { if (input.value === digits) onComplete?.(digits); }, 1600);
+    }
   });
   input.addEventListener('focus', sync);
   input.addEventListener('blur', sync);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && input.value.length === 4) onComplete?.(input.value);
+    if (e.key === 'Enter' && done(input.value)) { clearTimeout(pause); onComplete?.(input.value); }
   });
+  configure({ length, either });
 
   return {
     el,
     input,
     get value() { return input.value; },
+    configure,
     focus() { input.focus({ preventScroll: true }); sync(); },
-    clear() { input.value = ''; sync(); },
+    clear() { clearTimeout(pause); input.value = ''; sync(); },
     state(name) {
+      clearTimeout(pause);
       el.classList.remove('is-error', 'is-busy', 'is-ok');
       if (name) {
         void el.offsetWidth; // restart the animation

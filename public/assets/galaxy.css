@@ -883,7 +883,6 @@ body.no-chrome #view { padding: 0; }
 .gx-scene .planet.is-moving { z-index: 7; transition: none; }
 .planet.is-moving .planet-body { transform: scale(1.06); }
 .planet.is-moving .planet-ball { box-shadow: 0 18px 34px -10px rgba(0, 0, 10, 0.6); }
-.planet.is-moving .planet-peek { opacity: 0; }
 /* ...and where it will land: the orbit, dotted, and a dotted ring the
    planet's size, which slides from place to place as it snaps */
 .gx-guide, .gx-ghost { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s var(--ease); }
@@ -908,7 +907,13 @@ body.no-chrome #view { padding: 0; }
   transition: transform 0.5s var(--ease);
 }
 .planet:focus-visible .planet-body { transform: scale(1.04); }
-@media (hover: hover) { a.planet:hover .planet-body { transform: scale(1.04); } }
+/* hovering a planet: it lifts a touch, its shadow deepens and its lit edge brightens */
+@media (hover: hover) {
+  a.planet:hover .planet-body { transform: translateY(-3px) scale(1.03); }
+  a.planet:hover .planet-ball { box-shadow: 0 12px 24px -8px rgba(0, 0, 10, 0.62); }
+  a.planet:hover .planet-atmo { filter: brightness(1.4) saturate(1.1); }
+  a.planet:hover .planet-title { color: #fff; }
+}
 .planet.is-target .planet-body { transform: scale(1.12); }
 .planet:active .planet-body { transform: scale(0.98); }
 
@@ -920,6 +925,7 @@ body.no-chrome #view { padding: 0; }
   border-radius: 50%;
   background: var(--c-dark);
   box-shadow: 0 6px 18px -6px rgba(0, 0, 10, 0.55);
+  transition: box-shadow 0.5s var(--ease);
 }
 /* grab the globe to spin it (planets.js); your own planets are carried by their name */
 .planet-ball { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
@@ -1216,10 +1222,6 @@ body.no-chrome #view { padding: 0; }
   text-shadow: var(--label-shadow);
 }
 .planet-meta { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 2px; font: 400 10.5px/1.2 var(--mono); color: var(--ink-3); text-shadow: var(--label-shadow); }
-.planet-peek { display: flex; justify-content: center; gap: 4px; margin-top: 8px; opacity: 0; transform: translateY(-4px); transition: opacity 0.2s, transform 0.35s var(--ease); }
-.planet-peek .ff { width: 40px; height: 40px; border-radius: 5px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 10px -4px rgba(0, 0, 16, 0.6); }
-a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; transform: none; transition-delay: 0.1s; }
-@media (hover: none) { .planet-peek { display: none; } }
 
 .planet-body.is-gulping .planet-atmo { animation: atmo-flare 0.9s var(--ease); }
 .planet-body.is-gulping .planet-ball { animation: planet-nudge 0.7s var(--ease); }
@@ -1279,7 +1281,7 @@ a.planet:hover .planet-peek, .planet:focus-visible .planet-peek { opacity: 1; tr
 .planet.planet-mini, .liv-world .planet { position: relative; left: auto; top: auto; display: inline-block; vertical-align: top; }
 .planet-mini .planet-label { width: 84px; top: calc(100% + 5px); }
 .planet-mini .planet-name { font-size: 11px; }
-.planet-mini .planet-meta, .planet-mini .planet-peek, .planet-mini .planet-ring { display: none; }
+.planet-mini .planet-meta, .planet-mini .planet-ring { display: none; }
 .liv-world .planet-ring { display: none !important; }
 
 /* ------------------------------------------------------------------ the universe */
@@ -1613,6 +1615,12 @@ html[data-vt="viewer"] .viewer { backdrop-filter: none; -webkit-backdrop-filter:
 .pin-dot { background: var(--ink); box-shadow: none; }
 .pin.is-ok .pin-cell { background: var(--accent-gloss); border-color: transparent; }
 .pin.is-ok .pin-dot { background: #fff; }
+/* six-digit codes: narrower boxes so they fit a phone */
+.pin.is-six { gap: 7px; }
+.pin.is-six .pin-cell { width: 44px; height: 56px; border-radius: 12px; }
+/* a code you already have can be 4 digits (older accounts): the last two stay faint until used */
+.pin-cell.is-extra { opacity: 0.4; transition: opacity 0.3s var(--ease); }
+.pin.is-long .pin-cell.is-extra { opacity: 1; }
 
 /* sign in: the void fills the screen, with dust spiralling into it. It opens,
    and everything you read (the logo, your name, your code) sits in dark ink
@@ -1731,9 +1739,9 @@ html[data-vt="viewer"] .viewer { backdrop-filter: none; -webkit-backdrop-filter:
 .login-form:not([data-step="name"]) .login-pin { display: block; }
 .login-label { margin: 0 0 2px; font-size: 12px; color: var(--ink-3); }
 
-/* The code is four ink rings on the light; each fills as you type. */
+/* The code is six ink rings on the light (two faint ones for older 4-digit codes); each fills as you type. */
 .login .pin { margin: 0 auto; gap: 4px; }
-.login .pin-cell { width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; box-shadow: none; }
+.login .pin-cell, .login .pin.is-six .pin-cell { width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; box-shadow: none; }
 .login .pin-cell.is-current::after { display: none; }
 .login .pin-dot {
   width: 13px;
@@ -3171,3 +3179,35 @@ html[data-motion="off"] .cb-steam { display: none; }
   text-underline-offset: 3px;
   text-decoration-skip-ink: none;
 }
+
+/* On a phone: a quiet note that Mutt is in testing and works best on a computer (phonenote.js) */
+.phone-note {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  top: calc(env(safe-area-inset-top) + 62px);
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 6px 10px 14px;
+  border-radius: 14px;
+}
+.phone-note > * { animation: phone-note-in 0.6s var(--ease) both; }
+.phone-note.is-leaving > * { animation: phone-note-out 0.3s var(--ease) both; }
+.phone-note-text { flex: 1; margin: 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+.phone-note-x {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: -6px 0 -6px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-3);
+  font: 400 20px/1 var(--sans);
+  cursor: pointer;
+}
+@keyframes phone-note-in { from { opacity: 0; translate: 0 -6px; filter: blur(6px); } }
+@keyframes phone-note-out { to { opacity: 0; translate: 0 -6px; } }
+.phone-note.is-leaving { pointer-events: none; }

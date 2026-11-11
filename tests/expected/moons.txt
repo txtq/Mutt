@@ -14,6 +14,8 @@ oto sees: [('Japan trip', [('Food', False), ('Trains', True), ('Words', False)])
 oto reads: public moon 200 private moon 404 pin moon 403 file 200
 universe: [(None, [{'id': '<id>', 'look': 'io'}, {'id': '<id>', 'look': None}, {'id': '<id>', 'look': None}])]
 planet made private, oto reads public moon: 404 file 404 galaxy 1
+moons follow it to private: [('Food', 'private'), ('Temples', 'private'), ('Trains', 'pin'), ('Words', 'private')]
+moons follow it to people, unless set by hand: [('Food', 'people'), ('Temples', 'private'), ('Trains', 'pin'), ('Words', 'private')] oto reads Food 200
 layout with moon id: 404
 autosort never a moon: Japan trip None
 move file to moon: 200

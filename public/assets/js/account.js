@@ -22,6 +22,19 @@ function pinSteps({ title, steps, onDone }) {
     autocomplete: 'off',
     onComplete: async (digits) => {
       msg.textContent = '';
+      if (steps[index].check) {
+        // A new code that's too easy to guess is turned back before "Again".
+        const problem = await api.post('/api/auth/check-pin', { pin: digits }).then((r) => r.problem, () => null);
+        if (problem) {
+          field.state('error');
+          msg.textContent = problem;
+          await wait(420);
+          field.state('');
+          field.clear();
+          field.focus();
+          return;
+        }
+      }
       values[index] = digits;
       if (index < steps.length - 1) {
         index++;
@@ -40,6 +53,7 @@ function pinSteps({ title, steps, onDone }) {
   });
   const show = () => {
     label.textContent = steps[index].label;
+    field.configure(steps[index].pin || { either: true });
     label.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: 'ease-out' });
     field.state('');
     field.clear();
@@ -53,7 +67,8 @@ function pinSteps({ title, steps, onDone }) {
 export function changePin() {
   pinSteps({
     title: 'Change code',
-    steps: [{ label: 'Current code' }, { label: 'New code', restart: true }, { label: 'Again' }],
+    steps: [{ label: 'Current code' }, { label: 'New code (6 digits)', restart: true, check: true, pin: { length: 6 } },
+      { label: 'Again', pin: { length: 6 } }],
     onDone: async ([current, next, again]) => {
       if (next !== again) return 'Those didn’t match.';
       await api.post('/api/me/pin', { current, next });

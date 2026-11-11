@@ -1,0 +1,15 @@
+none yet: []
+empty: Write a comment first.
+too long: Comment is too long.
+owner replies: [('visitor', 'Lovely light here', False, False, True), ('other', 'Where is this?', False, False, True), ('owner', 'Cornwall!', True, True, True)]
+visitor sees: [('visitor', True, True), ('other', False, False), ('owner', False, False)]
+count on file: 3
+count on planet: [3]
+private file: That file does not exist.
+private read: That file does not exist.
+other removes visitor's: Only the file’s owner or who wrote it can remove a comment.
+visitor takes back: ['other', 'owner']
+owner removes other's: ['owner']
+gone: That comment is gone.
+no csrf: Requests need to come from Mutt itself.
+file deleted: That file does not exist.

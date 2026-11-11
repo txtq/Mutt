@@ -1,0 +1,31 @@
+-- every mode from one place
+modes reported: ['cookbook', 'documents', 'list', 'reading']
+how each arrives: ['cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer']
+nothing fits an empty planet: []
+-- settings, all checked one way
+unknown setting: Those reading settings could not be saved.
+wrong kind of value: Those reading settings could not be saved.
+list limit can't be a switch: Those list settings could not be saved.
+list keeps its defaults: {'on': False, 'dismissed': False, 'type': 'check', 'marker': 'star', 'limit': 120, 'doneLast': True}
+a mode nobody knows is left alone: ['list', 'shareTip']
+a moon can't be a cookbook: Moons can’t be that.
+a moon can be a list: True
+moon's modes reported: ['documents', 'list']
+-- list: on at its own rule, stays down to 40%
+5 short things: (True, 1.0, False)
+5 of 9 (56%), never answered: (False, 0.56, False)
+waved away: True
+5 of 9 (56%), answered: (True, 0.56, False)
+5 of 13 (38%), answered: (False, 0.38, False)
+turned on anyway: True -> under the lower bar, so it offers to step back: (False, 0.38, True)
+kept: True -> (False, 0.38, False)
+-- the moment modes: what's being written now
+a short note: {'fits': False, 'say': None}
+650 characters, new: {'fits': False, 'say': 'This reads like a piece of writing.'}
+650 characters, already showing: {'fits': True, 'say': 'This reads like a piece of writing.'}
+320 characters, already showing: {'fits': False, 'say': None}
+960 characters, new: {'fits': True, 'say': 'This reads like a piece of writing.'}
+1,300 characters: {'fits': True, 'say': 'Long for a note.'}
+a long list isn't writing: {'fits': False, 'say': None}
+waved away on a planet: {'on': False, 'dismissed': True} -> None
+no text: Nothing to read.

@@ -78,7 +78,7 @@ Follow these steps in order. The worked example is the portfolio (an art planet'
 5. **Write the view** in its own file (`public/assets/js/<key>.js`), a class with `el`, `list()`, `dropTarget()`, `pasteText()`, `destroy()` and a `drawer` field. Copy the shape of `ShelfView` in `reading.js`: files that aren't the mode's kind stay in a `makeCollection(...)` below, and the `bus` events (`upload:done`, `block:deleted`, `block:connected`, `block:disconnected`, `block:changed`) keep it current. Nothing else may import this file statically, or it loads on every page.
 6. **The look.** Its styles go in their own stylesheet that the view's file links when it loads (append a `<link rel="stylesheet">` once, at the top of the file), or in `galaxy.css` if small. Panels and cards use `.fglass` (never their own fill); the planet's colour only reaches edges through `--pc`. Entrances are CSS animations on the box's parts, never on a parent of the glass, and never paused. Check User preferences below.
 7. **Server routes** for anything the mode stores beyond its settings go in `mutt/api.py` (cookbook: `/cookify`, `/recipes`). Tables go in `db.migrate`.
-8. **Tests:** add lines to `tests/modes.sh` that print `fits`, `share` and `left` just under and just over both bars (copy the list block), a bad setting, and a moon. Run `tests/run.sh modes` plus only the suites whose code you touched; the user asked not to spend time re-running everything.
+8. **Tests:** add lines to `tests/modes.sh` that print `fits`, `share` and `left` just under and just over both bars (copy the list block), a bad setting, and a moon. Run `tests/run.sh -v modes`, read the new lines, then `tests/run.sh --accept modes`. Run only the suites whose code you touched while working; the user asked not to spend usage re-running everything.
 9. **A moment mode** is `Mode('<key>', read_<key>, kind='moment', arrives='quiet', on=…, stay=…)` in `MOMENT_MODES`, where `read_<key>(text, form)` returns `{'strength': 0 to 1, 'say': 'one short line'}` from `sorting.form`'s strengths. Each place it can appear passes what its button does: `momentLine(area, { acts: { <key>: { label, run } } })` (the add box in `views/planet.js` `attachHint`, the note in `viewer.js`). It needs no page entry.
 10. **Check in the browser**, at 1280 wide and at 375 wide:
     - a planet just under the `on` bar shows no offer; just over, the offer shows once with the right signs; "Not now" keeps it away after a reload but leaves it in the ••• menu;
@@ -91,16 +91,24 @@ Follow these steps in order. The worked example is the portfolio (an art planet'
 
 ## Commands
 
-No dependencies, no build step, and no Node in this environment. The browser is the only JS syntax check.
+No dependencies, no build step, and no Node in this environment. The browser is the only JS syntax check (the browser paths below load every page, so they catch a script that won't parse).
 
 ```bash
 python3 server.py                                    # http://localhost:8080, data in ./data
 MUTT_DATA_DIR=/some/dir PORT=8123 python3 server.py   # separate data folder / port
-tests/run.sh                                         # all API suites, each on a fresh server (port 8099)
-tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout | search | autosort | moons | books | docs | cookbook | comments | modes
+tests/run.sh                                         # every check; prints ~3 lines, details only for failures
 ```
 
-The suites are curl scripts that **print** what the API returned; nothing asserts. Read the output for wrong values, and `run.sh` dumps any server Traceback. Mutating requests need the `X-Mutt: 1` header (CSRF guard), as the scripts show.
+## Checks (run before going live)
+
+`tests/run.sh` is the one command: 12 API suites (~25 s), then 13 browser paths in a hidden browser (~70 s). It prints a pass/fail line for each and `ALL PASSED` or `FAILED`; only failures get detail. **Every session runs it before going live and doesn't deploy on a failure.** While working, run only what you touched: `tests/run.sh docs`, `tests/run.sh api`, `tests/run.sh browser undo`.
+
+- **API suites** (`tests/<name>.sh`: smoke, galaxy, preview, lockout, search, autosort, moons, books, docs, cookbook, comments, modes) are curl scripts that print one `label: answer` line per check. The right answers are in `tests/expected/<name>.txt`; a different line fails. Ids and times are masked. Mutating requests need the `X-Mutt: 1` header.
+- **Browser paths** (`tests/browser.py`, the `PATHS` list) walk the site in a hidden browser against a made-up account (`seed`); nothing shows on screen. Each saves pictures to `tests/shots/latest` (not in git). Don't open the pictures unless the user asks about looks; `tests/run.sh browser --keep` saves a "before" set to compare by eye. The hidden browser (Chrome's headless shell) lives in `~/.cache/mutt-tests`, fetched once by `python3 tests/get_browser.py`; without it the paths fall back to Safari, whose window must be left alone. `MUTT_BROWSER=safari tests/run.sh browser` checks Safari on purpose (only when the user asks: it takes over a window).
+- **Adding a check for a new feature** (one or two, not more):
+  - Server: add an `echo "label: $(curl ...)"` line to the fitting suite, run `tests/run.sh -v <suite>`, read the new line, then `tests/run.sh --accept <suite>`. For a promise that must never break (privacy, sign-in) use `rule "what went wrong" "$got" "$should_be"` from `tests/lib.sh`.
+  - Browser: only if the feature adds a path people walk. Write `def my_path(s, seeded)` in `tests/browser.py` (get there, do the one thing, check one result, `s.shot('name')`), add it to `PATHS`; seed what it needs in `seed()` so it doesn't depend on another path.
+- **When a check fails**: the app is wrong unless you changed that behaviour on purpose. Only then `--accept`, after reading every changed line. Never accept to make a failure go away.
 
 ## Architecture
 
@@ -158,4 +166,4 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (desktop and phone width) before deploying, and keep the `classic` backup intact.
 - **Explanations:** write to the user in plain language, without code terms.
-- **Don't waste usage (2026-11-11):** run only the test suite a change touches (all of them once, before going live), keep command output short, and keep browser checks to what the change could have broken. When the user narrows the job mid-task, drop the rest rather than finishing it.
+- **Don't waste usage (2026-11-11):** while working run only the checks a change touches (`tests/run.sh <suite>`; the whole `tests/run.sh` once, before going live), keep command output short, and keep browser checks to what the change could have broken. When the user narrows the job mid-task, drop the rest rather than finishing it.

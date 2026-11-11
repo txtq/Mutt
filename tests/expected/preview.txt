@@ -1,0 +1,8 @@
+new link: <id> pending
+after waiting: done /t/<id>?v=t_<v>
+edited time unchanged by picture: True
+preview again (already done): done
+bo asks for alma's preview: 404
+preview on text does nothing: None
+local address gets no picture: none
+edit text: new words  empty: 400

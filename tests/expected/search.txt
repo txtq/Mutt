@@ -1,0 +1,30 @@
+look <id>: 200
+look <id>: 200
+look <id>: 200
+look <id>: 400
+look <id>: 400
+nothing (newest): ['report', 'grey', 'blue', 'red', 'shopping list', 'sunset by the beach']
+words beach: ['sunset by the beach']
+planets for beach: ['Beach trip']
+planets without words: 0
+kind image: ['grey', 'blue', 'red']
+kind image,pdf: ['report', 'grey', 'blue', 'red']
+kind text: ['shopping list', 'sunset by the beach']
+ext png: ['red']
+color red (strongest first): ['red', 'blue']
+color blue: ['blue']
+vibe warm: ['red']
+vibe vivid: ['blue', 'red']
+vibe vivid,tall: ['blue']
+colour words do not match looks: []
+from now (nothing): []
+to the past (nothing): []
+sort old: ['sunset by the beach', 'shopping list', 'red', 'blue', 'grey', 'report']
+sort az: ['blue', 'grey', 'red', 'report', 'shopping list', 'sunset by the beach']
+sort size: ['sunset by the beach', 'red', 'shopping list', 'blue', 'report', 'grey']
+bad kind: 400
+bad colour: 400
+bad vibe: 400
+todo (grey is old-style): ['grey']
+page 1: (60, True)
+page 2: (2, False)

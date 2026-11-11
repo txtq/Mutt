@@ -1,0 +1,49 @@
+one recipe on its own: {'fits': True, 'signs': ['Most of what’s on it is about food and cooking.', 'One note is a recipe.'], 'food': True, 'count': 1, 'share': 1.0, 'arrives': 'offer'}
+two recipes + a note: True ['Most of what’s on it is about food and cooking.', 'Two notes are recipes.']
+a shopping list isn't: False
+named + one: True ['It’s called “Recipes to try”, which sounds like somewhere to keep recipes.', 'One note is a recipe.']
+casual, named for food: True True ['It’s called “Dinner ideas”, which sounds like somewhere to keep recipes.', 'Two notes are recipes.']
+an emoji name, one method: True ['It’s called “🍝”, which sounds like somewhere to keep recipes.', 'One note is a recipe.']
+unnamed, two casual recipes: True ['Two notes are recipes.']
+not food (no): False
+dish names, cook book: True ['It’s called “cook book”, which sounds like somewhere to keep recipes.', 'Five notes name dishes.']
+dish names, unnamed: True ['Most of what’s on it is about food and cooking.', 'Three notes name dishes.']
+a list of meals: True ['A note lists 5 dishes.']
+an unnamed grocery list isn't: False
+dish cards: ["beck's curry with big couscous", 'beef slop w/potato onion pepper mushroom', 'feta and crackers', 'fish w/couscous', 'portabello and chickpea']
+list split into cards: ['beans on toast', 'chicken katsu', 'fish w/couscous', 'lasagne', 'tomato soup']
+split once: 5 5
+casual cards read: [('Guacamole', 4, 0), ('Pasta aglio e olio', 5, 1)]
+cookify: {'on': True, 'dismissed': False} [('Banana bread', 'Baking', 8, 15, 60, 4, 3), ('Weeknight chicken curry', 'Mains', 4, None, None, 4, 3)] ['Mains', 'Baking']
+save card: Chicken curry Weeknights 6
+note rewritten:
+Chicken curry
+Chicken curry
+Serves 6 · Prep 10 min
+Ingredients
+- 600g chicken thighs
+For the rice:
+- 300 g basmati
+Method
+1. Fry the onion until soft.
+2. Add the chicken and paste, cook 5 mins.
+3. Pour in the coconut milk and simmer 20 minutes.
+Notes
+Good with naan.
+photo: True True
+bad photo: That photo could not be found.
+bad field: That recipe could not be saved.
+edited note: [('Banana bread', 10, ['4 bananas', '100 g butter'], 'Baking', True)] True
+rename chapter: ['Breads & bakes', 'Weeknights'] ['Breads & bakes', 'Weeknights']
+new card: Chocolate mousse Desserts Chocolate mousse
+Ingredients
+- 200 g da
+blank card named: Lemonade Drinks
+chapter order: ['Desserts', 'Weeknights', 'Drinks', 'Breads & bakes']
+bad setting: Those cookbook settings could not be saved.
+visitor: [('Banana bread', False), ('Chicken curry', False), ('Chocolate mousse', False), ('Lemonade', False)]
+visitor photo: 200
+visitor can't save: That file does not exist.
+visitor can't cookify: That drawer does not exist.
+private again: That planet does not exist.
+off: {'on': False, 'dismissed': True, 'chapters': ['Desserts', 'Weeknights']}

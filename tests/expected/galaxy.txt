@@ -1,0 +1,61 @@
+new planet default (expect public False True): public False True
+tip put away: False  tip back on (expect 400): 400
+people set: ['bo']
+bad person: No one here is called @nobody.
+bad visibility: 400
+own galaxy: [('Diary', 'private', 1), ('Recipes', 'pin', 1), ('Zines', 'public', 1), ('Gifts', 'people', 1)] ['loose thought'] {'username': 'alma', 'createdAt': <time>, 'you': True}
+bo sees alma: [('', True, 0), ('Recipes', True, 0), ('Zines', False, 1), ('Gifts', False, 1)] False
+cy sees alma: [('', True), ('Recipes', True), ('Zines', False), ('', True)]
+bo galaxies: [('bo', True, 0, 0, 0, 0), ('alma', False, 4, 2, 1, 1), ('cy', False, 0, 0, 0, 0)]
+bo's universe worlds of alma (private ones blurred, no files): [(True, True, 0), (True, False, 1), (False, False, 1), (False, False, 1)]
+bo reads: pub 200 ppl 200 pin 403 priv 404
+cy reads ppl: 404  blocks: pub 200 ppl 404 star 404
+rule holds: a visitor could open a private planet -> no
+rule holds: a visitor could read a file on a private planet -> no
+rule holds: a Code planet opened without its code -> no
+rule holds: someone not on a People planet's list could open it -> no
+rule holds: a visitor could read someone's star -> no
+rule holds: a private planet's name showed in a visitor's view of the galaxy -> no
+rule holds: someone signed out could read a galaxy -> no
+locked body: True alma Recipes
+no planet code yet: @alma hasn't given this planet a code yet. True
+sign-in code as planet code: That's your sign-in code. Pick a different one, so sharing this planet doesn't share your account.
+bad planet code: 400
+bo sets alma's code: 404
+set planet code: True False
+sign-in code to a planet's: That's the code for one of your planets. Pick a different one.
+bo sees hasCode: [('', True, False), ('Recipes', True, True), ('Zines', False, False), ('Gifts', False, False)]
+wrong code: 403
+alma's sign-in code no longer opens it: 403 then pin 403
+unlock: True [('', True), ('Recipes', False), ('Zines', False), ('Gifts', False)]
+cy still locked: 403
+after code change: pin 403 old code 403 new code 200
+alma signs in still: 200
+after unlock: pin 200 priv 404 privblock 404
+bo saves public file: zine one alma
+connections bo sees: ['Zines']
+sort recipe: ('text', ('Recipes', False, 2))
+sort note: ('text', ('Ideas', True, 1))
+sort note2: ('text', ('Ideas', False, 2))
+sort no flag: ('text', None)
+upload sort: image Travel True #2F6BFF
+upload sort 2: Travel False
+stars now: ['stays a star', 'loose thought'] 6
+connect star: ['Zines']
+stars after: ['stays a star']
+bo universe: [('bo', 0, 0, 0, 0), ('alma', 5, 0, 9, 6), ('cy', 0, 0, 0, 0)]
+mode pref gone: None
+stats: {'files': 11, 'drawers': 6, 'stars': 1}
+look set: lava
+look bad: 400
+look auto: None
+layout save: 200
+own layout: [('Diary', None, None, None), ('Recipes', 2000.0, -12.0, None), ('Zines', -320.4, 180.0, 'lava'), ('Gifts', None, None, None), ('Ideas', None, None, None), ('Travel', None, None, None)]
+bo sees layout: [('', None, None), ('Recipes', 2000.0, -12.0), ('Zines', -320.4, 180.0), ('Gifts', None, None), ('Ideas', None, None), ('Travel', None, None)]
+universe layout: [(None, None, None), (2000.0, -12.0, None), (-320.4, 180.0, 'lava'), (None, None, None), (None, None, None), (None, None, None)]
+bo moves alma's: 404
+bad number: 400
+empty list: 400
+after bad: [(2000.0, -12.0), (-320.4, 180.0)]
+reset: 200
+after reset: [(None, None), (None, None), (None, None), (None, None), (None, None), (None, None)]

@@ -9,7 +9,6 @@
 import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { modeOffer } from './offers.js';
 import { openReader } from './reader.js';
 import { openContextMenu } from './ui.js';
 import { contextKey } from './uploads.js';
@@ -220,23 +219,4 @@ export class ShelfView {
     this.off.forEach((off) => off());
     this.collection.destroy();
   }
-}
-
-// ------------------------------------------------------------ the offer
-
-// Said once, quietly, in place: what we noticed, and the choice.
-export function readingOffer({ signs, pdfs, onAccept, onDecline }) {
-  return modeOffer({
-    kind: 'rp-offer',
-    icon: 'rp-offer-icon',
-    title: 'This planet looks like a bookshelf',
-    signs,
-    note: pdfs
-      ? 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes. PDFs can be turned into reading format when you open them.'
-      : 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes.',
-    accept: 'Make it a reading planet',
-    busy: 'Making it a reading planet…',
-    onAccept,
-    onDecline,
-  });
 }

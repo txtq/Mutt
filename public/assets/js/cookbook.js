@@ -14,7 +14,6 @@ import { deleteBlock } from './actions.js';
 import { convertible, convertText, fraction, showLine, splitLine, systemOf } from './amounts.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { modeOffer } from './offers.js';
 import { openContextMenu, openDialog, openMenu, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
 import { EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
@@ -1073,24 +1072,6 @@ function cook(r, serves, units) {
   wake();
   if (moving()) el.animate([{ opacity: 0, transform: 'scale(1.02)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE });
   requestAnimationFrame(() => next.focus({ preventScroll: true }));
-}
-
-// ------------------------------------------------------------ the offer
-
-// Said once, quietly, in place: what we noticed, and the choice.
-export function cookbookOffer({ signs, onAccept, onDecline }) {
-  return modeOffer({
-    kind: 'cb-offer',
-    icon: 'cb-offer-icon',
-    strokes: 2,
-    title: 'This planet looks like a cookbook',
-    signs,
-    note: 'Recipes become index cards in a recipe box, sorted into chapters. Each card has the amounts (scaled for however many you’re cooking for, in metric or US), the method, your notes and a photo of the finished dish, and a cooking mode that goes one step at a time.',
-    accept: 'Make it a cookbook',
-    busy: 'Reading the recipes…',
-    onAccept,
-    onDecline,
-  });
 }
 
 // ------------------------------------------------------------ little drawings

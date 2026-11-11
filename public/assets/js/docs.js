@@ -10,7 +10,6 @@
 import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
-import { modeOffer } from './offers.js';
 import { openContextMenu, openMenu, toast } from './ui.js';
 import { EASE, bus, h, plural, reducedMotion, timeAgo } from './util.js';
 
@@ -267,40 +266,4 @@ export class DeskView {
     this.off.forEach((off) => off());
     this.collection.destroy();
   }
-}
-
-// ------------------------------------------------------------ the offer
-
-export function deskOffer({ signs, onAccept, onDecline }) {
-  return modeOffer({
-    kind: 'dk-offer',
-    icon: 'dk-offer-icon',
-    strokes: 2,
-    title: 'This planet looks like writing',
-    signs,
-    note: 'Its notes become documents on paper pages, with headings, page setup, comments, versions, and downloads as PDF or Word. Poems are set as poems.',
-    accept: 'Open it in Mutt Documents',
-    busy: 'Opening…',
-    onAccept,
-    onDecline,
-  });
-}
-
-// ------------------------------------------------------------ while you're writing a note
-
-// A quiet line under a note that's grown past what a note holds.
-export function writingHint(text, onOpen) {
-  const btn = h('button', { type: 'button', class: 'dk-hint-btn' }, text);
-  btn.addEventListener('mousedown', (e) => e.preventDefault());
-  btn.addEventListener('click', (e) => { e.stopPropagation(); onOpen(); });
-  const el = h('div', { class: 'dk-hint', hidden: true }, h('span', null, 'Long for a note.'), btn);
-  let shown = false;
-  el.check = (value) => {
-    const on = (value || '').trim().length >= NOTE_FITS;
-    if (on === shown) return;
-    shown = on;
-    el.hidden = !on;
-    if (on && moving()) el.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: EASE });
-  };
-  return el;
 }

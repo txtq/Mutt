@@ -46,15 +46,48 @@ What already exists to read a planet's purpose (reuse it, don't start a second c
 - `sorting.form()` reads how one note is written (checklist, list, tasks, poem, prose, story, chapter, quote, recipe, code, tab, table, dated, diary, measured, idea, contact, priced, appointment), for modes that respond to what you're writing.
 - The words live in `mutt/lexicon.py`: `TOPICS`, `CONCEPTS` (finer subjects inside a topic), `ROLES`, `EMOJI`, places, sites. Add vocabulary there, not in the scoring code.
 
-How the modes are wired today (front end, 2026-11-09):
-- `views/planet.js` has one table, `MODES` (list, reading, cookbook, documents). An entry says what the mode is called, whether a moon can be one, how to build its view, how to turn it on at the server, and what its offer and ••• menu hold. Turning on and off, Undo, the menu and the offer are shared (`turnOn`, `turnOff`, `swapTo`, `lookForModes`). **A new mode is one more entry in that table** plus its view and its signs from `GET /api/drawers/<id>/modes`; don't hand-wire another.
-- Every offer is the one box in `offers.js` (`modeOffer`): a mode only supplies its words. It glides what's below it down when it arrives and back up when waved away (transforms only).
-- One thing at a time on a planet page: the sharing tip waits while a mode is being offered.
+How the mechanism works (agreed with the user and built, 2026-11-11):
+- **One registry, two halves with the same keys.** `mutt/modes.py` holds each mode's trigger, its two bars, whether moons can have it, how it arrives and its saved settings. `public/assets/js/modes.js` holds its view, offer words, ••• menu and how its code is fetched. Everything else is shared: `modes.clean` checks and stores every mode's settings, `modes.signs` reads every planet mode in one pass (`GET /api/drawers/<id>/modes`), `modes.moment` answers the moment modes (`POST /api/moment`), and `views/planet.js` does turning on and off, Undo, the offer, the menu and stepping back.
+- **Two kinds.** *Planet* modes belong to a whole planet (list, reading, cookbook, documents). *Moment* modes answer what's being written right now in one note (writing: "This reads like a piece of writing · Write it as a document", in `moments.js`).
+- **Two bars, judged by the share of the planet's files.** A mode switches on at the higher bar (`on`) and keeps fitting down to the lower one (`stay`), so one odd file never switches it on and it never flickers. The lower bar applies once the owner has answered (the mode is on, or its offer was waved away). The four older modes keep their own rules for switching on (their `read` gives `fits`); new modes use the plain share rule.
+- **How a mode arrives** is one word in its server entry: `offer` (suggested once, in place; the owner accepts), `undo` (switches on by itself and says so with an Undo) or `quiet` (appears and leaves by itself). Decided with the user: **whole-planet modes are offered** (they take over the page, and some rewrite notes); **moment modes arrive by themselves**. Changing one later is changing that word.
+- **A mode the owner accepted never leaves by itself.** If the planet falls under the lower bar, the same quiet box says so once ("Most of this planet isn't a list any more": "Show as files again" / "Keep it"); either answer is remembered (`kept`).
+- **Speed.** Signs are asked for after the page is up, never before. The planet's files and its purpose are read once per request and only if a mode asks (`modes.Reading`). A mode's code is fetched only when a planet uses it (`load` in `modes.js`, a dynamic `import()`; `mutt/assets.py` versions those but doesn't preload them). A plain planet loads no mode code at all.
+- Every offer is the one box in `offers.js` (`modeOffer`): a mode only supplies its words. One thing at a time on a planet page: the sharing tip waits while a mode is being offered.
 
-Suggested shape for the rest of the mechanism (not yet agreed with the user; ask before building):
-- One registry of modes. Each has a test against a planet (or a file being edited) and what it adds when it's on.
-- Work out a planet's purpose from the share of its files with each kind, topic and shape, so one odd file doesn't switch a mode on. Use a higher bar to turn on than to stay on, so modes don't flicker.
-- When a mode first appears, say so once, quietly, in place. Let the owner turn it off for that planet, and remember that.
+### How to add a mode
+
+Follow these steps in order. The worked example is the portfolio (an art planet's pictures shown as a monograph): it was built this way on 2026-11-11 and then set aside at the user's word, so it is **not in the app**. Its whole build is kept as a patch at `/Users/edan/Mutt-notes/parked/portfolio-with-registry-2026-11-11.patch` (search it for `portfolio`); for a mode that is in the app, read `reading` in both registries.
+
+1. **Decide the kind.** A feature for a whole planet is a planet mode. A feature for the note being typed is a moment mode (skip to step 9).
+2. **Write the trigger** in `mutt/modes.py`: a function `read_<key>(ctx)` that returns `{'signs': [...], 'count': n, 'share': n / files}`.
+   - `ctx.purpose` is `sorting.purpose` for the planet (`contains`, `counts`, `shows`, `topics`, `role`, `forms`…); `ctx.files` and `ctx.with_meta` are its files; `ctx.title` its name. Never start a second classifier, and put new vocabulary in `lexicon.py`.
+   - `count` is how many files are the mode's kind, `share` is that over all files (use `_share`).
+   - `signs` are one or two plain sentences that say what was noticed, with numbers ("5 of its 7 files are artwork: prints."). They show in the offer.
+   - Example (portfolio): count the files whose kind in `purpose['contains']` is artwork (`sorting.ART_MEDIUMS`); on a planet whose top topic is Art, pictures not yet read count too. `contains` holds only the top few kinds as shares, so add whole counts to `sorting.purpose` if a mode needs them exact.
+3. **Add the entry** to `PLANET_MODES` in `mutt/modes.py`: `Mode('<key>', read_<key>, on=…, stay=…, least=…, moons=…, arrives='offer', settings={…})`.
+   - `on`: start at 0.6 (most of the planet). Go lower only if the mode's files normally share a planet with others (a cookbook's recipes sit among photos: 0.3).
+   - `stay`: a little over half of `on` (0.6 → 0.35). Never equal to `on`.
+   - `least`: the fewest files of its kind that make the mode worth having (portfolio: 4).
+   - `moons`: `True` only if the mode makes sense on a moon and its view was checked on one.
+   - `arrives`: `'offer'` for any mode that takes over the planet's page. Ask the user before using `'undo'` or `'quiet'` for a planet mode.
+   - `settings`: every value the mode saves on the planet, each with a check from the top of the file (`flag`, `one_of(...)`, `names(...)`, `ids(...)`). `on`, `dismissed` and `kept` come free. Nothing else can be saved.
+4. **Add the page entry** to `MODES` in `public/assets/js/modes.js` under the same key, and put the key in `SHOW_ORDER`, `OFFER_ORDER` and `MENU_ORDER`. Copy the `reading` entry and change: `label` ("Make it a …"), `name` ("a …", used mid-sentence), `moons` (same as the server), `load` (`() => import('./<file>.js')`), `view`, `start`, `blocks`, `offer`, `menu`.
+   - **Offer wording:** title "This planet looks like …"; `note` says in one or two sentences what will change and that nothing is lost; `accept` is the same words as `label`; `busy` is three words ending in "…". Its icon is a 40px drawing made of `<i>` strokes (like `.rp-offer-icon` in `galaxy.css`; it must be in `galaxy.css` because the offer shows before the mode's own styles load).
+   - **Undo and turning off come free** if `blocks(view)` returns every file the view holds and `start` changes nothing that can't be shown as files again. The ••• menu needs `showAsFiles(page, '<key>')` last.
+5. **Write the view** in its own file (`public/assets/js/<key>.js`), a class with `el`, `list()`, `dropTarget()`, `pasteText()`, `destroy()` and a `drawer` field. Copy the shape of `ShelfView` in `reading.js`: files that aren't the mode's kind stay in a `makeCollection(...)` below, and the `bus` events (`upload:done`, `block:deleted`, `block:connected`, `block:disconnected`, `block:changed`) keep it current. Nothing else may import this file statically, or it loads on every page.
+6. **The look.** Its styles go in their own stylesheet that the view's file links when it loads (append a `<link rel="stylesheet">` once, at the top of the file), or in `galaxy.css` if small. Panels and cards use `.fglass` (never their own fill); the planet's colour only reaches edges through `--pc`. Entrances are CSS animations on the box's parts, never on a parent of the glass, and never paused. Check User preferences below.
+7. **Server routes** for anything the mode stores beyond its settings go in `mutt/api.py` (cookbook: `/cookify`, `/recipes`). Tables go in `db.migrate`.
+8. **Tests:** add lines to `tests/modes.sh` that print `fits`, `share` and `left` just under and just over both bars (copy the list block), a bad setting, and a moon. Run `tests/run.sh modes` plus only the suites whose code you touched; the user asked not to spend time re-running everything.
+9. **A moment mode** is `Mode('<key>', read_<key>, kind='moment', arrives='quiet', on=…, stay=…)` in `MOMENT_MODES`, where `read_<key>(text, form)` returns `{'strength': 0 to 1, 'say': 'one short line'}` from `sorting.form`'s strengths. Each place it can appear passes what its button does: `momentLine(area, { acts: { <key>: { label, run } } })` (the add box in `views/planet.js` `attachHint`, the note in `viewer.js`). It needs no page entry.
+10. **Check in the browser**, at 1280 wide and at 375 wide:
+    - a planet just under the `on` bar shows no offer; just over, the offer shows once with the right signs; "Not now" keeps it away after a reload but leaves it in the ••• menu;
+    - accepting turns it on; "Show as files again" brings every file back; Undo returns to the mode; a reload opens straight in the mode;
+    - under the `stay` bar the step-back box shows once; "Keep it" is remembered;
+    - a plain planet fetches none of the mode's files (Network tab), and a planet in another mode doesn't either;
+    - no sideways scroll at 375, no console errors, and Motion: Still shows everything.
+    The test browser draws animations slowly when its pane is hidden; set `document.documentElement.dataset.motion = 'off'` to check behaviour, and judge motion separately.
+11. **Write it down:** a line under Architecture in this file, and the notes in `/Users/edan/Mutt-notes/PROGRESS.md`.
 
 ## Commands
 
@@ -64,7 +97,7 @@ No dependencies, no build step, and no Node in this environment. The browser is 
 python3 server.py                                    # http://localhost:8080, data in ./data
 MUTT_DATA_DIR=/some/dir PORT=8123 python3 server.py   # separate data folder / port
 tests/run.sh                                         # all API suites, each on a fresh server (port 8099)
-tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout | search | autosort | moons | books | docs | cookbook | comments
+tests/run.sh galaxy                                  # one suite: smoke | galaxy | preview | lockout | search | autosort | moons | books | docs | cookbook | comments | modes
 ```
 
 The suites are curl scripts that **print** what the API returned; nothing asserts. Read the output for wrong values, and `run.sh` dumps any server Traceback. Mutating requests need the `X-Mutt: 1` header (CSRF guard), as the scripts show.
@@ -125,3 +158,4 @@ The suites are curl scripts that **print** what the API returned; nothing assert
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (desktop and phone width) before deploying, and keep the `classic` backup intact.
 - **Explanations:** write to the user in plain language, without code terms.
+- **Don't waste usage (2026-11-11):** run only the test suite a change touches (all of them once, before going live), keep command output short, and keep browser checks to what the change could have broken. When the user narrows the job mid-task, drop the rest rather than finishing it.

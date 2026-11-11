@@ -23,9 +23,9 @@ function settle(els, tops, duration) {
 }
 
 // kind: an extra class; icon: its class and how many strokes it's drawn with.
-export function modeOffer({ kind = '', icon, strokes = 3, title, signs = [], note = null, accept, busy, onAccept, onDecline }) {
+export function modeOffer({ kind = '', icon, strokes = 3, title, signs = [], note = null, accept, busy, decline = 'Not now', onAccept, onDecline }) {
   const yes = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, accept);
-  const no = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Not now');
+  const no = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, decline);
   const el = h('div', { class: `lm-offer${kind ? ` ${kind}` : ''}`, role: 'region', 'aria-label': title },
     h('span', { class: icon, 'aria-hidden': 'true' }, Array.from({ length: strokes }, () => h('i'))),
     h('div', { class: 'lm-offer-text' },

@@ -9,7 +9,6 @@
 import { blockContextMenu, deleteBlock } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { modeOffer } from './offers.js';
 import { openContextMenu, openDialog, openPopover, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
 import { EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
@@ -952,24 +951,6 @@ export class ListView {
     clearTimeout(this.sinkTimer);
     this.off.forEach((off) => off());
   }
-}
-
-// ------------------------------------------------------------ the offer
-
-// Said once, quietly, in place: what we noticed, and the choice.
-export function listOffer({ signs, split, onAccept, onDecline }) {
-  return modeOffer({
-    icon: 'lm-offer-icon',
-    title: 'This planet looks like a list',
-    signs,
-    note: !split?.length ? null : split.length === 1
-      ? 'The note written as a list will become one item per line.'
-      : `The ${split.length} notes written as lists will become one item per line.`,
-    accept: 'Make it a list',
-    busy: 'Making it a list…',
-    onAccept,
-    onDecline,
-  });
 }
 
 // ------------------------------------------------------------ options

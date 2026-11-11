@@ -1744,4 +1744,4 @@ def list_signs(conn, drawer_id):
         re.search(r'\bto[ -]?dos?\b|\bchecklist|\bshopping|\bgrocer|\bpacking|\berrands|\bchores|\btasks',
                   title, re.I))
     return {'fits': fits, 'signs': signs, 'type': 'check' if check else 'bullet',
-            'split': [f['id'] for f in listy]}
+            'split': [f['id'] for f in listy], 'count': listish, 'share': (listish / n) if n else 1.0}

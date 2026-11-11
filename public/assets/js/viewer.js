@@ -1,8 +1,7 @@
 // Full-screen block view: the block on the left, its details on the right.
 
 import { commentSection } from './comments.js';
-import { openDocEditor } from './doceditor.js';
-import { writingHint } from './docs.js';
+import { momentLine } from './moments.js';
 import { deleteBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
@@ -330,9 +329,8 @@ function textStage(block) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
     });
     // Grown past what a note holds: offer the document editor.
-    const long = writingHint('Open it as a document', async () => {
-      await finish(true);
-      openDocEditor(block.id);
+    const long = momentLine(area, {
+      acts: { writing: { label: 'Open it as a document', run: async () => { await finish(true); openDocEditor(block.id); } } },
     });
     area.addEventListener('input', () => long.check(area.value));
     long.check(area.value);
@@ -342,6 +340,13 @@ function textStage(block) {
     area.setSelectionRange(area.value.length, area.value.length);
   }
   return wrap;
+}
+
+// The document editor is only fetched when a note is opened as a document.
+async function openDocEditor(id) {
+  try {
+    (await import('./doceditor.js')).openDocEditor(id);
+  } catch (err) { toast(err.message); }
 }
 
 // PDFs are drawn page by page with pdf.js, so they read the same in every

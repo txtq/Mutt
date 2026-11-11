@@ -14,6 +14,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
 from . import auth, books, db, documents, kinds, links, media, recipes, sight, sorting
+from . import modes as modes_registry
 from .web import HttpError, Response, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
@@ -126,79 +127,13 @@ def drawer_modes(row):
         return {}
 
 
-# List mode's options: how items are marked, and how long one can be.
-LIST_TYPES = ('check', 'bullet', 'number', 'plain')
-LIST_MARKERS = ('dot', 'dash', 'arrow', 'star', 'circle', 'square')
-LIST_LIMITS = (60, 120, 200, 400)
-LIST_DEFAULTS = {'on': False, 'type': 'check', 'marker': 'dot', 'limit': 120, 'doneLast': True, 'dismissed': False}
+LIST_DEFAULTS = modes_registry.LIST_DEFAULTS
 
 
-def clean_modes(value, current):
-    """Check the modes a planet's owner is setting; returns the whole new value."""
-    if not isinstance(value, dict):
-        raise HttpError(400, 'Those settings could not be saved.')
-    modes = dict(current)
-    if 'list' in value:
-        given = value['list']
-        if not isinstance(given, dict):
-            raise HttpError(400, 'Those list settings could not be saved.')
-        merged = {**LIST_DEFAULTS, **(modes.get('list') or {})}
-        for key, v in given.items():
-            if key in ('on', 'doneLast', 'dismissed') and isinstance(v, bool):
-                merged[key] = v
-            elif key == 'type' and v in LIST_TYPES:
-                merged[key] = v
-            elif key == 'marker' and v in LIST_MARKERS:
-                merged[key] = v
-            elif key == 'limit' and v in LIST_LIMITS:
-                merged[key] = v
-            else:
-                raise HttpError(400, 'Those list settings could not be saved.')
-        modes['list'] = merged
-    if 'reading' in value:
-        given = value['reading']
-        if not isinstance(given, dict):
-            raise HttpError(400, 'Those reading settings could not be saved.')
-        merged = {'on': False, 'dismissed': False, **(modes.get('reading') or {})}
-        for key, v in given.items():
-            if key in ('on', 'dismissed') and isinstance(v, bool):
-                merged[key] = v
-            else:
-                raise HttpError(400, 'Those reading settings could not be saved.')
-        modes['reading'] = merged
-    if 'cookbook' in value:
-        given = value['cookbook']
-        if not isinstance(given, dict):
-            raise HttpError(400, 'Those cookbook settings could not be saved.')
-        merged = {'on': False, 'dismissed': False, **(modes.get('cookbook') or {})}
-        for key, v in given.items():
-            if key in ('on', 'dismissed') and isinstance(v, bool):
-                merged[key] = v
-            elif (key == 'chapters' and isinstance(v, list) and len(v) <= 40
-                  and all(isinstance(c, str) and 0 < len(c.strip()) <= recipes.MAX_CHAPTER for c in v)):
-                merged[key] = list(dict.fromkeys(c.strip() for c in v))
-            else:
-                raise HttpError(400, 'Those cookbook settings could not be saved.')
-        modes['cookbook'] = merged
-    if 'documents' in value:
-        given = value['documents']
-        if not isinstance(given, dict):
-            raise HttpError(400, 'Those document settings could not be saved.')
-        merged = {'on': False, 'dismissed': False, **(modes.get('documents') or {})}
-        for key, v in given.items():
-            if key in ('on', 'dismissed') and isinstance(v, bool):
-                merged[key] = v
-            elif key == 'sort' and v in documents.SORTS:
-                merged[key] = v
-            else:
-                raise HttpError(400, 'Those document settings could not be saved.')
-        modes['documents'] = merged
-    if 'shareTip' in value:
-        # The one-time "who can see it" tip on a new planet; only ever put away.
-        if value['shareTip'] is not False:
-            raise HttpError(400, 'Those settings could not be saved.')
-        modes.pop('shareTip', None)
-    return modes
+def clean_modes(value, current, moon=False):
+    """Check the modes a planet's owner is setting (mutt/modes.py checks every
+    mode's settings the same way); returns the whole new value."""
+    return modes_registry.clean(value, current, moon=moon)
 
 
 def block_json(row, mine=True, owner=None):
@@ -1065,7 +1000,7 @@ def update_drawer(req, drawer_id):
         raise HttpError(400, 'Moons can only be added to by their owner.')
     if 'modes' in body:
         current = drawer_modes(own_drawer(req, drawer_id))
-        updates['modes'] = json.dumps(clean_modes(body['modes'], current))
+        updates['modes'] = json.dumps(clean_modes(body['modes'], current, moon=moon))
     if 'community' in body:
         updates['community'] = 1 if body['community'] else 0
         if not body['community']:
@@ -1123,12 +1058,26 @@ def drawer_purpose(req, drawer_id):
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/modes')
 def drawer_mode_signs(req, drawer_id):
-    """Features this planet could use, and the signs for each, in plain words
-    (list mode and reading mode). Only its owner sees these."""
+    """Features this planet could use, and the signs for each, in plain words.
+    Every mode is read in one place (mutt/modes.py). Only its owner sees these."""
     row = own_drawer(req, drawer_id)
-    return json_response({'list': sorting.list_signs(req.db, drawer_id), 'reading': shelf_signs(req, row),
-                          'cookbook': cookbook_signs(req, row),
-                          'documents': desk_signs(req, row)})
+    return json_response(modes_registry.signs(req.db, row, drawer_modes(row)))
+
+
+@route('POST', r'/api/moment')
+def moment_signs(req):
+    """What the words being written right now call for (the moment modes):
+    {text, held: the ones already showing, drawer: the planet it's on, if any}."""
+    body = req.json()
+    text = body.get('text')
+    if not isinstance(text, str):
+        raise HttpError(400, 'Nothing to read.')
+    held = [k for k in body.get('held') or [] if isinstance(k, str)][:10]
+    saved, moon = {}, False
+    if body.get('drawer'):
+        row = own_drawer(req, str(body['drawer']))
+        saved, moon = drawer_modes(row), bool(row['parent_id'])
+    return json_response(modes_registry.moment(text, held, saved, moon))
 
 
 # ---------------------------------------------------------------- cookbooks
@@ -1136,20 +1085,6 @@ def drawer_mode_signs(req, drawer_id):
 def drawer_files(req, drawer_id):
     return req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ? '
                           'ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
-
-
-def cookbook_signs(req, row):
-    files = drawer_files(req, row['id'])
-    if not files:
-        return {'fits': False, 'signs': [], 'food': recipes.food_name(row['title'])}
-    try:
-        purpose = sorting.purpose(req.db, row['id'])
-    except Exception:  # the offer can do without it
-        purpose = None
-    signs = recipes.signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in files], purpose)
-    signs.pop('recipes')
-    signs.pop('lists')
-    return signs
 
 
 def read_recipe(row, meta, lenient=False):
@@ -2055,20 +1990,6 @@ def epub_of(row):
     except OSError:
         return None
     return books.epub(path, stamp)
-
-
-def desk_signs(req, row):
-    files = req.db.execute('SELECT b.kind, b.content FROM connections c JOIN blocks b ON b.id = c.block_id '
-                           'WHERE c.drawer_id = ?', (row['id'],)).fetchall()
-    return documents.doc_signs(row['title'], files)
-
-
-def shelf_signs(req, row):
-    files = req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ?',
-                           (row['id'],)).fetchall()
-    signs = books.shelf_signs(row['title'], [(f, json.loads(f['meta'] or '{}')) for f in files])
-    signs.pop('books')
-    return signs
 
 
 def visible_drawer(req, drawer_id):

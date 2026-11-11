@@ -24,6 +24,9 @@ MIN_GZIP = 1024
 
 # `import … from './x.js'`, `export … from '../y.js'` and `import './z.js'`.
 IMPORT = re.compile(r'''((?:\bfrom|\bimport)\s*)(['"])(\.{1,2}/[^'"?]+\.js)\2''')
+# The same, and `import('./x.js')`: code fetched only when it's needed (a
+# mode's own file). These get the version too, but aren't announced up front.
+ANY_IMPORT = re.compile(r'''((?:\bfrom|\bimport)\s*\(?\s*)(['"])(\.{1,2}/[^'"?]+\.js)\2''')
 # The page's own links to /assets/… in index.html.
 PAGE_LINK = re.compile(r'''(["'])/assets/([^"'?]+)\1''')
 
@@ -76,7 +79,7 @@ def _load(relative, v):
         body = f.read()
     content_type = mimetypes.guess_type(path)[0] or 'application/octet-stream'
     if content_type == 'text/javascript':
-        body = IMPORT.sub(lambda m: f'{m.group(1)}{m.group(2)}{m.group(3)}?v={v}{m.group(2)}', body.decode('utf-8')).encode('utf-8')
+        body = ANY_IMPORT.sub(lambda m: f'{m.group(1)}{m.group(2)}{m.group(3)}?v={v}{m.group(2)}', body.decode('utf-8')).encode('utf-8')
     if content_type.startswith('text/'):
         content_type += '; charset=utf-8'
     entry = {

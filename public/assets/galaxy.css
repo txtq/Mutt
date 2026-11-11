@@ -1755,6 +1755,8 @@ html[data-vt="viewer"] .viewer { backdrop-filter: none; -webkit-backdrop-filter:
 
 /* The void's light, swelling over the whole screen on the way in. */
 .login-flash { position: fixed; z-index: 900; border-radius: 50%; background: #fdfcff; pointer-events: none; }
+/* signing out: the page sinks into the night sky before the login takes its place (router.js dusk) */
+.dusk { position: fixed; inset: 0; z-index: 950; background: #020307; pointer-events: none; }
 
 /* ------------------------------------------------------------------ calmer motion */
 

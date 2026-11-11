@@ -5,7 +5,7 @@ import { session } from './api.js';
 import { nav } from './nav.js';
 import { canTransition, transition, visibleShared } from './transitions.js';
 import { closeAllPopovers, toast } from './ui.js';
-import { h } from './util.js';
+import { h, reducedMotion } from './util.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
 
 const routes = [];
@@ -151,8 +151,14 @@ export async function render({ pop = false, motion = 'page' } = {}) {
   };
   // The very first page just plays its own entrance. After a page change
   // the change itself was the entrance, so the page shouldn't play another.
-  const moved = !!current && motion !== 'none' && canTransition();
-  if (moved) {
+  // Signing in or out never blends the two pages: the login is its own
+  // world, and nothing of the galaxy may show behind it (or it behind the
+  // galaxy). Going out, the page sinks into the dark first; coming in, the
+  // void's light already covers the change.
+  const crossing = !!current && (current.path === '/login') !== (url.pathname === '/login');
+  const moved = !!current && !crossing && motion !== 'none' && canTransition();
+  if (crossing && url.pathname === '/login') await dusk(swap);
+  else if (moved) {
     // Only things on both pages morph (a planet into its page and back).
     // Everything else fades with the page, so the old page's files don't
     // hang crisp over the new one while it arrives.
@@ -170,6 +176,17 @@ export async function render({ pop = false, motion = 'page' } = {}) {
   else swap();
   inst.mounted?.({ moved });
   if (id === navId) await syncViewer(blockId);
+}
+
+// Into the dark: a veil the colour of the night sky covers the page, the
+// login takes its place underneath, and the veil lifts off it.
+async function dusk(swap) {
+  if (reducedMotion()) { swap(); return; }
+  const veil = document.body.appendChild(h('div', { class: 'dusk', 'aria-hidden': 'true' }));
+  await veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+  swap();
+  veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, delay: 80, easing: 'ease-out', fill: 'forwards' })
+    .finished.then(() => veil.remove(), () => veil.remove());
 }
 
 export function startRouter({ rootEl, topbar }) {

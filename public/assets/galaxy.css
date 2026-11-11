@@ -884,6 +884,18 @@ body.no-chrome #view { padding: 0; }
 .planet.is-moving .planet-body { transform: scale(1.06); }
 .planet.is-moving .planet-ball { box-shadow: 0 18px 34px -10px rgba(0, 0, 10, 0.6); }
 .planet.is-moving .planet-peek { opacity: 0; }
+/* ...and where it will land: the orbit, dotted, and a dotted ring the
+   planet's size, which slides from place to place as it snaps */
+.gx-guide, .gx-ghost { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s var(--ease); }
+.gx-guide { z-index: 2; width: 100%; height: 100%; overflow: visible; }
+.gx-guide path { fill: none; stroke: rgba(236, 231, 247, 0.22); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 0.1 9; }
+.gx-ghost {
+  z-index: 2;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(236, 231, 247, 0.4);
+  transition: opacity 0.3s var(--ease), transform 0.22s var(--ease), width 0.22s var(--ease), height 0.22s var(--ease);
+}
+.gx-guide.is-on, .gx-ghost.is-on { opacity: 1; }
 .planet:hover, .planet:focus-visible { z-index: 5; }
 /* The whole planet (globe, halo, rings, moons) is what glides between the
    galaxy and its page, so the halo doesn't arrive ahead of its globe. */

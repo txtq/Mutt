@@ -64,21 +64,40 @@ function metrics(width, viewH, z = 1) {
   };
 }
 
-// A galaxy fits the screen: when its planets would run past the bottom,
-// everything is drawn smaller until they don't. `place(m)` lays it out and
-// says how tall it came out. Past the smallest size, the page scrolls.
+// A galaxy fits the screen: when its planets would run past the bottom (or
+// can't all find a place on the orbits round the void), everything is drawn
+// smaller until they do, and no smaller. `place(m)` lays it out and says
+// how tall it came out. Past the smallest size, the page scrolls. `hold`
+// keeps a size as it is (while you arrange your planets).
 const Z_MIN = 0.42;
 
 // Out in the universe each void draws this much smaller beside its planets.
 const VOID_UV = 0.5;
-function fitted(width, viewH, place) {
+function fitted(width, viewH, place, hold = 0) {
+  if (hold) {
+    const m = metrics(width, viewH, hold);
+    return { m, ...place(m) };
+  }
+  const fits = (o) => o.content <= viewH && !o.cramped;
   let m = metrics(width, viewH);
   let out = place(m);
-  // A phone's rows reflow as things shrink, so it steps down gently and
-  // stops at the largest size that fits.
-  for (let i = 0; i < 30 && out.content > viewH && m.z > Z_MIN; i++) {
+  if (fits(out)) return { m, ...out };
+  // Step down until it fits (a phone's rows reflow as things shrink, so it
+  // steps gently)...
+  let over = 1;
+  for (let i = 0; i < 30 && !fits(out) && m.z > Z_MIN; i++) {
+    over = m.z;
     m = metrics(width, viewH, Math.max(Z_MIN, m.z * (m.narrow ? 0.97 : Math.min(0.96, (viewH / out.content) ** 1.2))));
     out = place(m);
+  }
+  if (!fits(out)) return { m, ...out };
+  // ...then close in on the largest size that fits, so it never shrinks
+  // further than it has to.
+  let under = m.z;
+  for (let i = 0; i < 5 && over - under > 0.008; i++) {
+    const mm = metrics(width, viewH, (over + under) / 2);
+    const o = place(mm);
+    if (fits(o)) { under = mm.z; m = mm; out = o; } else over = mm.z;
   }
   return { m, ...out };
 }
@@ -115,7 +134,8 @@ const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 <
 
 const placed = (p) => p.x != null && p.y != null;
 // A planet with moons needs room for their orbits too.
-const footprint = (s, m, p) => Math.max(s, m.wide, p ? orbitReach(p, s) * 2 : 0);
+// A full planet's rings reach well past its sides.
+const footprint = (s, m, p) => Math.max(s * ((p?.count || 0) >= 10 ? 1.6 : 1), m.wide, p ? orbitReach(p, s) * 2 : 0);
 // The room a planet and its name take up, round (x, y).
 const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 });
 
@@ -134,12 +154,260 @@ function nearestFree(at, s, m, taken, inner, room, p) {
   return { x: x0, y: at.y, rect: box(x0, at.y, s, w) };
 }
 
+// ---------------------------------------------------------------- orbits
+
+// Planets live on orbits: rounded rings round the void, from snug against
+// its dust out to the edges of the screen. Left to themselves they spread
+// evenly round the closest orbit that holds them all; picked up, they snap
+// onto a free place on one of them (or facing another planet across the
+// void), so the galaxy always looks arranged.
+const ORBITS = [0, 0.25, 0.5, 0.75, 1];
+const ORBIT_P = 2.6; // between an oval (2) and a rounded box: it follows the screen's corners
+const RING_N = 480;
+// A planet's middle, name and all, sits this far below its globe's middle
+// (see box()), and reaches this far above and below it.
+const LIFT = 21;
+const halfTall = (s) => s / 2 + 29;
+const spow = (v, e) => Math.sign(v) * Math.abs(v) ** e;
+
+// The room planets have round the void (at 0, 0): the screen, less a margin.
+function frameOf(width, m) {
+  const p = pads(m);
+  const half = width / 2 - (m.narrow ? 8 : 28);
+  const Y = m.viewH / 2 - Math.max(p.top, p.bottom);
+  return { x0: -half, x1: half, y0: -Y, y1: Y };
+}
+
+const inFrame = (r, fr) => r.x0 >= fr.x0 - 0.5 && r.x1 <= fr.x1 + 0.5 && r.y0 >= fr.y0 - 0.5 && r.y1 <= fr.y1 + 0.5;
+
+// How big the innermost and outermost orbits are, from the largest planet
+// (so every planet fits on every orbit) and the room in the frame.
+function orbitShape(planets, sizes, inner, m, fr) {
+  let hw = m.wide / 2;
+  let hh = halfTall(planetSize(0, m.scale));
+  planets.forEach((p, i) => {
+    hw = Math.max(hw, footprint(sizes[i], m, p) / 2);
+    hh = Math.max(hh, halfTall(sizes[i]));
+  });
+  const half = Math.min(-fr.x0, fr.x1);
+  const Y = Math.min(-fr.y0, fr.y1);
+  const aIn = inner.rx + m.gap + hw;
+  const aOut = Math.max(aIn, half - hw);
+  const bOut = Math.max(0, Y - hh);
+  const bIn = Math.min(inner.ry + m.gap + hh, bOut);
+  return { aIn, aOut, bIn, bOut, hw, hh };
+}
+
+// One orbit, `t` of the way out, as points going round clockwise from the
+// bottom (so the first and last planets mirror each other across the top).
+const UNIT = Array.from({ length: RING_N }, (_, k) => {
+  const th = Math.PI / 2 + (k / RING_N) * Math.PI * 2;
+  return { x: spow(Math.cos(th), 2 / ORBIT_P), y: spow(Math.sin(th), 2 / ORBIT_P) };
+});
+function ring(t, sh) {
+  sh.rings ||= new Map();
+  if (sh.rings.has(t)) return sh.rings.get(t);
+  const A = sh.aIn + (sh.aOut - sh.aIn) * t;
+  const B = sh.bIn + (sh.bOut - sh.bIn) * t;
+  const pts = UNIT.map((u, k) => ({ x: A * u.x, y: B * u.y, k }));
+  pts.forEach((p, k) => {
+    const q = pts[(k + 1) % RING_N];
+    const d = Math.hypot(q.x - p.x, q.y - p.y) || 1e-6;
+    Object.assign(p, { ds: d, tx: (q.x - p.x) / d, ty: (q.y - p.y) / d });
+  });
+  const R = { t, A, B, pts };
+  sh.rings.set(t, R);
+  return R;
+}
+
+// A planet whose middle (name and all) is at an orbit's point.
+function spotOn(pt, s, w) {
+  const x = pt.x;
+  const y = pt.y - LIFT;
+  return { x, y, rect: box(x, y, s, w) };
+}
+
+const fitsAt = (rect, inner, fr) => inFrame(rect, fr) && !ovalHitsRect(inner.rx, inner.ry, rect);
+
+// Spread planets evenly along the parts of an orbit where they fit, each
+// given room for its width (along the top) or height (down the sides).
+// (Where the largest planet fits is worked out once per orbit.)
+function openArc(R, sh, inner, fr) {
+  if (R.arc) return R.arc;
+  const open = R.pts.filter((pt) => fitsAt({ x0: pt.x - sh.hw, x1: pt.x + sh.hw, y0: pt.y - sh.hh, y1: pt.y + sh.hh }, inner, fr));
+  const marks = [];
+  let L = 0;
+  open.forEach((pt, j) => {
+    marks.push(L);
+    const next = open[(j + 1) % open.length];
+    if (next.k === (pt.k + 1) % RING_N) L += pt.ds;
+  });
+  R.arc = { open, marks, L };
+  return R.arc;
+}
+
+function spread(R, sh, items, inner, fr, gap) {
+  const n = items.length;
+  if (!n) return [];
+  const { open, marks, L } = openArc(R, sh, inner, fr);
+  if (!open.length) return null;
+  const at = (u) => {
+    let lo = 0;
+    let hi = open.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (marks[mid] <= u) lo = mid; else hi = mid - 1;
+    }
+    return open[lo];
+  };
+  // Laid round from the bottom, the planets mirror each other left and
+  // right, an odd one out at the top. When the void leaves no room at the
+  // top, an odd number is laid round from the left instead: they mirror
+  // top and bottom, the odd one out at the right (where a lone one goes).
+  const where = (k) => marks[open.findIndex((pt) => pt.k >= k)] ?? 0;
+  const topOpen = open.some((pt) => pt.k === RING_N / 2);
+  const u0 = n % 2 && (!topOpen || n === 1) ? where(RING_N / 4) : 0;
+  let need = items.map((it) => (it.w + it.s + 58) / 2 + gap);
+  let pts = [];
+  for (let pass = 0; pass < 3; pass++) {
+    const total = need.reduce((a, b) => a + b, 0);
+    if (total > L) return null;
+    const slack = (L - total) / n;
+    let u = u0;
+    pts = items.map((it, j) => {
+      const c = (u + (need[j] + slack) / 2) % L;
+      u += need[j] + slack;
+      return at(c);
+    });
+    // Each place is as wide as an average planet needs there, so they're
+    // evenly spaced whatever their sizes (the check after makes sure the
+    // big ones still clear their neighbours).
+    const aw = items.reduce((t, it) => t + it.w, 0) / n;
+    const ah = items.reduce((t, it) => t + it.s + 58, 0) / n;
+    need = pts.map((pt) => Math.abs(pt.tx) * aw + Math.abs(pt.ty) * ah + gap);
+  }
+  return pts;
+}
+
+// Tidy: the planets spread round one orbit, as close in as will hold them
+// all; if none can, two orbits (or three), the first-made planets inside.
+// Gives null when they can't all fit on screen at this size.
+function orbitLayout(planets, sizes, inner, m, fr, sh) {
+  const items = planets.map((p, i) => ({ i, s: sizes[i], w: footprint(sizes[i], m, p) }));
+  const n = items.length;
+  const tryRings = (groups) => {
+    const out = [];
+    for (const g of groups) {
+      const pts = spread(ring(g.t, sh), sh, g.items, inner, fr, m.gap);
+      if (!pts) return null;
+      g.items.forEach((it, j) => { out[it.i] = { ...spotOn(pts[j], it.s, it.w), size: it.s }; });
+    }
+    for (let a = 0; a < n; a++) {
+      if (!fitsAt(out[a].rect, inner, fr)) return null;
+      for (let b = a + 1; b < n; b++) if (overlaps(out[a].rect, out[b].rect, m.gap)) return null;
+    }
+    return out;
+  };
+  for (const t of ORBITS) {
+    const out = tryRings([{ t, items }]);
+    if (out) return out;
+  }
+  const reach = (t) => { const R = ring(t, sh); return R.A + R.B; };
+  for (const ts of [[0, 1], [0.25, 1], [0, 0.75], [0, 0.5, 1]]) {
+    const total = ts.reduce((a, t) => a + reach(t), 0);
+    // Shares in proportion to each orbit's length, then a little either
+    // way; even numbers first, since they mirror across the void.
+    const base = ts.map((t) => Math.round((n * reach(t)) / total));
+    const tries = [0, -1, 1, -2, 2, -3, 3].map((d) => {
+      const counts = base.slice();
+      counts[0] += d;
+      counts[counts.length - 1] = n - counts.slice(0, -1).reduce((a, b) => a + b, 0);
+      return { counts, odd: counts.filter((c) => c % 2).length };
+    }).filter((c) => c.counts.every((x) => x >= 1)).sort((a, b) => a.odd - b.odd);
+    for (const { counts } of tries) {
+      let k = 0;
+      const out = tryRings(ts.map((t, j) => ({ t, items: items.slice(k, (k += counts[j])) })));
+      if (out) return out;
+    }
+  }
+  return null;
+}
+
+// Too many planets for the orbits: an even grid of places filling the
+// frame, the ones nearest the void taken, planets going round clockwise
+// from the top in the order they were made. Only once the galaxy is
+// already drawn small (below GRID_Z), so the orbits get every chance first.
+const GRID_Z = 0.62;
+function gridLayout(planets, sizes, inner, m, fr) {
+  const items = planets.map((p, i) => ({ i, s: sizes[i], w: footprint(sizes[i], m, p) }));
+  const hw = Math.max(...items.map((it) => it.w)) / 2;
+  const hh = Math.max(...items.map((it) => halfTall(it.s)));
+  const cw = hw * 2 + m.gap;
+  const ch = hh * 2 + m.gap;
+  const cols = Math.floor((fr.x1 - fr.x0 + m.gap) / cw);
+  const rowsN = Math.floor((fr.y1 - fr.y0 + m.gap) / ch);
+  const cells = [];
+  for (let r = 0; r < rowsN; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = (c - (cols - 1) / 2) * cw;
+      const y = (r - (rowsN - 1) / 2) * ch;
+      if (ovalHitsRect(inner.rx, inner.ry, { x0: x - hw, x1: x + hw, y0: y - hh, y1: y + hh })) continue;
+      cells.push({ x, y, d: (x / inner.rx) ** 2 + (y / inner.ry) ** 2 + Math.abs(x) * 1e-6 });
+    }
+  }
+  if (cells.length < items.length) return null;
+  const turn = (p) => (Math.atan2(p.x, -p.y) + Math.PI * 2) % (Math.PI * 2);
+  const chosen = cells.sort((a, b) => a.d - b.d).slice(0, items.length).sort((a, b) => turn(a) - turn(b));
+  return items.map((it, j) => ({ ...spotOn(chosen[j], it.s, it.w), size: it.s }));
+}
+
+// Every free place on the orbits for a planet of size `s` (`w` across):
+// clear of the void, the frame and the `taken` rects. Places straight
+// across the void from another planet, and the tops, sides and corners of
+// each orbit, are marked `nice`; they pull a dragged planet in.
+function openSpots(s, w, sh, taken, inner, fr, m, mirrorOf = []) {
+  const out = [];
+  const free = (rect) => fitsAt(rect, inner, fr) && !taken.some((o) => overlaps(o, rect, m.gap));
+  for (const t of ORBITS) {
+    const R = ring(t, sh);
+    for (let k = 0; k < RING_N; k += 2) {
+      const spot = spotOn(R.pts[k], s, w);
+      if (free(spot.rect)) out.push({ ...spot, ring: R, nice: k % (RING_N / 8) === 0 });
+    }
+  }
+  for (const o of mirrorOf) {
+    const mid = { x: o.x, y: o.y + LIFT };
+    for (const p of [{ x: -mid.x, y: mid.y }, { x: mid.x, y: -mid.y }, { x: -mid.x, y: -mid.y }]) {
+      const spot = spotOn(p, s, w);
+      if (free(spot.rect)) out.push({ ...spot, nice: true });
+    }
+  }
+  return out;
+}
+
+// The place a dragged planet will land: the nearest free one, unless one
+// that looks right (facing another planet, the top or a side of an orbit,
+// or back where it was) is nearly as near.
+function snapTo(list, at) {
+  let best = null;
+  let near = Infinity;
+  let nice = null;
+  let niceNear = Infinity;
+  for (const o of list) {
+    const d = Math.hypot(o.x - at.x, o.y - at.y);
+    if (d < near) { near = d; best = o; }
+    if ((o.nice || o.here) && d < niceNear) { niceNear = d; nice = o; }
+  }
+  return nice && niceNear < near + 30 ? nice : best;
+}
+
 // Planets: the ones you've put somewhere stay there. On a narrow screen the
 // arrangement is drawn in from the sides and stretched taller, and any that
 // end up on top of each other (or of the stars, which grow) settle into the
-// nearest free spot. The rest are scattered outward in the order they were
-// made, each one nudged along a loose spiral until it sits clear of the void,
-// the stars and every planet (and name) before it.
+// nearest free spot. When none have been put anywhere, they're spread round
+// the orbits (see orbitLayout()); a new one among placed ones takes the
+// roomiest free place on the closest orbit. Only when nothing fits are they
+// scattered outward along a loose spiral, clear of everything before them.
 function scatter(planets, width, inner, m) {
   const tall = inner.ry / inner.rx;
   const half = width / 2 - (m.narrow ? 8 : 28);
@@ -155,6 +423,14 @@ function scatter(planets, width, inner, m) {
   });
   const stretch = 1 / Math.sqrt(Math.max(fx, 0.1));
   if (m.narrow) return { ...rows(planets, sizes, width, inner, m), fx, stretch };
+  const fr = frameOf(width, m);
+  const shape = orbitShape(planets, sizes, inner, m, fr);
+  if (planets.length && !planets.some(placed)) {
+    const tidy = orbitLayout(planets, sizes, inner, m, fr, shape) || (m.z <= GRID_Z ? gridLayout(planets, sizes, inner, m, fr) : null);
+    if (tidy) return { spots: tidy, rects: tidy.map((s) => s.rect), fx, stretch, shape };
+  }
+  // Cramped: some planet had nowhere on the orbits (draw smaller, if it can).
+  let cramped = false;
   const rects = [];
   const spots = planets.map((p, i) => {
     if (!placed(p)) return null;
@@ -165,7 +441,25 @@ function scatter(planets, width, inner, m) {
     return { ...spot, size: s };
   });
   planets.forEach((p, i) => {
+    if (spots[i] || !planets.some(placed)) return;
+    const s = sizes[i];
+    const open = openSpots(s, footprint(s, m, p), shape, rects, inner, fr, m);
+    if (!open.length) return;
+    // The closest orbit with room, at its roomiest place.
+    const t = Math.min(...open.map((o) => o.ring?.t ?? 1));
+    let best = null;
+    let most = -1;
+    for (const o of open) {
+      if (o.ring?.t !== t) continue;
+      const room = Math.min(...rects.map((r) => Math.hypot(o.x - (r.x0 + r.x1) / 2, o.y - (r.y0 + r.y1) / 2)), 1e9);
+      if (room > most) { most = room; best = o; }
+    }
+    rects.push(best.rect);
+    spots[i] = { x: best.x, y: best.y, rect: best.rect, size: s };
+  });
+  planets.forEach((p, i) => {
     if (spots[i]) return;
+    cramped = true;
     const s = sizes[i];
     const w = footprint(s, m, p);
     const rand = seeded(`spot:${p.id}`);
@@ -186,7 +480,7 @@ function scatter(planets, width, inner, m) {
     rects.push(rect);
     spots[i] = { x, y, size: s, rect };
   });
-  return { spots, rects, fx, stretch };
+  return { spots, rects, fx, stretch, shape, cramped: cramped && m.z > Z_MIN };
 }
 
 // Room kept above and below a galaxy: on a phone the bottom keeps clear of
@@ -203,8 +497,7 @@ function pads(m) {
 // whichever side is shorter. Rows spread out to use the screen's height.
 function rows(planets, sizes, width, inner, m) {
   const W = width - 16;
-  // A full planet's rings reach well past its sides.
-  const wide = (i) => Math.max(footprint(sizes[i], m, planets[i]), sizes[i] * ((planets[i].count || 0) >= 10 ? 1.6 : 1));
+  const wide = (i) => footprint(sizes[i], m, planets[i]);
   const tall = (s) => s + 58; // a planet with its name under it
   const sides = { top: [], bottom: [] };
   const order = planets.map((p, i) => i);
@@ -292,8 +585,8 @@ function galaxyPlan(g, width, viewH) {
   return fitted(width, viewH, (m) => {
     const gap = m.narrow ? 10 : 18;
     const inner = { rx: m.rx * 0.72 + gap, ry: m.ry * 0.72 + gap };
-    const { spots, rects } = scatter(planets, width, inner, m);
-    return { spots, ...extent(rects, inner, viewH, m) };
+    const { spots, rects, cramped } = scatter(planets, width, inner, m);
+    return { spots, cramped, ...extent(rects, inner, viewH, m) };
   });
 }
 
@@ -310,7 +603,11 @@ function extent(rects, inner, viewH, m) {
   const pad = pads(m);
   const content = bottom - top + pad.top + pad.bottom;
   const height = Math.max(viewH, content);
-  return { content, height, ex: reach + 12, ey: Math.max(-top, bottom) + 12, cy: pad.top - top + (height - content) / 2 };
+  const ey = Math.max(-top, bottom);
+  // On a computer the void keeps to the middle of the screen whenever the
+  // planets leave it room to, so it doesn't wander as they're moved.
+  const cy = !m.narrow && ey * 2 + pad.top + pad.bottom <= viewH ? viewH / 2 : pad.top - top + (height - content) / 2;
+  return { content, height, ex: reach + 12, ey: ey + 12, cy };
 }
 
 // A galaxy on the map: its void and its planets, painted once and held
@@ -381,12 +678,12 @@ function blurCopy(el, voidPic) {
 
 // Where every galaxy sits on the map, round yours (`home`), and how far the
 // camera pulls back to fit them all on screen.
-function universeLayout(plans, home, width, viewH) {
+function universeLayout(plans, home, width, viewH, names) {
   // Names stay one size however far out, so the spacing keeps room for
   // them at the scale the map is drawn at: look for the largest scale at
   // which the map, names and all, still fits the screen.
   const size = width < 640 ? LABEL.narrow : LABEL.wide;
-  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k });
+  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k }, names);
   let lo = K_MIN;
   let hi = K_MAX;
   let best = at(lo);
@@ -405,44 +702,57 @@ const K_MAX = 0.34;
 // only the name).
 const LABEL = { wide: { x: 150, y: 46 }, narrow: { x: 96, y: 26 } };
 
-function spreadUniverse(plans, home, width, viewH, label) {
-  const avg = plans.reduce((s, p) => s + p.ex, 0) / Math.max(1, plans.length);
-  // Spread to the screen's shape: wide on a desktop, tall on a phone.
-  const wide = clamp(Math.sqrt(width / viewH), 0.62, 1.5);
-  const order = plans.map((_, i) => i).sort((a, b) => (a === home ? -1 : b === home ? 1 : a - b));
+// The map: galaxies in loose rows, centred like lines of a poem, everyone
+// A to Z in reading order with yours in the middle of the middle row. Each
+// row is as tall as its tallest galaxy and its name; the number of rows is
+// whichever fits this screen's shape best, so nobody is drawn smaller than
+// they need to be.
+function spreadUniverse(plans, home, width, viewH, label, names = []) {
+  const n = plans.length;
+  const narrow = width < 640;
+  // A phone has little room to spare; a computer keeps space round the map.
+  const fill = narrow ? 0.95 : 0.78;
+  const room = { x: (width - (narrow ? 120 : 80)) * fill, y: (viewH - (narrow ? 136 : 150)) * fill };
+  const wide = (i) => Math.max(plans[i].ex * 2, label.x);
+  const tall = (i) => plans[i].ey * 2 + label.y;
+  const typical = (f) => plans.map((_, i) => f(i)).sort((a, b) => a - b)[n >> 1] || 0;
+  const gx = typical(wide) * 0.28;
+  const gy = typical((i) => plans[i].ey * 2) * 0.22;
+  const others = plans.map((_, i) => i).filter((i) => i !== home)
+    .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')) || a - b);
+  // Rows of `per` galaxies, yours in the middle one.
+  const build = (per) => {
+    const count = Math.ceil(n / per);
+    const sizes = Array.from({ length: count }, (_, r) => (r < count - 1 ? per : n - per * (count - 1)));
+    const mid = (count - 1) >> 1;
+    const queue = others.slice();
+    const grid = sizes.map((len, r) => Array.from({ length: len }, (_, c) => (r === mid && c === (len - 1) >> 1 ? home : null)));
+    for (const row of grid) row.forEach((v, c) => { if (v == null) row[c] = queue.shift(); });
+    return grid;
+  };
+  const measure = (grid) => {
+    const W = Math.max(...grid.map((row) => row.reduce((t, i) => t + wide(i), 0) + gx * (row.length - 1)));
+    const H = grid.reduce((t, row) => t + Math.max(...row.map(tall)), 0) + gy * (grid.length - 1);
+    return { W, H, k: Math.min(room.x / W, room.y / H) };
+  };
+  let grid = [[home]];
+  let size = measure(grid);
+  for (let per = 1; per <= n; per++) {
+    const g = build(per);
+    const s = measure(g);
+    if (per === 1 || s.k > size.k * 1.001) { grid = g; size = s; }
+  }
   const spots = plans.map(() => ({ x: 0, y: 0 }));
-  order.forEach((i, n) => {
-    if (!n) return;
-    const r = avg * 1.5 * Math.sqrt(n + 0.35);
-    const a = n * GOLDEN - Math.PI / 2;
-    spots[i] = { x: Math.cos(a) * r * wide, y: Math.sin(a) * r / wide };
-  });
-  // Nudge apart any that crowd each other, leaving room for the names.
-  for (let pass = 0; pass < 120; pass++) {
-    let moved = false;
-    for (let i = 0; i < spots.length; i++) {
-      for (let j = i + 1; j < spots.length; j++) {
-        const across = Math.max((plans[i].ex + plans[j].ex) * 1.3, label.x);
-        const down = Math.max((plans[i].ey + plans[j].ey) * 1.42, plans[i].ey + plans[j].ey + label.y);
-        const dx = spots[j].x - spots[i].x;
-        const dy = spots[j].y - spots[i].y;
-        const ox = across - Math.abs(dx);
-        const oy = down - Math.abs(dy);
-        if (ox <= 0 || oy <= 0) continue;
-        moved = true;
-        // Slide apart along whichever way is the shorter way out; the home
-        // galaxy stays put.
-        // (on a tall screen they'd rather stack than sit side by side)
-        const move = ox / across < (oy / down) * Math.min(1, wide)
-          ? { x: (dx < 0 ? -ox : ox) / 2, y: 0 }
-          : { x: 0, y: (dy < 0 ? -oy : oy) / 2 };
-        const kj = i === home ? 2 : j === home ? 0 : 1;
-        const ki = j === home ? 2 : i === home ? 0 : 1;
-        spots[j].x += move.x * kj; spots[j].y += move.y * kj;
-        spots[i].x -= move.x * ki; spots[i].y -= move.y * ki;
-      }
+  let y = -size.H / 2;
+  for (const row of grid) {
+    const top = Math.max(...row.map((i) => plans[i].ey));
+    const W = row.reduce((t, i) => t + wide(i), 0) + gx * (row.length - 1);
+    let x = -W / 2;
+    for (const i of row) {
+      spots[i] = { x: x + wide(i) / 2, y: y + top };
+      x += wide(i) + gx;
     }
-    if (!moved) break;
+    y += Math.max(...row.map(tall)) + gy;
   }
   // Fit the whole map, centred below the heading, with room round it for
   // the names, which stay one size however far out.
@@ -452,10 +762,6 @@ function spreadUniverse(plans, home, width, viewH, label) {
     x0 = Math.min(x0, s.x - half); x1 = Math.max(x1, s.x + half);
     y0 = Math.min(y0, s.y - plans[i].ey); y1 = Math.max(y1, s.y + plans[i].ey + label.y);
   });
-  // A phone has little room to spare; a computer keeps space round the map.
-  const narrow = width < 640;
-  const fill = narrow ? 0.95 : 0.78;
-  const room = { x: (width - (narrow ? 120 : 80)) * fill, y: (viewH - (narrow ? 136 : 150)) * fill };
   const k = clamp(Math.min(room.x / (x1 - x0), room.y / (y1 - y0)), K_MIN, K_MAX);
   const mid = { x: width / 2 - k * (x0 + x1) / 2, y: viewH / 2 + 10 - k * (y0 + y1) / 2 };
   return { spots, k, mid };
@@ -499,7 +805,14 @@ class Galaxy {
     this.art = h('div', { class: 'gx-art' }, this.void.art);
     this.coreWrap = h('div', { class: 'gx-core' }, this.starsEl, this.coreEl);
     this.hint = h('p', { class: 'gx-hint' });
-    this.scene = h('div', { class: 'gx-scene' }, this.art, this.field, this.coreWrap, this.hint);
+    // While you move a planet: the orbit it will land on, and where.
+    this.guide = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.guide.setAttribute('class', 'gx-guide');
+    this.guide.setAttribute('aria-hidden', 'true');
+    this.guidePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    this.guide.append(this.guidePath);
+    this.ghost = h('div', { class: 'gx-ghost', 'aria-hidden': 'true' });
+    this.scene = h('div', { class: 'gx-scene' }, this.art, this.guide, this.ghost, this.field, this.coreWrap, this.hint);
     this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy` }, this.scene);
 
     // ------------------------------------------------------------ the universe below
@@ -582,6 +895,8 @@ class Galaxy {
     let grab = null;
     let at = null;
     let shown = null;
+    let open = [];
+    let snap = null;
     const toScene = (pointer) => {
       const r = this.scene.getBoundingClientRect();
       return { x: pointer.x - r.left - this.size.cx, y: pointer.y - r.top - this.size.cy };
@@ -597,6 +912,8 @@ class Galaxy {
         grab = { x: p.x - spot.x, y: p.y - spot.y };
         at = { x: spot.x, y: spot.y };
         shown = { ...at };
+        snap = null;
+        open = this.m.narrow ? [] : this.openFor(el.planet);
         el.classList.add('is-moving');
       },
       onMove: (pointer, dt) => {
@@ -608,10 +925,16 @@ class Galaxy {
         const k = reducedMotion() ? 1 : 1 - Math.exp(-dt / 47);
         shown = { x: shown.x + (at.x - shown.x) * k, y: shown.y + (at.y - shown.y) * k };
         el.style.transform = `translate(${this.size.cx + shown.x}px, ${this.size.cy + shown.y}px)`;
+        if (open.length) {
+          const next = snapTo(open, at);
+          if (next !== snap) this.showGuide((snap = next), planetSize(el.planet.count, this.m.scale));
+        }
       },
       onEnd: (pointer, cancelled) => {
+        this.hideGuide();
         if (cancelled) { el.classList.remove('is-moving'); this.layout(); return; }
-        this.place(el.planet, at, el);
+        if (snap) this.place(el.planet, snap, el, true);
+        else this.place(el.planet, at, el);
       },
     });
     el.addEventListener('keydown', (e) => {
@@ -619,8 +942,57 @@ class Galaxy {
       if (!e.shiftKey || !step || this.p > 0.02) return;
       e.preventDefault();
       const spot = this.spots.get(el.planet.id);
-      if (spot) this.place(el.planet, { x: spot.x + step[0] * 24, y: spot.y + step[1] * 24 });
+      if (!spot) return;
+      if (this.m.narrow) { this.place(el.planet, { x: spot.x + step[0] * 24, y: spot.y + step[1] * 24 }); return; }
+      // The next place along on the orbits that way.
+      let best = null;
+      let far = Infinity;
+      for (const o of this.openFor(el.planet)) {
+        const dx = o.x - spot.x;
+        const dy = o.y - spot.y;
+        const along = dx * step[0] + dy * step[1];
+        const d = along + Math.abs(dx * step[1] - dy * step[0]) * 2;
+        if (along > 12 && d < far) { far = d; best = o; }
+      }
+      if (best) this.place(el.planet, best, null, true);
     });
+  }
+
+  // Where a planet you're holding could go: the free places on the orbits,
+  // across the void from the others, and where it was.
+  openFor(planet) {
+    const m = this.m;
+    const s = planetSize(planet.count, m.scale);
+    const others = [...this.spots].filter(([id, spot]) => id !== planet.id && spot).map(([, spot]) => spot);
+    const p = pads(m);
+    const half = this.size.width / 2 - 28;
+    const fr = { x0: -half, x1: half, y0: -this.size.cy + p.top, y1: this.size.height - this.size.cy - p.bottom };
+    const list = openSpots(s, footprint(s, m, planet), this.shape, others.map((o) => o.rect), this.inner, fr, m, others);
+    const here = this.spots.get(planet.id);
+    if (here) list.push({ x: here.x, y: here.y, rect: here.rect, here: true });
+    return list;
+  }
+
+  showGuide(spot, s) {
+    const { cx, cy, width, height } = this.size;
+    // It appears where it lands, then slides between places.
+    const first = !this.ghost.classList.contains('is-on');
+    if (first) this.ghost.style.transition = 'opacity 0.3s';
+    Object.assign(this.ghost.style, { width: `${s}px`, height: `${s}px`, transform: `translate(${(cx + spot.x - s / 2).toFixed(1)}px, ${(cy + spot.y - s / 2).toFixed(1)}px)` });
+    this.ghost.classList.add('is-on');
+    if (first) requestAnimationFrame(() => { this.ghost.style.transition = ''; });
+    this.guide.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    if (spot.ring) {
+      // Drawn through the planets' globes, which sit above their middles.
+      const pts = spot.ring.pts.filter((_, k) => k % 4 === 0);
+      this.guidePath.setAttribute('d', `M${pts.map((pt) => `${(cx + pt.x).toFixed(1)} ${(cy + pt.y - LIFT).toFixed(1)}`).join('L')}Z`);
+      this.guide.classList.add('is-on');
+    } else this.guide.classList.remove('is-on');
+  }
+
+  hideGuide() {
+    this.ghost.classList.remove('is-on');
+    this.guide.classList.remove('is-on');
   }
 
   // Where a planet dropped at `at` ends up: there, or the nearest free spot.
@@ -634,8 +1006,8 @@ class Galaxy {
 
   // Put a planet down and remember where. The first time, every planet's
   // spot is saved, so none of the others wander off later.
-  async place(planet, at, el = null) {
-    const spot = this.freeSpot(planet, at);
+  async place(planet, at, el = null, exact = false) {
+    const spot = exact ? at : this.freeSpot(planet, at);
     const unit = (x, y) => ({ x: Math.round((x / (this.m.scale * this.fx)) * 10) / 10, y: Math.round((y / (this.m.scale * this.stretch)) * 10) / 10 });
     const first = !this.data.planets.some(placed);
     const list = first
@@ -650,6 +1022,8 @@ class Galaxy {
       if (p) Object.assign(p, { x: s.x, y: s.y });
     }
     el?.classList.remove('is-moving');
+    // Arranging never resizes the galaxy under you.
+    this.held = { z: this.m.z, width: this.size.width, viewH: this.size.viewH };
     this.layout();
     try {
       await api.put('/api/galaxy/layout', { planets: list });
@@ -664,7 +1038,10 @@ class Galaxy {
     const width = this.stage.clientWidth || innerWidth;
     const bar = this.barHeight();
     const viewH = innerHeight - bar;
-    const { m, starAt, inner, spots, fx, stretch, ...home } = fitted(width, viewH, (m) => {
+    const held = this.held;
+    const hold = held && held.width === width && held.viewH === viewH && this.data.planets.every(placed) ? held.z : 0;
+    if (!hold) this.held = null;
+    const { m, starAt, inner, spots, fx, stretch, shape, ...home } = fitted(width, viewH, (m) => {
       const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m, width);
       // Planets keep clear of the dust and of the stars caught in it. The
       // dust fades out well before its edge, so they may sit on its rim.
@@ -672,8 +1049,9 @@ class Galaxy {
       const inner = { rx: Math.max(outer.x, m.rx * 0.72) + gap, ry: Math.max(outer.y, m.ry * 0.72) + gap };
       const laid = scatter(this.data.planets, width, inner, m);
       return { starAt, inner, ...laid, ...extent(laid.rects, inner, viewH, m) };
-    });
+    }, hold);
     this.m = m;
+    this.shape = shape;
     this.inner = inner;
     this.fx = fx;
     this.stretch = stretch;
@@ -1200,7 +1578,7 @@ class Galaxy {
     // The map is always laid out round you, whoever's page this is, so it's
     // the same map wherever you zoom out from.
     const you = this.list.findIndex((g) => g.you);
-    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH);
+    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.username));
     const { height, cx, cy } = this.size;
     // Everything zooms about one point, F, chosen so that at the end the map
     // sits fitted on screen: a map point P ends at mid + k·P. At the start

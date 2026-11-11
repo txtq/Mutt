@@ -94,7 +94,7 @@ function logoPicker() {
 async function tidyPlanets() {
   const ok = await confirmDialog({
     title: 'Tidy your planets?',
-    message: 'They leave the spots you put them in and spread out on their own again.',
+    message: 'They leave the spots you put them in and settle evenly round the void again.',
     confirm: 'Tidy planets',
   });
   if (!ok) return;

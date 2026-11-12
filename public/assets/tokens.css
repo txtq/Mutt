@@ -1,0 +1,224 @@
+/* Mutt's named values: the one place a colour, size, space, corner, shadow,
+   layer, speed or curve is written as a number. Every stylesheet reads these
+   names; scripts read the speeds and curves from here too (util.js).
+
+   DESIGN.md (section 2) says what each name is for. The two files must agree:
+   a name is added there first, then here, with exactly that name.
+
+   Some values are not yet what DESIGN.md asks for. Changing them changes how
+   Mutt looks, so each waits for the design session that shows it to the user
+   first. Those lines end with:   WANTS <the value in DESIGN.md> (session N)
+   The same list is in DESIGN.md under "Where the app stands".
+
+   tests/run.sh drift fails if a stylesheet or script gains a hand-typed colour,
+   text size, corner, shadow or speed. This file is the only one left out. */
+
+:root {
+  /* ---------------------------------------------------------------- colour */
+
+  /* words */
+  --ink: #eef2fb;        /* titles, the owner's words           WANTS #f2f5fc (session 4) */
+  --ink-2: #bcc6de;      /* body, labels, captions              WANTS #cbd3e8 (session 4) */
+  --ink-3: #8592b0;      /* facts, hints, placeholders          WANTS #a4b0cd (session 4) */
+  --ink-4: #56627f;      /* marks only, never words             WANTS #7f8cab (session 4) */
+  --sky-shadow: 0 1px 2px rgba(0, 0, 16, 0.85), 0 0 10px rgba(0, 0, 24, 0.5);
+                         /* under words set straight on the sky WANTS 0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5) (session 4) */
+
+  /* Mutt blue and the signals */
+  --blue: #3f7cf0;       /* fills: main button, switch on, chosen segment, progress */
+  --blue-ink: #8cc0ff;   /* blue words, links, @name, the keyboard outline */
+  --good: #86d9ad;       /* saved, done */
+  --caution: #eec372;    /* someone else's, be careful */
+  --danger: #ff8080;     /* deleting (words)                    WANTS #ff8a84 (session 3) */
+  --danger-fill: #e24a4a; /* deleting (the confirming button) */
+  --accent: var(--blue); /* what a pressed thing is filled with. A planet's page changes it for
+                            the whole page today; it should reach only the planet's own things (session 4) */
+
+  /* lines, washes, the well */
+  --line: rgba(190, 205, 240, 0.12);
+  --line-2: rgba(190, 205, 240, 0.22);
+  --tint: rgba(150, 175, 240, 0.07);
+  --tint-2: rgba(150, 175, 240, 0.13);
+  --well: rgba(0, 4, 24, 0.38);
+  --well-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  /* gloss: one light from above on a pressed thing */
+  --gloss-on: linear-gradient(180deg, #6ea6ff 0%, #3d7df0 49%, #2f6de2 51%, #3876ec 100%);
+                         /* today a ready-made blue fill.       WANTS a see-through light laid over var(--accent):
+                            linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,.11) 46%, rgba(255,255,255,0) 54%, rgba(255,255,255,.05) 100%) (session 3) */
+  --gloss-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.02) 51%, rgba(255, 255, 255, 0.05));
+                         /* on a see-through control.           WANTS the same shape as --gloss-on at .13, .05, 0, .025 over rgba(255,255,255,.05) (session 3) */
+
+  /* paper */
+  --paper: linear-gradient(180deg, #fcfbf7, #f2f0e9);   /* WANTS #f8f5ee, flat (session 5) */
+  --paper-edge: #e9e4d8;
+  --paper-ink: #262a34;                                  /* WANTS #1d1b18 (session 5) */
+  --paper-ink-2: #5c5852;
+  --paper-ink-3: #8f897f;
+
+  /* the sky (Vita). The other three skies are below. */
+  --sky-top: #020721;
+  --sky-deep: #041038;
+  --sky-mid: #0a1f6c;
+  --sky-low: #1a56d0;
+
+  /* ---------------------------------------------------------------- type */
+
+  --sans: "Red Hat Text", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;   /* paper only */
+  --t: 1;                /* the owner's text-size setting (S 0.93, M 1, L 1.1), set by theme.js */
+
+  /* the sizes */
+  --text-display: 34px;
+  --text-page: 26px;
+  --text-title: 20px;
+  --text-lead: 16px;
+  --text-body: 14px;
+  --text-label: 13px;
+  --text-caption: 12px;
+  --text-fact: 11px;
+  --text-small: 10.5px;
+
+  /* the roles, whole: `font: var(--type-label)`. Display and Page also take their
+     letter-spacing from DESIGN.md's table; a small label is capitals at 0.14em. */
+  --type-display: 700 var(--text-display) / 38px var(--sans);
+  --type-page: 700 var(--text-page) / 32px var(--sans);
+  --type-title: 700 var(--text-title) / 26px var(--sans);
+  --type-lead: 500 var(--text-lead) / 24px var(--sans);
+  --type-body: 400 var(--text-body) / 22px var(--sans);
+  --type-label: 500 var(--text-label) / 16px var(--sans);
+  --type-caption: 400 var(--text-caption) / 16px var(--sans);
+  --type-fact: 400 var(--text-fact) / 16px var(--mono);
+  --type-small: 500 var(--text-small) / 1 var(--mono);
+
+  /* ---------------------------------------------------------------- space, heights, corners */
+
+  --space-2: 2px;
+  --space-4: 4px;        /* inside a control */
+  --space-8: 8px;        /* between related things */
+  --space-12: 12px;
+  --space-16: 16px;      /* inside a box */
+  --space-24: 24px;      /* between boxes */
+  --space-32: 32px;
+  --space-48: 48px;      /* between parts of a page */
+
+  --h-small: 24px;       /* on tiles and in rows */
+  --h-regular: 32px;     /* everywhere */
+  --h-large: 40px;       /* the one main action; every control on touch screens */
+  --bar: 34px;           /* the top bar (44 on a phone)        WANTS 36px (session 3) */
+
+  --r-mark: 4px;         /* tick boxes, tags, paper */
+  --r-row: 8px;          /* rows, text boxes */
+  --r-box: 12px;         /* file boxes, menus */
+  --r-panel: 20px;       /* sheets, dialogs, a planet's header */
+  --r-full: 999px;       /* buttons, switches, segmented bars, toasts */
+
+  /* ---------------------------------------------------------------- depth */
+
+  --shadow-rest: 0 12px 28px -20px rgba(0, 0, 18, 0.7);      /* file boxes at rest */
+  --shadow-raised: 0 20px 40px -22px rgba(0, 0, 18, 0.8);    /* a box pointed at or dragged; paper */
+  --shadow-float: 0 18px 44px -16px rgba(0, 0, 18, 0.8);     /* menus, toasts */
+  --shadow-overlay: 0 30px 80px -20px rgba(0, 0, 18, 0.85);  /* sheets, dialogs */
+
+  /* Layers, lowest first. Inside one part, order its own pieces with 1 to 9:
+     those are not layers. DESIGN.md lists what still sits on a number of its own. */
+  --z-sky: -1;           /* the sky, behind the page */
+  --z-page: 1;           /* the page; the top bar and drop hint are inside it */
+  --z-bar: 40;           /* the top bar, within the page */
+  --z-room: 50;          /* a place that covers the page: the file view */
+  --z-sheet: 60;         /* sheets, the phone note, a box while it is dragged */
+  --z-dialog: 80;        /* the scrim and its dialog */
+  --z-pop: 85;           /* menus */
+  --z-toast: 95;         /* toasts */
+  --z-fx: 150;           /* sparks and rings drawn over everything */
+  --z-curtain: 900;      /* the light that takes the screen at sign-in */
+
+  /* ---------------------------------------------------------------- motion (confirmed at real speed in session 8) */
+
+  --dur-quick: 120ms;    /* pressing, pointing */
+  --dur-change: 200ms;   /* colour, a switch, a tick */
+  --dur-move: 320ms;     /* menus, rows, the lean */
+  --dur-arrive: 500ms;   /* boxes, sheets, dialogs arriving */
+  --dur-scene: 800ms;    /* planet to galaxy, the sky changing */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);     /* things arriving */
+  --ease-glide: cubic-bezier(0.4, 0, 0.2, 1);       /* things moving from one place to another */
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);  /* things you press */
+
+  /* ================================================================ kept from before
+     Not in DESIGN.md. Each is still used, and goes (or is adopted there) in the
+     session named. Don't use these in new work. */
+
+  /* box glass and bar glass. DESIGN.md gives their recipes (section 3); new work uses
+     the .fglass class or the shared parts, never these names. */
+  --fg-fill: rgba(180, 192, 232, 0.085);                    /* WANTS rgba(190,202,240,.09) (session 4) */
+  --fg-fill-hover: rgba(190, 202, 240, 0.12);               /* WANTS rgba(200,210,245,.13) (session 4) */
+  --fg-frost: blur(20px) saturate(0.95) brightness(1.08);   /* WANTS blur(28px) saturate(1.15) brightness(0.9) (session 4) */
+  --glass-fill: linear-gradient(180deg, rgba(38, 54, 104, 0.74), rgba(15, 22, 54, 0.84));   /* WANTS rgba(13,19,48,.74), flat (session 3) */
+  --glass-edge: rgba(205, 218, 255, 0.16);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 18px 44px -18px rgba(0, 0, 18, 0.75);   /* WANTS inset 0 1px 0 rgba(255,255,255,.1) with --shadow-float or --shadow-overlay (session 3) */
+  --bar-fill: linear-gradient(180deg, rgba(2, 5, 18, 0.66), rgba(4, 8, 26, 0.4));           /* WANTS rgba(6,10,30,.58), flat (session 3) */
+  --bar-ink: #f2f5fc;
+  --card-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 50%), rgba(14, 22, 60, 0.66);   /* goes with the one file box (session 4) */
+  --card-edge: rgba(200, 215, 255, 0.14);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 30px -18px rgba(0, 0, 20, 0.9);
+  --btn-edge: rgba(255, 255, 255, 0.18);                    /* goes with the one button (session 3) */
+  --btn-ink: #f2f5fc;
+  --bg: #0a1130;         /* a solid stand-in for the sky behind a few old parts (sessions 3 to 5) */
+
+  /* documents' own names (session 5 moves documents onto --serif, --sans, --mono and the paper names) */
+  --de-serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --de-sans: "Red Hat Text", ui-sans-serif, system-ui, sans-serif;
+  --de-mono: "Red Hat Mono", ui-monospace, Menlo, monospace;
+  --de-type: "Courier Prime", "Courier New", Courier, monospace;
+  --de-paper: #f8f5ee;
+  --de-paper-edge: #e9e4d8;
+  --de-ink: #1d1b18;
+  --de-ink-2: #5c5852;
+  --de-ink-3: #8f897f;
+  --de-rule: #ddd6c8;
+
+  /* the old sky's ribbons and colour clouds (session 7 replaces the sky) */
+  --ribbon: #a8d4ff;
+  --ribbon-line: #e4f2ff;
+  --ribbon-blend: screen;
+  --neb-a: rgba(70, 130, 255, 0.26);
+  --neb-b: rgba(120, 80, 255, 0.14);
+
+  /* two more curves (session 8 keeps or drops them) */
+  --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* the old page grid (session 4 rebuilds the planet page); narrower screens change them in galaxy.css */
+  --cols: 4;
+  --gutter: 40px;
+  --gap-x: 28px;
+  --gap-y: 40px;
+  --max: 1360px;
+}
+
+/* The other three skies. A sky is only its four colours (and, until session 7,
+   the old ribbons and clouds); session 7 tunes them so each step is as light as Vita's. */
+html[data-sky="nebula"] {
+  --sky-top: #06021a; --sky-deep: #120734; --sky-mid: #24095f; --sky-low: #6a2cc6;
+  --ribbon: #e3c8ff; --ribbon-line: #f6ecff; --neb-a: rgba(190, 90, 255, 0.24); --neb-b: rgba(255, 110, 190, 0.12);
+}
+html[data-sky="aurora"] {
+  --sky-top: #010a12; --sky-deep: #031a24; --sky-mid: #04313f; --sky-low: #0c7a74;
+  --ribbon: #a6ffe4; --ribbon-line: #e6fff7; --neb-a: rgba(40, 220, 170, 0.2); --neb-b: rgba(70, 130, 255, 0.14);
+}
+html[data-sky="dusk"] {
+  --sky-top: #0b0214; --sky-deep: #1e0720; --sky-mid: #3a0b37; --sky-low: #b23e58;
+  --ribbon: #ffd6c6; --ribbon-line: #fff1ea; --neb-a: rgba(255, 110, 130, 0.22); --neb-b: rgba(255, 180, 110, 0.12);
+}
+
+/* The sky's colours are registered as colours so that choosing another sky
+   fades across instead of snapping (gradients can't fade on their own). */
+@property --sky-top { syntax: '<color>'; inherits: true; initial-value: #020721; }
+@property --sky-deep { syntax: '<color>'; inherits: true; initial-value: #041038; }
+@property --sky-mid { syntax: '<color>'; inherits: true; initial-value: #0a1f6c; }
+@property --sky-low { syntax: '<color>'; inherits: true; initial-value: #1a56d0; }
+@property --neb-a { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --neb-b { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --ribbon { syntax: '<color>'; inherits: true; initial-value: #fff; }
+@property --ribbon-line { syntax: '<color>'; inherits: true; initial-value: #fff; }

@@ -11,7 +11,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { transition } from './transitions.js';
 import { toast } from './ui.js';
-import { autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, touchScreen, wait } from './util.js';
+import { EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, styles, touchScreen, wait } from './util.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
 export function configureViewer(next) {
@@ -117,7 +117,7 @@ function step(delta) {
   state.stepping?.cancel();
   const slide = state.stage.animate(
     [{ opacity: 0, transform: `translateX(${delta * 14}px)`, filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-    { duration: 420, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+    { duration: 420, easing: EASE },
   );
   state.stepping = slide;
   // A picture that isn't ready waits a moment to slide in whole, rather
@@ -345,7 +345,8 @@ function textStage(block) {
 // The document editor is only fetched when a note is opened as a document.
 async function openDocEditor(id) {
   try {
-    (await import('./doceditor.js')).openDocEditor(id);
+    const [editor] = await Promise.all([import('./doceditor.js'), styles('docs.css')]);
+    editor.openDocEditor(id);
   } catch (err) { toast(err.message); }
 }
 

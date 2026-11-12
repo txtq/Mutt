@@ -28,6 +28,7 @@ ELEMENT = 'element-6066-11e4-a52e-4f735466cecf'
 NAME, CODE = 'tester', '482193'
 DESK, PHONE = (1280, 800), (375, 812)
 ENTER = '\ue007'
+LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'rock', 'storm')   # a planet's kinds (api.PLANET_LOOKS)
 
 
 class Fail(Exception):
@@ -204,7 +205,9 @@ def seed():
 
     def planet(title, notes=()):
         ids[title] = send('POST', '/api/drawers', {'title': title})['drawer']['id']
-        send('PATCH', f'/api/drawers/{ids[title]}', {'modes': {'shareTip': False}})   # the one-time tip isn't under test
+        # the one-time tip isn't under test; and each planet is given its kind, so it is the same
+        # sort of world on every run (its exact colours still come from its id, which is new each run)
+        send('PATCH', f'/api/drawers/{ids[title]}', {'modes': {'shareTip': False}, 'look': LOOKS[(len(ids) - 1) % len(LOOKS)]})
         for text in notes:
             send('POST', '/api/blocks', {'content': text, 'drawer': ids[title]})
         return ids[title]
@@ -383,7 +386,8 @@ def document_editor(s, seeded):
 
 def open_book(s, seeded):
     s.go(f'/p/{seeded["Library"]}')
-    s.click(s.see('.rp-open[aria-label="Read The Harbour Light"]', 'The Harbour Light is not on the shelf'))
+    s.see('.rp-open[aria-label="Read The Harbour Light"]', 'The Harbour Light is not on the shelf')
+    s.click('.rp-open[aria-label="Read The Harbour Light"]')   # by its address: the shelf redraws once as it loads
     s.see('.rd', 'clicking a book did not open the reader')
     s.wait('return /Harbour Light/.test(document.querySelector(".rd-title")?.textContent || "")'
            ' && document.querySelector(".rd-flow")?.childElementCount > 0', 'the reader opened without the book in it (it starts on the cover)')

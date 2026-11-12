@@ -19,6 +19,7 @@ The handoff notes are **one shared file: `/Users/edan/Mutt-notes/PROGRESS.md`**,
 - Styling anything new follows its "How to style a new feature" recipe, step by step, and ends on its checklist.
 - A session that settles anything visible updates `DESIGN.md` before it ends. Design sentences live there, not here.
 - `design/` holds the drawn references: `look-board.html` and `sky-board.html`.
+- Every named value (colour, text size, space, corner, shadow, layer, speed, curve) is written once, in `public/assets/tokens.css`. No other stylesheet or script types a raw one; `tests/run.sh drift` counts them and fails if the count goes up.
 
 ## What Mutt is
 
@@ -84,7 +85,7 @@ Follow these steps in order. The worked example is the portfolio (an art planet'
    - **Offer wording:** title "This planet looks like …"; `note` says in one or two sentences what will change and that nothing is lost; `accept` is the same words as `label`; `busy` is three words ending in "…". Its icon is a 40px drawing made of `<i>` strokes (like `.rp-offer-icon` in `galaxy.css`; it must be in `galaxy.css` because the offer shows before the mode's own styles load).
    - **Undo and turning off come free** if `blocks(view)` returns every file the view holds and `start` changes nothing that can't be shown as files again. The ••• menu needs `showAsFiles(page, '<key>')` last.
 5. **Write the view** in its own file (`public/assets/js/<key>.js`), a class with `el`, `list()`, `dropTarget()`, `pasteText()`, `destroy()` and a `drawer` field. Copy the shape of `ShelfView` in `reading.js`: files that aren't the mode's kind stay in a `makeCollection(...)` below, and the `bus` events (`upload:done`, `block:deleted`, `block:connected`, `block:disconnected`, `block:changed`) keep it current. Nothing else may import this file statically, or it loads on every page.
-6. **The look.** Follow "How to style a new feature" in `DESIGN.md`, every step, and tick its checklist. Only this is particular to a mode: its styles go in their own stylesheet that the view's file links when it loads (append a `<link rel="stylesheet">` once, at the top of the file), or in `galaxy.css` if small.
+6. **The look.** Follow "How to style a new feature" in `DESIGN.md`, every step, and tick its checklist. Only this is particular to a mode: its styles go in their own stylesheet, fetched with its code: in `modes.js`, `load: () => Promise.all([import('./<key>.js'), styles('<key>.css')]).then(([m]) => m)` (copy `documents`), so the view never shows before its look; or in `galaxy.css` if small.
 7. **Server routes** for anything the mode stores beyond its settings go in `mutt/api.py` (cookbook: `/cookify`, `/recipes`). Tables go in `db.migrate`.
 8. **Tests:** add lines to `tests/modes.sh` that print `fits`, `share` and `left` just under and just over both bars (copy the list block), a bad setting, and a moon. Run `tests/run.sh -v modes`, read the new lines, then `tests/run.sh --accept modes`. Run only the suites whose code you touched while working; the user asked not to spend usage re-running everything.
 9. **A moment mode** is `Mode('<key>', read_<key>, kind='moment', arrives='quiet', on=…, stay=…)` in `MOMENT_MODES`, where `read_<key>(text, form)` returns `{'strength': 0 to 1, 'say': 'one short line'}` from `sorting.form`'s strengths. Each place it can appear passes what its button does: `momentLine(area, { acts: { <key>: { label, run } } })` (the add box in `views/planet.js` `attachHint`, the note in `viewer.js`). It needs no page entry.
@@ -109,13 +110,17 @@ tests/run.sh                                         # every check; prints ~3 li
 
 ## Checks (run before going live)
 
-`tests/run.sh` is the one command: 12 API suites (~25 s), then 13 browser paths in a hidden browser (~70 s). It prints a pass/fail line for each and `ALL PASSED` or `FAILED`; only failures get detail. **Every session runs it before going live and doesn't deploy on a failure.** While working, run only what you touched: `tests/run.sh docs`, `tests/run.sh api`, `tests/run.sh browser undo`.
+`tests/run.sh` is the one command: the drift count (instant), 12 API suites (~25 s), then 13 browser paths in a hidden browser (~70 s). It prints a pass/fail line for each and `ALL PASSED` or `FAILED`; only failures get detail. **Every session runs it before going live and doesn't deploy on a failure.** While working, run only what you touched: `tests/run.sh docs`, `tests/run.sh api`, `tests/run.sh browser undo`.
 
 - **API suites** (`tests/<name>.sh`: smoke, galaxy, preview, lockout, search, autosort, moons, books, docs, cookbook, comments, modes) are curl scripts that print one `label: answer` line per check. The right answers are in `tests/expected/<name>.txt`; a different line fails. Ids and times are masked. Mutating requests need the `X-Mutt: 1` header.
 - **Browser paths** (`tests/browser.py`, the `PATHS` list) walk the site in a hidden browser against a made-up account (`seed`); nothing shows on screen. Each saves pictures to `tests/shots/latest` (not in git). Don't open the pictures unless the user asks about looks; `tests/run.sh browser --keep` saves a "before" set to compare by eye. The hidden browser (Chrome's headless shell) lives in `~/.cache/mutt-tests`, fetched once by `python3 tests/get_browser.py`; without it the paths fall back to Safari, whose window must be left alone. `MUTT_BROWSER=safari tests/run.sh browser` checks Safari on purpose (only when the user asks: it takes over a window).
 - **Adding a check for a new feature** (one or two, not more):
   - Server: add an `echo "label: $(curl ...)"` line to the fitting suite, run `tests/run.sh -v <suite>`, read the new line, then `tests/run.sh --accept <suite>`. For a promise that must never break (privacy, sign-in) use `rule "what went wrong" "$got" "$should_be"` from `tests/lib.sh`.
   - Browser: only if the feature adds a path people walk. Write `def my_path(s, seeded)` in `tests/browser.py` (get there, do the one thing, check one result, `s.shot('name')`), add it to `PATHS`; seed what it needs in `seed()` so it doesn't depend on another path.
+- **Drift** (`tests/drift.py`, `tests/run.sh drift`, one line): counts the colours, text sizes, corners, shadows and speeds typed by hand in the stylesheets (all but `tokens.css`) and the scripts, and fails when any of the ten counts is higher than the one in `tests/expected/drift.txt`. It runs first in a plain `tests/run.sh`.
+  - **It failed:** something new typed a raw value. Use the name from `tokens.css` (`DESIGN.md` section 2 says which); in a script, `DUR` / `EASE` / `BLUE` from `util.js`. `tests/run.sh -v drift` lists the counts file by file, and the failure names the file that grew.
+  - **A session removed some** (it says "lower than recorded"): `tests/run.sh --accept drift` records the lower counts, so they can't creep back. Do this at the end of every design session and put the new numbers in the notes.
+  - **A raw value is truly needed** (a new planet kind's palette, a picture's own colours): `--accept` refuses to record a higher count. Tell the user, then raise that one line in `tests/expected/drift.txt` by hand in the same change.
 - **When a check fails**: the app is wrong unless you changed that behaviour on purpose. Only then `--accept`, after reading every changed line. Never accept to make a failure go away.
 
 ## Architecture
@@ -142,18 +147,22 @@ tests/run.sh                                         # every check; prints ~3 li
   - `el`, `title`, `chrome`, `who`
   - `home` (shows the corner back arrow), `goHome`
   - `dropTarget()`, `pasteText()`, `mounted()`, `destroy()`
+- The logo's four other designs and the 21 typefaces its letters flick through are fetched by `logo.js` (`loadFaces`) the first time the flicker runs or another design is shown, not by `index.html`; only the Wonky's face (Fraunces) is linked up front.
 - `statusbar.js` reads the view instance in `update(inst)`. It also owns the account/settings sheet, search, and the faint back arrow in the corner that takes you home.
 - `views/galaxy.js` is the main page: a sticky galaxy section followed by a scroll "runway". Scroll progress drives the zoom out into the universe stage (`track()`), and `/universe` opens already scrolled out.
 - `planets.js` builds each planet: its kind (`LOOKS`, with `lookOf()` picking one from the id when the owner hasn't), palette, moons, and a texture of its files. `planetgl.js` paints them: one shared off-screen WebGL2 canvas draws every planet's sphere (ground, weather and light in one shader, branching on the kind) and copies it onto the planet's own canvas, about 30 times a second each. Without WebGL2 (or with `?flat=1`) the older 2D painter takes over.
 - Planet positions: `drawers.x`/`y` are offsets from the void in desktop pixels (empty means "tidy it"), saved by `PUT /api/galaxy/layout`. `scatter()` in `views/galaxy.js` places the saved ones first; unsaved ones go on the orbits round the void (`orbitLayout`, `ring`, `openSpots`). A dragged planet snaps to a free place on an orbit (`openFor`, `snapTo`, shown by `.gx-guide`/`.gx-ghost`), and the galaxy keeps its size while you arrange (`held`). `fitted()` picks the largest size that fits. `movable()` in `drag.js` does the dragging. The universe is rows A to Z with you in the middle (`spreadUniverse`).
 - `sky.js` is the fixed background. Pages can give it a lens (the void bends stars) and a night amount.
-- `fx.js` holds the motion helpers; `drag.js` handles pointer drag onto targets.
+- `fx.js` holds the motion helpers; `drag.js` handles pointer drag onto targets. Speeds and curves for `.animate()` come from `util.js` (`DUR.quick/change/move/arrive/scene`, `EASE`, `EASE_GLIDE`, `EASE_SPRING`), which reads them from `tokens.css`.
 - `drift.js` leans a planet's file boxes toward the pointer. It writes `--mx`/`--my` on each box that's on screen (registered in `galaxy.css` so they don't inherit), never on the page around them.
 - Motion: Still (`data-motion="off"`) and the system's reduced-motion setting run every CSS animation once in no time, so entrances land on their last frame. Never pause animations to stop them: a paused entrance stays on its first, invisible frame (that once left planet pages blank under Still).
 
 **CSS:**
 - How things look is set in `DESIGN.md` (values, materials, parts). The bullets here are only where the files are.
-- Stylesheets sit directly in `public/assets/` (there is no `css/` folder). `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
+- Stylesheets sit directly in `public/assets/` (there is no `css/` folder). Three, in this order:
+  - `tokens.css`: every named value, on `:root` (plus the three other skies' colours). Loaded first, on every page. A line ending `WANTS … (session N)` still holds the old value until that design session switches it.
+  - `galaxy.css`: the one stylesheet every page loads. It opens with "the older base" (what still paints from the old white site's `mutt.css`, which was folded in on 2026-11-11 with its overridden rules removed); nothing new goes in that section, and a part's rules there move down beside its other rules when the part is rebuilt.
+  - `docs.css`: documents only, fetched when a planet is a desk or a document opens: whatever imports `docs.js` or `doceditor.js` waits for `styles('docs.css')` alongside the import (`load` in `modes.js`, `loadEditor` in `views/planet.js`, `viewer.js`); `styles()` is in `util.js`. A new mode's stylesheet loads the same way.
 - The site is dark only. Light mode (and the Mode setting) was removed on 2026-10-30; don't bring it back.
 - Don't put `position` in the shared glass rule (`.glass, .sheet, .dialog, .pop, …`). `.pop` and `.tray` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
 

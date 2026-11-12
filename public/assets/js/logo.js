@@ -13,8 +13,22 @@ export const LOGOS = [
 ];
 export const DEFAULT_LOGO = 'wonk';
 
-// Faces it flicks through on the way in (family, style, weight). Only the
-// letters of "mutt" are downloaded for these (see index.html).
+// The other four designs' typefaces and the ones the letters flick through.
+// Only the letters of "mutt" are downloaded for these. They're fetched the first
+// time the flicker runs or a design other than the Wonky is shown (the picker in
+// Settings shows all five), never up front: the page doesn't wait for them.
+const FACES = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@800&family=Major+Mono+Display&family=Silkscreen:wght@400;700&family=Bodoni+Moda:ital,wght@1,700&family=Playfair+Display:wght@900&family=Unbounded:wght@800&family=Big+Shoulders+Display:wght@900&family=Six+Caps&family=VT323&family=Gloock&family=Abril+Fatface&family=DM+Serif+Display:ital@1&family=Cinzel:wght@700&family=Orbitron:wght@800&family=Tilt+Warp&family=Bungee+Hairline&family=Libre+Barcode+128+Text&family=Bricolage+Grotesque:wght@800&family=Space+Mono:wght@700&family=Rubik+Mono+One&family=Monoton&family=Zen+Dots&family=Climate+Crisis&family=Sixtyfour&text=MUTTmutt&display=swap';
+let facesAsked;
+function loadFaces() {
+  facesAsked ||= new Promise((done) => {
+    const link = h('link', { rel: 'stylesheet', href: FACES });
+    link.onload = link.onerror = () => done();
+    document.head.append(link);
+  });
+  return facesAsked;
+}
+
+// Faces it flicks through on the way in (family, style, weight).
 const RUN = [
   ['Bodoni Moda', 'italic', 700], ['Playfair Display', 'normal', 900], ['Unbounded', 'normal', 800],
   ['Big Shoulders Display', 'normal', 900], ['Six Caps', 'normal', 400], ['VT323', 'normal', 400],
@@ -36,6 +50,7 @@ export function logo({ big = false, href = '/', variant = null } = {}) {
     class: `logo${big ? ' logo-big' : ''}`, href, 'aria-label': 'Mutt',
     dataset: { variant: variant || current(), ...(variant ? {} : { follow: '' }) },
   }, word);
+  if (el.dataset.variant !== DEFAULT_LOGO) loadFaces();
   el.addEventListener('pointerenter', () => glitch(el, { quick: true }));
   return el;
 }
@@ -45,6 +60,7 @@ export function followLogo(value) {
   document.querySelectorAll('.logo[data-follow]').forEach((el) => {
     if (el.dataset.variant === value) return;
     el.dataset.variant = value;
+    if (value !== DEFAULT_LOGO) loadFaces();
     glitch(el, { quick: true });
   });
 }
@@ -52,7 +68,8 @@ export function followLogo(value) {
 let fontsReady;
 function runFonts() {
   fontsReady ||= Promise.race([
-    Promise.all(RUN.map(([family, style, weight]) => document.fonts.load(`${style} ${weight} 1em "${family}"`, 'mutt')))
+    loadFaces()
+      .then(() => Promise.all(RUN.map(([family, style, weight]) => document.fonts.load(`${style} ${weight} 1em "${family}"`, 'mutt'))))
       .catch(() => {}),
     wait(1200),
   ]);

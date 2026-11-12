@@ -25,7 +25,7 @@
 // saveMode, turnOff, modeView, docs and a `state` object to keep things in.
 
 import { api } from './api.js';
-import { plural } from './util.js';
+import { plural, styles } from './util.js';
 
 const notTmp = (b) => !String(b.id).startsWith('tmp-');
 const showAsFiles = (page, key) => ({ label: 'Show as files again', run: () => page.turnOff(key) });
@@ -141,7 +141,8 @@ export const MODES = {
     name: 'a desk of writing',
     moons: true,
     pageClass: 'is-desk',
-    load: () => import('./docs.js'),
+    // its stylesheet is fetched alongside, and the desk waits for both
+    load: () => Promise.all([import('./docs.js'), styles('docs.css')]).then(([m]) => m),
     view: (m, page, blocks) => new m.DeskView({
       drawer: page.drawer, blocks, editable: page.mine, makeCollection: page.makeCollection, onChange: page.changed,
       onOpen: (bid) => page.docs.open(bid), onNew: () => page.docs.create(),

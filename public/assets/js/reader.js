@@ -14,7 +14,7 @@ import { api } from './api.js';
 import { loadPdfjs } from './pdfjs.js';
 import { NoText, outlineOf, pdfToBook } from './pdfbook.js';
 import { toast } from './ui.js';
-import { EASE, debounce, h, plural, reducedMotion } from './util.js';
+import { DUR, EASE, debounce, h, plural, reducedMotion } from './util.js';
 
 const THEMES = [
   { value: 'night', label: 'Night' },
@@ -788,7 +788,7 @@ class Reader {
   nudge(dir) {
     if (!moving()) return;
     const target = this.mode === 'pages' ? this.sheetEl : this.flow;
-    target?.animate([{ translate: '0 0' }, { translate: `${-dir * 14}px 0` }, { translate: '0 0' }], { duration: 320, easing: EASE, composite: 'add' });
+    target?.animate([{ translate: '0 0' }, { translate: `${-dir * 14}px 0` }, { translate: '0 0' }], { duration: DUR.move, easing: EASE, composite: 'add' });
     if (dir > 0 && this.lastPercent >= 1) toast('That’s the end of the book');
   }
 
@@ -1334,7 +1334,7 @@ class Reader {
     this.sheetEl.replaceChildren(...canvases);
     this.sheetEl.style.transform = '';
     if (animate && dir && moving()) {
-      this.sheetEl.animate([{ opacity: 0.2, transform: `translateX(${dir * 40}px)` }, { opacity: 1, transform: 'none' }], { duration: 320, easing: EASE });
+      this.sheetEl.animate([{ opacity: 0.2, transform: `translateX(${dir * 40}px)` }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
     }
     this.afterTurn();
   }

@@ -5,7 +5,7 @@
 
 import { nav } from './nav.js';
 import { canPaint, forget, paint, together } from './planetgl.js';
-import { h, onMotionChange, plural, reducedMotion, seeded } from './util.js';
+import { BLUE, h, onMotionChange, plural, reducedMotion, seeded } from './util.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -225,7 +225,7 @@ export function planetTone(planet) {
   const { base } = worldColors(planet);
   const [hue, s, l] = toHsl(base);
   const tone = fromHsl(hue, Math.min(s, 0.6), Math.max(0.36, Math.min(0.62, l)));
-  if (s < 0.12) return { tone, accent: shade('#3f7cf0', tone, 0.45) };
+  if (s < 0.12) return { tone, accent: shade(BLUE, tone, 0.45) };
   let accent;
   for (let al = 0.54; al > 0.3; al -= 0.02) {
     accent = fromHsl(hue, Math.max(0.5, Math.min(0.78, s * 1.15)), al);

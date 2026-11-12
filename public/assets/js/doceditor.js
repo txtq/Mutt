@@ -24,7 +24,11 @@ import { docTitle } from './docs.js';
 import { DocSpelling, autocorrectOn, setAutocorrect } from './docspell.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
-import { EASE, bus, debounce, h, plural, reducedMotion, timeAgo } from './util.js';
+import { DUR, EASE, bus, debounce, h, plural, reducedMotion, styles, timeAgo } from './util.js';
+
+// The editor's look comes with its code (a document can open on a planet that
+// isn't a desk). Whoever loads this file waits for the stylesheet too.
+styles('docs.css');
 
 const moving = () => !reducedMotion();
 const PX = 96 / 72;            // screen pixels per point
@@ -565,7 +569,7 @@ class DocEditor {
     }
     if (key && moving()) {
       [...this.contextTools.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }],
-        { duration: 320, delay: n * 24, easing: EASE, fill: 'backwards' }));
+        { duration: DUR.move, delay: n * 24, easing: EASE, fill: 'backwards' }));
       this.contextTools.lastChild?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
   }
@@ -627,7 +631,7 @@ class DocEditor {
     this.buildTools();
     if (!moving()) return;
     [...this.tools.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 320, delay: Math.min(n, 14) * 16, easing: EASE, fill: 'backwards' }));
+      { duration: DUR.move, delay: Math.min(n, 14) * 16, easing: EASE, fill: 'backwards' }));
   }
 
   // Left on Auto, it's read again as you write. It takes clearer signs to

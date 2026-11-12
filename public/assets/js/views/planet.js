@@ -11,7 +11,7 @@ import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, timeAgo, wait } from '../util.js';
+import { DUR, EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
@@ -235,7 +235,7 @@ function lockedPlanet(id, data) {
 
 // The document editor, fetched the first time a document is opened.
 let editor = null;
-const loadEditor = async () => { if (!editor) editor = await import('../doceditor.js'); return editor; };
+const loadEditor = async () => { if (!editor) [editor] = await Promise.all([import('../doceditor.js'), styles('docs.css')]); return editor; };
 const docEditorOpen = () => editor?.docEditorOpen() || null;
 
 export const planetView = {
@@ -762,7 +762,7 @@ export const planetView = {
       if (!reducedMotion()) {
         await Promise.all([
           outgoing.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px)' }],
-            { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {}),
+            { duration: DUR.change, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {}),
           gone?.fade(),
         ]);
       }

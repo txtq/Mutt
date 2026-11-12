@@ -11,7 +11,11 @@ import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
 import { openContextMenu, openMenu, toast } from './ui.js';
-import { EASE, bus, h, plural, reducedMotion, timeAgo } from './util.js';
+import { EASE, bus, h, plural, reducedMotion, styles, timeAgo } from './util.js';
+
+// The desk's look comes with its code. Whoever loads this file waits for the
+// stylesheet too (`load` in modes.js), so the desk never shows undressed.
+styles('docs.css');
 
 const moving = () => !reducedMotion();
 const KIND_NAMES = { poem: 'Poem', script: 'Script', journal: 'Journal', letter: 'Letter' };

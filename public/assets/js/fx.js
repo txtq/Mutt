@@ -1,7 +1,7 @@
 // Motion for things moving through space: spiralling into a black hole,
 // arcing across the sky, little bursts of light where they land.
 
-import { h, reducedMotion } from './util.js';
+import { EASE, h, reducedMotion } from './util.js';
 
 const layer = () => document.querySelector('.fx-layer') || document.body.appendChild(h('div', { class: 'fx-layer', 'aria-hidden': 'true' }));
 
@@ -83,7 +83,7 @@ export function burst(at, { color = '#ffffff', count = 10, reach = 34 } = {}) {
     dot.animate([
       { transform: `translate(${at.x}px, ${at.y}px) translate(-50%, -50%) scale(1)`, opacity: 1 },
       { transform: `translate(${at.x + Math.cos(angle) * dist}px, ${at.y + Math.sin(angle) * dist}px) translate(-50%, -50%) scale(0.2)`, opacity: 0 },
-    ], { duration: 600 + Math.random() * 400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }).finished.then(() => dot.remove(), () => dot.remove());
+    ], { duration: 600 + Math.random() * 400, easing: EASE }).finished.then(() => dot.remove(), () => dot.remove());
   }
 }
 
@@ -94,7 +94,7 @@ export function shockwave(at, { size = 120, color = 'rgba(160, 200, 255, 0.7)', 
   ring.animate([
     { transform: `translate(${at.x}px, ${at.y}px) translate(-50%, -50%) scale(0.35)`, opacity: 0.9 },
     { transform: `translate(${at.x}px, ${at.y}px) translate(-50%, -50%) scale(2.4)`, opacity: 0 },
-  ], { duration, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }).finished.then(() => ring.remove(), () => ring.remove());
+  ], { duration, easing: EASE }).finished.then(() => ring.remove(), () => ring.remove());
 }
 
 export { center };

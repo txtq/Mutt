@@ -9,19 +9,44 @@ The one standard for how Mutt looks and moves. Read it before touching anything 
 
 ## Where the app stands against this file
 
-The app does not match this file yet. Sessions 2 to 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
+The app does not match this file yet. Sessions 3 to 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
 
 | Area | In the app today | Lands in |
 | --- | --- | --- |
-| Named values (section 2) | Old values, 297 hand-typed colours, 86 text sizes | Session 2 |
+| Named values (section 2) | **Done (session 2).** Every name below is in `public/assets/tokens.css`, the one place raw values are written. `mutt.css` is gone (folded into `galaxy.css`). `tests/run.sh drift` fails if a hand-typed value is added. | Session 2 ✓ |
 | Shared parts (section 4) | A dozen buttons, seven text boxes, five menus | Session 3 |
 | Planet page, file boxes, planet colour rule | Planet colour leaks into account and search; glow on every box at rest | Session 4 |
 | Modes on the shared look | Private palettes `--lm-*`, `--de-*`, `--rd-*`, `--vf-*` | Session 5 |
 | Icons | Four sets and about 35 keyboard characters | Session 6 |
 | The sky, planets, logo | Old gradient sky; five logo styles in Settings | Session 7 |
-| Motion | 79 lengths, 12 curves | Session 8 |
+| Motion | The five lengths and three curves are named and used where they matched; 386 other lengths and curves are still typed by hand (279 in stylesheets, 107 in scripts) | Session 8 |
 
-Until session 2 is done, a name below marked *new* is not in the stylesheets yet. A session that needs one adds it to `:root` in `public/assets/galaxy.css` with exactly this name and value. It never types the number where it is used.
+### Values that still hold yesterday's number
+
+Session 2 changed nothing a person can see. So where this file asks for a different value than the app had, the name exists but still holds the old value. Each line in `tokens.css` that does this ends with `WANTS <value> (session N)`. This is the to-do list; when a session switches one, it deletes the `WANTS` note and the row here.
+
+| Name | Holds today | This file asks for | Switched in |
+| --- | --- | --- | --- |
+| `--ink` `--ink-2` `--ink-3` `--ink-4` | `#eef2fb` `#bcc6de` `#8592b0` `#56627f` | `#f2f5fc` `#cbd3e8` `#a4b0cd` `#7f8cab` | Session 4 |
+| `--sky-shadow` | `0 1px 2px rgba(0,0,16,.85), 0 0 10px rgba(0,0,24,.5)` | `0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5)` | Session 4 |
+| `--danger` | `#ff8080` | `#ff8a84` | Session 3 |
+| `--accent` on a planet's page | the planet's colour for the whole page (set on `body[data-page="planet"]`, with `--line`, `--tint`, the glass and the gloss) | the planet's colour only inside the planet's own things | Session 4 |
+| `--gloss-on` | a ready-made blue fill (a planet's page remixes it from `--accent`) | the see-through light in section 3, laid over `var(--accent)` | Session 3 |
+| `--gloss-clear` | a four-step white sheen | the same shape as `--gloss-on`, fainter, over `rgba(255,255,255,.05)` | Session 3 |
+| `--bar` | 34 (44 on a phone) | 36 | Session 3 |
+| `--paper` `--paper-ink` | a cream gradient; `#262a34` | `#f8f5ee` flat; `#1d1b18` | Session 5 |
+| Box glass (`--fg-fill`, `--fg-fill-hover`, `--fg-frost`, and the edge, glow and shadow in the `.fglass` rule) | fill `.085`, frost `blur(20px) saturate(0.95) brightness(1.08)`, a glow at rest | the recipe in section 3 | Session 4 |
+| Bar glass (`--glass-fill`, `--glass-shadow`, `--bar-fill`) | two-step gradients | flat fills and the named shadows in section 3 | Session 3 |
+| The sky | the old gradient, clouds and ribbons (`--neb-*`, `--ribbon*`) | the sky in section 3 | Session 7 |
+
+Names kept from before that are not in this file (`--card-*`, `--btn-edge`, `--btn-ink`, `--bar-ink`, `--bg`, `--ease-in`, `--ease-io`, the old page grid, documents' `--de-*`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
+
+### What session 2 left for later, on purpose
+
+- **Values off the scales stay hand-typed** until their part is rebuilt: 12.5 and 11.5 text, 14 and 10 corners, 0.3 and 0.25 second motion, 6, 10 and 14 spacing. They are what `tests/run.sh drift` counts (2026-11-11: 716 colours, 204 text sizes, 168 corners, 97 shadows, 386 speeds, down from 855, 382, 246, 104 and 504).
+- **Control heights are not named in the stylesheets yet.** A 32 high thing is not always a control, so session 3 names them part by part.
+- **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet (about 1,140 lines of layout that still paint). 73 selectors are written both there and further down. Each part's base rules move beside its other rules when sessions 3 to 5 rebuild that part. Nothing new goes in that section.
+- **Three rooms sit on numbers of their own** (see Depth).
 
 ## 1. Principles
 
@@ -38,6 +63,8 @@ What Mutt must not look like (the user's words: "not AI-looking"): glow on every
 
 ## 2. Values
 
+Every name in this section is written once, in `public/assets/tokens.css`, which every page loads first. Stylesheets and scripts read the names; a raw number anywhere else is a mistake that `tests/run.sh drift` counts. To add a value: add it here (show the user), then to `tokens.css` with exactly this name, then use it.
+
 ### Colour
 
 | Name | Value | Use |
@@ -47,49 +74,51 @@ What Mutt must not look like (the user's words: "not AI-looking"): glow on every
 | `--ink-2` | `#cbd3e8` | Body, labels on controls, captions. |
 | `--ink-3` | `#a4b0cd` | Facts (dates, counts, sizes), hints, placeholders, small labels. |
 | `--ink-4` | `#7f8cab` | Marks only: dots, grips, empty tick rings, switched-off things. **Never words.** |
-| `--sky-shadow` *new* | `0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5)` | Text shadow on every word that sits straight on the sky (not on glass). No grey can stay readable on the brightest sky without it. |
-| `--blue` *new* | `#3f7cf0` | Mutt blue, for fills: main button, switch on, chosen segment, progress. |
-| `--blue-ink` *new* | `#8cc0ff` | Blue words, links, `@name`, the keyboard outline, a toast's action. |
-| `--good` *new* | `#86d9ad` | Saved, done. |
-| `--caution` *new* | `#eec372` | Someone else's, be careful. |
-| `--danger` | `#ff8a84` words, `--danger-fill` *new* `#e24a4a` fill | Deleting. Only inside an "are you sure" dialog or a menu's last row. |
+| `--sky-shadow` | `0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5)` | Text shadow on every word that sits straight on the sky (not on glass). No grey can stay readable on the brightest sky without it. |
+| `--blue` | `#3f7cf0` | Mutt blue, for fills: main button, switch on, chosen segment, progress. |
+| `--blue-ink` | `#8cc0ff` | Blue words, links, `@name`, the keyboard outline, a toast's action. |
+| `--good` | `#86d9ad` | Saved, done. |
+| `--caution` | `#eec372` | Someone else's, be careful. |
+| `--danger` | `#ff8a84` words, `--danger-fill` `#e24a4a` fill | Deleting. Only inside an "are you sure" dialog or a menu's last row. |
 | `--line` `--line-2` | `rgba(190,205,240,.12)` `.22` | Hairlines; `--line-2` for the edge of a text box. |
 | `--tint` `--tint-2` | `rgba(150,175,240,.07)` `.13` | Washes: pointed-at rows and quiet buttons. |
 | `--well` `--well-shadow` | `rgba(0,4,24,.38)`; `inset 0 1px 3px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.06)` | The sunken track (section 3). |
 | shadow colour | `rgb(0,0,18)` | The only shadow colour. |
 | `--pc` | the planet's colour | Set by the router on a planet's page. Elsewhere `#6c9cff`. |
 | `--pa` | the planet's deep colour | From `planetTone` in `planets.js`: same hue, dark enough for white words. Fills the planet's own main button. |
-| `--accent` | `var(--blue)`; inside a planet's own things `var(--pa)` | What a pressed thing is filled with. Never set it on a whole page. |
+| `--accent` | `var(--blue)`; inside a planet's own things `var(--pa)` | What a pressed thing is filled with. Never set it on a whole page (today a planet's page still does; session 4). |
 
 Signals mean something or they aren't used. No other colour may be typed anywhere; a picture's own colours are the exception.
 
 ### Type
 
-Families: `--sans` Red Hat Text (400, 500, 700 only), `--mono` Red Hat Mono (400, 500), `--serif` *new* `"Newsreader", "Iowan Old Style", Georgia, serif` (paper only, documents and the book reader alike).
+Families: `--sans` Red Hat Text (400, 500, 700 only), `--mono` Red Hat Mono (400, 500), `--serif` `"Newsreader", "Iowan Old Style", Georgia, serif` (paper only, documents and the book reader alike).
 
-| Role | Size / line | Weight | Use |
-| --- | --- | --- | --- |
-| Display | 34 / 38, `-0.02em` | 700 | Sign-in, a welcome, an empty galaxy. |
-| Page | 26 / 32, `-0.01em` | 700 | A planet's name. |
-| Title | 20 / 26 | 700 | A panel's or offer's title, a sheet's name. |
-| Lead | 16 / 24 (22 in a file box) | 500 (700 as a dialog's title) | A link's title, a dialog's title. |
-| Body | 14 / 22 | 400 | Notes, descriptions, running words. |
-| Label | 13 / 16 | 500 | Buttons, menu rows, tabs, a section heading's name. |
-| Caption | 12 / 16 | 400 | Names under file boxes, hints, small help. |
-| Fact | 11 / 16, mono | 400 | Anything you could count or date: `12 files · 3 Nov · 4.2 MB`. |
-| Small label | 10.5 / 1, mono, `0.14em`, capitals | 500, `--ink-3` | The label above a control or group (`WHO CAN SEE IT`), and `ADD` / `UNIVERSE` on the galaxy (`0.18em`, `--ink-2`). |
+| Role | Name | Size / line | Weight | Use |
+| --- | --- | --- | --- | --- |
+| Display | `--type-display` | 34 / 38, `-0.02em` | 700 | Sign-in, a welcome, an empty galaxy. |
+| Page | `--type-page` | 26 / 32, `-0.01em` | 700 | A planet's name. |
+| Title | `--type-title` | 20 / 26 | 700 | A panel's or offer's title, a sheet's name. |
+| Lead | `--type-lead` | 16 / 24 (22 in a file box) | 500 (700 as a dialog's title) | A link's title, a dialog's title. |
+| Body | `--type-body` | 14 / 22 | 400 | Notes, descriptions, running words. |
+| Label | `--type-label` | 13 / 16 | 500 | Buttons, menu rows, tabs, a section heading's name. |
+| Caption | `--type-caption` | 12 / 16 | 400 | Names under file boxes, hints, small help. |
+| Fact | `--type-fact` | 11 / 16, mono | 400 | Anything you could count or date: `12 files · 3 Nov · 4.2 MB`. |
+| Small label | `--type-small` | 10.5 / 1, mono, `0.14em`, capitals | 500, `--ink-3` | The label above a control or group (`WHO CAN SEE IT`), and `ADD` / `UNIVERSE` on the galaxy (`0.18em`, `--ink-2`). |
+
+Set a line of text with the whole role: `font: var(--type-label)`. It carries weight, size, line height and family; letter-spacing and capitals are added beside it where the table gives them. When only the size is wanted (inside a `calc`, or beside the owner's text-size setting), each role's size is also `--text-display`, `--text-page`, `--text-title`, `--text-lead`, `--text-body`, `--text-label`, `--text-caption`, `--text-fact`, `--text-small`. The old stylesheets use the sizes; new work uses the roles.
 
 The user kept the spaced capitals for small labels on purpose; don't turn them into plain words. They are for labels only: never a sentence, a button or a heading. The owner's text-size setting (S 0.93, M 1, L 1.1) multiplies the sizes of their own words; keep it.
 
 ### Space, heights, corners
 
-- **Space** (`--space-2` … `--space-48`, *new*): 2, 4, 8, 12, 16, 24, 32, 48. 4 inside a control, 8 between related things, 16 inside a box, 24 between boxes, 48 between parts of a page.
-- **Control heights** (`--h-small` 24, `--h-regular` 32, `--h-large` 40, *new*): small on tiles and in rows; regular everywhere; large for the one main action, and for every control on touch screens. The top bar is 36 (`--bar`).
-- **Corners** (`--r-mark` 4, `--r-row` 8, `--r-box` 12, `--r-panel` 20, `--r-full` 999px, *new*): 4 tick boxes, tags, paper; 8 rows and text boxes; 12 file boxes and menus; 20 sheets, dialogs, a planet's header; full for buttons, switches, segmented bars, toasts. A thing inside a rounded thing has the outer corner minus the padding (menu 12, padding 4, rows 8).
+- **Space** (`--space-2` … `--space-48`): 2, 4, 8, 12, 16, 24, 32, 48. 4 inside a control, 8 between related things, 16 inside a box, 24 between boxes, 48 between parts of a page.
+- **Control heights** (`--h-small` 24, `--h-regular` 32, `--h-large` 40): small on tiles and in rows; regular everywhere; large for the one main action, and for every control on touch screens. The top bar is 36 (`--bar`; still 34 today).
+- **Corners** (`--r-mark` 4, `--r-row` 8, `--r-box` 12, `--r-panel` 20, `--r-full` 999px): 4 tick boxes, tags, paper; 8 rows and text boxes; 12 file boxes and menus; 20 sheets, dialogs, a planet's header; full for buttons, switches, segmented bars, toasts. A thing inside a rounded thing has the outer corner minus the padding (menu 12, padding 4, rows 8).
 
 ### Depth
 
-Four shadows, named by height (*new*):
+Four shadows, named by height:
 
 | Name | Value | Use |
 | --- | --- | --- |
@@ -98,24 +127,41 @@ Four shadows, named by height (*new*):
 | `--shadow-float` | `0 18px 44px -16px rgba(0,0,18,.8)` | Menus, toasts. |
 | `--shadow-overlay` | `0 30px 80px -20px rgba(0,0,18,.85)` | Sheets, dialogs. |
 
-Seven stacking levels (*new*; proposed in the audit, not drawn on the board; session 2 checks them against the app's 29 and adjusts here): `--z-sky` 0, `--z-page` 1, `--z-lifted` 10 (a dragged box, a card in flight), `--z-bar` 40, `--z-room` 50 (file view, reader, editor, cooking), `--z-overlay` 60 (scrim, sheets, dialogs), `--z-pop` 80 (menus, toasts, drop hints).
+Ten layers, lowest first. They were checked against the app in session 2 (the seven first proposed did not fit: a dialog must sit above the editor, a menu above a dialog, a toast above both) and hold the numbers the app already used.
+
+| Name | Value | What sits there |
+| --- | --- | --- |
+| `--z-sky` | -1 | The sky, behind the page. |
+| `--z-page` | 1 | The page (`#app`). The top bar and the drop hint are inside it, so nothing in the page can rise above the layers below. |
+| `--z-bar` | 40 | The top bar, within the page. |
+| `--z-room` | 50 | A place that covers the page and its bar: the file view. |
+| `--z-sheet` | 60 | Sheets (account, search), the phone note, a box while it is being dragged. |
+| `--z-dialog` | 80 | The scrim and its dialog. |
+| `--z-pop` | 85 | Menus (••• and right-click). |
+| `--z-toast` | 95 | Toasts. |
+| `--z-fx` | 150 | Sparks and rings drawn over everything. |
+| `--z-curtain` | 900 | The light that takes the screen at sign-in. |
+
+- **Inside one part, order its own pieces with 1 to 9.** Those are not layers and stay as plain numbers (a planet's ring in front of its globe, a tab above its card). Never use a number above 9 without a name from this table.
+- **A new full-screen place is a room**; a new thing that opens over the page is a sheet, a dialog or a menu. If it fits none of the ten, stop and add a layer here first.
+- **Still on numbers of their own** (the app's order is kept exactly; tidying it would be a change, so it waits): the editor 77, cooking 78 and the reader 93 are rooms that sit above sheets, and the reader above menus too, because it draws its own (session 5 brings the three onto one room layer above sheets and checks a dialog opened from the reader still shows); the uploads tray and a zoomed recipe picture 90, the progress line 99, the drop hint 75 inside the page, the corner back arrow 38 (41 on a phone), the dusk veil between scenes 950 (session 8).
 
 ### Motion
 
 To be confirmed at real speed in session 8; use these until then.
 
-| Name (*new*) | Value | Use |
+| Name | Value | Use |
 | --- | --- | --- |
 | `--dur-quick` | 120 ms | Pressing, pointing. |
 | `--dur-change` | 200 ms | Colour, a switch, a tick. |
 | `--dur-move` | 320 ms | Menus, rows, the lean. |
 | `--dur-arrive` | 500 ms | Boxes, sheets, dialogs arriving. |
 | `--dur-scene` | 800 ms | Planet to galaxy, the sky changing. |
-| `--ease-settle` | `cubic-bezier(0.16, 1, 0.3, 1)` (today's `--ease`) | Things arriving. |
+| `--ease-settle` | `cubic-bezier(0.16, 1, 0.3, 1)` | Things arriving. |
 | `--ease-glide` | `cubic-bezier(0.4, 0, 0.2, 1)` | Things moving from one place to another. |
-| `--ease-spring` | `cubic-bezier(0.34, 1.3, 0.64, 1)` (today's `--spring`) | Things you press. |
+| `--ease-spring` | `cubic-bezier(0.34, 1.3, 0.64, 1)` | Things you press. |
 
-Scripts use the same numbers, read from one place, never their own.
+Scripts use the same numbers, read from one place, never their own: `util.js` reads them from `tokens.css` and gives them out as `DUR.quick`, `DUR.change`, `DUR.move`, `DUR.arrive`, `DUR.scene` (milliseconds) and `EASE` (settle), `EASE_GLIDE`, `EASE_SPRING`. An `.animate()` call takes its `duration` and `easing` from those.
 
 ## 3. Materials
 
@@ -159,8 +205,8 @@ Use the `.fglass` class (don't write a fill). Its recipe:
 
 One light, from above, laid over whatever colour the control is. A pressed thing's background is `var(--gloss-on), var(--accent)`; never a two-colour gradient.
 
-- `--gloss-on` *new* (on a colour): `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,.11) 46%, rgba(255,255,255,0) 54%, rgba(255,255,255,.05) 100%)`.
-- `--gloss-clear` *new* (on a see-through control): the same shape at `.13`, `.05`, `0`, `.025`, over a fill of `rgba(255,255,255,.05)`.
+- `--gloss-on` (on a colour): `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,.11) 46%, rgba(255,255,255,0) 54%, rgba(255,255,255,.05) 100%)`.
+- `--gloss-clear` (on a see-through control): the same shape at `.13`, `.05`, `0`, `.025`, over a fill of `rgba(255,255,255,.05)`.
 - Light on the top edge of every glossy thing: `inset 0 1px 0 rgba(255,255,255,.32)`.
 - The switch's knob is a pearl: `radial-gradient(circle at 40% 30%, #fff 0%, #eef2fa 50%, #c3cde2 100%)` with `0 1px 3px rgba(0,0,30,.45)`.
 
@@ -283,14 +329,14 @@ Follow these in order. For a mode, this is step 6 of "How to add a mode" in `CLA
 9. **Keep it calm at rest.** A new feature adds nothing that moves while idle. Only the sky, planets turning and the slow float of file boxes may. No endless animation without the user's yes.
 10. **Make it work without a pointer.** Every control is reachable by keyboard and shows the outline. On touch screens controls are 40 high, and nothing appears only on hover.
 11. **Make it work under Motion: Still.** Every animation ends on its last frame, in no time. Never pause an animation to stop it (a paused entrance stays invisible).
-12. **Keep it light.** Its styles go in its own stylesheet, linked when its code loads (or `galaxy.css` if tiny). A plain planet loads none of it.
+12. **Keep it light.** Its styles go in its own stylesheet, fetched together with its code, and waited for: `Promise.all([import('./name.js'), styles('name.css')])` (`styles` is in `util.js`; copy the `documents` entry in `modes.js`). Only what must show before its code arrives (an offer's drawing) goes in `galaxy.css`. A plain planet loads none of it.
 13. **Look at it** in the hidden browser at 1280 and 375 wide (`tests/run.sh browser`, pictures in `tests/shots/latest`), before and after. Give the user a short list of what to watch at real speed.
 14. **Write it down**: anything new or changed goes into this file in the same session.
 
 Checklist before calling it done:
 
 - [ ] Every piece is one of the five materials, and glass is `.fglass` or bar glass, not a fill of its own.
-- [ ] No colour, size, corner, shadow or speed typed by hand; no new text size or weight.
+- [ ] No colour, size, corner, shadow or speed typed by hand; no new text size or weight. `tests/run.sh drift` passes.
 - [ ] Only parts from section 4; anything new was added here first.
 - [ ] Planet colour only on box-glass things on that planet's page; nothing on bar glass took it.
 - [ ] Nothing new glows, leans or moves at rest.
@@ -317,4 +363,4 @@ Decided by the user, 2026-11-11 (the alternatives are on the boards in `design/`
 - All four graphics areas matter: planets and the files on them, one icon set, the sky, the logo and its loading.
 - Foundations before visible changes; show before building; nothing may end up less smooth or more broken than it was found.
 
-Still open, with the session that settles it: stacking levels against the real app (2); the parts not drawn (3); the seven faces of a file box and the planet header's final shape (4); the icon sheet (6); sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).
+Still open, with the session that settles it: the parts not drawn (3); the seven faces of a file box and the planet header's final shape (4); the three rooms on their own layer numbers (5); the icon sheet (6); sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).

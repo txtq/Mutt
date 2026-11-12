@@ -13,12 +13,11 @@ import { nav } from '../nav.js';
 import { theSky } from '../sky.js';
 import { setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
-import { h, reducedMotion, touchScreen, wait } from '../util.js';
+import { DUR, EASE, h, reducedMotion, touchScreen, wait } from '../util.js';
 import { voidArt } from '../voidart.js';
 
 const NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9]$/;
 const BEEN = 'mutt.been-here';
-const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const TAU = Math.PI * 2;
 const CAGE_OPEN = 1.7; // how far the cage stands off the open light
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
@@ -403,7 +402,7 @@ export const loginView = {
       if (much < 0.3) return;
       const at = eyeAt();
       art.gulp();
-      theSky()?.pull(at.x, at.y, { strength: 0.35, radius: R * 6, duration: 800 });
+      theSky()?.pull(at.x, at.y, { strength: 0.35, radius: R * 6, duration: DUR.scene });
     }
     nameInput.addEventListener('input', () => { say(''); feed(0.14); });
     pin.input.addEventListener('input', () => {

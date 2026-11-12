@@ -29,8 +29,34 @@ export function append(el, children) {
   return el;
 }
 
-export const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
-export const EASE_IN = 'cubic-bezier(0.55, 0, 1, 0.45)';
+// The shared speeds and curves. They are written once, in tokens.css, and read
+// from there, so a script and a stylesheet can't drift apart (DESIGN.md, Motion).
+// Use these in `.animate()` and timers instead of typing a number or a curve.
+const shared = getComputedStyle(document.documentElement);
+const named = (name) => shared.getPropertyValue(name).trim();
+const ms = (name) => { const v = named(name); return v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000 || 0; };
+export const DUR = {
+  quick: ms('--dur-quick'), change: ms('--dur-change'), move: ms('--dur-move'), arrive: ms('--dur-arrive'), scene: ms('--dur-scene'),
+};
+export const EASE = named('--ease-settle') || 'ease-out';        // things arriving
+export const EASE_GLIDE = named('--ease-glide') || 'ease-in-out';  // things moving from one place to another
+export const EASE_SPRING = named('--ease-spring') || 'ease-out';   // things you press
+export const EASE_IN = named('--ease-in') || 'ease-in';            // kept from before (session 8)
+export const BLUE = named('--blue') || '#3f7cf0';                  // Mutt blue, for colour worked out in script
+
+// A stylesheet a feature brings with it (`styles('docs.css')`), linked the first
+// time it's asked for. Resolves once it applies, so a view can wait for its look.
+const sheets = new Map();
+export function styles(name) {
+  if (!sheets.has(name)) {
+    sheets.set(name, new Promise((done) => {
+      const link = h('link', { rel: 'stylesheet', href: `/assets/${name}${new URL(import.meta.url).search}` });
+      link.onload = link.onerror = () => done();
+      document.head.append(link);
+    }));
+  }
+  return sheets.get(name);
+}
 
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 // The system setting, or Motion: Off in Mutt's own settings.

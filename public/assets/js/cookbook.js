@@ -16,7 +16,7 @@ import { api } from './api.js';
 import { nav } from './nav.js';
 import { openContextMenu, openDialog, openMenu, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
-import { EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
+import { DUR, EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
 
 // A long, soft glide: an easy start, a slow settle (like a sheet on a phone).
 const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';
@@ -157,7 +157,7 @@ export class RecipeBoxView {
     }
     const el = this.stack.querySelector(`[data-id="${CSS.escape(id)}"]`);
     const done = () => { this.changed(); this.refresh(); };
-    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-30px) rotate(-2deg)' }], { duration: 320, easing: 'ease-in', fill: 'forwards' }).finished.then(done, done);
+    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-30px) rotate(-2deg)' }], { duration: DUR.move, easing: 'ease-in', fill: 'forwards' }).finished.then(done, done);
     else done();
   }
 

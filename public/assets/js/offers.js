@@ -7,7 +7,7 @@
 // down to make room; when it's waved away, it glides back up. Only transforms
 // and fades move, so the page isn't laid out again on every frame.
 
-import { EASE, h, reducedMotion } from './util.js';
+import { DUR, EASE, h, reducedMotion } from './util.js';
 
 const topOf = (el) => el.getBoundingClientRect().top;
 
@@ -65,7 +65,7 @@ export function modeOffer({ kind = '', icon, strokes = 3, title, signs = [], not
   el.fade = async () => {
     el.style.pointerEvents = 'none';
     if (reducedMotion() || !el.isConnected) return;
-    await el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+    await el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.change, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
   };
 
   yes.addEventListener('click', async () => {

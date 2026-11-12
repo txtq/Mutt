@@ -255,7 +255,7 @@ server.py            starts the server
 mutt/                Python: app, api, auth, db, links (link previews), kinds (bundles),
                      sorting + lexicon (autosort), media (file details), sight (picture readings)
 public/index.html    the single page
-public/assets/       mutt.css + galaxy.css, and js/ (galaxy, planets, the void, sky, viewer…)
+public/assets/       tokens.css (every named value) + galaxy.css, docs.css (loaded with documents), and js/ (galaxy, planets, the void, sky, viewer…)
 tests/               API test suites: tests/run.sh [smoke|galaxy|preview|lockout|search|autosort]
 ```
 

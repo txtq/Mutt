@@ -6,6 +6,7 @@
   tests/run.sh browser         only the browser paths (Safari)
   tests/run.sh browser undo    only that path (after signing in); --keep saves the pictures as "before"
   tests/run.sh galaxy docs     only those API suites
+  tests/run.sh drift           only the count of hand-typed colours, sizes, corners, shadows and speeds
   tests/run.sh --accept docs   the new answers are right: save them as the expected ones
   tests/run.sh -v galaxy       also print everything the suite said
 
@@ -137,13 +138,27 @@ def main(argv):
     flags = {a for a in argv if a.startswith('-')}
     names = [a for a in argv if not a.startswith('-')]
     accept, verbose = '--accept' in flags, '-v' in flags
+    # The drift count (tests/drift.py) runs first in a plain run, or alone as `tests/run.sh drift`.
+    drift_only = names == ['drift']
+    check_drift = not names or 'drift' in names
+    names = [n for n in names if n != 'drift']
+    began, bad = time.time(), False
+    if check_drift:
+        import drift
+        line, fails = drift.run(accept, verbose)
+        print(line)
+        for f in fails:
+            print(f'  ✗ {f}')
+        bad = bool(fails)
+    if drift_only:
+        print(f'{"FAILED" if bad else "ALL PASSED"} in {time.time() - began:.0f}s')
+        return 1 if bad else 0
     if accept and not names:
         raise SystemExit('Say which suite to accept, e.g. tests/run.sh --accept docs (after reading its changes).')
     browser = not names or 'browser' in names
     only = names[names.index('browser') + 1:] if 'browser' in names else []   # tests/run.sh browser undo
     names = names[:names.index('browser')] if 'browser' in names else names
     suites = API if 'api' in names or not (names or browser) or not argv_names(argv) else names
-    began, bad = time.time(), False
 
     if suites:
         total, broken = 0, []

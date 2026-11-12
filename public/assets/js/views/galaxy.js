@@ -16,7 +16,7 @@ import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
+import { DUR, EASE, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
 import { paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 
@@ -881,7 +881,7 @@ class Galaxy {
       el.body.animate([
         { transform: 'scale(0.2)', opacity: 0 },
         { transform: 'none', opacity: 1 },
-      ], { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+      ], { duration: 900, easing: EASE });
     }
     return el;
   }
@@ -1394,7 +1394,7 @@ class Galaxy {
       { transform: 'translate(0px, 0px) scale(0.1)', opacity: 0 },
       { transform: `${to} scale(1.2)`, opacity: 1, offset: 0.7 },
       { transform: `${to} scale(1)`, opacity: 1 },
-    ], { duration: 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    ], { duration: 900, easing: EASE });
   }
 
   // Out of the void to the planet it went onto: the file itself, flying.
@@ -1851,13 +1851,13 @@ class Galaxy {
     if (reducedMotion()) return;
     this.coreEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 300, fill: 'backwards' });
     this.void.art.animate([{ transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }],
-      { duration: 1200, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+      { duration: 1200, easing: EASE });
     this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 200, fill: 'backwards' });
     [...this.planetEls.values()].forEach((p, i) => {
       p.body.animate([
         { transform: 'scale(0.85)', opacity: 0 },
         { transform: 'none', opacity: 1 },
-      ], { duration: 800, delay: 120 + i * 50, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' });
+      ], { duration: DUR.scene, delay: 120 + i * 50, easing: EASE, fill: 'backwards' });
     });
   }
 

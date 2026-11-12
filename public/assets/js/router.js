@@ -143,7 +143,7 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     for (const [k, v] of Object.entries(inst.tint || {})) document.body.style.setProperty(k, v);
     current = { path: url.pathname, base, inst };
     root.replaceChildren(inst.el);
-    document.title = inst.title ? `${inst.title} — Mutt` : 'Mutt';
+    document.title = inst.title ? `${inst.title} — Mutt.` : 'Mutt.';
     document.body.classList.toggle('no-chrome', inst.chrome === false);
     document.body.dataset.page = inst.chrome || 'page';
     chrome.update(inst, url);

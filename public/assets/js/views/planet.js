@@ -330,7 +330,7 @@ export const planetView = {
         input.value = drawer[field];
         world.update({ ...drawer, previews: world.planet?.previews });
         bus.emit('drawer:changed', drawer);
-        if (field === 'title') { inst.title = drawer.title; document.title = `${drawer.title} — Mutt`; }
+        if (field === 'title') { inst.title = drawer.title; document.title = `${drawer.title} — Mutt.`; }
       } catch (err) {
         toast(err.message);
         input.value = drawer[field];

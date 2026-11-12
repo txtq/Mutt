@@ -13,7 +13,7 @@ import { bus, h, plural, wait } from './util.js';
 const owned = (d) => (d.owner ? h('span', { class: 'cx-owner' }, ` @${d.owner}`) : null);
 
 export async function openConnect(anchor, block, { align = 'start' } = {}) {
-  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
+  const input = h('input', { class: 'field cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
     h('div', { class: 'cx-head' }, h('span', null, 'Planets'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
@@ -41,7 +41,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
     planetDot(d),
     h('span', { class: 'cx-title' }, d.title, owned(d)),
     h('span', { class: 'cx-count' }, d.count ?? ''),
-    h('span', { class: 'cx-check', 'aria-hidden': 'true' })));
+    h('span', { class: 'tick-box cx-check', 'aria-hidden': 'true' })));
     const exact = drawers.some((d) => d.title.toLowerCase() === q);
     if (q && !exact) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
@@ -121,7 +121,7 @@ export async function watchPreview(block) {
 
 // Pick where a copy of someone else's file goes: one of your planets, or a loose star.
 export async function openSave(anchor, block, { align = 'start', onSaved } = {}) {
-  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
+  const input = h('input', { class: 'field cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
     h('div', { class: 'cx-head' }, h('span', null, 'Save to'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),
@@ -203,7 +203,7 @@ export function sortedToast(block, { planet, created }) {
 // Take a file off the planet autosort chose and put it somewhere else (or back
 // among the stars). A planet autosort made just for it goes if it's left empty.
 export async function openMove(anchor, block, from, { created = false, onClose } = {}) {
-  const input = h('input', { class: 'cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
+  const input = h('input', { class: 'field cx-input', type: 'text', placeholder: 'Find or make a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
     h('div', { class: 'cx-head' }, h('span', null, 'Move to'), h('span', { class: 'cx-sub' }, displayTitle(block) || 'this file')),

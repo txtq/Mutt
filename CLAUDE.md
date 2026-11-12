@@ -19,6 +19,7 @@ The handoff notes are **one shared file: `/Users/edan/Mutt-notes/PROGRESS.md`**,
 - Styling anything new follows its "How to style a new feature" recipe, step by step, and ends on its checklist.
 - A session that settles anything visible updates `DESIGN.md` before it ends. Design sentences live there, not here.
 - `design/` holds the drawn references: `look-board.html` and `sky-board.html`.
+- Buttons, text boxes, menus, switches, sheets, dialogs, toasts and the rest are **shared parts**: one set of classes in the section of `public/assets/galaxy.css` headed SHARED PARTS, with the builders in `public/assets/js/ui.js` (`segmented`, `stepper`, `toast`, `openDialog`, `confirmDialog`, `openPopover`, `openMenu`, `openContextMenu`) and `tooltip.js`. `DESIGN.md` section 4 has the table of class names. A feature uses them and never draws its own; a missing part is drawn first on the hidden sample page, `/parts` (`js/views/parts.js` + `parts.css`, fetched only when opened), then added to `DESIGN.md`, then built.
 - Every named value (colour, text size, space, corner, shadow, layer, speed, curve) is written once, in `public/assets/tokens.css`. No other stylesheet or script types a raw one; `tests/run.sh drift` counts them and fails if the count goes up.
 
 ## What Mutt is
@@ -110,7 +111,7 @@ tests/run.sh                                         # every check; prints ~3 li
 
 ## Checks (run before going live)
 
-`tests/run.sh` is the one command: the drift count (instant), 12 API suites (~25 s), then 13 browser paths in a hidden browser (~70 s). It prints a pass/fail line for each and `ALL PASSED` or `FAILED`; only failures get detail. **Every session runs it before going live and doesn't deploy on a failure.** While working, run only what you touched: `tests/run.sh docs`, `tests/run.sh api`, `tests/run.sh browser undo`.
+`tests/run.sh` is the one command: the drift count (instant), 12 API suites (~25 s), then 14 browser paths in a hidden browser (~75 s). It prints a pass/fail line for each and `ALL PASSED` or `FAILED`; only failures get detail. **Every session runs it before going live and doesn't deploy on a failure.** While working, run only what you touched: `tests/run.sh docs`, `tests/run.sh api`, `tests/run.sh browser undo`.
 
 - **API suites** (`tests/<name>.sh`: smoke, galaxy, preview, lockout, search, autosort, moons, books, docs, cookbook, comments, modes) are curl scripts that print one `label: answer` line per check. The right answers are in `tests/expected/<name>.txt`; a different line fails. Ids and times are masked. Mutating requests need the `X-Mutt: 1` header.
 - **Browser paths** (`tests/browser.py`, the `PATHS` list) walk the site in a hidden browser against a made-up account (`seed`); nothing shows on screen. Each saves pictures to `tests/shots/latest` (not in git). Don't open the pictures unless the user asks about looks; `tests/run.sh browser --keep` saves a "before" set to compare by eye. The hidden browser (Chrome's headless shell) lives in `~/.cache/mutt-tests`, fetched once by `python3 tests/get_browser.py`; without it the paths fall back to Safari, whose window must be left alone. `MUTT_BROWSER=safari tests/run.sh browser` checks Safari on purpose (only when the user asks: it takes over a window).
@@ -148,6 +149,7 @@ tests/run.sh                                         # every check; prints ~3 li
   - `home` (shows the corner back arrow), `goHome`
   - `dropTarget()`, `pasteText()`, `mounted()`, `destroy()`
 - The logo's four other designs and the 21 typefaces its letters flick through are fetched by `logo.js` (`loadFaces`) the first time the flicker runs or another design is shown, not by `index.html`; only the Wonky's face (Fraunces) is linked up front.
+- Shared parts: `ui.js` builds the segmented bar and tabs (`segmented`), the stepper, toasts, dialogs, small panels and menus; `tooltip.js` shows the one tooltip for anything with a `title` (it takes the `title` away the first time the thing is pointed at, and leaves people's own writing alone); uploads show as a toast (`uploads.js`); the drop hint is in `main.js` (a view's `dropTarget()` may give `label`, `el` to light up, `lit(on)`, and a string from `over(e)`). The sample page is `views/parts.js` at `/parts`.
 - `statusbar.js` reads the view instance in `update(inst)`. It also owns the account/settings sheet, search, and the faint back arrow in the corner that takes you home.
 - `views/galaxy.js` is the main page: a sticky galaxy section followed by a scroll "runway". Scroll progress drives the zoom out into the universe stage (`track()`), and `/universe` opens already scrolled out.
 - `planets.js` builds each planet: its kind (`LOOKS`, with `lookOf()` picking one from the id when the owner hasn't), palette, moons, and a texture of its files. `planetgl.js` paints them: one shared off-screen WebGL2 canvas draws every planet's sphere (ground, weather and light in one shader, branching on the kind) and copies it onto the planet's own canvas, about 30 times a second each. Without WebGL2 (or with `?flat=1`) the older 2D painter takes over.
@@ -159,12 +161,12 @@ tests/run.sh                                         # every check; prints ~3 li
 
 **CSS:**
 - How things look is set in `DESIGN.md` (values, materials, parts). The bullets here are only where the files are.
-- Stylesheets sit directly in `public/assets/` (there is no `css/` folder). Three, in this order:
+- Stylesheets sit directly in `public/assets/` (there is no `css/` folder). Three, in this order (plus `parts.css`, the sample page's layout, fetched only at `/parts`):
   - `tokens.css`: every named value, on `:root` (plus the three other skies' colours). Loaded first, on every page. A line ending `WANTS … (session N)` still holds the old value until that design session switches it.
-  - `galaxy.css`: the one stylesheet every page loads. It opens with "the older base" (what still paints from the old white site's `mutt.css`, which was folded in on 2026-11-11 with its overridden rules removed); nothing new goes in that section, and a part's rules there move down beside its other rules when the part is rebuilt.
+  - `galaxy.css`: the one stylesheet every page loads. Its section headed SHARED PARTS holds every shared part (see `DESIGN.md` section 4); a planet's colour is set just below it, on the planet's own page content (`#view`) and never on `body`, so menus, sheets, dialogs, toasts and the top bar stay Mutt blue. It opens with "the older base" (what still paints from the old white site's `mutt.css`, which was folded in on 2026-11-11 with its overridden rules removed); nothing new goes in that section, and a part's rules there move down beside its other rules when the part is rebuilt.
   - `docs.css`: documents only, fetched when a planet is a desk or a document opens: whatever imports `docs.js` or `doceditor.js` waits for `styles('docs.css')` alongside the import (`load` in `modes.js`, `loadEditor` in `views/planet.js`, `viewer.js`); `styles()` is in `util.js`. A new mode's stylesheet loads the same way.
 - The site is dark only. Light mode (and the Mode setting) was removed on 2026-10-30; don't bring it back.
-- Don't put `position` in the shared glass rule (`.glass, .sheet, .dialog, .pop, …`). `.pop` and `.tray` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
+- Don't put `position` in the bar glass rule (`.sheet, .dialog, .pop, .toast, .tip, .tooltip, …`). `.pop` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
 
 ## Branches and deploying
 

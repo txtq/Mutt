@@ -314,7 +314,7 @@ class DocEditor {
 
   build() {
     const btn = (name, label, run, extra = {}) => {
-      const b = h('button', { type: 'button', class: 'de-btn', 'aria-label': label, title: label, ...extra }, icon(name));
+      const b = h('button', { type: 'button', class: 'btn btn-quiet btn-round de-btn', 'aria-label': label, title: label, ...extra }, icon(name));
       b.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
       b.addEventListener('click', (e) => run(e, b));
       return b;
@@ -426,7 +426,7 @@ class DocEditor {
       this.desk.replaceChildren(h('div', { class: 'de-fail' },
         h('p', { class: 'de-fail-title' }, 'This document couldn’t be opened'),
         h('p', null, err.message || ''),
-        h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => this.close() }, 'Close')));
+        h('button', { type: 'button', class: 'btn', onclick: () => this.close() }, 'Close')));
     }
     return this;
   }
@@ -1571,8 +1571,10 @@ class DocEditor {
       body.replaceChildren(
         row('Typeface', h('div', { class: 'de-aa-seg' }, Object.entries(FONT_LABELS).map(([k, label]) =>
           opt(label, now.font === k, () => (some ? this.exec('fontName', k) : this.setSettings({ font: k })), { dataset: { font: k } })))),
-        row('Size', h('div', { class: 'de-aa-step' },
-          ic('line', 'Smaller', false, () => step(-1)), h('span', { class: 'de-aa-num' }, String(now.size)), ic('plus', 'Bigger', false, () => step(1))),
+        row('Size', h('div', { class: 'stepper' },
+          h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Smaller', title: 'Smaller', onclick: () => { step(-1); draw(); } }, icon('line')),
+          h('span', { class: 'stepper-value' }, String(now.size)),
+          h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Bigger', title: 'Bigger', onclick: () => { step(1); draw(); } }, icon('plus'))),
           h('div', { class: 'de-aa-seg de-aa-end' },
             ic('strike', 'Strikethrough', this.state('strikeThrough'), () => this.exec('strikeThrough')),
             ic('clear', 'Clear formatting (⌘\\)', false, () => this.clearFormat()))),
@@ -1594,7 +1596,7 @@ class DocEditor {
     };
     draw();
     this.typeBtn.classList.add('is-on');
-    const pop = openPopover(anchor, body, { className: 'de-pop de-aa-pop', align: 'end', onClose: () => this.typeBtn.classList.remove('is-on') });
+    const pop = openPopover(anchor, body, { className: 'pop-panel de-pop de-aa-pop', align: 'end', onClose: () => this.typeBtn.classList.remove('is-on') });
   }
 
   insertMenu(anchor) {
@@ -1646,7 +1648,7 @@ class DocEditor {
   linkBox(anchor, existing = null) {
     this.remember();
     const a = existing || this.blockAtCaret() && (getSelection().anchorNode?.parentElement?.closest('a'));
-    const input = h('input', { class: 'input de-link-in', type: 'url', placeholder: 'https://…', value: a?.getAttribute('href') || '', 'aria-label': 'Link address' });
+    const input = h('input', { class: 'field de-link-in', type: 'url', placeholder: 'https://…', value: a?.getAttribute('href') || '', 'aria-label': 'Link address' });
     const apply = () => {
       let url = input.value.trim();
       pop.close();
@@ -1661,14 +1663,14 @@ class DocEditor {
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
     const body = h('div', { class: 'de-link' }, input,
       h('div', { class: 'de-link-btns' },
-        a ? h('a', { class: 'vbtn vbtn-glass', href: a.getAttribute('href'), target: '_blank', rel: 'noopener noreferrer' }, 'Open') : null,
-        a ? h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => {
+        a ? h('a', { class: 'btn', href: a.getAttribute('href'), target: '_blank', rel: 'noopener noreferrer' }, 'Open') : null,
+        a ? h('button', { type: 'button', class: 'btn', onclick: () => {
           pop.close(); this.record();
           a.replaceWith(...a.childNodes);
           this.changed({ now: true });
         } }, 'Remove') : null,
-        h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: apply }, a ? 'Save' : 'Add link')));
-    const pop = openPopover(anchor, body, { className: 'de-pop', width: 320 });
+        h('button', { type: 'button', class: 'btn btn-main', onclick: apply }, a ? 'Save' : 'Add link')));
+    const pop = openPopover(anchor, body, { className: 'pop-panel de-pop', width: 320 });
     setTimeout(() => input.focus(), 30);
   }
 
@@ -2209,11 +2211,11 @@ class DocEditor {
     };
     void seg;
     const text = (key, placeholder) => {
-      const input = h('input', { class: 'input', type: 'text', maxlength: '200', value: s[key] || '', placeholder });
+      const input = h('input', { class: 'field', type: 'text', maxlength: '200', value: s[key] || '', placeholder });
       input.addEventListener('change', () => this.setSettings({ [key]: input.value.trim() }));
       return input;
     };
-    const size = h('select', { class: 'input de-select', 'aria-label': 'Text size' },
+    const size = h('select', { class: 'field de-select', 'aria-label': 'Text size' },
       SIZES.map((n) => h('option', { value: String(n), selected: n === s.size }, `${n} pt`)));
     size.addEventListener('change', () => this.setSettings({ size: Number(size.value) }));
     openDialog({
@@ -2227,7 +2229,7 @@ class DocEditor {
         row('Text size', size),
         row('Line spacing', mk('spacing', [[1, 'Single'], [1.15, '1.15'], [1.5, '1.5'], [2, 'Double']], Number)),
         row('Writing as', (() => {
-          const sel = h('select', { class: 'input de-select', 'aria-label': 'Writing as' },
+          const sel = h('select', { class: 'field de-select', 'aria-label': 'Writing as' },
             h('option', { value: 'auto', selected: s.layout === 'auto' }, `Auto (now ${KINDS[this.kind].label.toLowerCase()})`),
             Object.entries(KINDS).map(([k, v]) => h('option', { value: k, selected: s.layout === k }, v.label)));
           sel.addEventListener('change', () => this.chooseKind(sel.value));
@@ -2711,8 +2713,8 @@ class DocEditor {
       });
       card.append(h('p', { class: 'de-card-quote' }, `“${this.draft.quote.slice(0, 140)}”`), area,
         h('div', { class: 'de-card-btns' },
-          h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { this.draft = null; this.paintMarks(); } }, 'Cancel'),
-          h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: post }, 'Comment')));
+          h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => { this.draft = null; this.paintMarks(); } }, 'Cancel'),
+          h('button', { type: 'button', class: 'btn btn-main', onclick: post }, 'Comment')));
       setTimeout(() => area.focus({ preventScroll: true }), 40);
       return card;
     }
@@ -2855,7 +2857,7 @@ class DocEditor {
   }
 
   nameVersion() {
-    const input = h('input', { class: 'input', type: 'text', maxlength: '80', placeholder: 'e.g. First draft', autofocus: true });
+    const input = h('input', { class: 'field', type: 'text', maxlength: '80', placeholder: 'e.g. First draft', autofocus: true });
     const go = async () => {
       dialog.close();
       try { await this.save(); await api.post(`/api/docs/${this.id}/versions`, { name: input.value.trim() || 'Saved version' }); this.renderHistory(); toast('Version kept'); } catch (err) { toast(err.message); }
@@ -2865,8 +2867,8 @@ class DocEditor {
       title: 'Name this version',
       body: h('div', null, h('p', { class: 'dialog-text' }, 'It’s kept as it is now, and never cleared away.'), input,
         h('div', { class: 'dialog-actions' },
-          h('button', { type: 'button', class: 'btn', onclick: () => dialog.close() }, 'Cancel'),
-          h('button', { type: 'button', class: 'btn btn-dark', onclick: go }, 'Keep it'))),
+          h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'),
+          h('button', { type: 'button', class: 'btn btn-main', onclick: go }, 'Keep it'))),
     });
   }
 
@@ -2880,8 +2882,8 @@ class DocEditor {
       const when = new Date(version.at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       this.banner.replaceChildren(
         h('span', null, version.name ? `“${version.name}”, ${when}` : when),
-        h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => this.endPreview() }, 'Back to now'),
-        h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: () => this.restoreVersion(version) }, 'Restore this version'));
+        h('button', { type: 'button', class: 'btn', onclick: () => this.endPreview() }, 'Back to now'),
+        h('button', { type: 'button', class: 'btn btn-main', onclick: () => this.restoreVersion(version) }, 'Restore this version'));
       this.banner.hidden = false;
       this.layout();
       this.paintMarks();

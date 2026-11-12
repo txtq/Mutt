@@ -13,7 +13,7 @@
 import { api } from './api.js';
 import { loadPdfjs } from './pdfjs.js';
 import { NoText, outlineOf, pdfToBook } from './pdfbook.js';
-import { toast } from './ui.js';
+import { segmented, stepper, toast } from './ui.js';
 import { DUR, EASE, debounce, h, plural, reducedMotion } from './util.js';
 
 const THEMES = [
@@ -216,7 +216,7 @@ class Reader {
   build() {
     this.title = h('p', { class: 'rd-title' }, this.hint.title || '');
     this.author = h('p', { class: 'rd-author' });
-    const btn = (name, label, run, extra = {}) => h('button', { type: 'button', class: 'rd-btn', 'aria-label': label, title: label, onclick: run, ...extra }, icon(name));
+    const btn = (name, label, run, extra = {}) => h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-large rd-btn', 'aria-label': label, title: label, onclick: run, ...extra }, icon(name));
     this.markBtn = btn('mark', 'Bookmark this page', () => this.toggleBookmark(), { 'aria-pressed': 'false' });
     this.typeBtn = btn('type', 'Text and page', () => this.togglePanel('type'), { 'aria-expanded': 'false' });
     this.tocBtn = btn('contents', 'Contents, bookmarks and highlights', () => this.togglePanel('toc'), { 'aria-expanded': 'false' });
@@ -287,7 +287,7 @@ class Reader {
     this.showCard(h('div', null,
       h('p', { class: 'rd-card-title' }, 'This book couldn’t be opened'),
       h('p', { class: 'rd-card-text' }, message),
-      h('div', { class: 'rd-card-btns' }, h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => this.close() }, 'Close'))));
+      h('div', { class: 'rd-card-btns' }, h('button', { type: 'button', class: 'btn', onclick: () => this.close() }, 'Close'))));
   }
 
   showCard(content) {
@@ -421,13 +421,13 @@ class Reader {
         });
         return b;
       }));
-    const size = h('div', { class: 'rd-size' },
-      h('button', { type: 'button', class: 'rd-size-btn is-small', 'aria-label': 'Smaller text', onclick: () => this.change({ size: Math.max(0, this.settings.size - 1) }) }, 'A'),
-      h('span', { class: 'rd-size-line', 'aria-hidden': 'true' }),
-      h('button', { type: 'button', class: 'rd-size-btn is-big', 'aria-label': 'Bigger text', onclick: () => this.change({ size: Math.min(SIZES.length - 1, this.settings.size + 1) }) }, 'A'));
+    const size = row('Text size', stepper({
+      value: Math.max(0, Math.min(SIZES.length - 1, s.size)), min: 0, max: SIZES.length - 1, format: (i) => String(SIZES[i]),
+      label: 'Text size', less: 'Smaller text', more: 'Bigger text', onChange: (i) => this.change({ size: i }),
+    }).el);
     const flowOnly = this.mode !== 'pages';
     const pdfSwitch = this.book?.format === 'pdf' ? h('button', {
-      type: 'button', class: 'vbtn vbtn-glass rd-switch',
+      type: 'button', class: 'btn rd-switch',
       onclick: () => { this.closePanel(); if (this.mode === 'pages') this.toText(); else this.toPages(); },
     }, this.mode === 'pages' ? (this.book.converted ? 'Read in reading format' : 'Turn into reading format…') : 'Show the printed pages') : null;
     return h('div', { class: 'rd-type' },
@@ -446,15 +446,8 @@ class Reader {
     const tabs = [{ value: 'toc', label: 'Contents' }, { value: 'bookmark', label: 'Bookmarks' }, { value: 'highlight', label: 'Highlights' }];
     this.tocTab ||= 'toc';
     const body = h('div', { class: 'rd-list-wrap' });
-    const bar = h('div', { class: 'rd-tabs', role: 'tablist' }, tabs.map((t) => {
-      const b = h('button', { type: 'button', role: 'tab', class: 'rd-tab', 'aria-selected': String(t.value === this.tocTab) }, t.label);
-      b.addEventListener('click', () => {
-        this.tocTab = t.value;
-        bar.querySelectorAll('.rd-tab').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
-        fill();
-      });
-      return b;
-    }));
+    const picker = segmented(tabs, this.tocTab, (value) => { this.tocTab = value; picker.set(value); fill(); }, { tabs: true, className: 'rd-tabs', label: 'Show' });
+    const bar = picker.el;
     const fill = () => {
       if (this.tocTab === 'toc') body.replaceChildren(this.contentsList());
       else body.replaceChildren(this.marksList(this.tocTab));
@@ -1181,8 +1174,8 @@ class Reader {
   pdfChoice() {
     this.loading.hidden = true;
     const pages = this.book.pages ? ` Its ${this.book.pages} pages` : ' Its pages';
-    const go = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Turn into reading format');
-    const asIs = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Read the printed pages');
+    const go = h('button', { type: 'button', class: 'btn btn-main' }, 'Turn into reading format');
+    const asIs = h('button', { type: 'button', class: 'btn' }, 'Read the printed pages');
     go.addEventListener('click', () => this.convert());
     asIs.addEventListener('click', () => { this.hideCard(); remember(`mutt:pages:${this.id}`, '1'); this.startPages(); });
     this.showCard(h('div', null,
@@ -1196,7 +1189,7 @@ class Reader {
   async convert() {
     const bar = h('span', { class: 'rd-bar-fill' });
     const label = h('p', { class: 'rd-card-text' }, 'Reading the pages…');
-    const stop = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Stop');
+    const stop = h('button', { type: 'button', class: 'btn' }, 'Stop');
     const ctrl = new AbortController();
     stop.addEventListener('click', () => ctrl.abort());
     this.showCard(h('div', null,
@@ -1229,11 +1222,11 @@ class Reader {
     } catch (err) {
       if (err.name === 'AbortError') { this.pdfChoice(); return; }
       const msg = err instanceof NoText ? err.message : (err.message || 'It couldn’t be turned into reading format.');
-      const asIs = h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: () => { this.hideCard(); remember(`mutt:pages:${this.id}`, '1'); this.startPages(); } }, 'Read the printed pages');
+      const asIs = h('button', { type: 'button', class: 'btn btn-main', onclick: () => { this.hideCard(); remember(`mutt:pages:${this.id}`, '1'); this.startPages(); } }, 'Read the printed pages');
       this.showCard(h('div', null,
         h('p', { class: 'rd-card-title' }, 'It couldn’t be turned into reading format'),
         h('p', { class: 'rd-card-text' }, msg),
-        h('div', { class: 'rd-card-btns' }, h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => this.close() }, 'Close'), asIs)));
+        h('div', { class: 'rd-card-btns' }, h('button', { type: 'button', class: 'btn', onclick: () => this.close() }, 'Close'), asIs)));
     }
   }
 

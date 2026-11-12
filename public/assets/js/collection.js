@@ -284,7 +284,8 @@ export class Collection {
   dropTarget() {
     if (this.readOnly) return null;
     return {
-      label: this.drawer ? `Drop into ${this.drawer.title}` : this.ctx.share ? 'Drop to share' : 'Drop to add',
+      label: this.drawer ? `Drop to add to ${this.drawer.title}` : this.ctx.share ? 'Drop to share' : 'Drop to add',
+      el: this.entry?.querySelector('.entry'),
       drop: (files) => this.addFiles(files),
     };
   }

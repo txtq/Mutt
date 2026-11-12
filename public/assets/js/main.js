@@ -7,7 +7,7 @@ import { createSky } from './sky.js';
 import { closeSheets, createStatusbar } from './statusbar.js';
 import { closeTopLayer } from './ui.js';
 import { startMusic } from './music.js';
-import { h, isEditable } from './util.js';
+import { h, isEditable, styles } from './util.js';
 import { viewerOpen } from './viewer.js';
 import { bootPrefs, setPrefs } from './theme.js';
 import { galaxyView, universeView } from './views/galaxy.js';
@@ -16,6 +16,7 @@ import { planetView } from './views/planet.js';
 import { catchUp } from './see.js';
 import { watchSpelling } from './spellfield.js';
 import { phoneNote } from './phonenote.js';
+import { tooltips } from './tooltip.js';
 
 bootPrefs();
 startMusic();
@@ -26,6 +27,12 @@ route(/^\/$/, galaxyView);
 route(/^\/g\/([a-z0-9_.-]+)$/, galaxyView);
 route(/^\/p\/([\w-]+)$/, planetView);
 route(/^\/universe$/, universeView);
+// The sample page (DESIGN.md section 4): every shared part in every state. Linked
+// from nowhere; its code and layout are fetched only when it's opened.
+route(/^\/parts$/, {
+  load: () => Promise.all([import('./views/parts.js'), styles('parts.css')]).then(([m]) => m),
+  create: (params, mod) => mod.partsView(),
+});
 // Addresses from before the galaxy still lead somewhere sensible.
 redirect(/^\/(?:d|c)\/([\w-]+)$/, ([id]) => `/p/${id}`);
 redirect(/^\/u\/([a-z0-9_.-]+)\/d\/([\w-]+)$/, ([, id]) => `/p/${id}`);
@@ -36,30 +43,41 @@ redirect(/^\/community(?:\/.*)?$/, () => '/universe');
 const sky = createSky();
 const bar = createStatusbar();
 const view = h('main', { id: 'view' });
-const dropLabel = h('span', { class: 'dropzone-label' });
-const dropzone = h('div', { class: 'dropzone', 'aria-hidden': 'true' }, dropLabel);
-document.getElementById('app').append(sky.el, bar.el, view, dropzone);
+// The drop hint (DESIGN.md): one label where toasts sit; the thing that will take the files lights up.
+const dropWord = h('span', { class: 'btn btn-main drop-word', 'aria-hidden': 'true' });
+document.getElementById('app').append(sky.el, bar.el, view, dropWord);
+tooltips();
 
 // ---------------------------------------------------------------- files dragged in from your computer
 
 const hasFiles = (e) => e.dataTransfer?.types?.includes('Files');
 const target = () => (viewerOpen() ? null : currentView()?.dropTarget?.());
 let dragDepth = 0;
+let lit = null;
+const light = (t) => {
+  if (lit === (t?.el || null)) return;
+  lit?.classList.remove('is-drop');
+  lit = t?.el || null;
+  lit?.classList.add('is-drop');
+};
 const hideDrop = () => {
   dragDepth = 0;
-  dropzone.classList.remove('is-on');
-  target()?.leave?.();
+  dropWord.classList.remove('is-on');
+  light(null);
+  const t = target();
+  t?.lit?.(false);
+  t?.leave?.();
 };
 
 addEventListener('dragenter', (e) => {
   if (!hasFiles(e) || !session.user) return;
   dragDepth++;
   const t = target();
-  // The galaxy shows where things will land itself; other pages get the big frame.
-  if (t?.overlay === false) return;
-  dropLabel.textContent = t?.label || 'Open a planet to add files';
-  dropzone.classList.toggle('is-hint', !t?.drop);
-  dropzone.classList.add('is-on');
+  dropWord.textContent = t?.label || 'Open a planet to add files';
+  dropWord.classList.toggle('is-hint', !t?.drop);
+  dropWord.classList.add('is-on');
+  light(t?.drop ? t : null);
+  t?.lit?.(true);
 });
 addEventListener('dragleave', (e) => {
   if (!hasFiles(e)) return;
@@ -71,7 +89,9 @@ addEventListener('dragover', (e) => {
   e.preventDefault();
   const t = target();
   e.dataTransfer.dropEffect = t?.drop ? 'copy' : 'none';
-  t?.over?.(e);
+  // A page can say more exactly where they'll land as the pointer moves (the galaxy: a planet, or the void).
+  const say = t?.over?.(e);
+  if (typeof say === 'string') dropWord.textContent = say;
 });
 addEventListener('drop', (e) => {
   if (!hasFiles(e)) return;
@@ -79,7 +99,9 @@ addEventListener('drop', (e) => {
   const t = target();
   const files = [...e.dataTransfer.files];
   dragDepth = 0;
-  dropzone.classList.remove('is-on');
+  dropWord.classList.remove('is-on');
+  light(null);
+  t?.lit?.(false);
   if (t?.drop && files.length) t.drop(files, e);
   else t?.leave?.();
 });

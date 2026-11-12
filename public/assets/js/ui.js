@@ -1,19 +1,24 @@
-// Toasts, dialogs, popovers, menus, sliding pills and the PIN field.
+// The shared parts that are built in script (DESIGN.md section 4): the segmented
+// bar and tabs, the stepper, toasts, dialogs, small panels, menus, and the PIN field.
 
-import { PALETTE, h, reducedMotion } from './util.js';
+import { glyph } from './planets.js';
+import { h, reducedMotion } from './util.js';
 
-// ---------------------------------------------------------------- sliding-pill control
+// ---------------------------------------------------------------- segmented bar, tabs
 
-export function segmented(options, active, onPick, { className = '', label } = {}) {
-  const ind = h('span', { class: 'seg-ind', 'aria-hidden': 'true' });
-  const el = h('div', { class: `seg ${className}`, role: 'tablist', 'aria-label': label }, ind);
+// A segmented bar picks one value of a setting. With `tabs: true` the same
+// thing is drawn as tabs (words with a sliding light), for switching what a
+// panel shows.
+export function segmented(options, active, onPick, { className = '', label, tabs = false } = {}) {
+  const part = tabs ? { box: 'tabs', ind: 'tabs-ind', btn: 'tab' } : { box: 'seg', ind: 'seg-ind', btn: 'seg-btn' };
+  const ind = h('span', { class: part.ind, 'aria-hidden': 'true' });
+  const el = h('div', { class: `${part.box} ${className}`, role: 'tablist', 'aria-label': label }, ind);
   const buttons = new Map();
   let current = active;
   const place = () => {
     const btn = buttons.get(current);
     if (!btn || !btn.offsetWidth) { ind.style.opacity = '0'; return; }
     const index = [...buttons.keys()].indexOf(current);
-    ind.style.setProperty('--seg-color', PALETTE[index % PALETTE.length]);
     ind.style.opacity = '1';
     ind.style.width = `${btn.offsetWidth}px`;
     ind.style.transform = `translateX(${btn.offsetLeft}px)`;
@@ -28,7 +33,7 @@ export function segmented(options, active, onPick, { className = '', label } = {
     for (const b of buttons.values()) b.remove();
     buttons.clear();
     for (const o of opts) {
-      const b = h('button', { type: 'button', role: 'tab', class: 'seg-btn', onclick: () => onPick(o.value) },
+      const b = h('button', { type: 'button', role: 'tab', class: part.btn, onclick: () => onPick(o.value) },
         h('span', null, o.label), o.count != null ? h('span', { class: 'seg-n' }, o.count) : null);
       if (o.style) Object.assign(b.style, o.style);
       buttons.set(o.value, b);
@@ -43,6 +48,31 @@ export function segmented(options, active, onPick, { className = '', label } = {
   }).observe(el);
   render(options, active);
   return { el, set, render };
+}
+
+// ---------------------------------------------------------------- stepper
+
+// A number with a minus and a plus, in a sunken track. `format` turns the
+// value into the words shown; a button at its limit is switched off.
+export function stepper({ value, min = -Infinity, max = Infinity, step = 1, format = String, label, less = 'Less', more = 'More', onChange } = {}) {
+  const out = h('span', { class: 'stepper-value', 'aria-live': 'polite' });
+  const down = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': less, onclick: () => move(-step) }, glyph('minus', 14));
+  const up = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': more, onclick: () => move(step) }, glyph('plus', 14));
+  const el = h('span', { class: 'stepper', role: 'group', 'aria-label': label }, down, out, up);
+  let current = value;
+  const set = (v) => {
+    current = Math.max(min, Math.min(max, v));
+    out.textContent = format(current);
+    down.disabled = current <= min;
+    up.disabled = current >= max;
+  };
+  const move = (by) => {
+    const before = current;
+    set(current + by);
+    if (current !== before) onChange?.(current);
+  };
+  set(value);
+  return { el, set, get value() { return current; }, down, up, out };
 }
 
 function exit(el, className = 'is-leaving', fallback = 320) {
@@ -61,15 +91,19 @@ function exit(el, className = 'is-leaving', fallback = 320) {
 // ---------------------------------------------------------------- toasts
 
 let toastHost;
-let toastCount = 0;
-export function toast(message, { action, duration } = {}) {
+// Where toasts sit. Uploads put their own toast here (uploads.js).
+export function toastsEl() {
   if (!toastHost) {
     toastHost = h('div', { class: 'toasts', 'aria-live': 'polite' });
     document.body.append(toastHost);
   }
+  return toastHost;
+}
+export function toast(message, { action, duration } = {}) {
+  toastsEl();
   // A note with a button (Undo, Move) stays long enough to reach it.
   duration ??= action ? 8000 : 3600;
-  const el = h('div', { class: 'toast', style: { '--toast-color': PALETTE[toastCount++ % PALETTE.length] } },
+  const el = h('div', { class: 'toast' },
     h('span', null, message));
   let timer;
   let held = false;
@@ -110,8 +144,10 @@ export function toast(message, { action, duration } = {}) {
   toastHost.append(el);
   // Keep at most three. Plain notes make way first, so a newer message
   // doesn't push an Undo off the screen before you can reach it.
-  while (toastHost.children.length > 3) {
-    const kids = [...toastHost.children];
+  // The uploads toast isn't one of the three and never makes way.
+  const notes = () => [...toastHost.children].filter((t) => !t.classList.contains('is-upload'));
+  while (notes().length > 3) {
+    const kids = notes();
     (kids.find((t) => !t.classList.contains('has-action') && t !== el) || kids[0]).remove();
   }
   wait(duration);
@@ -143,7 +179,7 @@ export function openDialog({ title, body, className = '', onClose, dismissable =
   openLayers.push(layer);
   scrim.addEventListener('pointerdown', (e) => { if (e.target === scrim && dismissable) close(); });
   document.body.append(scrim);
-  requestAnimationFrame(() => card.querySelector('[autofocus], input, textarea, button.btn-dark')?.focus());
+  requestAnimationFrame(() => card.querySelector('[autofocus], input, textarea, button.btn-main')?.focus());
   return { el: card, close };
 }
 
@@ -151,14 +187,14 @@ export function confirmDialog({ title, message, confirm = 'Confirm', danger = fa
   return new Promise((resolve) => {
     let result = false;
     const confirmBtn = h('button', {
-      type: 'button', class: `btn ${danger ? 'btn-danger' : 'btn-dark'}`,
+      type: 'button', class: `btn ${danger ? 'btn-danger' : 'btn-main'}`,
       onclick: () => { result = true; dialog.close(); },
     }, confirm);
     const body = h('div', null,
       message ? h('p', { class: 'dialog-text' }, message) : null,
       extra,
       h('div', { class: 'dialog-actions' },
-        h('button', { type: 'button', class: 'btn', onclick: () => dialog.close() }, 'Cancel'),
+        h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'),
         confirmBtn));
     const dialog = openDialog({ title, body, onClose: () => resolve(result) });
     requestAnimationFrame(() => confirmBtn.focus());
@@ -269,7 +305,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     title ? h('div', { class: 'ctx-title' }, title) : null,
     items.filter(Boolean).map((item) => {
       if (item === '-') return h('div', { class: 'menu-sep' });
-      if (item.heading) return h('div', { class: 'ctx-heading', style: { '--i': n++ } }, item.heading);
+      if (item.heading) return h('div', { class: 'menu-head ctx-heading', style: { '--i': n++ } }, item.heading);
       const btn = h('button', {
         type: 'button', role: 'menuitem', tabindex: '-1',
         class: `menu-item ctx-item${item.danger ? ' is-danger' : ''}`,

@@ -143,9 +143,9 @@ async function loadConnections() {
 
 function mount() {
   const counter = h('span', { class: 'vw-count' });
-  const prev = h('button', { type: 'button', class: 'vw-btn', 'aria-label': 'Previous', onclick: () => step(-1) }, '←');
-  const next = h('button', { type: 'button', class: 'vw-btn', 'aria-label': 'Next', onclick: () => step(1) }, '→');
-  const close = h('button', { type: 'button', class: 'vw-btn vw-close', 'aria-label': 'Close', onclick: () => hooks.close() }, 'Close');
+  const prev = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Previous', onclick: () => step(-1) }, '←');
+  const next = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Next', onclick: () => step(1) }, '→');
+  const close = h('button', { type: 'button', class: 'btn btn-quiet vw-btn vw-close', 'aria-label': 'Close', onclick: () => hooks.close() }, 'Close');
   state.stage = h('div', { class: 'vw-stage' });
   state.side = h('aside', { class: 'vw-side' });
   state.counter = counter;
@@ -251,7 +251,7 @@ function stageMedia(block) {
     h('div', { class: 'vw-card-ext' }, extLabel(block)),
     h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
     h('div', { class: 'vw-card-sub' }, fmtBytes(block.size)),
-    block.file ? h('a', { class: 'btn btn-dark', href: `${block.file}?dl=1` }, 'Download') : null);
+    block.file ? h('a', { class: 'btn btn-main', href: `${block.file}?dl=1` }, 'Download') : null);
 }
 
 // The address along the top, like a browser's: click it to go to the site.
@@ -357,8 +357,8 @@ const PDF_ZOOMS = [0.6, 0.8, 1, 1.3, 1.7];
 function pdfStage(block) {
   const pages = h('div', { class: 'vw-pdf-pages' });
   const count = h('span', { class: 'vw-pdf-count' }, block.meta?.pages ? plural(block.meta.pages, 'page') : '');
-  const zoomOut = h('button', { type: 'button', class: 'vw-btn', 'aria-label': 'Zoom out' }, '−');
-  const zoomIn = h('button', { type: 'button', class: 'vw-btn', 'aria-label': 'Zoom in' }, '+');
+  const zoomOut = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom out' }, '−');
+  const zoomIn = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom in' }, '+');
   const wrap = h('div', { class: 'vw-media vw-pdf' },
     h('div', { class: 'vw-pdf-bar' }, count, h('span', { class: 'vw-pdf-zoom' }, zoomOut, zoomIn)),
     pages);
@@ -457,7 +457,7 @@ function pdfStage(block) {
       wrap.replaceChildren(h('div', { class: 'vw-card' },
         h('div', { class: 'vw-card-ext' }, 'PDF'),
         h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
-        h('a', { class: 'btn btn-dark', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗')));
+        h('a', { class: 'btn btn-main', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗')));
     }
   })();
   return wrap;
@@ -510,7 +510,7 @@ function metaRows(block) {
 }
 
 function saveButton(block) {
-  const btn = h('button', { type: 'button', class: 'btn btn-dark btn-save' }, block.saved ? 'Saved ✓' : 'Save →');
+  const btn = h('button', { type: 'button', class: 'btn btn-main btn-save' }, block.saved ? 'Saved ✓' : 'Save →');
   btn.addEventListener('click', () => openSave(btn, state.block, {
     align: 'end',
     onSaved: () => {
@@ -549,8 +549,8 @@ function renderSide() {
   const { block, connections, drawer } = state;
   const actions = h('div', { class: 'vw-actions' },
     block.file ? h('a', { class: 'btn', href: `${block.file}?dl=1` }, 'Download') : null,
-    block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Original ↗') : null,
-    block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-ghost', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
+    block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Original ↗') : null,
+    block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
     block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null,
     // Writing longer than a sentence or two can be opened as a document.
     block.kind === 'text' && (block.content.trim().length >= 280 || (block.content.match(/[.!?](\s|$)/g) || []).length >= 3)
@@ -579,7 +579,7 @@ function renderSide() {
     return;
   }
 
-  const connectBtn = h('button', { type: 'button', class: 'btn btn-dark btn-sm' }, 'Planets →');
+  const connectBtn = h('button', { type: 'button', class: 'btn btn-main btn-small' }, 'Planets →');
   connectBtn.addEventListener('click', () => openConnect(connectBtn, state.block, { align: 'end' }));
 
   const list = connections == null
@@ -606,10 +606,10 @@ function renderSide() {
     comments(block),
     h('div', { class: 'vw-danger' },
       drawer && connections?.some((d) => d.id === drawer.id)
-        ? h('button', { type: 'button', class: 'link', onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title) }, `Take off ${drawer.title}`)
+        ? h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title) }, `Take off ${drawer.title}`)
         : null,
       h('button', {
-        type: 'button', class: 'link is-danger',
+        type: 'button', class: 'btn btn-quiet btn-small',
         onclick: async () => { if (await deleteBlock(state.block)) hooks.close(); },
       }, 'Delete')));
 }

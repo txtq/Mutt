@@ -80,12 +80,12 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
   if (block.mine === false) {
     // Someone else's file: the one thing to do is keep a copy.
     box.append(h('div', { class: 'cell-actions' },
-      h('button', { type: 'button', class: `pill${block.saved ? ' is-saved' : ''}`, dataset: { act: 'save' } }, block.saved ? 'Saved ✓' : 'Save'),
-      moderate ? h('button', { type: 'button', class: 'pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••') : null));
+      h('button', { type: 'button', class: `btn btn-small pill${block.saved ? ' btn-main' : ''}`, dataset: { act: 'save' } }, block.saved ? 'Saved ✓' : 'Save'),
+      moderate ? h('button', { type: 'button', class: 'btn btn-small pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••') : null));
   } else if (actions) {
     box.append(h('div', { class: 'cell-actions' },
-      h('button', { type: 'button', class: 'pill', dataset: { act: 'connect' } }, 'Planets'),
-      h('button', { type: 'button', class: 'pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••')));
+      h('button', { type: 'button', class: 'btn btn-small pill', dataset: { act: 'connect' } }, 'Planets'),
+      h('button', { type: 'button', class: 'btn btn-small pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••')));
   }
   const cell = h('article', {
     class: 'cell', dataset: { id: block.id, kind: block.kind }, tabindex: '0',
@@ -162,7 +162,7 @@ export function updatePending(cell, item) {
   const cap = cell.querySelector('.cell-title');
   if (item.status === 'failed') {
     cap.replaceChildren(h('span', { class: 'cell-error' }, item.error || 'Upload failed'), ' · ',
-      h('button', { type: 'button', class: 'link', dataset: { act: 'retry' } }, 'Retry'));
+      h('button', { type: 'button', class: 'btn btn-small', dataset: { act: 'retry' } }, 'Retry'));
   }
 }
 

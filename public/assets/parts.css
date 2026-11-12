@@ -1,0 +1,30 @@
+/* The sample page at /parts (js/views/parts.js): layout only. Fetched with its
+   code, when that address is opened. The parts themselves are in galaxy.css;
+   nothing here may restyle one, only stand it still where it would float. */
+
+.parts { display: flex; flex-direction: column; gap: var(--space-48); max-width: 1120px; margin: 0 auto; padding: var(--space-24) 0 var(--space-48); }
+.parts-head { display: flex; flex-direction: column; gap: var(--space-8); }
+.parts-title { font: var(--type-display); letter-spacing: -0.02em; color: var(--ink); text-shadow: var(--sky-shadow); }
+.parts-section { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-16); min-width: 0; }
+.parts-name { font: var(--type-title); color: var(--ink); text-shadow: var(--sky-shadow); }
+.parts-note { max-width: 68ch; font: var(--type-body); color: var(--ink-2); text-shadow: var(--sky-shadow); }
+.parts-label { font: var(--type-fact); color: var(--ink-3); text-shadow: var(--sky-shadow); }
+.parts-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); max-width: 100%; }
+.parts-stack { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); width: min(360px, 100%); }
+.parts-stack .parts-row { width: 100%; flex-wrap: nowrap; }
+.parts-stack .parts-row .parts-label { flex: none; width: 104px; }
+.parts-cols { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-24); max-width: 100%; }
+.parts-scroll { max-width: 100%; overflow-x: auto; padding: var(--space-4); margin: calc(var(--space-4) * -1); }
+.parts-matrix { display: grid; grid-template-columns: 56px repeat(6, max-content); align-items: center; gap: var(--space-16) var(--space-24); min-width: max-content; }
+.parts-own { padding: var(--space-16); border-radius: var(--r-box); }
+.parts-panel { width: min(320px, 100%); }
+.parts-box, .parts-ctx { display: grid; place-items: center; width: 150px; height: 96px; border-radius: var(--r-box); font: var(--type-caption); color: var(--ink-2); }
+
+/* things that float in the app stand still here */
+.parts .pop { position: relative; z-index: auto; animation: none; }
+.parts .pop-share { width: min(340px, 100%); }
+.parts .sheet { position: relative; top: auto; left: auto; z-index: auto; max-height: none; transform: none; }
+.parts .dialog { animation: none; }
+.parts .toast { animation: none; }
+.parts .tooltip, .parts .drop-word { position: relative; left: auto; top: auto; bottom: auto; z-index: auto; transform: none; }
+@media (max-width: 720px) { .parts .sheet { width: 100%; } }

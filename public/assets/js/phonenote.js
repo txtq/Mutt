@@ -20,9 +20,9 @@ export function phoneNote() {
     note.classList.add('is-leaving');
     setTimeout(() => note.remove(), 320);
   };
-  const note = h('div', { class: 'phone-note fglass', role: 'status' },
-    h('p', { class: 'phone-note-text' }, 'Mutt is still in testing, and it isn’t made for phones yet. It works best on a computer.'),
-    h('button', { type: 'button', class: 'phone-note-x', 'aria-label': 'Dismiss', onclick: close }, '×'));
+  const note = h('div', { class: 'tip phone-note', role: 'status' },
+    h('p', { class: 'tip-text phone-note-text' }, 'Mutt is still in testing, and it isn’t made for phones yet. It works best on a computer.'),
+    h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small phone-note-x', 'aria-label': 'Dismiss', onclick: close }, '×'));
   // After the page has settled, so it never arrives on top of an entrance.
   setTimeout(() => document.body.append(note), 1200);
 }

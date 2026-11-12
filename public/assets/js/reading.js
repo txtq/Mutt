@@ -160,7 +160,7 @@ export class ShelfView {
           current.author ? h('span', { class: 'rp-now-by' }, current.author) : null,
           bar,
           h('span', { class: 'rp-now-meta' }, `${pct(current.percent)}% · read ${timeAgo(current.readAt)}`),
-          h('span', { class: 'vbtn vbtn-blue rp-now-go' }, 'Continue'))));
+          h('span', { class: 'btn btn-main rp-now-go' }, 'Continue'))));
       this.now.hidden = false;
     } else {
       this.now.hidden = true;

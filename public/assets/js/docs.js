@@ -70,9 +70,9 @@ export class DeskView {
     this.now = h('section', { class: 'dk-now', hidden: true, 'aria-label': 'Continue writing' });
     this.grid = h('div', { class: 'dk-grid', role: 'list' });
     this.count = h('span', { class: 'dk-count' });
-    this.newBtn = editable ? h('button', { type: 'button', class: 'vbtn vbtn-glass dk-new' }, h('span', { 'aria-hidden': 'true' }, '+'), 'New document') : null;
+    this.newBtn = editable ? h('button', { type: 'button', class: 'btn dk-new' }, h('span', { 'aria-hidden': 'true' }, '+'), 'New document') : null;
     this.newBtn?.addEventListener('click', () => this.onNew?.());
-    this.sortBtn = h('button', { type: 'button', class: 'dk-sort', 'aria-haspopup': 'menu' });
+    this.sortBtn = h('button', { type: 'button', class: 'btn btn-quiet dk-sort', 'aria-haspopup': 'menu' });
     this.sortBtn.addEventListener('click', () => this.sortMenu());
     this.othersHead = h('h3', { class: 'dk-head dk-others-head' }, 'Other files');
     this.others = h('div', { class: 'dk-others' }, this.othersHead, this.collection.el);
@@ -207,7 +207,7 @@ export class DeskView {
           h('span', { class: 'dk-now-label' }, 'Continue writing'),
           h('span', { class: 'dk-now-title' }, titleOf(recent)),
           h('span', { class: 'dk-now-meta' }, `${plural(wordsIn(recent.content), 'word')} · edited ${timeAgo(recent.updatedAt)}`)),
-        h('span', { class: 'vbtn vbtn-blue dk-now-go' }, 'Continue')));
+        h('span', { class: 'btn btn-main dk-now-go' }, 'Continue')));
       this.now.hidden = false;
     } else {
       this.now.hidden = true;

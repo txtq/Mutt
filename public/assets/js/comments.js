@@ -21,7 +21,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
     class: 'vw-cm-input', rows: 1, maxlength: LIMIT, spellcheck: 'true',
     placeholder: owner ? 'Reply…' : `Say something to @${block.owner}…`, 'aria-label': 'Write a comment',
   });
-  const post = h('button', { type: 'button', class: 'btn btn-dark btn-sm vw-cm-post', disabled: true }, 'Post');
+  const post = h('button', { type: 'button', class: 'btn btn-main btn-small vw-cm-post', disabled: true }, 'Post');
   const left = h('span', { class: 'vw-cm-left' });
   const composer = h('div', { class: 'vw-cm-compose fglass' }, area,
     h('div', { class: 'vw-cm-bar' },

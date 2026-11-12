@@ -14,6 +14,7 @@ import { deleteBlock } from './actions.js';
 import { convertible, convertText, fraction, showLine, splitLine, systemOf } from './amounts.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
+import { glyph } from './planets.js';
 import { openContextMenu, openDialog, openMenu, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
 import { DUR, EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
@@ -90,7 +91,7 @@ export class RecipeBoxView {
     // Just the cards, sorted into chapters with tabs between them. Other
     // files on the planet stay out of sight here; "Show as files again"
     // brings them back.
-    this.newBtn = editable ? h('button', { type: 'button', class: 'vbtn vbtn-glass cb-new', onclick: () => this.newCard() }, '+ New card') : null;
+    this.newBtn = editable ? h('button', { type: 'button', class: 'btn cb-new', onclick: () => this.newCard() }, '+ New card') : null;
     this.stack = h('div', { class: 'cb-stack', role: 'list', 'aria-label': 'Recipe cards' });
     this.inside = h('div', { class: 'cb-inside' }, this.stack);
     this.boxEl = h('div', { class: 'cb-box' },
@@ -369,8 +370,8 @@ function askName(title, value, confirm) {
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
     const body = h('div', null, input,
       h('div', { class: 'dialog-actions' },
-        h('button', { type: 'button', class: 'btn', onclick: () => dialog.close() }, 'Cancel'),
-        h('button', { type: 'button', class: 'btn btn-dark', onclick: go }, confirm)));
+        h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'),
+        h('button', { type: 'button', class: 'btn btn-main', onclick: go }, confirm)));
     const dialog = openDialog({ title, body, onClose: () => resolve(result) });
     requestAnimationFrame(() => { input.focus(); input.select(); });
   });
@@ -406,11 +407,11 @@ class CardView {
     this.onClose = onClose;
     this.settings = loadSettings();
 
-    this.prevBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round cbc-btn cbc-round', 'aria-label': 'Previous card', title: 'Previous card', onclick: () => this.step(-1) }, arrow(-1));
-    this.nextBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round cbc-btn cbc-round', 'aria-label': 'Next card', title: 'Next card', onclick: () => this.step(1) }, arrow(1));
+    this.prevBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Previous card', title: 'Previous card', onclick: () => this.step(-1) }, arrow(-1));
+    this.nextBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Next card', title: 'Next card', onclick: () => this.step(1) }, arrow(1));
     this.where = h('span', { class: 'cbc-where' });
     this.navEl = h('span', { class: 'cbc-navs' }, this.prevBtn, this.where, this.nextBtn);
-    this.closeBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round cbc-btn cbc-round', 'aria-label': 'Put the card back', title: 'Put it back', onclick: () => this.close() }, closeIcon());
+    this.closeBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Put the card back', title: 'Put it back', onclick: () => this.close() }, closeIcon());
     this.sheet = h('div', { class: 'cbc-wrap' });
     this.el = h('section', { class: 'cbp', 'aria-label': 'Recipe card' }, this.sheet);
     box.el.insertBefore(this.el, box.boxEl);
@@ -588,20 +589,20 @@ class CardView {
       h('span', { class: 'cbc-chapter' }, r.chapter),
       this.navEl,
       h('span', { class: 'cbc-gap' }),
-      (r.steps.length ? h('button', { type: 'button', class: 'vbtn vbtn-blue cbc-btn cbc-cook', onclick: () => cook(r, now, units) }, potIcon(), h('span', { class: 'cbc-long' }, 'Start cooking'), h('span', { class: 'cbc-short' }, 'Cook')) : null),
-      mine ? h('button', { type: 'button', class: 'vbtn vbtn-glass cbc-btn', onclick: () => this.edit() }, 'Edit') : null,
-      mine ? h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round cbc-btn cbc-round', 'aria-label': 'More', onclick: (e) => this.more(e.currentTarget) }, '•••') : null,
+      (r.steps.length ? h('button', { type: 'button', class: 'btn btn-main cbc-btn cbc-cook', onclick: () => cook(r, now, units) }, potIcon(), h('span', { class: 'cbc-long' }, 'Start cooking'), h('span', { class: 'cbc-short' }, 'Cook')) : null),
+      mine ? h('button', { type: 'button', class: 'btn cbc-btn', onclick: () => this.edit() }, 'Edit') : null,
+      mine ? h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'More', onclick: (e) => this.more(e.currentTarget) }, '•••') : null,
       this.closeBtn);
 
     // Servings: − 4 + scales every amount. Without a number, a plain ×1.
-    const less = h('button', { type: 'button', class: 'cbc-step', 'aria-label': 'Fewer', disabled: now <= (r.serves ? 1 : 0.5) }, '−');
-    const more = h('button', { type: 'button', class: 'cbc-step', 'aria-label': 'More', disabled: now >= (r.serves ? 99 : 8) }, '+');
+    const less = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Fewer', disabled: now <= (r.serves ? 1 : 0.5) }, glyph('minus', 14));
+    const more = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'More', disabled: now >= (r.serves ? 99 : 8) }, glyph('plus', 14));
     const steps = [0.5, 1, 1.5, 2, 3, 4, 6, 8];
     less.addEventListener('click', () => this.setScale(r.serves ? now - 1 : steps[Math.max(0, steps.indexOf(now) - 1)] ?? 1));
     more.addEventListener('click', () => this.setScale(r.serves ? now + 1 : steps[Math.min(steps.length - 1, steps.indexOf(now) + 1)] ?? 1));
-    const scaler = h('div', { class: `cbc-scaler${now !== base ? ' is-scaled' : ''}` },
+    const scaler = h('div', { class: `stepper cbc-scaler${now !== base ? ' is-scaled' : ''}` },
       less,
-      h('span', { class: 'cbc-serves', 'aria-live': 'polite' }, r.serves ? servesText(r, now) : `×${fraction(now)}`),
+      h('span', { class: 'stepper-value cbc-serves', 'aria-live': 'polite' }, r.serves ? servesText(r, now) : `×${fraction(now)}`),
       more,
       now !== base ? h('button', { type: 'button', class: 'cbc-reset', onclick: () => this.setScale(base) }, 'as written') : null);
 
@@ -764,14 +765,14 @@ class CardView {
   }
 
   buildEditor(r) {
-    const field = (props) => h('input', { class: 'cbe-field', autocomplete: 'off', ...props });
-    const title = field({ class: 'cbe-field cbe-title', value: r.title === 'New recipe' ? '' : r.title, placeholder: 'Name of the dish', maxlength: 200, 'aria-label': 'Name' });
-    const serves = field({ type: 'number', min: 1, max: 500, inputmode: 'numeric', value: r.serves ?? '', placeholder: '4', class: 'cbe-field cbe-num', 'aria-label': 'Serves' });
-    const makes = field({ value: r.makes, placeholder: 'people', maxlength: 40, class: 'cbe-field cbe-makes', 'aria-label': 'Makes what (leave empty for people)' });
-    const prep = field({ type: 'number', min: 1, max: 4320, inputmode: 'numeric', value: r.prep ?? '', placeholder: '–', class: 'cbe-field cbe-num', 'aria-label': 'Prep minutes' });
-    const cookF = field({ type: 'number', min: 1, max: 4320, inputmode: 'numeric', value: r.cook ?? '', placeholder: '–', class: 'cbe-field cbe-num', 'aria-label': 'Cook minutes' });
+    const field = (props) => h('input', { class: 'field cbe-field', autocomplete: 'off', ...props });
+    const title = field({ class: 'field cbe-field cbe-title', value: r.title === 'New recipe' ? '' : r.title, placeholder: 'Name of the dish', maxlength: 200, 'aria-label': 'Name' });
+    const serves = field({ type: 'number', min: 1, max: 500, inputmode: 'numeric', value: r.serves ?? '', placeholder: '4', class: 'field cbe-field cbe-num', 'aria-label': 'Serves' });
+    const makes = field({ value: r.makes, placeholder: 'people', maxlength: 40, class: 'field cbe-field cbe-makes', 'aria-label': 'Makes what (leave empty for people)' });
+    const prep = field({ type: 'number', min: 1, max: 4320, inputmode: 'numeric', value: r.prep ?? '', placeholder: '–', class: 'field cbe-field cbe-num', 'aria-label': 'Prep minutes' });
+    const cookF = field({ type: 'number', min: 1, max: 4320, inputmode: 'numeric', value: r.cook ?? '', placeholder: '–', class: 'field cbe-field cbe-num', 'aria-label': 'Cook minutes' });
     const listId = `cb-ch-${Math.random().toString(36).slice(2, 7)}`;
-    const chapter = field({ value: r.chapter, maxlength: 40, list: listId, class: 'cbe-field cbe-chapter', 'aria-label': 'Chapter' });
+    const chapter = field({ value: r.chapter, maxlength: 40, list: listId, class: 'field cbe-field cbe-chapter', 'aria-label': 'Chapter' });
     const chapters = h('datalist', { id: listId }, [...new Set([...this.box.chapters, 'Breakfast', 'Starters & snacks', 'Soups & salads', 'Mains', 'Sides', 'Sauces & basics', 'Baking', 'Desserts', 'Drinks', OTHER])]
       .map((c) => h('option', { value: c })));
 
@@ -779,8 +780,8 @@ class CardView {
     const ings = h('div', { class: 'cbe-rows cbe-ings' });
     const ingRow = (line = '') => {
       const [amt, rest] = isHeading(line) ? ['', line] : splitLine(line);
-      const a = field({ class: 'cbe-field cbe-amt', value: amt, placeholder: '200 g', 'aria-label': 'Amount' });
-      const w = field({ class: 'cbe-field cbe-what', value: rest, placeholder: 'flour (or “For the sauce:”)', 'aria-label': 'Ingredient' });
+      const a = field({ class: 'field cbe-field cbe-amt', value: amt, placeholder: '200 g', 'aria-label': 'Amount' });
+      const w = field({ class: 'field cbe-field cbe-what', value: rest, placeholder: 'flour (or “For the sauce:”)', 'aria-label': 'Ingredient' });
       const row = h('div', { class: 'cbe-row' }, a, w, rowX(() => drop(row, ings)));
       w.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); const next = ingRow(); row.after(next); next.querySelector('.cbe-amt').focus(); }
@@ -805,7 +806,7 @@ class CardView {
     // The method: one box per step, numbered.
     const steps = h('ol', { class: 'cbe-rows cbe-steps' });
     const stepRow = (text = '') => {
-      const t = h('textarea', { class: 'cbe-field cbe-step', rows: 1, placeholder: 'What to do next', 'aria-label': 'Step' });
+      const t = h('textarea', { class: 'field cbe-field cbe-step', rows: 1, placeholder: 'What to do next', 'aria-label': 'Step' });
       t.value = text;
       const row = h('li', { class: 'cbe-row' }, t, rowX(() => drop(row, steps)));
       autosize(t);
@@ -827,12 +828,12 @@ class CardView {
     for (const s of r.steps.length ? r.steps : ['']) steps.append(stepRow(s));
     const addStep = h('button', { type: 'button', class: 'cbe-add', onclick: () => { const row = stepRow(); steps.append(row); row.querySelector('textarea').focus(); } }, '+ Add a step');
 
-    const notes = h('textarea', { class: 'cbe-field cbe-notes', rows: 2, placeholder: 'Notes: what you’d change, what it goes with…', 'aria-label': 'Notes', maxlength: 4000 });
+    const notes = h('textarea', { class: 'field cbe-field cbe-notes', rows: 2, placeholder: 'Notes: what you’d change, what it goes with…', 'aria-label': 'Notes', maxlength: 4000 });
     notes.value = r.notes;
     autosize(notes);
 
-    const save = h('button', { type: 'button', class: 'vbtn vbtn-blue cbe-save' }, 'Save card');
-    const cancel = h('button', { type: 'button', class: 'vbtn vbtn-glass cbc-btn' }, 'Cancel');
+    const save = h('button', { type: 'button', class: 'btn btn-main cbe-save' }, 'Save card');
+    const cancel = h('button', { type: 'button', class: 'btn btn-quiet cbc-btn' }, 'Cancel');
     const collect = () => {
       const num = (el) => (el.value.trim() ? Math.round(+el.value) || null : null);
       return {
@@ -970,8 +971,8 @@ function cook(r, serves, units) {
   const sectionEl = h('p', { class: 'cbk-section' });
   const text = h('p', { class: 'cbk-text' });
   const dots = h('div', { class: 'cbk-dots', 'aria-hidden': 'true' }, steps.map(() => h('i')));
-  const back = h('button', { type: 'button', class: 'vbtn vbtn-glass cbk-back' }, 'Back');
-  const next = h('button', { type: 'button', class: 'vbtn vbtn-blue cbk-next' }, 'Next');
+  const back = h('button', { type: 'button', class: 'btn cbk-back' }, 'Back');
+  const next = h('button', { type: 'button', class: 'btn btn-main cbk-next' }, 'Next');
   const awake = h('p', { class: 'cbk-awake' });
 
   const ingItems = r.ingredients.map((line, i) => {
@@ -988,7 +989,7 @@ function cook(r, serves, units) {
     return li;
   });
   const ingList = h('ul', { class: 'cbk-ings' }, ingItems);
-  const ingToggle = h('button', { type: 'button', class: 'vbtn vbtn-glass cbk-ing-toggle', 'aria-expanded': 'false' }, `Ingredients (${r.ingredients.filter((l) => !isHeading(l)).length})`);
+  const ingToggle = h('button', { type: 'button', class: 'btn cbk-ing-toggle', 'aria-expanded': 'false' }, `Ingredients (${r.ingredients.filter((l) => !isHeading(l)).length})`);
   const side = h('aside', { class: 'cbk-side' }, h('h3', null, 'Ingredients'), r.serves ? h('p', { class: 'cbk-serves' }, servesText(r, serves)) : null, ingList);
   ingToggle.addEventListener('click', () => {
     const open = el.classList.toggle('is-ings');
@@ -1003,7 +1004,7 @@ function cook(r, serves, units) {
     if (moving()) el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: 'forwards' }).finished.then(done, done);
     else done();
   };
-  const closeBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round cbc-btn cbk-close', 'aria-label': 'Stop cooking', onclick: close }, closeIcon());
+  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbk-close', 'aria-label': 'Stop cooking', onclick: close }, closeIcon());
   const main = h('main', { class: 'cbk-main' }, stepNo, sectionEl, text);
   const el = h('div', { class: 'cbk', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Cooking ${r.title}` },
     h('header', { class: 'cbk-head' }, h('h2', { class: 'cbk-title' }, r.title), ingToggle, closeBtn),

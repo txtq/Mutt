@@ -21,7 +21,7 @@ const waved = new Set();
 // drawerId: the planet it's on, when it's yours. onWave(key): remember it there.
 export function momentLine(area, { acts, drawerId = null, onWave = null }) {
   const say = h('span');
-  const btn = h('button', { type: 'button', class: 'dk-hint-btn' });
+  const btn = h('button', { type: 'button', class: 'btn btn-quiet btn-small dk-hint-btn' });
   const x = h('button', { type: 'button', class: 'dk-hint-x', 'aria-label': 'Not here' }, '×');
   const el = h('div', { class: 'dk-hint', hidden: true }, say, btn, x);
   let shown = null;

@@ -34,7 +34,7 @@ function peoplePicker(names, onChange) {
   let active = -1;
   let busy = false;
   let failed = false;
-  const chips = h('div', { class: 'chips' });
+  const chips = h('div', { class: 'field field-search chips' });
   const input = h('input', {
     class: 'chip-input', type: 'text', placeholder: 'Search usernames', role: 'combobox',
     'aria-label': 'Search for a person by username', 'aria-autocomplete': 'list', 'aria-expanded': 'true',
@@ -442,7 +442,7 @@ export const planetView = {
 
     // A new moon: just a name. It shows up beside the planet.
     function addMoon() {
-      const input = h('input', { class: 'input', type: 'text', maxlength: '80', placeholder: 'Name it', 'aria-label': 'Moon name', autofocus: true });
+      const input = h('input', { class: 'field', type: 'text', maxlength: '80', placeholder: 'Name it', 'aria-label': 'Moon name', autofocus: true });
       const make = async () => {
         const name = input.value.trim();
         if (!name) { input.focus(); return; }
@@ -466,8 +466,8 @@ export const planetView = {
           h('p', { class: 'dialog-text' }, 'A small planet of its own, going round this one. Drag files onto it to move them there.'),
           input,
           h('div', { class: 'dialog-actions' },
-            h('button', { type: 'button', class: 'btn', onclick: () => dialog.close() }, 'Cancel'),
-            h('button', { type: 'button', class: 'btn btn-dark', onclick: make }, 'Add moon'))),
+            h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'),
+            h('button', { type: 'button', class: 'btn btn-main', onclick: make }, 'Add moon'))),
       });
     }
 
@@ -494,7 +494,7 @@ export const planetView = {
       try { ({ count: orphans } = await api.get(`/api/drawers/${id}/orphans`)); } catch { /* ask anyway */ }
       const check = h('input', { type: 'checkbox' });
       const extra = orphans
-        ? h('label', { class: 'check' }, check, h('span', null, `Also delete ${plural(orphans, 'file')} that only live here`))
+        ? h('label', { class: 'tick' }, check, h('span', { class: 'tick-box' }), h('span', null, `Also delete ${plural(orphans, 'file')} that only live here`))
         : null;
       const ok = await confirmDialog({
         title: `Delete “${drawer.title}”?`,
@@ -521,10 +521,10 @@ export const planetView = {
       const hint = h('p', { class: 'liv-share-hint' });
       const people = h('div', { class: 'liv-people' });
       const openBox = h('input', { type: 'checkbox', role: 'switch', checked: !!drawer.community });
-      const openRow = h('label', { class: 'vswitch liv-open' },
-        openBox, h('span', { class: 'vswitch-track' }, h('span', { class: 'vswitch-knob' })), h('span', null, 'Others can add files'));
+      const openRow = h('label', { class: 'switch liv-open' },
+        openBox, h('span', { class: 'switch-track' }, h('span', { class: 'switch-knob' })), h('span', null, 'Others can add files'));
       const codeText = h('span', { class: 'liv-code-text' });
-      const codeBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass liv-code-btn' });
+      const codeBtn = h('button', { type: 'button', class: 'btn btn-small liv-code-btn' });
       const codeRow = h('div', { class: 'liv-code' }, glyph('pin', 12), codeText, codeBtn);
       const chooseCode = async () => {
         sharePop?.close();
@@ -598,7 +598,7 @@ export const planetView = {
         h('p', { class: 'liv-label' }, 'Who can see it'),
         seg.el, hint, codeRow, people, openRow);
     }
-    const shareBtn = mine ? h('button', { type: 'button', class: 'vbtn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
+    const shareBtn = mine ? h('button', { type: 'button', class: 'btn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
     // A new planet's first visit: a quiet note by Share saying who can see it
     // now and that it can be changed. Put away for good once read or used.
     let shareTip = null;
@@ -617,12 +617,12 @@ export const planetView = {
         : { public: 'Everyone on Mutt can see it, but only you can add files.',
             private: 'Only you can see it.', pin: 'Only people with its code can see it.',
             people: 'Only the people you picked can see it.' }[drawer.visibility] || '';
-      const change = h('button', { type: 'button', class: 'vbtn vbtn-blue' }, 'Change sharing');
-      const ok = h('button', { type: 'button', class: 'vbtn vbtn-glass' }, 'Got it');
-      shareTip = h('div', { class: 'share-tip fglass', role: 'note' },
-        h('p', { class: 'share-tip-title' }, 'Who can see this planet'),
-        h('p', { class: 'share-tip-text' }, `${now} Change that, or let others add too, under Share.`),
-        h('div', { class: 'share-tip-btns' }, ok, change));
+      const change = h('button', { type: 'button', class: 'btn btn-main btn-small' }, 'Change sharing');
+      const ok = h('button', { type: 'button', class: 'btn btn-quiet btn-small' }, 'Got it');
+      shareTip = h('div', { class: 'tip share-tip', role: 'note' },
+        h('p', { class: 'tip-title' }, 'Who can see this planet'),
+        h('p', { class: 'tip-text' }, `${now} Change that, or let others add too, under Share.`),
+        h('div', { class: 'tip-btns' }, change, ok));
       change.addEventListener('click', () => { putTipAway(); shareBtn.click(); });
       ok.addEventListener('click', putTipAway);
       // It hangs from the page, not the header: glass inside the header's
@@ -641,10 +641,10 @@ export const planetView = {
     shareBtn?.addEventListener('click', () => {
       putTipAway();
       if (sharePop) { sharePop.close(); return; }
-      sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-share', width: 340, onClose: () => { sharePop = null; } });
+      sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-panel pop-share', width: 340, onClose: () => { sharePop = null; } });
     });
 
-    const moreBtn = h('button', { type: 'button', class: 'vbtn vbtn-glass vbtn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
+    const moreBtn = h('button', { type: 'button', class: 'btn btn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
     // A mode shows up here only once the planet (or moon) has earned it, and
     // stays here after its offer is waved away or it's turned off.
     const modeItems = () => {

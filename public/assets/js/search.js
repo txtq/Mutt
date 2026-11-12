@@ -165,7 +165,7 @@ export function searchBody(close) {
 
   const input = h('input', { class: 'search-input', type: 'search', placeholder: 'Search your planets, stars and people', 'aria-label': 'Search', autocomplete: 'off', enterkeyhint: 'search' });
   const chipsEl = h('span', { class: 'search-chips' });
-  const box = h('label', { class: 'sheet-search' }, glyph('search', 14), chipsEl, input);
+  const box = h('label', { class: 'field field-search sheet-search' }, glyph('search', 14), chipsEl, input);
   const options = h('div', { class: 'search-options' });
   const results = h('div', { class: 'search-results' });
 
@@ -202,11 +202,11 @@ export function searchBody(close) {
   function paint() {
     const list = chips();
     input.placeholder = list.length ? 'Add words…' : 'Search your planets, stars and people';
-    chipsEl.replaceChildren(...list.map((c) => h('span', { class: 'search-chip' },
-      c.dot ? h('i', { class: 'search-dot', style: { '--c': c.dot } }) : null,
+    chipsEl.replaceChildren(...list.map((c) => h('span', { class: 'chip' },
+      c.dot ? h('i', { class: 'chip-dot', style: { '--c': c.dot } }) : null,
       c.label,
       h('button', {
-        type: 'button', class: 'search-chip-x', 'aria-label': `Remove ${c.label}`,
+        type: 'button', class: 'chip-x', 'aria-label': `Remove ${c.label}`,
         onclick: (e) => { e.preventDefault(); c.drop(); changed(); input.focus(); },
       }, '×'))));
     paintOptions();
@@ -259,7 +259,7 @@ export function searchBody(close) {
   colorBtn.classList.add('is-color');
 
   function optionButton(label, open) {
-    const btn = h('button', { type: 'button', class: 'search-opt', 'aria-haspopup': 'true', onclick: () => open(btn) });
+    const btn = h('button', { type: 'button', class: 'btn btn-quiet btn-small search-opt', 'aria-haspopup': 'true', onclick: () => open(btn) });
     btn.paint = () => {
       const text = label();
       btn.replaceChildren(h('span', null, text), h('span', { class: 'search-opt-caret' }, glyph('caret', 10)));
@@ -402,7 +402,7 @@ export function searchBody(close) {
         h('p', { class: 'search-label' }, 'People'), h('div', { class: 'search-people-row' }, people.map(personEl))) : null,
       planets.length ? h('div', { class: 'search-planets' }, planets) : null,
       files.length ? h('div', { class: 'grid search-grid' }, files) : null,
-      more ? h('div', { class: 'search-more' }, h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => fetchPage(true) }, 'Show more')) : null,
+      more ? h('div', { class: 'search-more' }, h('button', { type: 'button', class: 'btn', onclick: () => fetchPage(true) }, 'Show more')) : null,
       !planets.length && !files.length && !people.length ? h('p', { class: 'search-none' }, anything() ? 'Nothing out there like that.' : 'Nothing here yet.') : null,
     ].filter(Boolean));
   }

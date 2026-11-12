@@ -16,15 +16,10 @@
 .dk-count { font-size: var(--text-label); font-weight: 500; color: var(--ink-4); }
 .dk-new { display: inline-flex; align-items: center; gap: 6px; }
 .dk-bar-end { display: flex; align-items: center; gap: var(--space-8); }
-.dk-sort {
-  position: relative; display: inline-flex; align-items: baseline; gap: 6px; height: 34px; padding: 0 26px 0 12px;
-  border: 0; border-radius: var(--r-full); background: none; color: var(--ink); font: 500 var(--text-label) var(--sans); cursor: pointer; white-space: nowrap;
-}
+.dk-sort { padding-right: 26px; }  /* room for its caret */
 .dk-sort[hidden] { display: none; }
 .dk-sort::after { content: ''; position: absolute; right: 12px; top: 50%; width: 5px; height: 5px; margin-top: -4px; border: solid var(--ink-3); border-width: 0 1.4px 1.4px 0; transform: rotate(45deg); }
-.dk-sort:hover { background: var(--tint); }
-.dk-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.dk-sort-label { color: var(--ink-4); }
+.dk-sort-label { color: var(--ink-3); }
 .dk-new span { font-size: 17px; line-height: 1; margin-top: -1px; }
 .dk-others[hidden], .dk-now[hidden] { display: none; }
 .dk-others .dk-head { margin-bottom: 14px; }
@@ -190,13 +185,7 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 .de-name::placeholder { color: var(--ink-4); }
 .de-status { flex: none; margin-right: 10px; font-size: var(--text-caption); color: var(--ink-4); white-space: nowrap; }
 .de-top-tools { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
-.de-btn {
-  position: relative; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0;
-  border: 0; border-radius: 9px; background: none; color: var(--ink-2); cursor: pointer; flex: none;
-}
-.de-btn:hover { background: var(--tint-2); color: var(--ink); }
-.de-btn.is-on { background: rgba(200, 215, 255, 0.16); color: #fff; }
-.de-btn:focus-visible, .de-pick:focus-visible, .de-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.de-pick:focus-visible, .de-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .de-count:not(:empty) { position: absolute; right: 1px; top: 2px; min-width: 15px; height: 15px; padding: 0 var(--space-4); border-radius: var(--r-row); background: #f0c24a; color: #2a2108; font: 700 9.5px/15px var(--sans); }
 .de.is-reading-only .de-tools { display: none; }
 
@@ -220,7 +209,6 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
   overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
 }
 .de-tools::-webkit-scrollbar { display: none; }
-.de-tools .de-btn { width: 32px; height: 32px; border-radius: var(--r-row); }
 .de-tools .de-ic, .de-tools .de-ic svg { width: 18px; height: 18px; }
 .de-sep { flex: none; width: 1px; height: 20px; margin: 0 5px; background: var(--line-2); }
 .de-pick {
@@ -269,8 +257,8 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 }
 .de-word:hover { background: var(--tint-2); }
 .de-ic-mark { stroke: #f0c24a !important; stroke-width: 2.6 !important; }
-.de-btn, .de-pick, .de-word { transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s var(--ease-settle); }
-.de-btn:active, .de-bub:active { transform: scale(0.9); }
+.de-pick, .de-word { transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s var(--ease-settle); }
+.de-bub:active { transform: scale(0.9); }
 
 .de-main { position: relative; display: grid; grid-template-columns: 0 minmax(0, 1fr) 0; min-height: 0; transition: grid-template-columns 0.3s var(--ease-settle); }
 .de.has-side .de-main { grid-template-columns: 248px minmax(0, 1fr) 0; }
@@ -505,15 +493,9 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 
 /* Things that float over the paper (the bubble beside selected words, the "/"
    menu): night-coloured glass, dark enough to read on a cream page. */
-.de-bubble, .de-slash {
-  background: rgba(32, 40, 78, 0.8);
-  border: 1px solid rgba(235, 240, 255, 0.16);
-  backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 16px 34px -14px rgba(0, 0, 20, 0.75), 0 2px 6px rgba(0, 0, 20, 0.3);
-}
 .de-selbar { position: fixed; z-index: 6; }
 .de-selbar[hidden] { display: none; }
-.de-bubble { display: flex; align-items: center; gap: 1px; padding: var(--space-4); border-radius: 13px; transform-origin: 50% 100%; }
+.de-bubble { display: flex; align-items: center; gap: 1px; padding: var(--space-4); border-radius: var(--r-box); transform-origin: 50% 100%; }
 .de-bubble .de-sep { margin: 0 var(--space-4); }
 .de-bub {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; width: 32px; height: 32px; padding: 0;
@@ -526,7 +508,7 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 .de-bub:focus-visible, .de-slash-item:focus-visible, .de-aa-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .de-bub-word { width: auto; padding: 0 12px 0 9px; }
 
-.de-slash { position: fixed; z-index: 7; width: 236px; max-height: min(348px, 52vh); overflow: auto; padding: 6px; border-radius: 14px; scrollbar-width: none; }
+.de-slash { position: fixed; z-index: 7; width: 236px; max-height: min(348px, 52vh); overflow: auto; padding: var(--space-4); border-radius: var(--r-box); scrollbar-width: none; }
 .de-slash[hidden] { display: none; }
 .de-slash-label { margin: var(--space-4) var(--space-8) var(--space-4); font-size: 11.5px; font-weight: 600; color: rgba(215, 224, 255, 0.5); }
 .de-slash-item {
@@ -541,17 +523,12 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 /* Aa: how the words look. */
 /* Menus and panels the editor opens hang over cream paper, so their glass is
    night-coloured too. */
-.pop:is(.de-pop, .de-menu) {
-  background: rgba(30, 38, 76, 0.84);
-  border: 1px solid rgba(235, 240, 255, 0.16);
-  backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2);
-}
 .de-aa-pop { width: min(372px, calc(100vw - 24px)); }
 .de-aa { display: grid; gap: 10px; padding: var(--space-2); }
 .de-aa-row { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: var(--space-8); }
 .de-aa-label { font-size: var(--text-caption); color: var(--ink-3); }
 .de-aa-ctl { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-width: 0; }
-.de-aa-seg, .de-aa-step { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: 10px; background: rgba(8, 12, 32, 0.34); box-shadow: inset 0 0 0 1px rgba(235, 240, 255, 0.07); }
+.de-aa-seg { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: 10px; background: rgba(8, 12, 32, 0.34); box-shadow: inset 0 0 0 1px rgba(235, 240, 255, 0.07); }
 .de-aa-ctl > .de-aa-seg:only-child { display: flex; flex: 1; }
 .de-aa-ctl > .de-aa-seg:only-child .de-aa-opt { flex: 1; }
 .de-aa-opt {
@@ -568,7 +545,6 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 .de-aa-opt[data-font="mono"] { font-family: var(--de-mono); font-size: var(--text-caption); }
 .de-aa-opt[data-font="type"] { font-family: var(--de-type); font-size: 11.5px; letter-spacing: -0.03em; }
 .de-aa-ctl > .de-aa-seg:only-child .de-aa-opt[data-font] { flex: 1 1 auto; min-width: 0; padding: 0 3px; }
-.de-aa-num { min-width: 30px; text-align: center; font: 600 var(--text-label) var(--sans); font-variant-numeric: tabular-nums; color: var(--ink); }
 .de-aa .de-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .de-aa .de-swatch { width: 20px; height: 20px; border-width: 1.5px; transition: transform var(--dur-change) var(--ease-settle); }
 .de-aa-rule { height: 1px; background: var(--line); margin: var(--space-2) 0; }
@@ -587,7 +563,6 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 .de-fail-title { font-weight: 600; color: var(--ink); }
 
 /* Popovers from the toolbar. */
-.de-pop { padding: 10px; }
 .de-pop-label { margin: 2px 2px 6px; font-size: 11.5px; font-weight: 600; color: var(--ink-4); }
 .de-swatches { display: grid; grid-template-columns: repeat(6, 28px); gap: 6px; margin-bottom: 10px; }
 .de-swatch { width: 28px; height: 28px; padding: 0; border: 2px solid rgba(255, 255, 255, 0.25); border-radius: 50%; background: var(--c); cursor: pointer; }
@@ -652,3 +627,6 @@ html.is-writing :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; 
 /* Spelling (docspell.js): a misspelt word, and one just corrected. */
 ::highlight(mutt-spell) { text-decoration: underline wavy rgba(196, 64, 44, 0.85) 1.5px; text-decoration-skip-ink: none; }
 ::highlight(mutt-fixed) { text-decoration: underline dotted rgba(31, 95, 191, 0.75) 2px; text-decoration-skip-ink: none; }
+
+/* The toolbar keeps its buttons at 32 on touch screens too, so a row of them still fits (session 5 looks at the editor on a phone). */
+@media (pointer: coarse) { .de .de-btn { width: var(--h-regular); height: var(--h-regular); } }

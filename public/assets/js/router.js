@@ -31,7 +31,7 @@ const notFound = {
     el: h('div', { class: 'page page-missing' },
       h('h1', { class: 'page-title' }, 'Nothing out here.'),
       h('p', { class: 'page-meta' }, 'That planet may have been deleted, or kept private.'),
-      h('a', { class: 'vbtn vbtn-blue', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Back to your galaxy')),
+      h('a', { class: 'btn btn-main', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Back to your galaxy')),
     title: 'Not found',
   }),
 };

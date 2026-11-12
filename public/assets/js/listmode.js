@@ -942,7 +942,7 @@ export class ListView {
 
   dropTarget() {
     if (!this.editable) return null;
-    return { label: `Drop into ${this.drawer.title}`, drop: (files) => files.length && addFiles(files, { drawerId: this.drawer.id }) };
+    return { label: `Drop to add to ${this.drawer.title}`, drop: (files) => files.length && addFiles(files, { drawerId: this.drawer.id }) };
   }
 
   focus() { this.input?.focus(); }
@@ -994,7 +994,7 @@ export function listSettings({ options, onChange, onTurnOff, anchor, onClose }) 
 
   const markerRow = h('div', { class: 'lm-set' }, h('p', { class: 'liv-label' }, 'Bullet marks'), marker.el);
   const doneRow = h('div', { class: 'lm-set' }, h('p', { class: 'liv-label' }, 'Ticked items'), done.el);
-  const off = h('button', { type: 'button', class: 'vbtn vbtn-glass lm-off' }, 'Show as files again');
+  const off = h('button', { type: 'button', class: 'btn lm-off' }, 'Show as files again');
   // Beside the list, the list itself shows each change; a dialog needs a sample.
   const body = h('div', { class: 'lm-settings' },
     anchor ? null : preview,
@@ -1006,7 +1006,7 @@ export function listSettings({ options, onChange, onTurnOff, anchor, onClose }) 
   paint();
   const panel = anchor
     ? openPopover(anchor, h('div', null, h('p', { class: 'lm-pop-title' }, 'List options'), body),
-      { align: 'end', className: 'pop-list', width: 360, onClose })
+      { align: 'end', className: 'pop-panel pop-list', width: 360, onClose })
     : openDialog({ title: 'List', body, className: 'dialog-list', onClose });
   off.addEventListener('click', () => { panel.close(); onTurnOff(); });
   return panel;

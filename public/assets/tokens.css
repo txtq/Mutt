@@ -29,25 +29,55 @@
   --blue-ink: #8cc0ff;   /* blue words, links, @name, the keyboard outline */
   --good: #86d9ad;       /* saved, done */
   --caution: #eec372;    /* someone else's, be careful */
-  --danger: #ff8080;     /* deleting (words)                    WANTS #ff8a84 (session 3) */
+  --danger: #ff8a84;     /* deleting (words) */
   --danger-fill: #e24a4a; /* deleting (the confirming button) */
-  --accent: var(--blue); /* what a pressed thing is filled with. A planet's page changes it for
-                            the whole page today; it should reach only the planet's own things (session 4) */
+  --accent: var(--blue); /* what a pressed thing is filled with. A planet's own page content (#view)
+                            sets it to the planet's deep colour; nothing on bar glass ever sees that */
+  --focus: var(--blue-ink); /* the edge of a text box being typed in (the planet's paled colour inside its own things) */
 
   /* lines, washes, the well */
-  --line: rgba(190, 205, 240, 0.12);
-  --line-2: rgba(190, 205, 240, 0.22);
-  --tint: rgba(150, 175, 240, 0.07);
-  --tint-2: rgba(150, 175, 240, 0.13);
+  --mutt-line: rgba(190, 205, 240, 0.12);     /* the five a planet's page re-tints, as Mutt has them. Bar glass */
+  --mutt-line-2: rgba(190, 205, 240, 0.22);   /* sets them back, so nothing on it can take a planet's colour.   */
+  --mutt-tint: rgba(150, 175, 240, 0.07);
+  --mutt-tint-2: rgba(150, 175, 240, 0.13);
+  --mutt-edge: rgba(255, 255, 255, 0.2);
+  --line: var(--mutt-line);
+  --line-2: var(--mutt-line-2);
+  --line-3: rgba(190, 205, 240, 0.36);   /* a text box or tick box pointed at */
+  --tint: var(--mutt-tint);
+  --tint-2: var(--mutt-tint-2);
   --well: rgba(0, 4, 24, 0.38);
   --well-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --edge: var(--mutt-edge);              /* a plain button's edge */
+  --edge-on: rgba(255, 255, 255, 0.32);  /* the same, pointed at */
+  --shade: #00001e;                      /* mixed 38% into a filled button's colour for its edge */
+  --shade-danger: #1e0000;
+  --scrim: rgba(2, 6, 24, 0.5);          /* behind a dialog */
+  --edge-faint: rgba(255, 255, 255, 0.1); /* what a planet's own plain button mixes a third of its paled colour into */
+  --white: #fff;                         /* words and the tick on a filled control; the light in an uploading toast */
+  --void: #000;                          /* the small void that leads a toast */
+  --void-ring: rgba(200, 215, 255, 0.7);
 
   /* gloss: one light from above on a pressed thing */
-  --gloss-on: linear-gradient(180deg, #6ea6ff 0%, #3d7df0 49%, #2f6de2 51%, #3876ec 100%);
-                         /* today a ready-made blue fill.       WANTS a see-through light laid over var(--accent):
-                            linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,.11) 46%, rgba(255,255,255,0) 54%, rgba(255,255,255,.05) 100%) (session 3) */
-  --gloss-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.02) 51%, rgba(255, 255, 255, 0.05));
-                         /* on a see-through control.           WANTS the same shape as --gloss-on at .13, .05, 0, .025 over rgba(255,255,255,.05) (session 3) */
+  --gloss-on: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.11) 46%, rgba(255, 255, 255, 0) 54%, rgba(255, 255, 255, 0.05) 100%);
+                         /* laid over a colour: `background: var(--gloss-on), var(--accent)` */
+  --gloss-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 46%, rgba(255, 255, 255, 0) 54%, rgba(255, 255, 255, 0.025) 100%);
+                         /* on a see-through control: `background: var(--gloss-clear), var(--clear-fill)` */
+  --clear-fill: rgba(255, 255, 255, 0.05);
+  --gloss-light: inset 0 1px 0 rgba(255, 255, 255, 0.32);   /* the top edge of every glossy thing */
+  --gloss-drop: 0 1px 3px rgba(0, 0, 18, 0.25);             /* under a glossy button */
+  --bead-drop: 0 1px 4px rgba(0, 10, 60, 0.4);              /* under the chosen bead of a segmented bar */
+  --press: inset 0 1px 3px rgba(0, 0, 18, 0.4);             /* replaces the top light while pressed */
+  --on-gloss: 0 1px 1px rgba(0, 0, 30, 0.35);               /* under white words on gloss */
+  --pearl: radial-gradient(circle at 40% 30%, #fff 0%, #eef2fa 50%, #c3cde2 100%);   /* the switch's knob */
+  --pearl-drop: 0 1px 3px rgba(0, 0, 30, 0.45);
+
+  /* bar glass: Mutt's own (top bar, menus, sheets, dialogs, toasts, tips, tooltips) */
+  --glass-fill: rgba(13, 19, 48, 0.74);
+  --glass-edge: rgba(205, 218, 255, 0.16);
+  --glass-frost: blur(28px) saturate(1.4) brightness(0.6);
+  --glass-light: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --bar-fill: rgba(6, 10, 30, 0.58);
 
   /* paper */
   --paper: linear-gradient(180deg, #fcfbf7, #f2f0e9);   /* WANTS #f8f5ee, flat (session 5) */
@@ -106,7 +136,10 @@
   --h-small: 24px;       /* on tiles and in rows */
   --h-regular: 32px;     /* everywhere */
   --h-large: 40px;       /* the one main action; every control on touch screens */
-  --bar: 34px;           /* the top bar (44 on a phone)        WANTS 36px (session 3) */
+  --h-inner: 26px;       /* a choice or round button inside a well (32 less the well's 3 all round) */
+  --inset: 3px;          /* the padding of a well that holds choices: segmented bar, stepper */
+  --ring: 3px;           /* the ring round a text box being typed in, and round a place files can be dropped */
+  --bar: 36px;           /* the top bar (44 on a phone) */
 
   --r-mark: 4px;         /* tick boxes, tags, paper */
   --r-row: 8px;          /* rows, text boxes */
@@ -154,16 +187,12 @@
   --fg-fill: rgba(180, 192, 232, 0.085);                    /* WANTS rgba(190,202,240,.09) (session 4) */
   --fg-fill-hover: rgba(190, 202, 240, 0.12);               /* WANTS rgba(200,210,245,.13) (session 4) */
   --fg-frost: blur(20px) saturate(0.95) brightness(1.08);   /* WANTS blur(28px) saturate(1.15) brightness(0.9) (session 4) */
-  --glass-fill: linear-gradient(180deg, rgba(38, 54, 104, 0.74), rgba(15, 22, 54, 0.84));   /* WANTS rgba(13,19,48,.74), flat (session 3) */
-  --glass-edge: rgba(205, 218, 255, 0.16);
-  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 18px 44px -18px rgba(0, 0, 18, 0.75);   /* WANTS inset 0 1px 0 rgba(255,255,255,.1) with --shadow-float or --shadow-overlay (session 3) */
-  --bar-fill: linear-gradient(180deg, rgba(2, 5, 18, 0.66), rgba(4, 8, 26, 0.4));           /* WANTS rgba(6,10,30,.58), flat (session 3) */
-  --bar-ink: #f2f5fc;
+  --head-fill: linear-gradient(180deg, rgba(38, 54, 104, 0.74), rgba(15, 22, 54, 0.84));   /* the planet header's old glass, and the badge on a tile (session 4 puts both on box glass) */
+  --head-edge: rgba(205, 218, 255, 0.16);
+  --head-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 18px 44px -18px rgba(0, 0, 18, 0.75);
   --card-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 50%), rgba(14, 22, 60, 0.66);   /* goes with the one file box (session 4) */
   --card-edge: rgba(200, 215, 255, 0.14);
   --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 30px -18px rgba(0, 0, 20, 0.9);
-  --btn-edge: rgba(255, 255, 255, 0.18);                    /* goes with the one button (session 3) */
-  --btn-ink: #f2f5fc;
   --bg: #0a1130;         /* a solid stand-in for the sky behind a few old parts (sessions 3 to 5) */
 
   /* documents' own names (session 5 moves documents onto --serif, --sans, --mono and the paper names) */

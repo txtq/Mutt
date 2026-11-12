@@ -330,7 +330,7 @@ def offer_then(s, seeded, title, yes, view, sorry):
     s.see('.lm-offer', f'{title} was not offered {sorry}')
     s.settle(0.8)
     s.shot(f'offer-{sorry.replace(" ", "-")}')
-    s.click(s.named('.lm-offer .vbtn-blue', yes, f'the {sorry} offer has no "{yes}" button'))
+    s.click(s.named('.lm-offer .btn-main', yes, f'the {sorry} offer has no "{yes}" button'))
     s.see(view, f'taking up {sorry} did not show it')
     s.gone('.lm-offer', f'the {sorry} offer stayed after it was taken up')
     s.settle(1)
@@ -406,6 +406,26 @@ def universe(s, seeded):
     s.shot('universe')
 
 
+def sample_page(s, seeded):
+    """The hidden page of shared parts: it opens, a real menu opens from it, and it fits a phone."""
+    s.go('/parts')
+    s.see('.parts .stepper', 'the sample page of parts did not open')
+    s.settle(0.8)
+    s.shot('parts')
+    s.click(s.named('.parts .btn', 'Open a menu', 'the sample page has no "Open a menu" button'))
+    s.see('body > .pop .menu-item', 'a menu did not open from the sample page')
+    s.js('document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))')
+    s.size(PHONE)
+    try:
+        s.go('/parts')
+        s.see('.parts .stepper', 'the sample page did not open at phone width')
+        s.settle(0.6)
+        s.no_sideways_scroll('The sample page of parts')
+        s.shot('phone-parts')
+    finally:
+        s.size(DESK)
+
+
 def phone(s, seeded):
     s.size(PHONE)
     try:
@@ -432,7 +452,7 @@ def phone(s, seeded):
 
 
 PATHS = [sign_up, sign_in, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, phone]
+         documents_mode, undo, document_editor, open_book, universe, phone, sample_page]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

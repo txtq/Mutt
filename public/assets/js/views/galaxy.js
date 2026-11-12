@@ -1192,8 +1192,9 @@ class Galaxy {
   starEl(block) {
     const label = starTitle(block);
     const el = h('button', {
-      type: 'button', class: 'star', dataset: { id: block.id, kind: block.kind }, 'aria-label': `${label} (star)`,
-    }, fileFace(block), h('span', { class: 'star-tip' }, label));
+      type: 'button', class: 'star', 'aria-label': `${label} (star)`,
+      dataset: { id: block.id, kind: block.kind, tip: label, tipNow: '', tipAt: 'above' },
+    }, fileFace(block));
     el.block = block;
     el.addEventListener('click', () => nav.openBlock(block.id));
     el.addEventListener('contextmenu', (e) => {
@@ -1447,7 +1448,8 @@ class Galaxy {
   dropTarget() {
     if (!this.mine || this.p > 0.5) return { label: this.mine ? 'Scroll back up to your galaxy to add files' : 'You can only add to your own galaxy' };
     return {
-      overlay: false,
+      label: 'Drop into the void',
+      lit: (on) => this.hole.ring(on),
       over: (e) => {
         const found = this.hole.isOpen() ? null : this.hit(e.clientX, e.clientY);
         for (const el of this.planetEls.values()) {
@@ -1455,6 +1457,8 @@ class Galaxy {
           for (const moon of el.moonEls()) moon.classList.toggle('is-target', moon === found?.el);
         }
         this.hole.hover(!found);
+        const name = found && (found.el.moon || found.el.planet)?.title;
+        return found ? (name ? `Drop onto ${name}` : 'Drop onto this planet') : 'Drop into the void';
       },
       leave: () => {
         for (const el of this.planetEls.values()) {

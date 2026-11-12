@@ -6,7 +6,7 @@ import { guessKind } from './kinds.js';
 import { ensureLooks, lookOfBlob } from './look.js';
 import { readPicture, within } from './see.js';
 import { makeThumb } from './thumbs.js';
-import { toast } from './ui.js';
+import { toast, toastsEl } from './ui.js';
 import { bus, fmtBytes, h, plural, uid } from './util.js';
 
 const CONCURRENCY = 3;
@@ -163,42 +163,53 @@ async function run(item) {
   }
 }
 
-// ---------------------------------------------------------------- tray
+// ---------------------------------------------------------------- the uploads toast
 
+// Uploads are a toast (DESIGN.md: Uploads): its small void fills with light as
+// the files go in, and the same toast says what was added.
 const tray = {
   el: null,
   hideTimer: null,
+  show() {
+    clearTimeout(this.hideTimer);
+    this.el.classList.remove('is-leaving');
+    if (!this.el.isConnected) toastsEl().append(this.el);
+  },
+  hide() {
+    if (!this.el?.isConnected || this.el.classList.contains('is-leaving')) return;
+    this.el.classList.add('is-leaving');
+    this.hideTimer = setTimeout(() => { this.el.classList.remove('is-leaving'); this.el.remove(); }, 300);
+  },
   update() {
     const all = [...items.values()];
     const busy = all.filter((i) => i.status === 'queued' || i.status === 'uploading');
     const failed = all.filter((i) => i.status === 'failed');
     const done = all.filter((i) => i.status === 'done');
     if (!this.el) {
-      this.label = h('span', { class: 'tray-label' });
-      this.bar = h('span', { class: 'tray-bar' });
-      this.action = h('button', { type: 'button', class: 'tray-action', hidden: true });
-      this.el = h('div', { class: 'tray', role: 'status' }, this.label, this.action, this.bar);
-      document.body.append(this.el);
+      this.void = h('i', { class: 'toast-void', 'aria-hidden': 'true' });
+      this.label = h('span');
+      this.action = h('button', { type: 'button', hidden: true });
+      this.el = h('div', { class: 'toast is-upload', role: 'status' }, this.void, this.label, this.action);
     }
-    clearTimeout(this.hideTimer);
-    if (!all.length) { this.el.classList.remove('is-on'); return; }
-    this.el.classList.add('is-on');
+    if (!all.length) { this.hide(); return; }
+    this.show();
     this.action.hidden = true;
+    this.el.classList.toggle('is-failed', !busy.length && failed.length > 0);
     if (busy.length) {
       const total = busy.length + done.length;
       const progress = all.filter((i) => i.status !== 'failed').reduce((s, i) => s + (i.status === 'done' ? 1 : i.progress), 0) / Math.max(1, total);
-      this.label.textContent = `Uploading ${plural(busy.length, 'file')} · ${Math.round(progress * 100)}%`;
-      this.bar.style.transform = `scaleX(${progress})`;
+      this.label.textContent = total > 1 ? `Uploading ${Math.min(total, done.length + 1)} of ${total}` : 'Uploading 1 file';
+      this.void.style.setProperty('--p', progress.toFixed(3));
     } else if (failed.length) {
       this.label.textContent = `${plural(failed.length, 'upload')} failed`;
-      this.bar.style.transform = 'scaleX(0)';
+      this.void.style.setProperty('--p', '0');
       this.action.hidden = false;
       this.action.textContent = 'Retry';
       this.action.onclick = () => failed.forEach((i) => retry(i.key));
     } else {
       this.label.textContent = `Added ${plural(done.length, 'file')}`;
-      this.bar.style.transform = 'scaleX(1)';
-      this.hideTimer = setTimeout(() => this.el.classList.remove('is-on'), 2200);
+      this.void.style.setProperty('--p', '1');
+      this.hideTimer = setTimeout(() => this.hide(), 2200);
     }
   },
 };

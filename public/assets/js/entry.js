@@ -5,11 +5,11 @@ import { h } from './util.js';
 export function entryCell({ onText, onFiles } = {}) {
   const textarea = h('textarea', { placeholder: 'Type, paste or drop', rows: 1, 'aria-label': 'Add a file', spellcheck: 'true' });
   const picker = h('input', { type: 'file', multiple: true, hidden: true });
-  const add = h('button', { type: 'button', class: 'entry-add' }, 'Add');
+  const add = h('button', { type: 'button', class: 'btn btn-main btn-small entry-add' }, 'Add');
   const box = h('div', { class: 'entry' },
     textarea,
     h('div', { class: 'entry-foot' },
-      h('button', { type: 'button', class: 'entry-files link', onclick: () => picker.click() }, 'Upload'),
+      h('button', { type: 'button', class: 'entry-files btn btn-quiet btn-small', onclick: () => picker.click() }, 'Upload'),
       add),
     h('div', { class: 'entry-drop' }, h('span', null, 'Drop')),
     picker);

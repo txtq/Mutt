@@ -338,6 +338,13 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     },
     center: v.center,
     radius: v.radius,
+    // Files are being dragged over the window: a ring opens round it (the drop hint).
+    ring(on) {
+      if (!on && !this.ringEl) return;
+      this.ringEl ||= el.appendChild(h('span', { class: 'drop-ring', 'aria-hidden': 'true' }));
+      void this.ringEl.offsetWidth;
+      this.ringEl.classList.toggle('is-on', on);
+    },
     // Something is hovering over it, about to fall in.
     hover(on) {
       el.classList.toggle('is-hungry', on);

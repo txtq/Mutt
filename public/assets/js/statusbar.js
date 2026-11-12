@@ -114,7 +114,7 @@ function settingsBody(close) {
         h('div', { class: 'sheet-who' }, `@${session.user.username}`),
         h('div', { class: 'sheet-sub' }, `${plural(stats.files, 'file')} · ${plural(stats.drawers, 'planet')} · ${plural(stats.stars, 'star')}`)),
       location.pathname !== '/'
-        ? h('button', { type: 'button', class: 'vbtn vbtn-blue', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
+        ? h('button', { type: 'button', class: 'btn btn-main', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
         : null),
     row('Sky', skyPicker()),
     row('Logo', logoPicker()),
@@ -122,10 +122,10 @@ function settingsBody(close) {
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
     h('div', { class: 'sheet-actions' },
-      h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
-      h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); changePin(); } }, 'Change code'),
-      h('button', { type: 'button', class: 'vbtn vbtn-glass', onclick: () => { close(); signOut(); } }, 'Sign out'),
-      h('button', { type: 'button', class: 'link is-danger', onclick: () => { close(); deleteAccount(); } }, 'Delete account')));
+      h('button', { type: 'button', class: 'btn', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
+      h('button', { type: 'button', class: 'btn', onclick: () => { close(); changePin(); } }, 'Change code'),
+      h('button', { type: 'button', class: 'btn', onclick: () => { close(); signOut(); } }, 'Sign out'),
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: () => { close(); deleteAccount(); } }, 'Delete account')));
 }
 
 // ---------------------------------------------------------------- the bar
@@ -133,9 +133,9 @@ function settingsBody(close) {
 export function createStatusbar() {
   const mark = logo();
   const whoName = h('span', { class: 'sb-who-name' });
-  const who = h('button', { type: 'button', class: 'sb-who', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
+  const who = h('button', { type: 'button', class: 'btn btn-quiet btn-small sb-who', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
     whoName, glyph('caret', 11));
-  const searchBtn = h('button', { type: 'button', class: 'sb-btn', 'aria-label': 'Search', title: 'Search (/)' }, glyph('search', 14));
+  const searchBtn = h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small sb-btn', 'aria-label': 'Search', title: 'Search (/)' }, glyph('search', 14));
   const clock = h('span', { class: 'sb-clock' });
   const bar = h('header', { class: 'sb' },
     h('div', { class: 'sb-left' }, mark),

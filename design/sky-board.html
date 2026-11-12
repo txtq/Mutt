@@ -1,0 +1,599 @@
+<title>Mutt Sky Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;500&family=Fraunces:ital,opsz,wght,SOFT,WONK@1,9..144,500,100,1&display=swap">
+<style>
+/* Layout: the live sky is the whole page behind everything. Left: five options as stills, then a stage showing Mutt
+   on that sky. Right: a sticky sheet of dials. Dressed in the values settled on the look board. Dark only. */
+:root {
+  color-scheme: dark;
+  --sans: "Red Hat Text", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sky-top: #020721; --sky-deep: #041038; --sky-mid: #0a1f6c; --sky-low: #1a56d0;
+  --ink: #f2f5fc; --ink-2: #cbd3e8; --ink-3: #a4b0cd; --ink-4: #7f8cab;
+  --blue: #3f7cf0; --blue-ink: #8cc0ff;
+  --line: rgba(190, 205, 240, 0.12); --line-2: rgba(190, 205, 240, 0.22); --tint-2: rgba(150, 175, 240, 0.13);
+  --well: rgba(0, 4, 24, 0.38); --well-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --sky-shadow: 0 1px 2px rgba(0, 0, 18, 0.8), 0 0 10px rgba(0, 0, 18, 0.5);
+  --box-fill: rgba(190, 202, 240, 0.09); --box-frost: blur(28px) saturate(1.15) brightness(0.9); --edge: rgba(225, 232, 255, 0.18);
+  --bar-fill: rgba(13, 19, 48, 0.74); --bar-frost: blur(28px) saturate(1.4); --bar-edge: rgba(205, 218, 255, 0.16);
+  --gl-on: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.11) 46%, rgba(255, 255, 255, 0) 54%, rgba(255, 255, 255, 0.05) 100%);
+  --gl-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 46%, rgba(255, 255, 255, 0) 54%, rgba(255, 255, 255, 0.025) 100%);
+  --pc: #00B2C6;
+  --settle: cubic-bezier(0.16, 1, 0.3, 1); --spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+[data-sky="nebula"] { --sky-top: #06021a; --sky-deep: #120734; --sky-mid: #24095f; --sky-low: #6a2cc6; }
+[data-sky="aurora"] { --sky-top: #010a12; --sky-deep: #031a24; --sky-mid: #04313f; --sky-low: #0c7a74; }
+[data-sky="dusk"] { --sky-top: #0b0214; --sky-deep: #1e0720; --sky-mid: #3a0b37; --sky-low: #b23e58; }
+* { box-sizing: border-box; }
+body {
+  background: var(--sky-top); color: var(--ink-2); font: 400 14px/22px var(--sans);
+  padding-block: 68px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 2px; }
+p { margin: 0; max-width: 68ch; }
+h1 { margin: 0; font: 700 34px/38px var(--sans); letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; text-shadow: var(--sky-shadow); }
+h2 { margin: 0; font: 700 20px/26px var(--sans); color: var(--ink); text-shadow: var(--sky-shadow); }
+.onsky { text-shadow: var(--sky-shadow); }
+.val { font: 400 11px/16px var(--mono); color: var(--ink-3); }
+.lab { font: 500 10.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+
+#sky { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; display: block; background: linear-gradient(180deg, var(--sky-top), var(--sky-deep) 34%, var(--sky-mid)); }
+.bar {
+  position: fixed; inset: 0 0 auto; z-index: 40; display: flex; align-items: center; gap: 16px; height: calc(36px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(6, 10, 30, 0.58); border-bottom: 1px solid var(--line);
+  backdrop-filter: var(--bar-frost); -webkit-backdrop-filter: var(--bar-frost); color: var(--ink); font: 500 13px/1 var(--sans);
+}
+.wordmark { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 500; font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144; letter-spacing: -0.02em; font-size: 18px; line-height: 1; }
+.bar .where { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bar .gap { flex: 1; }
+.dots { display: flex; align-items: center; gap: 8px; }
+.dot { width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(180deg, var(--a), var(--b)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28); }
+.dot[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4), 0 0 0 2px var(--sky-top), 0 0 0 3.5px var(--ink); }
+
+main { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 328px; gap: 32px; align-items: start; }
+.left { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
+.intro { display: flex; flex-direction: column; gap: 8px; text-shadow: var(--sky-shadow); }
+.intro strong { color: var(--ink); font-weight: 500; }
+
+.group { display: flex; flex-direction: column; gap: 12px; }
+.presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.preset { display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 12px; border-radius: 12px; text-align: left; border: 1px solid var(--edge); background: var(--box-fill); backdrop-filter: var(--box-frost); -webkit-backdrop-filter: var(--box-frost); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 12px 28px -20px rgba(0, 0, 18, 0.7); transition: border-color 0.2s, background 0.2s; }
+.preset:hover { background: rgba(200, 210, 245, 0.13); }
+.preset[aria-pressed="true"] { border-color: var(--blue-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px var(--blue-ink), 0 20px 40px -22px rgba(0, 0, 18, 0.8); }
+.preset canvas { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 8px; background: #050a24; }
+.preset b { font: 500 13px/16px var(--sans); color: var(--ink); padding: 0 4px; }
+.preset b em { font-style: normal; font-size: 12px; color: var(--blue-ink); margin-left: 4px; }
+.preset span { font-size: 12px; line-height: 16px; color: var(--ink-2); padding: 0 4px; }
+
+.stagehead { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.stage { position: relative; min-height: 520px; }
+.stage canvas { display: block; width: 100%; height: 520px; }
+.stage[data-show="page"] canvas, .stage[data-show="sky"] canvas { display: none; }
+.stage .liv { display: none; }
+.stage[data-show="page"] .liv { display: flex; }
+
+.panel { position: sticky; top: 52px; display: flex; flex-direction: column; gap: 16px; padding: 20px; border-radius: 20px; border: 1px solid var(--bar-edge); background: var(--bar-fill); backdrop-filter: var(--bar-frost); -webkit-backdrop-filter: var(--bar-frost); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 30px 80px -20px rgba(0, 0, 18, 0.85); color: var(--ink); max-height: calc(100vh - 68px); overflow-y: auto; }
+.panel h2 { text-shadow: none; }
+.knob { display: flex; flex-direction: column; gap: 8px; }
+.seg { display: inline-flex; flex-wrap: wrap; padding: 3px; border-radius: 16px; background: var(--well); box-shadow: var(--well-shadow); align-self: flex-start; max-width: 100%; }
+.seg button { height: 26px; padding: 0 10px; border-radius: 999px; font: 500 12px/1 var(--sans); color: var(--ink-3); transition: color 0.2s; white-space: nowrap; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { color: #fff; background: var(--gl-on), var(--blue); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 1px 4px rgba(0, 10, 60, 0.4); text-shadow: 0 1px 1px rgba(0, 0, 30, 0.35); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 32px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); background: var(--gl-clear), rgba(255, 255, 255, 0.05); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 1px 3px rgba(0, 0, 18, 0.25); color: var(--ink); font: 500 13px/1 var(--sans); white-space: nowrap; transition: transform 0.2s var(--spring), filter 0.12s; }
+.btn:hover { filter: brightness(1.1); }
+.btn:active { transform: translateY(1px) scale(0.98); }
+.btn-main { background: var(--gl-on), var(--blue); border-color: #254a94; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 30, 0.35); }
+.btn[aria-pressed="true"] { background: var(--gl-on), var(--blue); border-color: #254a94; color: #fff; }
+.panel textarea { width: 100%; min-height: 128px; resize: vertical; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--well); box-shadow: var(--well-shadow); color: var(--ink); font: 400 11px/16px var(--mono); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.foot { padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+
+/* a planet's page, to judge the sky behind real things */
+.box { position: relative; border-radius: 12px; border: 1px solid color-mix(in srgb, color-mix(in oklab, var(--pc), #e4e8f2 34%) 22%, var(--edge)); background: var(--box-fill); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 12px 28px -20px rgba(0, 0, 18, 0.7); backdrop-filter: var(--box-frost); -webkit-backdrop-filter: var(--box-frost); color: var(--ink); }
+.liv { flex-direction: column; gap: 24px; min-width: 0; }
+.liv-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; padding: 16px 20px; border-radius: 20px; }
+.globe { width: 84px; height: 84px; border-radius: 50%; background: radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.5), transparent 34%), radial-gradient(circle at 34% 30%, color-mix(in oklab, var(--pc), #fff 22%), var(--pc) 46%, color-mix(in oklab, var(--pc), #04071a 78%) 96%); box-shadow: inset -8px -10px 18px rgba(0, 0, 20, 0.55), 0 10px 24px -10px rgba(0, 0, 18, 0.8); }
+.liv-title { font: 700 26px/32px var(--sans); letter-spacing: -0.01em; color: var(--ink); }
+.t-fact { font: 400 11px/16px var(--mono); color: var(--ink-3); }
+.t-cap { font: 400 12px/16px var(--sans); color: var(--ink-2); }
+.sec-head { display: flex; align-items: baseline; gap: 8px; text-shadow: var(--sky-shadow); }
+.sec-head b { font: 500 13px/16px var(--sans); color: var(--ink-2); }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.cell { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cell > .box, .cell > .pic { aspect-ratio: 1 / 1; }
+.cell > .t-cap { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--sky-shadow); }
+.note { padding: 16px; overflow: hidden; font: 400 14px/22px var(--sans); }
+.pic { border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--edge), 0 12px 28px -20px rgba(0, 0, 18, 0.7); background: linear-gradient(180deg, #27255c, #8a4a78 45%, #ef8a5c 62%, #3a3a6e 64%, #151a3c); }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  .panel { position: static; max-height: none; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  h1 { font-size: 26px; line-height: 32px; }
+  .bar .where { display: none; }
+  .stage, .stage canvas { min-height: 0; height: 380px; }
+  .stage[data-show="page"] { height: auto; }
+}
+</style>
+
+<canvas id="sky" aria-hidden="true"></canvas>
+
+<div class="bar">
+  <span class="wordmark">mutt</span>
+  <span class="where">Sky board · design session 1 of 8</span>
+  <span class="gap"></span>
+  <span class="val">Sky colour</span>
+  <span class="dots">
+    <button class="dot" style="--a:#06123f;--b:#2f6bff" data-setsky="vita" aria-pressed="true" aria-label="Vita sky" title="Vita"></button>
+    <button class="dot" style="--a:#160a3d;--b:#8f6bf0" data-setsky="nebula" aria-pressed="false" aria-label="Nebula sky" title="Nebula"></button>
+    <button class="dot" style="--a:#03212e;--b:#2fbf9f" data-setsky="aurora" aria-pressed="false" aria-label="Aurora sky" title="Aurora"></button>
+    <button class="dot" style="--a:#26092e;--b:#e0727f" data-setsky="dusk" aria-pressed="false" aria-label="Dusk sky" title="Dusk"></button>
+  </span>
+</div>
+
+<main>
+  <div class="left">
+    <div class="intro">
+      <h1>A sky that moves</h1>
+      <p>Round two. Your mix is loaded (river, a hint of light, fringed stars in mixed colours, old film grain, slow) with the three things you asked for:</p>
+      <p><strong>Stars.</strong> Most are now small soft points that gather where the dust is. Only a handful flare, and each of those has its own size, tilt and arm lengths, so no two match.<br><strong>Light.</strong> Instead of rainbow bands, the sky is treated as the surface of a dark liquid lit from above, as in your picture: a pale sheen on the folds, and colour only as a thin line where each highlight ends.<br><strong>The universe.</strong> No stars. Four small effects to choose from, each tied to the galaxies themselves.</p>
+      <p class="val" id="nogl" hidden>This browser can't draw the live sky, so the options show as plain colour here. Open the board in Chrome or Safari on a computer.</p>
+    </div>
+
+    <div class="group"><span class="lab onsky">Over your galaxy</span><div class="presets" id="presets"></div></div>
+    <div class="group"><span class="lab onsky">In the universe, instead of stars</span><div class="presets" id="unis"></div></div>
+
+    <div class="stagehead onsky">
+      <span class="lab">Show on it</span>
+      <span class="seg" data-knob="show"><button data-v="galaxy">Your galaxy</button><button data-v="page">A planet's page</button><button data-v="universe">The universe</button><button data-v="sky">Sky only</button></span>
+    </div>
+    <div class="stage" id="stage" data-show="galaxy">
+      <canvas id="over"></canvas>
+      <div class="liv">
+        <div class="liv-head box"><div class="globe"></div><div><div class="liv-title">Postcards</div><div style="color:var(--ink-3)">Add a note</div><div class="t-fact" style="margin-top:4px">3 files · just now · Public</div></div></div>
+        <div class="sec-head"><b>Files</b><span class="t-fact">3</span></div>
+        <div class="grid">
+          <div class="cell"><div class="box note" style="color:var(--ink-3)">Type, paste or drop</div><div class="t-cap">&nbsp;</div></div>
+          <div class="cell"><div class="pic"></div><div class="t-cap">pier-at-dusk.jpg</div></div>
+          <div class="cell"><div class="box note">wish you were here. The water was colder than it looks and the chips were better than they had any right to be.</div><div class="t-cap">&nbsp;</div></div>
+          <div class="cell"><div class="box note" style="display:flex;flex-direction:column;justify-content:flex-end;gap:8px"><span class="t-fact">postalmuseum.example</span><b style="font:500 16px/22px var(--sans)">A short history of the seaside postcard</b></div><div class="t-cap">A short history of the seaside postcard</div></div>
+        </div>
+      </div>
+    </div>
+    <p class="val onsky">The void and planets are rough stand-ins for scale. The live sky will be made lighter on the computer when it is built for real (session 7); here it is drawn the simple, heavy way.</p>
+  </div>
+
+  <div class="panel" id="panel">
+    <h2>Dials</h2>
+    <div id="knobs" style="display:flex;flex-direction:column;gap:16px"></div>
+    <div class="row"><button class="btn" id="ff" aria-pressed="false">Fast-forward</button><span class="val">a few minutes in seconds</span></div>
+    <div class="foot">
+      <span class="lab">Your sky</span>
+      <textarea id="out" readonly aria-label="Your sky as text"></textarea>
+      <div class="row"><button class="btn btn-main" id="copy">Copy my sky</button><span class="val" id="copied" aria-live="polite"></span></div>
+    </div>
+  </div>
+</main>
+
+<script id="frag" type="x-shader/x-fragment">
+#ifdef GL_OES_standard_derivatives
+#extension GL_OES_standard_derivatives : enable
+#endif
+precision highp float;
+uniform vec2 uRes; uniform float uT, uTw, uPx;
+uniform vec3 cTop, cDeep, cMid, cLow;
+uniform float uPrism, uFringe, uSpike, uBloom, uGrain, uFilm, uShape, uUni, uWarm, uStyle, uCount, uFx;
+uniform vec2 uN[12];
+
+float h21(vec2 p) { vec3 a = fract(vec3(p.xyx) * .1031); a += dot(a, a.yzx + 33.33); return fract((a.x + a.y) * a.z); }
+vec2 h22(vec2 p) { float n = h21(p); return vec2(n, h21(p + n + 17.1)); }
+float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(h21(i), h21(i + vec2(1., 0.)), f.x), mix(h21(i + vec2(0., 1.)), h21(i + vec2(1., 1.)), f.x), f.y); }
+float fbm(vec2 p) { float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + vec2(17.3, 9.1); a *= .5; } return s / .9375; }
+float fbm2(vec2 p) { return (vn(p) + .45 * vn(p * 2.1 + vec2(9.3, 4.1))) / 1.45; }
+// across a fold: red, a pale hot core, green, blue, violet
+vec3 ramp(float x) {
+  vec3 c = mix(vec3(0.), vec3(1., .1, .2), smoothstep(0., .15, x));
+  c = mix(c, vec3(1., .6, .1), smoothstep(.15, .3, x));
+  c = mix(c, vec3(1., .98, .78), smoothstep(.3, .42, x));
+  c = mix(c, vec3(.2, 1., .45), smoothstep(.42, .56, x));
+  c = mix(c, vec3(.1, .72, 1.), smoothstep(.56, .7, x));
+  c = mix(c, vec3(.42, .3, 1.), smoothstep(.7, .85, x));
+  return mix(c, vec3(0.), smoothstep(.85, 1., x));
+}
+float stipple(vec2 sp, float size, float den, float seed) {
+  vec2 cell = floor(sp / size) + seed, cf = fract(sp / size);
+  float th = h21(cell + 3.7), rad = mix(.16, .3, h21(cell + 9.1));
+  return smoothstep(th - .07, th + .07, den) * smoothstep(rad, rad - .16, length(cf - (.2 + .6 * h22(cell)))) * mix(.22, .8, h21(cell + 5.3));
+}
+vec3 tintOf(float k) {
+  vec3 c = k < .34 ? vec3(1.) : k < .54 ? vec3(1., .74, .5) : k < .74 ? vec3(.62, .8, 1.) : k < .88 ? vec3(1., .72, .9) : vec3(.6, 1., .9);
+  return mix(vec3(1.), c, uWarm);
+}
+// most stars: small soft points, more of them where the dust is
+vec3 smallStars(vec2 sp, float dust) {
+  vec2 id = floor(sp / 44.); vec3 acc = vec3(0.);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 c = id + vec2(float(x), float(y));
+    if (h21(c + 11.3) > (.05 + .42 * dust) * (.35 + 1.3 * uCount)) continue;
+    vec2 d = sp - (c + .15 + .7 * h22(c)) * 44.;
+    float m = h21(c + 2.9), size = .7 + 1.1 * m * m, r2 = dot(d, d);
+    float tw = .82 + .18 * sin(uTw * (.3 + 1.2 * h21(c + 7.)) + 6.283 * h21(c + 1.3));
+    acc += (exp(-r2 / (size * size)) + uBloom * .12 * exp(-sqrt(r2) / (1.6 + 2. * m))) * tw * (.22 + .55 * m) * tintOf(h21(c + 5.5));
+  }
+  return acc;
+}
+// a few flares: each its own size, tilt and arm lengths
+vec3 flares(vec2 sp) {
+  vec2 id = floor(sp / 210.); vec3 acc = vec3(0.);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 c = id + vec2(float(x), float(y));
+    if (h21(c + 4.1) > .1 + .34 * uCount) continue;
+    vec2 d = sp - (c + .2 + .6 * h22(c + 8.)) * 210.;
+    float m = .3 + .7 * pow(h21(c + 6.6), 1.7), r = length(d);
+    float ang = (h21(c + 9.9) < .3 ? .7854 : 0.) + (h21(c + 2.2) - .5) * .22, ca = cos(ang), sa = sin(ang);
+    vec2 e = vec2(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
+    float len = (5. + 30. * m) * (.6 + .8 * h21(c + 3.3)), len2 = len * (.45 + .55 * h21(c + 1.1));
+    float spike = uSpike * m * .75 * (exp(-abs(e.x) / len) * exp(-e.y * e.y / .5) + exp(-abs(e.y) / len2) * exp(-e.x * e.x / .5));
+    float size = .9 + 1.5 * m;
+    float core = exp(-r * r / (size * size)), halo = uBloom * m * .3 * exp(-r / (3. + 10. * m));
+    float tw = .86 + .14 * sin(uTw * (.2 + .5 * h21(c + 7.)) + 6.283 * h21(c + 1.3));
+    acc += (core + halo + spike) * tw * (.4 + .5 * m) * tintOf(h21(c + 5.5));
+  }
+  return acc;
+}
+float seg(vec2 a, vec2 b, vec2 x, out float along) { vec2 ab = b - a; float k = clamp(dot(x - a, ab) / dot(ab, ab), 0., 1.); along = k * length(ab); return length(x - a - ab * k); }
+float edge(float v) {
+#ifdef GL_OES_standard_derivatives
+  return max(length(vec2(dFdx(v), dFdy(v))) * uPx, .0004);
+#else
+  return .003;
+#endif
+}
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes; uv.y = 1. - uv.y;
+  float asp = uRes.x / uRes.y;
+  vec2 p = vec2(uv.x * asp, uv.y) * 1.5;
+  float t = uT;
+  // one slow liquid field drives everything, so the parts move together
+  vec2 q = vec2(fbm(p + vec2(0., t * .05)), fbm(p + vec2(5.2, 1.3) - vec2(t * .04, 0.)));
+  vec2 r = vec2(fbm(p + 2.6 * q + vec2(1.7, 9.2) + t * .03), fbm(p + 2.6 * q + vec2(8.3, 2.8) - t * .025));
+  float f = fbm(p + 2.6 * r);
+  float glit = .6 + .8 * h21(gl_FragCoord.xy);
+
+  // the ground: the deeper floor, or the black of the universe
+  vec3 cA = mix(cMid, cDeep, .5), cB = mix(mix(cMid, cLow, .3), cDeep, .45);
+  vec3 col = uv.y < .34 ? mix(cTop, cDeep, uv.y / .34) : uv.y < .78 ? mix(cDeep, cA, (uv.y - .34) / .44) : mix(cA, cB, (uv.y - .78) / .22);
+  col = mix(col, cLow, clamp(1. - length((uv - vec2(.12, 1.12)) / vec2(1.3, .85)) / .62, 0., 1.) * .46);
+  vec3 night = mix(vec3(.027, .035, .078), vec3(0., 0., .008), clamp(length((uv - vec2(.5, .55)) * vec2(asp, 1.)) / .9, 0., 1.));
+  col = mix(col, night, uUni);
+
+  // where the dust is, over the galaxy
+  float dd = uv.y - (.8 - .58 * uv.x) + (r.x - .5) * .34;
+  float river = exp(-dd * dd / .017) * (.5 + .7 * f);
+  vec2 c = (uv - vec2(.5, .5)) * vec2(asp, 1.);
+  float rho = length(c) + 1e-4;
+  float arm = cos(2. * atan(c.y, c.x) - 6.5 * log(rho + .06) + t * .07 + 3. * (r.y - .5));
+  float spiral = smoothstep(.1, 1., arm) * exp(-rho * 1.25) * 1.5 * smoothstep(.14, .3, rho) * (.6 + .6 * f);
+  float drifts = smoothstep(.42, .78, f) * .85;
+  float dust = uShape < .5 ? river : uShape < 1.5 ? spiral : drifts;
+  float cut = smoothstep(.022, .075, abs(fbm(p * 1.25 + 2.2 * q + 31.) - .5));
+  float fl = max(0., (uv.y - .5) / .5); fl = fl * fl * (1. - .45 * uv.x) * .55;
+  float den = .006 + .9 * dust * cut + .16 * fl * cut;
+
+  // the universe has no stars: each galaxy sits in its own knot of dots, and one small effect joins them
+  vec3 ulight = vec3(0.);
+  if (uUni > .5) {
+    vec2 xa = vec2(uv.x * asp, uv.y) + .018 * (q - .5);
+    float hgt = 0.; den = .003;
+    for (int i = 0; i < 12; i++) {
+      vec2 n = vec2(uN[i].x * asp, uN[i].y), dv = xa - n;
+      float d = length(dv), fi = float(i), al;
+      den += .5 * exp(-d * d / .0016);
+      if (uFx < .5) {
+        if (i - (i / 4) * 4 < 3) { float ds = seg(n, vec2(uN[i + 1].x * asp, uN[i + 1].y), xa, al), bead = pow(.5 + .5 * sin(al * 42. - t * 2.2 + fi * 1.7), 10.);
+          den += exp(-ds * ds / .00012) * (.34 + .6 * bead); ulight += vec3(.8, .82, 1.) * (exp(-ds * ds / .000006) * .16 + exp(-ds * ds / .00004) * bead * .5); }
+        if (i < 8) { float ds = seg(n, vec2(uN[i + 4].x * asp, uN[i + 4].y), xa, al), bead = pow(.5 + .5 * sin(al * 42. + t * 1.8 + fi * 2.3), 10.);
+          den += exp(-ds * ds / .00012) * (.34 + .6 * bead); ulight += vec3(.8, .82, 1.) * (exp(-ds * ds / .000006) * .16 + exp(-ds * ds / .00004) * bead * .5); }
+      } else if (uFx < 1.5) {
+        float tilt = h21(vec2(fi, 3.)) * 3.14, ct = cos(tilt), st = sin(tilt);
+        vec2 e = vec2(dv.x * ct + dv.y * st, (-dv.x * st + dv.y * ct) * 1.6);
+        float re = length(e), an = atan(e.y, e.x);
+        for (int k = 0; k < 3; k++) {
+          float fk = float(k), rk = .04 + .032 * fk + .004 * sin(t * .6 + fi + fk * 2.);
+          float arc = smoothstep(-.2, .6, sin(an * (1. + fk) + t * (.25 - .2 * fk) + fi * 1.3));
+          float s = (re - rk) / .003;
+          ulight += ramp(.5 + .5 * clamp(s, -1., 1.)) * arc * (.75 - .2 * fk);
+          den += .45 * exp(-s * s * .06) * arc;
+        }
+      } else if (uFx < 2.5) {
+        hgt += pow(.5 + .5 * sin(d * 64. - t * 2. + fi * 2.1), 22.) * exp(-d * 10.) * smoothstep(.025, .06, d);
+      }
+    }
+    if (uFx > 1.5 && uFx < 2.5) { ulight += vec3(.72, .78, 1.) * min(hgt, 1.) * .5; den += .5 * min(hgt, 1.); }
+  }
+
+  // the print: two dot screens at different sizes and angles
+  vec2 sp = gl_FragCoord.xy / uPx;
+  float dn = min(den, .62);
+  float dotA = max(stipple(sp, 2.7, dn, 0.), stipple(mat2(.891, .454, -.454, .891) * sp, 3.4, dn * .8, 40.));
+  col = mix(col, mix(mix(cLow, vec3(1.), .72), vec3(.93, .92, .98), uUni), dotA);
+  col += ulight * glit * .8;
+
+  // a hint of light on the liquid
+  float amt = uUni > .5 ? (uFx > 2.5 ? .75 : 0.) : uPrism;
+  if (amt > 0.) {
+    float mask = smoothstep(.56 - .4 * amt, .74 - .4 * amt, fbm2(p * 1.3 + vec2(40., t * .012)));
+    if (uStyle > .5 || uUni > .5) {
+      // the surface of a dark liquid, lit from above: pale sheen on the slopes that face the light,
+      // and the colours only as a thin line where each highlight ends
+      vec2 pp = vec2(p.x * .45, p.y) * 2.3 + .45 * q + vec2(t * .012, 3.);
+      float h0 = fbm2(pp), v = clamp(.5 + dot(vec2(fbm2(pp + vec2(.03, 0.)) - h0, fbm2(pp + vec2(0., .03)) - h0) / .03, vec2(-.33, -.94)) * .55, 0., 1.);
+      float gw = edge(v), th = mix(1.6, 7., vn(p * .9 + vec2(11., t * .01)));
+      vec3 pearl = mix(vec3(.72, .8, 1.), vec3(1., .93, .78), smoothstep(.72, 1., v));
+      vec3 li = pearl * pow(smoothstep(.5, .92, v), 1.3) * (.2 + .4 * amt);
+      li += (ramp(.5 + .5 * clamp((v - .6) / (gw * th), -1., 1.)) + .6 * ramp(.5 + .5 * clamp((.34 - v) / (gw * th * 1.2), -1., 1.))) * (.4 + .7 * amt) * (.3 + .7 * smoothstep(.3, .7, vn(p * 2.3 + vec2(t * .02, 7.))));
+      li += vec3(.25, .2, .9) * smoothstep(.32, .05, v) * .2 * amt;
+      col += li * mask * glit * (1. - .5 * col);
+    } else {
+      float g = fbm2(p * .55 + .4 * q + vec2(3., t * .016));
+      float gw = edge(g), thick = mix(5., 15., vn(p * .7 + vec2(11., t * .01)));
+      vec3 pl = ramp(.5 + .5 * clamp((g - .43) / (gw * thick), -1., 1.)) + ramp(.5 + .5 * clamp((.6 - g) / (gw * thick * 1.3), -1., 1.));
+      col += pl * mask * (.35 + .65 * amt) * glit * (1. - .55 * col) * .85;
+    }
+  }
+
+  // stars belong to the galaxy only
+  if (uUni < .5) {
+    col += smallStars(sp, dust * cut);
+    if (uFringe > 0.) { vec2 off = uFringe * vec2(2.1, .8); col += vec3(flares(sp + off).r, flares(sp).g, flares(sp - off).b); }
+    else col += flares(sp);
+  }
+
+  // the film
+  col = mix(col, vec3(dot(col, vec3(.3, .59, .11))), .1 * uFilm);
+  col = col * mix(vec3(1.), vec3(1.05, 1., .93), uFilm) + vec3(.012, .02, .017) * uFilm;
+  col += (h21(gl_FragCoord.xy * .71 + floor(uTw * 6.) * uFilm * vec2(37., 17.)) - .5) * (.02 + .075 * uGrain);
+  gl_FragColor = vec4(clamp(col, 0., 1.), 1.);
+}
+</script>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var $ = function (s, el) { return (el || document).querySelector(s); };
+  var $$ = function (s, el) { return Array.prototype.slice.call((el || document).querySelectorAll(s)); };
+
+  var KNOBS = [
+    { k: 'light', label: 'Light on the liquid', o: [['liquid', 'Liquid sheen'], ['bands', 'Rainbow bands']] },
+    { k: 'prism', label: 'How much of it', o: [['0', 'None'], ['1', 'A hint'], ['2', 'Some'], ['3', 'A lot']] },
+    { k: 'count', label: 'How many stars', o: [['few', 'Few'], ['some', 'Some'], ['many', 'Many']] },
+    { k: 'stars', label: 'The few big ones', o: [['dots', 'Plain'], ['glints', 'Glints'], ['fringed', 'Fringed'], ['fuzzy', 'Fuzzy']] },
+    { k: 'tint', label: 'Star colour', o: [['white', 'White'], ['mixed', 'Mixed']] },
+    { k: 'shape', label: 'Where the dust gathers', o: [['river', 'River'], ['spiral', 'Spiral'], ['drifts', 'Drifts']] },
+    { k: 'grain', label: 'Grain', o: [['clean', 'Clean'], ['fine', 'Fine'], ['film', 'Old film']] },
+    { k: 'move', label: 'Movement', o: [['still', 'Still'], ['slow', 'Slow'], ['lively', 'Livelier']] },
+    { k: 'uni', label: 'In the universe', o: [['threads', 'Threads'], ['rings', 'Rings'], ['ripples', 'Ripples'], ['sheen', 'Sheen']] }
+  ];
+  var PRESETS = [
+    { id: 'a', name: 'The decided sky', why: 'What you settled on: dust in a river, a hint of liquid light, many mixed stars with a few fringed flares, old film grain.', light: 'liquid', prism: '1', count: 'many', stars: 'fringed', tint: 'mixed', shape: 'river', grain: 'film' },
+    { id: 'b', name: 'Quieter still', why: 'Fewer stars, and the big ones lose their colour fringes. The sky steps back behind your files.', light: 'liquid', prism: '1', count: 'few', stars: 'glints', tint: 'mixed', shape: 'river', grain: 'film' },
+    { id: 'c', name: 'More liquid', why: 'The same, with the light turned up a step: more sheen, more thin colour along the folds.', light: 'liquid', prism: '2', count: 'some', stars: 'fringed', tint: 'mixed', shape: 'river', grain: 'film' },
+    { id: 'd', name: 'Last time', why: 'Roughly what you had before, to compare: broad rainbow bands and many stars.', light: 'bands', prism: '1', count: 'many', stars: 'fringed', tint: 'mixed', shape: 'river', grain: 'film' }
+  ];
+  var UNIS = [
+    { id: 'threads', name: 'Threads (decided)', why: 'Dotted threads join neighbouring galaxies, and small pulses of light travel along them. Everyone is connected, which is what Mutt is for.' },
+    { id: 'rings', name: 'Rings', why: 'Each galaxy wears a few broken rings with colour on their rims, slowly turning, like the oval in your picture.' },
+    { id: 'ripples', name: 'Ripples', why: 'Every galaxy sends slow rings out across black water. Where two sets meet, they cross.' },
+    { id: 'sheen', name: 'Sheen', why: 'The universe is the dark liquid itself, with galaxies floating on it and light sliding across.' }
+  ];
+  var STARS = { dots: [0, 0.15, 0], glints: [0.9, 0.55, 0], fringed: [1, 0.75, 1], fuzzy: [0.4, 1.7, 1.2] };
+  var PRISM = [0, 0.3, 0.6, 1], SPEED = { still: 0, slow: 0.15, lively: 0.45 }, SHAPE = { river: 0, spiral: 1, drifts: 2 };
+  var COUNT = { few: 0.12, some: 0.5, many: 1 }, FX = { threads: 0, rings: 1, ripples: 2, sheen: 3 };
+
+  var KEY = 'mutt-sky-board-2', state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var dflt = PRESETS[0];
+  KNOBS.forEach(function (kn) {
+    if (kn.o.some(function (o) { return o[0] === state[kn.k]; })) return;
+    state[kn.k] = kn.k === 'move' ? (still ? 'still' : 'slow') : kn.k === 'uni' ? 'threads' : dflt[kn.k];
+  });
+  if (['galaxy', 'page', 'universe', 'sky'].indexOf(state.show) < 0) state.show = 'galaxy';
+  if (['vita', 'nebula', 'aurora', 'dusk'].indexOf(state.sky) < 0) state.sky = 'vita';
+  var qs = {}; location.search.replace(/[?&]([^=&]+)=([^&]*)/g, function (m, k, v) { qs[k] = v; });
+  if (qs.p) { var pp = PRESETS.filter(function (p) { return p.id === qs.p; })[0]; if (pp) KNOBS.forEach(function (kn) { if (pp[kn.k]) state[kn.k] = pp[kn.k]; }); }
+  if (qs.show) state.show = qs.show;
+  if (qs.uni) state.uni = qs.uni;
+
+  // ---- build the controls
+  function cards(host, list, attr) {
+    list.forEach(function (p) {
+      var b = document.createElement('button'); b.className = 'preset'; b.setAttribute('data-' + attr, p.id);
+      b.innerHTML = '<canvas width="340" height="212"></canvas><b></b><span></span>';
+      $('b', b).textContent = p.name; if (p.pick) { var em = document.createElement('em'); em.textContent = 'my pick'; $('b', b).appendChild(em); }
+      $('span', b).textContent = p.why; host.appendChild(b);
+    });
+  }
+  cards($('#presets'), PRESETS, 'preset'); cards($('#unis'), UNIS, 'unifx');
+  var kb = $('#knobs');
+  KNOBS.forEach(function (kn) {
+    var d = document.createElement('div'); d.className = 'knob';
+    var l = document.createElement('span'); l.className = 'lab'; l.textContent = kn.label; d.appendChild(l);
+    var s = document.createElement('span'); s.className = 'seg'; s.dataset.knob = kn.k;
+    kn.o.forEach(function (o) { var b = document.createElement('button'); b.dataset.v = o[0]; b.textContent = o[1]; s.appendChild(b); });
+    d.appendChild(s); kb.appendChild(d);
+  });
+
+  function matchPreset() { return PRESETS.filter(function (p) { return KNOBS.every(function (kn) { return !p[kn.k] || p[kn.k] === state[kn.k]; }); })[0]; }
+  function sync() {
+    $$('[data-knob]').forEach(function (s) { $$('button', s).forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === state[s.dataset.knob])); }); });
+    var mp = matchPreset();
+    $$('[data-preset]').forEach(function (b) { b.setAttribute('aria-pressed', String(!!mp && mp.id === b.dataset.preset)); });
+    $$('[data-unifx]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.unifx === state.uni)); });
+    $$('[data-setsky]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.setsky === state.sky)); });
+    root.setAttribute('data-sky', state.sky);
+    $('#stage').dataset.show = state.show;
+    var words = KNOBS.map(function (kn) { var o = kn.o.filter(function (x) { return x[0] === state[kn.k]; })[0]; return kn.label.toLowerCase() + ': ' + o[1].toLowerCase(); });
+    $('#out').value = 'Sky board, round two. ' + (mp ? 'Option ' + mp.id.toUpperCase() + ', ' + mp.name + ', as it is' : 'My own mix') + '. ' + words.join('; ') + '.';
+    save(); readSky(); paintOver(); dirty = true;
+  }
+  document.addEventListener('click', function (e) {
+    var p = e.target.closest('[data-preset]');
+    if (p) { var ps = PRESETS.filter(function (x) { return x.id === p.dataset.preset; })[0]; KNOBS.forEach(function (kn) { if (ps[kn.k]) state[kn.k] = ps[kn.k]; }); if (state.show === 'universe') state.show = 'galaxy'; sync(); return; }
+    var u = e.target.closest('[data-unifx]');
+    if (u) { state.uni = u.dataset.unifx; state.show = 'universe'; sync(); $('#stage').scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' }); return; }
+    var sb = e.target.closest('[data-knob] button');
+    if (sb) { state[sb.parentNode.dataset.knob] = sb.dataset.v; if (sb.parentNode.dataset.knob === 'uni') state.show = 'universe'; sync(); return; }
+    var sd = e.target.closest('[data-setsky]');
+    if (sd) { state.sky = sd.dataset.setsky; sync(); thumbs(); return; }
+  });
+  var ff = false;
+  $('#ff').addEventListener('click', function () { ff = !ff; this.setAttribute('aria-pressed', String(ff)); });
+  $('#copy').addEventListener('click', function () {
+    var t = $('#out'), done = function (ok) { $('#copied').textContent = ok ? 'Copied' : 'Selected: press copy on your keyboard'; };
+    function fallback() { t.focus(); t.select(); done(false); }
+    try { navigator.clipboard.writeText(t.value).then(function () { done(true); }, fallback); } catch (err) { fallback(); }
+  });
+
+  // ---- the live sky
+  function col(s) { s = String(s).trim(); if (s[0] === '#') return [parseInt(s.slice(1, 3), 16) / 255, parseInt(s.slice(3, 5), 16) / 255, parseInt(s.slice(5, 7), 16) / 255]; var m = s.match(/[\d.]+/g) || [0, 0, 0]; return [m[0] / 255, m[1] / 255, m[2] / 255]; }
+  var SKY = {};
+  function readSky() { var cs = getComputedStyle(root); ['top', 'deep', 'mid', 'low'].forEach(function (n) { SKY[n] = col(cs.getPropertyValue('--sky-' + n)); }); }
+  var cv = $('#sky'), gl = null, U = {}, dirty = true;
+  try { gl = cv.getContext('webgl', { antialias: false, alpha: false }) || cv.getContext('experimental-webgl'); } catch (e) { gl = null; }
+  if (gl) {
+    gl.getExtension('OES_standard_derivatives');
+    var sh = function (type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error('SHADER ' + gl.getShaderInfoLog(s)); return null; } return s; };
+    var vs = sh(gl.VERTEX_SHADER, 'attribute vec2 a; void main(){ gl_Position = vec4(a, 0., 1.); }'), fs = sh(gl.FRAGMENT_SHADER, $('#frag').textContent.replace(/^\s+/, ''));
+    var prog = gl.createProgram();
+    if (vs && fs) { gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); }
+    if (!vs || !fs || !gl.getProgramParameter(prog, gl.LINK_STATUS)) gl = null;
+    else {
+      gl.useProgram(prog);
+      var buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      var loc = gl.getAttribLocation(prog, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      ['uRes', 'uT', 'uTw', 'uPx', 'cTop', 'cDeep', 'cMid', 'cLow', 'uPrism', 'uFringe', 'uSpike', 'uBloom', 'uGrain', 'uFilm', 'uShape', 'uUni', 'uWarm', 'uStyle', 'uCount', 'uFx'].forEach(function (n) { U[n] = gl.getUniformLocation(prog, n); });
+      U.uN = gl.getUniformLocation(prog, 'uN[0]');
+    }
+  }
+  if (!gl) $('#nogl').hidden = false;
+  var NODES = new Float32Array(24);
+  function draw(S, t, tw, px, uni) {
+    var st = STARS[S.stars];
+    gl.viewport(0, 0, cv.width, cv.height);
+    gl.uniform2f(U.uRes, cv.width, cv.height); gl.uniform1f(U.uT, t); gl.uniform1f(U.uTw, tw); gl.uniform1f(U.uPx, px);
+    gl.uniform3fv(U.cTop, SKY.top); gl.uniform3fv(U.cDeep, SKY.deep); gl.uniform3fv(U.cMid, SKY.mid); gl.uniform3fv(U.cLow, SKY.low);
+    gl.uniform1f(U.uPrism, PRISM[+S.prism]); gl.uniform1f(U.uSpike, st[0]); gl.uniform1f(U.uBloom, st[1]); gl.uniform1f(U.uFringe, st[2]);
+    gl.uniform1f(U.uGrain, S.grain === 'clean' ? 0 : S.grain === 'fine' ? 0.45 : 1); gl.uniform1f(U.uFilm, S.grain === 'film' ? 1 : 0);
+    gl.uniform1f(U.uShape, SHAPE[S.shape]); gl.uniform1f(U.uUni, uni ? 1 : 0); gl.uniform1f(U.uWarm, S.tint === 'mixed' ? 1 : 0);
+    gl.uniform1f(U.uStyle, S.light === 'liquid' ? 1 : 0); gl.uniform1f(U.uCount, COUNT[S.count]); gl.uniform1f(U.uFx, FX[S.uni]);
+    gl.uniform2fv(U.uN, NODES);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  function fit() {
+    var d = Math.min(window.devicePixelRatio || 1, 1.5), w = Math.round(cv.clientWidth * d), h = Math.round(cv.clientHeight * d);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; dirty = true; }
+    return d;
+  }
+  function rng(seed) { return function () { seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  // twelve galaxies, four across: where they sit inside a box of this size
+  function uniNodes(w, h) { var R = rng(77), out = []; for (var j = 0; j < 3; j++) for (var i = 0; i < 4; i++) out.push([(i + 0.5 + (R() - 0.5) * 0.45) / 4 * w, (j + 0.5 + (R() - 0.5) * 0.4) / 3 * h]); return out; }
+  function placeNodes() {
+    var o = $('#over'), b = o.getBoundingClientRect(), w = cv.clientWidth, h = cv.clientHeight;
+    uniNodes(b.width, b.height).forEach(function (n, i) { NODES[i * 2] = (b.left + n[0]) / w; NODES[i * 2 + 1] = (b.top + n[1]) / h; });
+  }
+  var T = qs.t ? +qs.t : 24, TW = 0, last = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!gl || document.hidden) return;
+    var dt = Math.min(0.1, (now - last) / 1000); if (dt < 1 / 32) return; last = now;
+    var sp = ff ? 5 : SPEED[state.move];
+    if (sp > 0) { T += dt * sp; TW += dt; dirty = true; }
+    var d = fit(); if (!dirty) return; dirty = false;
+    var uni = state.show === 'universe'; if (uni) placeNodes();
+    draw(state, T, TW, d, uni);
+  }
+  // a still of each option, drawn once with the same painter
+  function thumbs() {
+    if (!gl) return;
+    readSky();
+    var w0 = cv.width, h0 = cv.height, keep = new Float32Array(NODES);
+    cv.width = 340; cv.height = 212;
+    $$('[data-preset]').forEach(function (b) {
+      var ps = PRESETS.filter(function (x) { return x.id === b.dataset.preset; })[0], S = {}; Object.keys(state).forEach(function (k) { S[k] = ps[k] || state[k]; });
+      draw(S, 24, 0, 1, false); $('canvas', b).getContext('2d').drawImage(cv, 0, 0, 340, 212);
+    });
+    var tn = uniNodes(340, 212); tn.forEach(function (n, i) { NODES[i * 2] = n[0] / 340; NODES[i * 2 + 1] = n[1] / 212; });
+    $$('[data-unifx]').forEach(function (b) {
+      var S = {}; Object.keys(state).forEach(function (k) { S[k] = state[k]; }); S.uni = b.dataset.unifx;
+      var g = $('canvas', b).getContext('2d'); draw(S, 24, 0, 1, true); g.drawImage(cv, 0, 0, 340, 212);
+      tn.forEach(function (n, i) { for (var k = 0; k < 3; k++) { g.fillStyle = DOTS[(i * 3 + k) % DOTS.length]; g.beginPath(); g.arc(n[0] + Math.cos(i + k * 2.1) * 7, n[1] + Math.sin(i + k * 2.1) * 5, 1.6, 0, TAU); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(n[0], n[1], 1.6, 0, TAU); g.fill(); });
+    });
+    NODES.set(keep); cv.width = w0; cv.height = h0; dirty = true;
+  }
+
+  // ---- stand-ins on the stage: the void and planets, or everyone's galaxies
+  var TAU = Math.PI * 2;
+  var WORLDS = [[0, 168, '#00B2C6', 'Postcards'], [0, 12, '#FFB020', 'Shopping'], [1, 214, '#bcd3e2', 'Recipes to try'], [1, 142, '#c69563', 'Library'], [1, -34, '#A66BFF', 'Essays'], [1, 36, '#14B86A', 'Drafts']];
+  var DOTS = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240'];
+  function paintOver() {
+    var c = $('#over'), w = c.clientWidth, h = c.clientHeight; if (!w || !h) return;
+    var d = Math.min(window.devicePixelRatio || 1, 2); c.width = Math.round(w * d); c.height = Math.round(h * d);
+    var g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
+    function hex(s) { return [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]; }
+    function mixc(a, b, t) { return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * t) + ',' + Math.round(a[1] + (b[1] - a[1]) * t) + ',' + Math.round(a[2] + (b[2] - a[2]) * t) + ')'; }
+    function sphere(x, y, r, s) {
+      var k = hex(s); g.save(); g.shadowColor = 'rgba(0,0,18,.6)'; g.shadowBlur = r * 0.6; g.shadowOffsetY = r * 0.2;
+      var rg = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.05, x, y, r);
+      rg.addColorStop(0, mixc(k, [255, 255, 255], 0.45)); rg.addColorStop(0.5, mixc(k, k, 0)); rg.addColorStop(1, mixc(k, [4, 7, 26], 0.78));
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.restore();
+    }
+    if (state.show === 'galaxy') {
+      var cx = w / 2, cy = h / 2, r = Math.min(h * 0.19, w * 0.13), Q = rng(5), i, j;
+      g.fillStyle = 'rgba(6,7,16,.92)'; g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.fill();
+      for (i = 0; i < r * r * 2.4; i++) {
+        var a = Q() * TAU, q = Math.sqrt(Q()) * r * 1.12, den = q > r ? (1.12 - q / r) / 0.12 * 0.5 : 0.75;
+        if (Q() < den) { g.fillStyle = 'rgba(238,234,255,' + (0.3 + 0.6 * Q()).toFixed(2) + ')'; g.fillRect(cx + Math.cos(a) * q, cy + Math.sin(a) * q, 0.9, 0.9); }
+      }
+      var web = [];
+      for (j = 0; j < 6; j++) { var a1 = j * 1.05 + Q() * 0.6, a2 = a1 + Math.PI * (0.5 + Q() * 0.5), ca = (a1 + a2) / 2 + Math.PI * (Q() < 0.5 ? 0 : 1), cq = (0.3 + Q() * 0.6) * r; web.push([a1, a2, cx + Math.cos(ca) * cq, cy + Math.sin(ca) * cq, 0.03 + Q() * 0.03]); }
+      var strands = function (k, from) {
+        g.strokeStyle = '#07080f'; g.lineCap = 'round';
+        for (j = from; j < web.length; j++) { var s = web[j]; g.lineWidth = r * s[4] * k; g.beginPath(); g.moveTo(cx + Math.cos(s[0]) * r * 1.03, cy + Math.sin(s[0]) * r * 1.03); g.quadraticCurveTo(s[2], s[3], cx + Math.cos(s[1]) * r * 1.03, cy + Math.sin(s[1]) * r * 1.03); g.stroke(); }
+      };
+      strands(1, 0);
+      var rg = g.createRadialGradient(cx, cy, 0, cx, cy, r * 0.44); rg.addColorStop(0, '#fff'); rg.addColorStop(0.6, '#fff'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(cx, cy, r * 0.44, 0, TAU); g.fill(); strands(0.7, 4);
+      var orb = [[Math.min(w * 0.27, r * 2.6), h * 0.3], [Math.min(w * 0.44, r * 4.3), h * 0.4]];
+      g.font = '500 12px "Red Hat Text", system-ui, sans-serif'; g.textAlign = 'center';
+      WORLDS.forEach(function (p) {
+        var o = orb[p[0]], an = p[1] / 360 * TAU, x = cx + o[0] * Math.cos(an), y = cy + o[1] * Math.sin(an), pr = r * 0.4;
+        sphere(x, y, pr, p[2]);
+        g.save(); g.shadowColor = 'rgba(0,0,18,.9)'; g.shadowBlur = 4; g.shadowOffsetY = 1; g.fillStyle = '#f2f5fc'; g.fillText(p[3], x, y + pr + 18); g.restore();
+      });
+    }
+    if (state.show === 'universe') {
+      var R = rng(31), names = ['@ada', '@bo', '@cy', '@dee', '@eli', 'you', '@fen', '@gus', '@hal', '@ivy', '@jo', '@kit'];
+      g.font = '400 11px "Red Hat Mono", ui-monospace, monospace'; g.textAlign = 'center';
+      uniNodes(w, h).forEach(function (n, ni) {
+        var big = ni === 5 ? 1.4 : 1, cnt = 3 + Math.floor(R() * 3);
+        for (var k = 0; k < cnt; k++) { var aa = R() * TAU, ring = k % 2 ? 22 : 13; sphere(n[0] + Math.cos(aa) * ring * big, n[1] + Math.sin(aa) * ring * 0.66 * big, (2.2 + R() * 1.6) * big, DOTS[(ni * 3 + k) % DOTS.length]); }
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(n[0], n[1], 2.4 * big, 0, TAU); g.fill();
+        g.strokeStyle = 'rgba(10,10,20,.9)'; g.lineWidth = 1; g.beginPath(); g.ellipse(n[0], n[1], 4.6 * big, 2.2 * big, 0.6, 0, TAU); g.stroke();
+        g.fillStyle = ni === 5 ? '#f2f5fc' : '#a4b0cd'; g.fillText(names[ni], n[0], n[1] + 34 * big);
+      });
+    }
+  }
+
+  sync(); thumbs();
+  window.addEventListener('resize', function () { dirty = true; paintOver(); });
+  window.addEventListener('scroll', function () { if (state.show === 'universe') dirty = true; }, { passive: true });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(paintOver);
+  requestAnimationFrame(frame);
+})();
+</script>

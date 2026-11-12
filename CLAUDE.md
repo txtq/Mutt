@@ -12,6 +12,14 @@ The handoff notes are **one shared file: `/Users/edan/Mutt-notes/PROGRESS.md`**,
 - The notes aren't in git, so there's nothing to commit for them.
 - `/handoff` (`.claude/commands/handoff.md`) does this update on demand.
 
+## Design rule
+
+`DESIGN.md` at the repo root is the one standard for how Mutt looks and moves. Read it before touching anything a person can see.
+- Every value, material and part is named there with its number. A value, part or rule that isn't in it doesn't exist: add it there first (show the user), then build it.
+- Styling anything new follows its "How to style a new feature" recipe, step by step, and ends on its checklist.
+- A session that settles anything visible updates `DESIGN.md` before it ends. Design sentences live there, not here.
+- `design/` holds the drawn references: `look-board.html` and `sky-board.html`.
+
 ## What Mutt is
 
 A personal, multi-user place to keep files and connect them (like Are.na), dressed as a PS Vita–style galaxy. Login is a username plus a 6-digit code (`auth.pin_problem` turns away easy ones: repeats, runs, patterns, years; accounts from before 2026-11-11 keep signing in with 4 digits until they change it). A planet's own code (Code sharing) stays 4 digits (`auth.CODE_RE`). `README.md` covers features, env vars and hosting.
@@ -76,7 +84,7 @@ Follow these steps in order. The worked example is the portfolio (an art planet'
    - **Offer wording:** title "This planet looks like …"; `note` says in one or two sentences what will change and that nothing is lost; `accept` is the same words as `label`; `busy` is three words ending in "…". Its icon is a 40px drawing made of `<i>` strokes (like `.rp-offer-icon` in `galaxy.css`; it must be in `galaxy.css` because the offer shows before the mode's own styles load).
    - **Undo and turning off come free** if `blocks(view)` returns every file the view holds and `start` changes nothing that can't be shown as files again. The ••• menu needs `showAsFiles(page, '<key>')` last.
 5. **Write the view** in its own file (`public/assets/js/<key>.js`), a class with `el`, `list()`, `dropTarget()`, `pasteText()`, `destroy()` and a `drawer` field. Copy the shape of `ShelfView` in `reading.js`: files that aren't the mode's kind stay in a `makeCollection(...)` below, and the `bus` events (`upload:done`, `block:deleted`, `block:connected`, `block:disconnected`, `block:changed`) keep it current. Nothing else may import this file statically, or it loads on every page.
-6. **The look.** Its styles go in their own stylesheet that the view's file links when it loads (append a `<link rel="stylesheet">` once, at the top of the file), or in `galaxy.css` if small. Panels and cards use `.fglass` (never their own fill); the planet's colour only reaches edges through `--pc`. Entrances are CSS animations on the box's parts, never on a parent of the glass, and never paused. Check User preferences below.
+6. **The look.** Follow "How to style a new feature" in `DESIGN.md`, every step, and tick its checklist. Only this is particular to a mode: its styles go in their own stylesheet that the view's file links when it loads (append a `<link rel="stylesheet">` once, at the top of the file), or in `galaxy.css` if small.
 7. **Server routes** for anything the mode stores beyond its settings go in `mutt/api.py` (cookbook: `/cookify`, `/recipes`). Tables go in `db.migrate`.
 8. **Tests:** add lines to `tests/modes.sh` that print `fits`, `share` and `left` just under and just over both bars (copy the list block), a bad setting, and a moon. Run `tests/run.sh -v modes`, read the new lines, then `tests/run.sh --accept modes`. Run only the suites whose code you touched while working; the user asked not to spend usage re-running everything.
 9. **A moment mode** is `Mode('<key>', read_<key>, kind='moment', arrives='quiet', on=…, stay=…)` in `MOMENT_MODES`, where `read_<key>(text, form)` returns `{'strength': 0 to 1, 'say': 'one short line'}` from `sorting.form`'s strengths. Each place it can appear passes what its button does: `momentLine(area, { acts: { <key>: { label, run } } })` (the add box in `views/planet.js` `attachHint`, the note in `viewer.js`). It needs no page entry.
@@ -87,7 +95,7 @@ Follow these steps in order. The worked example is the portfolio (an art planet'
     - a plain planet fetches none of the mode's files (Network tab), and a planet in another mode doesn't either;
     - no sideways scroll at 375, no console errors, and Motion: Still shows everything.
     The test browser draws animations slowly when its pane is hidden; set `document.documentElement.dataset.motion = 'off'` to check behaviour, and judge motion separately.
-11. **Write it down:** a line under Architecture in this file, and the notes in `/Users/edan/Mutt-notes/PROGRESS.md`.
+11. **Write it down:** a line under Architecture in this file, anything visible it added or changed in `DESIGN.md`, and the notes in `/Users/edan/Mutt-notes/PROGRESS.md`.
 
 ## Commands
 
@@ -144,6 +152,7 @@ tests/run.sh                                         # every check; prints ~3 li
 - Motion: Still (`data-motion="off"`) and the system's reduced-motion setting run every CSS animation once in no time, so entrances land on their last frame. Never pause animations to stop them: a paused entrance stays on its first, invisible frame (that once left planet pages blank under Still).
 
 **CSS:**
+- How things look is set in `DESIGN.md` (values, materials, parts). The bullets here are only where the files are.
 - Stylesheets sit directly in `public/assets/` (there is no `css/` folder). `mutt.css` is the old base; `galaxy.css` loads after it and restyles everything through tokens on `:root`.
 - The site is dark only. Light mode (and the Mode setting) was removed on 2026-10-30; don't bring it back.
 - Don't put `position` in the shared glass rule (`.glass, .sheet, .dialog, .pop, …`). `.pop` and `.tray` must stay `position: fixed`; overriding it is what made menus open in the wrong place.
@@ -158,11 +167,8 @@ tests/run.sh                                         # every check; prints ~3 li
 
 ## User preferences
 
-- **Look and feel:** keep the PS Vita style, skeuomorphic where it helps (paper, glass, glossy controls) and minimal elsewhere. Not cartoony, and no "AI-looking" glow or effects. Clean, and dark only (no light mode).
-- **Boxes are frosted glass (2026-11-06):** every box that holds the owner's things or a feature (file boxes, the add box, lists, the list offer, and every new feature's panel) uses the shared glass in `galaxy.css` ("frosted glass: the house style for boxes"): a flat, light, see-through fill (never a gradient), a deep frost, and the planet's colour only on the edge glow. For a new feature's panel, add the `.fglass` class rather than writing its own fill. Headers (the planet's header, menus, sheets) may look a little different. Fades and blurs on entrance go on the box's parts, never on a parent of the glass (that stops the frost). Boxes slide + blur in, float gently and lean toward the pointer.
-- **Pixel touches:** pixel art is welcome as an accent only, with warm touches. Don't go "too Stardew Valley": no pixel fonts, pixel frames, pixel moon or stars. The Mutt and Vita look (rounded glass, Red Hat type, fluid motion) comes first.
-- **Login (2026-11-09):** only the dark sky and the void, no box and no pixel horizon (the user chose to drop it). The void is huge and looming (it fills the screen; on a phone its cage runs off the sides). It opens, and every word (logo, name, code) sits in dark ink on its clean white light: never put text over the void's speckled cage, the user disliked that. Round it: dust spiralling in and stars streaking toward it along the same swirl; it reacts to every key (gulps, spins up), ripples on a wrong code, and on the right code everything rushes in and the light takes the screen. It should feel ominous, like an experience. One step to start: type a name (known → its code, new → pick a code); never a "are you new?" question. Always night.
-- **The void:** a stippled black-and-white print (from the user's reference picture): a bright white light caged by dark, sinewy strands that web together where they cross, turning in 3D; stippled cells, bright at their rims and dim in the middle; faint rays; only a faint mauve tint. No crosshair lines through it. Bright places are dotted more densely, like a print. Sized in proportion to the planets, sitting straight on the sky with no dark halo round it. No orange, no pixel sparks, not realistic or painted light. Add boxes are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
+- **Look and feel:** in `DESIGN.md`, which is binding: PS Vita in character, dark only, frosted glass, the void as a stippled print, pixel art only as a small accent, not AI-looking. The earlier preferences on the look, frosted glass, pixel touches, sign-in and the void were moved there whole.
+- **Design system (decided 2026-11-11):** one standard, `DESIGN.md`. A planet's colour belongs only to that planet's own things (its boxes, header, own buttons); the account sheet, search and other shared controls stay Mutt blue on every page. Boxes are calm at rest: the slow float stays, and glow and lean belong only to the box being pointed at or typed in. Planets and the files on them, one icon set, the sky, and the logo and its loading all matter. Foundations come before visible changes; show the user what is proposed (with options) before building it; leave nothing less smooth or more broken than you found it.
 - **Simple until needed:** the base app stays extremely simple. New features show up only when a planet's use (or what you're writing) calls for them; see Direction above. Don't add always-visible buttons, menus or settings for them.
 - **Purpose:** the user's work and files are the point. Keep them central and visible (on planet surfaces, peeks, star thumbnails).
 - **Deploying:** check changes in the browser (desktop and phone width) before deploying, and keep the `classic` backup intact.

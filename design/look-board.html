@@ -1,0 +1,1181 @@
+<title>Mutt Look Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=Literata:ital,opsz,wght@0,7..72,400..600;1,7..72,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@1,9..144,500,100,1&family=Instrument+Serif&family=Syne:wght@800&family=Major+Mono+Display&family=Silkscreen&display=swap">
+<style>
+/* Layout: Mutt's own fixed sky behind one 1120px column. Specimens sit straight on the sky, as they do in Mutt;
+   each choice is a row of options with today's look first. Dark only, like Mutt. */
+:root {
+  color-scheme: dark;
+  --sans: "Red Hat Text", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sky-top: #020721; --sky-deep: #041038; --sky-mid: #0a1f6c; --sky-low: #1a56d0;
+  --ribbon: #a8d4ff; --ribbon-line: #e4f2ff;
+  --blue: #3f7cf0; --blue-ink: #8cc0ff;
+  --good: #86d9ad; --caution: #eec372; --danger: #ff8a84; --danger-fill: #e24a4a;
+  --line: rgba(190, 205, 240, 0.12); --line-2: rgba(190, 205, 240, 0.22);
+  --tint: rgba(150, 175, 240, 0.07); --tint-2: rgba(150, 175, 240, 0.13);
+  --well: rgba(0, 4, 24, 0.38); --well-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --paper: #f8f5ee; --paper-edge: #e9e4d8; --paper-ink: #1d1b18; --paper-ink-2: #5c5852; --paper-ink-3: #8f897f;
+  --pc: #2F6BFF; --pa: #2e63e5; --accent: var(--blue);
+  --shadow-rest: 0 12px 28px -20px rgba(0, 0, 18, 0.7);
+  --shadow-raised: 0 20px 40px -22px rgba(0, 0, 18, 0.8);
+  --shadow-float: 0 18px 44px -16px rgba(0, 0, 18, 0.8);
+  --shadow-overlay: 0 30px 80px -20px rgba(0, 0, 18, 0.85);
+  --settle: cubic-bezier(0.16, 1, 0.3, 1); --glide: cubic-bezier(0.4, 0, 0.2, 1); --spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+/* skies */
+[data-sky="nebula"] { --sky-top: #06021a; --sky-deep: #120734; --sky-mid: #24095f; --sky-low: #6a2cc6; --ribbon: #e3c8ff; --ribbon-line: #f6ecff; }
+[data-sky="aurora"] { --sky-top: #010a12; --sky-deep: #031a24; --sky-mid: #04313f; --sky-low: #0c7a74; --ribbon: #a6ffe4; --ribbon-line: #e6fff7; }
+[data-sky="dusk"] { --sky-top: #0b0214; --sky-deep: #1e0720; --sky-mid: #3a0b37; --sky-low: #b23e58; --ribbon: #ffd6c6; --ribbon-line: #fff1ea; }
+[data-sky="vita"] { --sky-top: #020721; --sky-deep: #041038; --sky-mid: #0a1f6c; --sky-low: #1a56d0; --ribbon: #a8d4ff; --ribbon-line: #e4f2ff; }
+
+/* ---- the choices. Each option is a set of plain values; the nearest one wins, so an option's own
+   specimen keeps its look while the rest of the board follows whichever is picked. My pick doubles as the default. */
+:root, [data-greys="b"] { --ink: #f2f5fc; --ink-2: #cbd3e8; --ink-3: #a4b0cd; --ink-4: #7f8cab; --cap: #cbd3e8; --fact: #a4b0cd; --hint: #a4b0cd; --sky-shadow: 0 1px 2px rgba(0, 0, 18, 0.8), 0 0 10px rgba(0, 0, 18, 0.5); }
+[data-greys="a"] { --ink: #f2f5fc; --ink-2: #cbd3e8; --ink-3: #a4b0cd; --ink-4: #7f8cab; --cap: #cbd3e8; --fact: #a4b0cd; --hint: #a4b0cd; --sky-shadow: none; }
+[data-greys="now"] { --ink: #eef2fb; --ink-2: #bcc6de; --ink-3: #8592b0; --ink-4: #56627f; --cap: #8592b0; --fact: #8592b0; --hint: #56627f; --sky-shadow: none; }
+
+:root, [data-pcol="b"] { --pc-rest: 22%; --pc-on: 56%; --glow-rest: 0%; --glow-on: 30%; }
+[data-pcol="a"] { --pc-rest: 0%; --pc-on: 52%; --glow-rest: 0%; --glow-on: 30%; }
+[data-pcol="now"] { --pc-rest: 36%; --pc-on: 48%; --glow-rest: 26%; --glow-on: 32%; }
+
+:root, [data-labels="now"] { --lab-font: 500 10.5px/1 var(--mono); --lab-track: 0.14em; --lab-case: uppercase; --sig-font: 500 10.5px/1 var(--mono); --sig-track: 0.18em; --sig-case: uppercase; }
+[data-labels="b"] { --lab-font: 500 12px/16px var(--sans); --lab-track: 0; --lab-case: none; --sig-font: 500 10.5px/1 var(--mono); --sig-track: 0.18em; --sig-case: uppercase; }
+[data-labels="a"] { --lab-font: 500 12px/16px var(--sans); --lab-track: 0; --lab-case: none; --sig-font: 500 12px/16px var(--sans); --sig-track: 0; --sig-case: none; }
+
+:root, [data-glass="b"] {
+  --box-fill: rgba(190, 202, 240, 0.09); --box-fill-on: rgba(200, 210, 245, 0.13); --box-frost: blur(28px) saturate(1.15) brightness(0.9);
+  --edge: rgba(225, 232, 255, 0.18); --lip: 0.14;
+  --bar-fill: rgba(13, 19, 48, 0.74); --bar-frost: blur(28px) saturate(1.4); --bar-edge: rgba(205, 218, 255, 0.16);
+  --top-fill: rgba(6, 10, 30, 0.58);
+}
+[data-glass="a"] {
+  --box-fill: rgba(190, 202, 240, 0.06); --box-fill-on: rgba(200, 210, 245, 0.1); --box-frost: blur(12px) saturate(1.05);
+  --edge: rgba(225, 232, 255, 0.14); --lip: 0.08;
+  --bar-fill: rgba(13, 19, 48, 0.6); --bar-frost: blur(14px) saturate(1.3); --bar-edge: rgba(205, 218, 255, 0.14);
+  --top-fill: rgba(6, 10, 30, 0.42);
+}
+[data-glass="c"] {
+  --box-fill: rgba(196, 206, 240, 0.16); --box-fill-on: rgba(205, 214, 246, 0.2); --box-frost: blur(44px) saturate(1.25) brightness(0.82);
+  --edge: rgba(225, 232, 255, 0.26); --lip: 0.2;
+  --bar-fill: rgba(13, 19, 48, 0.87); --bar-frost: blur(44px) saturate(1.5); --bar-edge: rgba(205, 218, 255, 0.2);
+  --top-fill: rgba(6, 10, 30, 0.74);
+}
+[data-glass="now"] {
+  --box-fill: rgba(180, 192, 232, 0.085); --box-fill-on: rgba(190, 202, 240, 0.12); --box-frost: blur(20px) saturate(0.95) brightness(1.08);
+  --edge: rgba(225, 232, 255, 0.1); --lip: 0.1;
+  --bar-fill: linear-gradient(180deg, rgba(38, 54, 104, 0.74), rgba(15, 22, 54, 0.84)); --bar-frost: blur(20px) saturate(1.3); --bar-edge: rgba(205, 218, 255, 0.16);
+  --top-fill: linear-gradient(180deg, rgba(2, 5, 18, 0.66), rgba(4, 8, 26, 0.4));
+}
+
+:root, [data-gloss="b"] {
+  --gl-on: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.11) 46%, rgba(255, 255, 255, 0) 54%, rgba(255, 255, 255, 0.05) 100%);
+  --gl-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 46%, rgba(255, 255, 255, 0) 54%, rgba(255, 255, 255, 0.025) 100%);
+  --clear-fill: rgba(255, 255, 255, 0.05); --lip-btn: 0.32; --lip-bead: 0.32; --lip-track: 0.32;
+  --knob: radial-gradient(circle at 40% 30%, #fff 0%, #eef2fa 50%, #c3cde2 100%);
+}
+[data-gloss="a"] {
+  --gl-on: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 70%);
+  --gl-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 70%);
+  --clear-fill: rgba(255, 255, 255, 0.06); --lip-btn: 0.18; --lip-bead: 0.18; --lip-track: 0.18;
+  --knob: linear-gradient(180deg, #fff, #dfe5f2);
+}
+[data-gloss="c"] {
+  --gl-on: linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.2) 49%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.16) 100%);
+  --gl-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.1) 49%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.08) 100%);
+  --clear-fill: rgba(255, 255, 255, 0.05); --lip-btn: 0.55; --lip-bead: 0.55; --lip-track: 0.55;
+  --knob: radial-gradient(circle at 38% 24%, #fff 0%, #fff 22%, #dfe6f5 55%, #a9b6d3 100%);
+}
+[data-gloss="now"] {
+  --gl-on: linear-gradient(180deg, rgba(255, 255, 255, 0.27) 0%, rgba(255, 255, 255, 0) 49%, rgba(0, 0, 20, 0.09) 51%, rgba(0, 0, 20, 0.03) 100%);
+  --gl-clear: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.02) 51%, rgba(255, 255, 255, 0.05));
+  --clear-fill: transparent; --lip-btn: 0.22; --lip-bead: 0.4; --lip-track: 0;
+  --knob: radial-gradient(circle at 40% 30%, #fff 0%, #eef2fa 50%, #c3cde2 100%);
+}
+
+:root, [data-serif="news"] { --serif: "Newsreader", "Iowan Old Style", Georgia, serif; }
+[data-serif="system"] { --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+[data-serif="lit"] { --serif: "Literata", Georgia, serif; }
+
+/* ---- page */
+* { box-sizing: border-box; }
+body {
+  background: var(--sky-top); color: var(--ink-2); font: 400 14px/22px var(--sans);
+  padding-block: 84px 120px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 2px; }
+::selection { background: var(--blue); color: #fff; }
+main { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 96px; }
+section { display: flex; flex-direction: column; gap: 24px; min-width: 0; scroll-margin-top: 60px; }
+p { margin: 0; max-width: 68ch; }
+h1 { margin: 0; font: 700 34px/38px var(--sans); letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; text-shadow: var(--sky-shadow); }
+h2 { margin: 0; font: 700 20px/26px var(--sans); color: var(--ink); text-wrap: balance; text-shadow: var(--sky-shadow); }
+h3 { margin: 0; font: 500 13px/16px var(--sans); color: var(--ink-2); text-shadow: var(--sky-shadow); }
+.intro { display: flex; flex-direction: column; gap: 8px; text-shadow: var(--sky-shadow); }
+.val { font: 400 11px/16px var(--mono); color: var(--ink-3); }
+.onsky { text-shadow: var(--sky-shadow); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 32px; align-items: start; }
+a { color: var(--blue-ink); text-underline-offset: 3px; }
+
+/* the sky */
+.sky { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+@property --sky-top { syntax: '<color>'; inherits: true; initial-value: #020721; }
+@property --sky-deep { syntax: '<color>'; inherits: true; initial-value: #041038; }
+@property --sky-mid { syntax: '<color>'; inherits: true; initial-value: #0a1f6c; }
+@property --sky-low { syntax: '<color>'; inherits: true; initial-value: #1a56d0; }
+.sky-wash, .scene {
+  background:
+    radial-gradient(130% 85% at 12% 112%, var(--sky-low) 0%, transparent 62%),
+    radial-gradient(90% 60% at 100% 100%, color-mix(in srgb, var(--sky-low) 50%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-deep) 34%, var(--sky-mid) 78%, color-mix(in srgb, var(--sky-mid) 70%, var(--sky-low)) 100%);
+}
+.sky-wash { position: absolute; inset: 0; }
+.sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.opts.rows { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+.opts.rows .why { max-width: 84ch; }
+.skypair { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
+.skypair figure, .floorfig { position: relative; margin: 0; height: 400px; border-radius: 12px; overflow: hidden; background: var(--sky-top); box-shadow: 0 0 0 1px var(--line); }
+.skypair canvas, .floorfig canvas { display: block; width: 100%; height: 100%; }
+.skypair figcaption { position: absolute; left: 12px; top: 8px; font: 400 11px/16px var(--mono); color: #a4b0cd; text-shadow: 0 1px 2px rgba(0, 0, 18, 0.9); }
+.floorfig { height: 240px; }
+.floorfig div { position: absolute; left: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
+.floorfig div b { font: 500 13px/16px var(--sans); color: var(--ink-2); }
+.decided { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 400 12px/18px var(--sans); color: var(--ink-2); text-shadow: var(--sky-shadow); }
+.decided b { font: 500 11px/18px var(--mono); color: var(--blue-ink); margin-right: 4px; }
+
+/* top bar: Mutt's, on bar glass */
+.bar {
+  position: fixed; inset: 0 0 auto; z-index: 40; display: flex; align-items: center; gap: 16px; height: calc(36px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  background: var(--top-fill); border-bottom: 1px solid var(--line);
+  backdrop-filter: var(--bar-frost); -webkit-backdrop-filter: var(--bar-frost);
+  color: var(--ink); font: 500 13px/1 var(--sans);
+}
+.wordmark { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 500; font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144; letter-spacing: -0.02em; font-size: 18px; line-height: 1; color: var(--ink); }
+.bar .where { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bar .gap { flex: 1; }
+.dots { display: flex; align-items: center; gap: 8px; }
+.dot { width: 16px; height: 16px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28); transition: transform 0.2s var(--spring); }
+.dot:hover { transform: scale(1.15); }
+.dot[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4), 0 0 0 2px var(--sky-top), 0 0 0 3.5px var(--ink); }
+.skydot { background: linear-gradient(180deg, var(--a), var(--b)); }
+
+/* ---- a choice */
+.choice { display: flex; flex-direction: column; gap: 16px; }
+.q { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; text-shadow: var(--sky-shadow); }
+.q b { font: 500 11px/16px var(--mono); color: var(--blue-ink); white-space: nowrap; }
+.q span { font: 500 16px/24px var(--sans); color: var(--ink); }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 24px; align-items: start; }
+.opts.wide { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.opts.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.opt { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 12px; align-content: start; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line-2); }
+.opt-head { display: flex; flex-direction: column; gap: 4px; text-shadow: var(--sky-shadow); }
+.pick { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 24px; font: 500 13px/16px var(--sans); color: var(--ink-2); text-align: left; }
+.pick i { flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3); transition: box-shadow 0.2s; }
+.pick:hover { color: var(--ink); }
+.pick[aria-pressed="true"] { color: var(--ink); }
+.pick[aria-pressed="true"] i { box-shadow: inset 0 0 0 4.5px var(--blue-ink); }
+.pick em { font-style: normal; font-weight: 500; font-size: 12px; color: var(--blue-ink); }
+.why { font-size: 12px; line-height: 18px; color: var(--ink-2); max-width: 46ch; }
+.spec { min-width: 0; color: var(--ink-2); }
+
+/* ---- materials */
+.box {
+  --tone: color-mix(in oklab, var(--pc), #e4e8f2 34%);
+  position: relative; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--tone) var(--pc-rest), var(--edge));
+  background: var(--box-fill);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, var(--lip)), 0 0 24px -5px color-mix(in srgb, var(--tone) var(--glow-rest), transparent), var(--shadow-rest);
+  backdrop-filter: var(--box-frost); -webkit-backdrop-filter: var(--box-frost);
+  color: var(--ink);
+  transition: border-color 0.32s var(--settle), box-shadow 0.5s var(--settle), background 0.32s var(--settle);
+}
+.box.live:hover, .box.live:focus-within, .box.is-on {
+  border-color: color-mix(in srgb, var(--tone) var(--pc-on), rgba(225, 232, 255, 0.24));
+  background: var(--box-fill-on);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(var(--lip) + 0.04)), 0 0 30px -4px color-mix(in srgb, var(--tone) var(--glow-on), transparent), var(--shadow-raised);
+}
+.barglass {
+  border: 1px solid var(--bar-edge); background: var(--bar-fill);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), var(--shadow-float);
+  backdrop-filter: var(--bar-frost); -webkit-backdrop-filter: var(--bar-frost); color: var(--ink);
+}
+.paper { background: var(--paper); color: var(--paper-ink); border-radius: 4px; box-shadow: 0 0 0 1px rgba(0, 0, 18, 0.2), var(--shadow-raised); }
+
+/* ---- parts */
+.btn {
+  --fill: var(--clear-fill); --gl: var(--gl-clear); --bd: rgba(255, 255, 255, 0.2);
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none;
+  height: 32px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--bd);
+  background: var(--gl), var(--fill); background-origin: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, var(--lip-btn)), 0 1px 3px rgba(0, 0, 18, 0.25);
+  color: var(--ink); font: 500 13px/1 var(--sans); white-space: nowrap; user-select: none;
+  transition: transform 0.2s var(--spring), filter 0.12s, border-color 0.2s;
+}
+.btn:hover, .btn.is-hover { filter: brightness(1.1); border-color: rgba(255, 255, 255, 0.32); }
+.btn:active, .btn.is-down { transform: translateY(1px) scale(0.98); filter: brightness(0.94); box-shadow: inset 0 1px 3px rgba(0, 0, 18, 0.4); }
+.btn.is-focus { outline: 2px solid var(--blue-ink); outline-offset: 2px; }
+.btn.is-off { opacity: 0.42; filter: saturate(0.6); pointer-events: none; }
+.btn-main { --fill: var(--accent); --gl: var(--gl-on); --bd: color-mix(in srgb, var(--accent), #00001e 38%); color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 30, 0.35); }
+.btn-main:hover, .btn-main.is-hover, .btn-danger:hover, .btn-danger.is-hover { border-color: var(--bd); }
+.btn-danger { --fill: var(--danger-fill); --gl: var(--gl-on); --bd: color-mix(in srgb, var(--danger-fill), #1e0000 38%); color: #fff; text-shadow: 0 1px 1px rgba(40, 0, 0, 0.35); }
+.btn-quiet { background: none; border-color: transparent; box-shadow: none; color: var(--ink-2); }
+.btn-quiet:hover, .btn-quiet.is-hover { background: var(--tint-2); border-color: transparent; color: var(--ink); filter: none; }
+.btn-quiet:active, .btn-quiet.is-down { background: var(--well); box-shadow: none; }
+.btn-s { height: 24px; padding: 0 10px; font-size: 12px; gap: 4px; }
+.btn-l { height: 40px; padding: 0 20px; font-size: 14px; }
+.btn-round { width: 32px; padding: 0; }
+.own { --accent: var(--pa); }
+.own .btn:not(.btn-main):not(.btn-danger):not(.btn-quiet) { --bd: color-mix(in srgb, color-mix(in oklab, var(--pc), #e4e8f2 50%) 34%, rgba(255, 255, 255, 0.1)); }
+svg.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+.sw { display: inline-flex; align-items: center; gap: 8px; font: 400 13px/16px var(--sans); color: var(--ink-2); cursor: pointer; user-select: none; }
+.sw-track { position: relative; flex: none; width: 40px; height: 24px; border-radius: 999px; background: var(--well); box-shadow: var(--well-shadow); transition: background 0.2s; }
+.sw-knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--knob); box-shadow: 0 1px 3px rgba(0, 0, 30, 0.45); transition: transform 0.32s var(--spring); }
+.sw[aria-checked="true"] .sw-track { background: var(--gl-on), var(--accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, var(--lip-track)), inset 0 0 0 1px rgba(0, 0, 30, 0.25); }
+.sw[aria-checked="true"] .sw-knob { transform: translateX(16px); }
+
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--well); box-shadow: var(--well-shadow); }
+.seg button { height: 26px; padding: 0 12px; border-radius: 999px; font: 500 13px/1 var(--sans); color: var(--ink-3); transition: color 0.2s; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { color: #fff; background: var(--gl-on), var(--accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, var(--lip-bead)), 0 1px 4px rgba(0, 10, 60, 0.4); text-shadow: 0 1px 1px rgba(0, 0, 30, 0.35); }
+
+.field {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line-2); background: var(--well); box-shadow: var(--well-shadow);
+  color: var(--ink); font: 400 13px/16px var(--sans); outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+input.field::placeholder, .field .ph { color: var(--hint); }
+.field:hover, .field.is-hover { border-color: rgba(190, 205, 240, 0.36); }
+.field:focus, .field.is-focus { border-color: color-mix(in srgb, var(--blue-ink) 80%, transparent); box-shadow: var(--well-shadow), 0 0 0 3px color-mix(in srgb, var(--blue) 32%, transparent); }
+.field-l { height: 40px; border-radius: 999px; padding: 0 16px; font-size: 14px; }
+.caret { width: 1.5px; height: 16px; background: var(--blue-ink); margin-left: -6px; animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.bare { display: block; padding: 2px 8px; margin-left: -8px; border-radius: 8px; color: var(--hint); font: 400 14px/22px var(--sans); }
+.bare.is-hover { background: var(--tint); }
+.bare.is-focus { background: var(--well); box-shadow: var(--well-shadow); color: var(--ink); }
+
+.menu { width: 220px; padding: 4px; border-radius: 12px; display: flex; flex-direction: column; }
+.mi { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; font: 400 13px/16px var(--sans); color: var(--ink); text-align: left; transition: background 0.12s; }
+.mi:hover, .mi.is-hover { background: var(--tint-2); }
+.mi svg { color: var(--ink-3); }
+.mi span { flex: 1; min-width: 0; }
+.mi small { font: 400 11px/16px var(--mono); color: var(--ink-3); }
+.mi.danger, .mi.danger svg { color: var(--danger); }
+.mi.danger:hover { background: color-mix(in srgb, var(--danger) 15%, transparent); }
+.msep { height: 1px; margin: 4px 8px; background: var(--line); }
+
+.sheet { width: 100%; max-width: 380px; padding: 20px; border-radius: 20px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), var(--shadow-overlay); display: flex; flex-direction: column; gap: 16px; }
+.sheet-name { font: 700 20px/26px var(--sans); color: var(--ink); }
+.set { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; min-height: 32px; }
+.set > :last-child { justify-self: start; }
+.set > span:first-child { font: 400 13px/16px var(--sans); color: var(--ink-2); }
+.sheet-foot { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.dialog { width: 100%; max-width: 340px; padding: 20px; border-radius: 20px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), var(--shadow-overlay); display: flex; flex-direction: column; gap: 8px; }
+.dialog b { font: 700 16px/24px var(--sans); color: var(--ink); }
+.dialog .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.toast { display: inline-flex; align-items: center; gap: 12px; height: 40px; padding: 0 16px 0 14px; border-radius: 999px; font: 400 13px/16px var(--sans); align-self: flex-start; }
+.toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #000; box-shadow: 0 0 0 1px rgba(200, 215, 255, 0.7); }
+.toast button { font-weight: 500; color: var(--blue-ink); }
+
+.lab { font: var(--lab-font); letter-spacing: var(--lab-track); text-transform: var(--lab-case); color: var(--ink-3); }
+.sig { font: var(--sig-font); letter-spacing: var(--sig-track); text-transform: var(--sig-case); color: var(--ink-2); }
+.sec-head { display: flex; align-items: baseline; gap: 8px; text-shadow: var(--sky-shadow); }
+.sec-head b { font: 500 13px/16px var(--sans); color: var(--ink-2); }
+.sec-head span { font: 400 11px/16px var(--mono); color: var(--fact); }
+.t-fact { font: 400 11px/16px var(--mono); color: var(--fact); }
+.t-cap { font: 400 12px/16px var(--sans); color: var(--cap); }
+.t-hint { color: var(--hint); }
+
+/* ---- a planet's page */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+.liv { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.liv-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 16px 20px; border-radius: 20px; }
+.liv-head.box { background: radial-gradient(70% 160% at 0% 50%, color-mix(in srgb, var(--pc) 14%, transparent), transparent 60%), var(--box-fill); }
+.globe {
+  width: 84px; height: 84px; border-radius: 50%; flex: none;
+  background:
+    radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.5), transparent 34%),
+    radial-gradient(circle at 34% 30%, color-mix(in oklab, var(--pc), #fff 22%), var(--pc) 46%, color-mix(in oklab, var(--pc), #04071a 78%) 96%);
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 20, 0.55), 0 10px 24px -10px rgba(0, 0, 18, 0.8);
+  transition: background 0.5s;
+}
+.liv-title { font: 700 26px/32px var(--sans); letter-spacing: -0.01em; color: var(--ink); }
+.liv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
+.liv-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.liv-tools { display: flex; gap: 8px; align-self: start; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.cell { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cell > .box, .cell > .pic { aspect-ratio: 1 / 1; max-width: 100%; }
+.cell > .t-cap { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--sky-shadow); transition: color 0.2s; }
+.cell:hover > .t-cap, .cell.is-on > .t-cap { color: var(--ink); }
+.float { animation: bob var(--bob, 9s) ease-in-out var(--bob-at, 0s) infinite alternate; }
+.cell:nth-child(2) .float { --bob: 8.2s; --bob-at: -3.1s; } .cell:nth-child(3) .float { --bob: 10.4s; --bob-at: -7.6s; } .cell:nth-child(4) .float { --bob: 11.6s; --bob-at: -5.3s; }
+@keyframes bob { from { translate: 0 -2.5px; } to { translate: 0 2.5px; } }
+.lean { transform: perspective(900px) rotateX(calc(var(--my, 0) * -2.4deg)) rotateY(calc(var(--mx, 0) * 3deg)); transition: transform 0.5s var(--settle), border-color 0.32s var(--settle), box-shadow 0.5s var(--settle), background 0.32s var(--settle); }
+.note { padding: 16px; overflow: hidden; font: 400 14px/22px var(--sans); color: var(--ink); }
+.note p { height: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(#000 calc(100% - 40px), transparent); mask-image: linear-gradient(#000 calc(100% - 40px), transparent); }
+.entry { display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
+.entry .typed { font: 400 14px/22px var(--sans); color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.entry .typed .caret { margin-left: -6px; background: color-mix(in oklab, var(--pc), #fff 40%); }
+.entry-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.entry-foot u { font: 400 12px/16px var(--sans); color: var(--ink-2); text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.pic { position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--edge), var(--shadow-rest); transition: box-shadow 0.32s var(--settle), scale 0.5s var(--settle); }
+.pic svg { display: block; width: 100%; height: 100%; }
+.pic.live:hover, .pic.is-on { scale: 1.015; box-shadow: 0 0 0 1px rgba(225, 232, 255, 0.4), var(--shadow-raised); }
+.link { display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 16px; overflow: hidden; }
+.link .site { display: flex; align-items: center; gap: 8px; margin-bottom: auto; }
+.link .site span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link .site i { flex: none; width: 16px; height: 16px; border-radius: 4px; background: #c9553a; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.link b { font: 500 16px/22px var(--sans); color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.link p { font-size: 12px; line-height: 16px; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.aside { display: flex; flex-direction: column; gap: 16px; align-items: stretch; }
+
+/* ---- specimens */
+.strip { display: grid; grid-template-columns: minmax(0, 1fr); border-radius: 8px; overflow: hidden; }
+.strip > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 12px 16px; background: var(--bg); }
+.strip > div > span { text-shadow: var(--sky-shadow); white-space: nowrap; }
+.strip small { font: 400 10px/1 var(--mono); opacity: 0.75; margin-left: 4px; text-shadow: none; }
+.strip .w1 { font: 700 16px/22px var(--sans); color: var(--ink); } .strip .w2 { color: var(--ink); } .strip .w3 { font-size: 12px; color: var(--cap); }
+.strip .w4 { font: 400 11px/16px var(--mono); color: var(--fact); } .strip .w5 { color: var(--hint); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; }
+.swatch { display: flex; gap: 12px; align-items: center; min-width: 0; text-shadow: var(--sky-shadow); }
+.swatch i { flex: none; width: 32px; height: 32px; border-radius: 8px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.swatch b { display: block; font: 500 13px/16px var(--sans); color: var(--ink); }
+.typescale { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 12px 24px; align-items: baseline; text-shadow: var(--sky-shadow); }
+.typescale > span:nth-child(odd) { white-space: nowrap; }
+.typescale > span:nth-child(even) { color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.spacebars { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.spacebars figure, .corners figure { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.spacebars figure { align-items: center; }
+.spacebars i { display: block; height: 32px; background: var(--blue-ink); border-radius: 2px; opacity: 0.85; }
+.corners { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; }
+.corners i { display: block; width: 72px; height: 56px; border: 1px solid var(--edge); background: var(--box-fill); }
+.corners figcaption, .spacebars figcaption { text-align: center; }
+.scene { position: relative; border-radius: 12px; overflow: hidden; padding: 24px; min-height: 260px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; isolation: isolate; }
+.scene { background: radial-gradient(120% 90% at 10% 118%, var(--sky-low) 0%, transparent 72%), linear-gradient(180deg, var(--sky-deep) 0%, var(--sky-mid) 50%, color-mix(in srgb, var(--sky-mid) 35%, var(--sky-low)) 100%); }
+.scene::before { content: ""; position: absolute; z-index: -1; left: 118px; top: 84px; width: 150px; height: 150px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffd9a0, #e9a04a 46%, #5b2c10 96%); box-shadow: inset -12px -14px 26px rgba(0, 0, 20, 0.5); }
+.scene > svg.rb { position: absolute; z-index: -1; inset: auto 0 0 0; width: 100%; height: 90%; mix-blend-mode: screen; opacity: 0.9; }
+.scene .note { width: 168px; height: 168px; }
+.scene.short { min-height: 0; padding: 32px 24px; }
+.scene.short::before { display: none; }
+.sh { width: 120px; height: 88px; border-radius: 12px; display: grid; place-items: end start; padding: 12px; }
+.matrix { display: grid; grid-template-columns: 64px repeat(5, minmax(96px, 1fr)); gap: 16px 12px; align-items: center; min-width: 620px; }
+.matrix .val { text-shadow: var(--sky-shadow); }
+.scroll { overflow-x: auto; padding: 4px 4px 12px; margin: -4px; }
+.page { padding: 28px 28px 24px; font-family: var(--serif); max-width: 420px; }
+.page h4 { margin: 0 0 8px; font: 600 26px/30px var(--serif); letter-spacing: -0.01em; }
+.page p { font: 400 17px/26px var(--serif); max-width: none; }
+.page p + p { margin-top: 10px; }
+.page .foot { margin-top: 16px; font: 400 11px/16px var(--sans); color: var(--paper-ink-3); }
+.logos { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; min-height: 56px; color: var(--ink); text-shadow: var(--sky-shadow); }
+.logos span { font-size: 34px; line-height: 1; }
+.lg-wonk { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 500; font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144; letter-spacing: -0.02em; }
+.lg-ed { font-family: "Instrument Serif", Georgia, serif; font-size: 38px !important; letter-spacing: -0.015em; }
+.lg-stamp { font-family: "Silkscreen", ui-monospace, monospace; font-size: 19px !important; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.42em 0.62em 0.36em 0.7em; border: 1.5px solid currentColor; border-radius: 0.5em; text-shadow: none; }
+.lg-wide { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.05em; }
+.lg-mono { font-family: "Major Mono Display", ui-monospace, monospace; font-size: 29px !important; letter-spacing: -0.04em; }
+.skies { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-self: start; }
+.skies .scene { min-height: 132px; padding: 12px; border-radius: 8px; align-content: space-between; }
+.skies .scene::before { display: none; }
+.skies .box { padding: 8px 12px; font-size: 12px; line-height: 16px; }
+.skies .t-cap { width: 100%; text-shadow: var(--sky-shadow); }
+.lanes { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px 16px; align-items: center; }
+.lane { position: relative; height: 24px; border-radius: 999px; background: var(--well); box-shadow: var(--well-shadow); }
+.lane i { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--knob); box-shadow: 0 1px 3px rgba(0, 0, 30, 0.45); }
+.lanes.go .lane i { left: calc(100% - 22px); }
+.yours { padding: 24px; border-radius: 20px; display: flex; flex-direction: column; gap: 16px; }
+.yours ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 32px; }
+.yours li { display: flex; gap: 12px; align-items: baseline; font-size: 13px; color: var(--ink); min-width: 0; }
+.yours li b { font: 500 11px/16px var(--mono); color: var(--blue-ink); flex: none; }
+.yours li span { color: var(--ink-2); }
+.yours textarea { width: 100%; min-height: 76px; resize: vertical; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--well); box-shadow: var(--well-shadow); color: var(--ink); font: 400 12px/18px var(--mono); }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  main { gap: 72px; }
+  h1 { font-size: 26px; line-height: 32px; }
+  .liv-head { grid-template-columns: auto minmax(0, 1fr); }
+  .liv-tools { grid-column: 1 / -1; }
+  .typescale { grid-template-columns: minmax(0, 1fr); gap: 2px; } .typescale > span:nth-child(even) { margin-bottom: 12px; }
+  .lanes { grid-template-columns: minmax(0, 1fr); gap: 4px; } .lanes .lane { margin-bottom: 8px; }
+  .bar .where { display: none; }
+  .opts.two { grid-template-columns: minmax(0, 1fr); }
+  .skypair { grid-template-columns: minmax(0, 1fr); }
+  .skypair figure { height: 280px; }
+}
+@media (prefers-reduced-motion: reduce) { .float, .caret { animation: none; } .lean { transform: none; } * { transition-duration: 0.01ms !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.25"/><path d="M10.2 10.2 13.5 13.5"/></symbol>
+  <symbol id="i-people" viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.25"/><path d="M1.75 13c.3-2.3 2-3.75 4.25-3.75S9.95 10.700 10.250 13M10.500 3.500a2.250 2.250 0 0 1 0 4.250M12 9.600c1.300.500 2.100 1.700 2.250 3.400"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 16 16"><path d="M3.500 8h.01M8 8h.01M12.500 8h.01" stroke-width="2.200"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.750"/><path d="M2.250 8h11.500M8 2.250c-2 1.900-2 9.600 0 11.500M8 2.250c2 1.900 2 9.600 0 11.500"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 16 16"><path d="M2.750 13.250l.600-2.900 7.400-7.400a1.300 1.300 0 0 1 1.850 0l.450.450a1.300 1.300 0 0 1 0 1.850l-7.400 7.400z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M6 4.250h7.250M6 8h7.250M6 11.750h7.250M2.750 4.250h.01M2.750 8h.01M2.750 11.750h.01"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13 9.600A5.500 5.500 0 1 1 6.400 3a4.400 4.400 0 0 0 6.600 6.600z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M2.750 4.250h10.500M6.250 4.250V2.750h3.500v1.500M4 4.250l.600 8.250a1 1 0 0 0 1 .750h4.800a1 1 0 0 0 1-.750L12 4.250"/></symbol>
+  <symbol id="i-swatch" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.750"/><circle cx="8" cy="8" r="2"/></symbol>
+</svg>
+
+<div class="sky" aria-hidden="true">
+  <div class="sky-wash"></div>
+  <canvas id="pagesky"></canvas>
+</div>
+
+<div class="bar">
+  <span class="wordmark">mutt</span>
+  <span class="where">Look board · design session 1 of 8</span>
+  <span class="gap"></span>
+  <span class="val">Sky</span>
+  <span class="dots" id="skydots">
+    <button class="dot skydot" style="--a:#06123f;--b:#2f6bff" data-setsky="vita" aria-pressed="true" aria-label="Vita sky" title="Vita"></button>
+    <button class="dot skydot" style="--a:#160a3d;--b:#8f6bf0" data-setsky="nebula" aria-pressed="false" aria-label="Nebula sky" title="Nebula"></button>
+    <button class="dot skydot" style="--a:#03212e;--b:#2fbf9f" data-setsky="aurora" aria-pressed="false" aria-label="Aurora sky" title="Aurora"></button>
+    <button class="dot skydot" style="--a:#26092e;--b:#e0727f" data-setsky="dusk" aria-pressed="false" aria-label="Dusk sky" title="Dusk"></button>
+  </span>
+</div>
+
+<main>
+
+<section id="top">
+  <div class="intro">
+    <h1>The look, on one board</h1>
+    <p>Round two. Your eight answers are in, and the board is now dressed in them. Nothing in Mutt has changed yet.</p>
+    <p><strong style="color:var(--ink);font-weight:500">New: the sky behind the galaxy and the universe.</strong> You said it reads a bit generic, and you're right about why. There are two new choices just below, each drawn for the galaxy and for the universe. Pick one and this whole page's sky changes with it, so you can see your boxes, glass and words sitting on it. The four dots in the bar still change the sky's colour.</p>
+  </div>
+  <div class="decided"><span><b>1</b>brighter greys, soft shadow</span><span><b>2</b>faint planet edge at rest</span><span><b>3</b>labels stay as now</span><span><b>4</b>frosted glass</span><span><b>5</b>Vita gloss</span><span><b>6</b>Newsreader</span><span><b>7</b>one logo, the Wonky</span><span><b>8</b>four skies, tuned alike</span></div>
+</section>
+
+<section id="sky">
+  <div class="intro">
+    <h2>The sky behind the galaxy and the universe</h2>
+    <p>Today's sky is four stock pieces: a smooth blue gradient, two soft clouds of colour, white dots scattered evenly, and thin straight-edged lines. Any space-themed page could have it. The void is the opposite: nobody else has that stippled print. So the question is what the sky should be made of, so that it is Mutt's.</p>
+    <p>Each option shows your galaxy on the left and the universe on the right. The void and planets are rough stand-ins, only there for scale; judge the sky. These can be mixed: "B, with A's threads low down" is a fair answer.</p>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 9</b><span>What is the sky made of?</span></div>
+    <div class="opts rows">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skylook" data-v="now"><i></i>Now</button><p class="why">Gradient, colour clouds, even dots, angular lines. In the universe: black, dots and a faint web of straight lines.</p></div><div class="skypair" data-skylook="now"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skylook" data-v="threads"><i></i>A · Threads</button><p class="why">The Vita's waves, drawn the way the Vita drew them: bundles of fine lines that flow, pinch together and fan apart, and glow where they gather. No colour clouds, fewer and finer stars. In the universe the same threads thin out and run between galaxies. The safest step: plainly Vita, and it still moves the way the sky moves now.</p></div><div class="skypair" data-skylook="threads"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skylook" data-v="print"><i></i>B · Print <em>my pick</em></button><p class="why">The void's own language carried across the whole sky: light made of fine dots, thick along one band and toward the bright floor, with dark winding lanes through it like the void's cage. Dust gathers round the void. In the universe it goes fully black and white, each galaxy a knot of dots, so planets and files are the only colour anywhere. Nothing else looks like it, and it makes the void belong to its sky.</p></div><div class="skypair" data-skylook="print"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skylook" data-v="orbits"><i></i>C · Orbits</button><p class="why">The calmest: a nearly flat deep sky, a faint band of stars, and the orbits your planets already sit on drawn as hairlines round the void. It shows how a galaxy is arranged, and every galaxy in the universe gets its own small rings. The risk is that it reads as a diagram.</p></div><div class="skypair" data-skylook="orbits"></div></div>
+    </div>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 10</b><span>How bright is the bottom of the sky?</span></div>
+    <div class="opts">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="floor" data-v="bright"><i></i>Now · Vita bright</button><p class="why">The electric blue floor. The most Vita, and the reason small words need a shadow to survive down there.</p></div><div class="floorfig" data-floor="bright"><canvas></canvas><div><b>Files <span class="t-fact">3</span></b><span class="t-cap">pier-at-dusk.jpg</span><span class="t-fact">3 files · just now</span><span class="t-cap t-hint">Add a note</span></div></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="floor" data-v="deep"><i></i>A · Deeper <em>my pick</em></button><p class="why">Still blue, about half as bright at its brightest. Small words read without help, glass looks richer, and your files become the brightest thing on the page, which is the point of Mutt.</p></div><div class="floorfig" data-floor="deep"><canvas></canvas><div><b>Files <span class="t-fact">3</span></b><span class="t-cap">pier-at-dusk.jpg</span><span class="t-fact">3 files · just now</span><span class="t-cap t-hint">Add a note</span></div></div></div>
+    </div>
+    <p class="val onsky">Both are drawn with whichever sky you picked in choice 9. How the sky moves (drifting threads, a slow shimmer in the print) is settled when it is built, in the worlds-and-sky session.</p>
+  </div>
+</section>
+
+<section id="page">
+  <div class="intro">
+    <h2>A planet's page, all of it together</h2>
+    <p>This is the proposal in one view. The planet's colour is on its own things only: the edges of its boxes, its header, its own buttons. The sheet on the right is Mutt's, so it stays Mutt blue on every planet. Boxes float slowly and do nothing else until you point at one.</p>
+  </div>
+  <div class="row onsky"><span class="val">Planet colour</span><span class="dots" id="pcdots"></span></div>
+  <div class="stage">
+    <div class="liv own">
+      <div class="liv-head box">
+        <div class="globe"></div>
+        <div style="min-width:0">
+          <div class="liv-title">Postcards</div>
+          <div class="t-hint">Add a note</div>
+          <div class="liv-meta t-fact"><span>3 files</span><span>just now</span><span><svg class="ic" style="width:12px;height:12px"><use href="#i-globe"/></svg>Public</span></div>
+        </div>
+        <div class="liv-tools"><button class="btn"><svg class="ic"><use href="#i-people"/></svg>Share</button><button class="btn btn-round" aria-label="More"><svg class="ic"><use href="#i-dots"/></svg></button></div>
+      </div>
+      <div class="sec-head"><b>Files</b><span>3</span></div>
+      <div class="grid">
+        <div class="cell"><div class="box live float lean entry"><div class="typed"><span>back by Sunday</span><i class="caret"></i></div><div class="entry-foot"><u>Upload</u><button class="btn btn-main btn-s">Add</button></div></div><div class="t-cap">&nbsp;</div></div>
+        <div class="cell"><div class="pic live float" data-pier></div><div class="t-cap">pier-at-dusk.jpg</div></div>
+        <div class="cell"><div class="box live float lean note"><p>wish you were here. The water was colder than it looks and the chips were better than they had any right to be. We walked to the end of the pier twice.</p></div><div class="t-cap">&nbsp;</div></div>
+        <div class="cell"><div class="box live float lean link"><div class="site"><i></i><span class="t-fact">postalmuseum.example</span></div><b>A short history of the seaside postcard</b><p>How a halfpenny stamp and a view of the pier became the text message of 1902.</p></div><div class="t-cap">A short history of the seaside postcard</div></div>
+      </div>
+    </div>
+    <div class="aside">
+      <div class="sheet barglass">
+        <div><div class="sheet-name">@edan</div><div class="t-fact">7 planets · 42 files · 18 MB</div></div>
+        <div class="col" style="gap:8px">
+          <div class="set"><span>Text size</span><span class="seg" data-seg><button aria-pressed="false">S</button><button aria-pressed="true">M</button><button aria-pressed="false">L</button></span></div>
+          <div class="set"><span>Motion</span><span class="seg" data-seg><button aria-pressed="true">Fluid</button><button aria-pressed="false">Calm</button><button aria-pressed="false">Still</button></span></div>
+          <div class="set"><span>Music</span><span class="sw" role="switch" aria-checked="true" tabindex="0"><span class="sw-track"><span class="sw-knob"></span></span></span></div>
+        </div>
+        <div class="sheet-foot"><button class="btn btn-main">Change code</button><button class="btn">Sign out</button></div>
+      </div>
+      <div class="toast barglass"><span>Sent to Postcards</span><button>Move</button></div>
+    </div>
+  </div>
+</section>
+
+<section id="greys">
+  <div class="intro">
+    <h2>Small words on a bright sky</h2>
+    <p>The sky gets brighter toward the bottom, and that is where captions end up after you scroll. Today's two faintest greys disappear there. The small number after each word is how strongly it stands out from the sky behind it: small words want 4.5 or more, large ones 3.</p>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 1</b><span>How do captions, dates and hints stay readable?</span></div>
+    <div class="opts wide">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="greys" data-v="now"><i></i>Now</button><p class="why">File names and dates sink to 2.0 on the bright sky and "Add a note" to 1.0, which is invisible.</p></div><div class="spec" data-greys="now" data-tpl="t-greys"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="greys" data-v="a"><i></i>A · Brighter greys</button><p class="why">Every grey steps up, and the faintest one is no longer used for words at all. Better everywhere, still thin in the brightest corner.</p></div><div class="spec" data-greys="a" data-tpl="t-greys"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="greys" data-v="b"><i></i>B · Brighter greys and a soft shadow <em>my pick</em></button><p class="why">The same greys, and words that sit straight on the sky get the soft dark shadow planet names already have. The numbers don't count the shadow; your eye does. No grey alone can pass in that corner without turning white.</p></div><div class="spec" data-greys="b" data-tpl="t-greys"></div></div>
+    </div>
+  </div>
+  <div class="swatches">
+    <div class="swatch"><i style="--c:var(--ink)"></i><div><b>Ink</b><span class="val">titles, your own words</span></div></div>
+    <div class="swatch"><i style="--c:var(--ink-2)"></i><div><b>Ink 2</b><span class="val">body, labels, captions</span></div></div>
+    <div class="swatch"><i style="--c:var(--ink-3)"></i><div><b>Ink 3</b><span class="val">dates, counts, hints</span></div></div>
+    <div class="swatch"><i style="--c:var(--ink-4)"></i><div><b>Ink 4</b><span class="val">marks only, never words</span></div></div>
+  </div>
+</section>
+
+<section id="colour">
+  <div class="intro">
+    <h2>Colour</h2>
+    <p>Mutt has one blue, in two strengths: a deep one to fill things you press, and a pale one for blue words, links and the keyboard outline. Three signal colours, used only to mean something. Today there are 297 colours typed by hand; these and the greys replace them.</p>
+  </div>
+  <div class="swatches">
+    <div class="swatch"><i style="--c:var(--blue)"></i><div><b>Mutt blue</b><span class="val">#3f7cf0 · fills</span></div></div>
+    <div class="swatch"><i style="--c:var(--blue-ink)"></i><div><b>Blue ink</b><span class="val">#8cc0ff · words, outline</span></div></div>
+    <div class="swatch"><i style="--c:var(--good)"></i><div><b>Good</b><span class="val">#86d9ad · saved, done</span></div></div>
+    <div class="swatch"><i style="--c:var(--caution)"></i><div><b>Caution</b><span class="val">#eec372 · someone else's</span></div></div>
+    <div class="swatch"><i style="--c:var(--danger)"></i><div><b>Danger</b><span class="val">#ff8a84 words · #e24a4a fill</span></div></div>
+    <div class="swatch"><i style="--c:var(--pc)"></i><div><b>The planet's</b><span class="val">only on its own things</span></div></div>
+  </div>
+  <p class="onsky">The rule for a planet's colour is simple enough to check by eye: <strong style="color:var(--ink);font-weight:500">if it sits on box glass on the planet's page, it is the planet's and may take its colour. If it sits on bar glass (the top bar, sheets, menus, dialogs, toasts), it is Mutt's and stays blue.</strong> A planet's button is one flat tint of its colour under the same gloss, never a two-colour gradient.</p>
+  <div class="choice">
+    <div class="q"><b>Choice 2</b><span>How much of the planet's colour shows on a box at rest?</span></div>
+    <div class="opts">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="pcol" data-v="now"><i></i>Now</button><p class="why">A coloured edge and a halo on every box, all the time. With a page full of boxes the glow stops meaning anything.</p></div><div class="spec" data-pcol="now" data-tpl="t-pcol"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="pcol" data-v="a"><i></i>A · Clear at rest</button><p class="why">Plain glass until you point. The calmest, but every planet's page looks alike until you move the pointer.</p></div><div class="spec" data-pcol="a" data-tpl="t-pcol"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="pcol" data-v="b"><i></i>B · A faint edge at rest <em>my pick</em></button><p class="why">A hairline of the planet's colour and no halo. Pointing at a box brightens its edge and brings the glow, so the glow becomes a signal. The page still feels like that planet.</p></div><div class="spec" data-pcol="b" data-tpl="t-pcol"></div></div>
+    </div>
+    <p class="val onsky">Left box at rest, right box pointed at. Change the planet colour above to see each one in orange, green or pink.</p>
+  </div>
+</section>
+
+<section id="type">
+  <div class="intro">
+    <h2>Type</h2>
+    <p>Seven sizes and one display size replace today's 86. Each has one job and one line height. Three weights: regular, medium for things you press, bold for titles. Red Hat Text for words, Red Hat Mono for small facts.</p>
+  </div>
+  <div class="typescale">
+    <span class="val">Display · 34</span><span style="font:700 34px/38px var(--sans);letter-spacing:-0.02em">Welcome back</span>
+    <span class="val">Page · 26</span><span style="font:700 26px/32px var(--sans);letter-spacing:-0.01em">Recipes to try</span>
+    <span class="val">Title · 20</span><span style="font:700 20px/26px var(--sans)">This planet looks like a list</span>
+    <span class="val">Lead · 16</span><span style="font:500 16px/24px var(--sans)">A short history of the seaside postcard</span>
+    <span class="val">Body · 14</span><span style="font:400 14px/22px var(--sans)">Its files become rows you can tick off. Nothing is lost, and you can show them as files again.</span>
+    <span class="val">Label · 13</span><span style="font:500 13px/16px var(--sans)">Make it a list &nbsp;·&nbsp; Not now &nbsp;·&nbsp; Share &nbsp;·&nbsp; Show as files again</span>
+    <span class="val">Caption · 12</span><span style="font:400 12px/16px var(--sans);color:var(--cap)">pier-at-dusk.jpg &nbsp;·&nbsp; Sent to Recipes &nbsp;·&nbsp; Type, paste or drop</span>
+    <span class="val">Fact · 11 mono</span><span style="font:400 11px/16px var(--mono);color:var(--fact)">12 files · 3 Nov · 4.2 MB · 518 words</span>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 3</b><span>Small labels: spaced capitals, or plain words?</span></div>
+    <div class="opts">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="labels" data-v="now"><i></i>Now <em>your pick</em></button><p class="why">Spaced-out capitals in ten places. Once it is a signature; ten times it is a habit, and it is one of the things that reads as generated.</p></div><div class="spec" data-labels="now" data-tpl="t-labels"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="labels" data-v="a"><i></i>A · Plain words everywhere</button><p class="why">Quietest. Loses a small piece of Mutt's character on the galaxy.</p></div><div class="spec" data-labels="a" data-tpl="t-labels"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="labels" data-v="b"><i></i>B · Capitals only on the galaxy <em>my pick</em></button><p class="why">ADD in the void and UNIVERSE keep their capitals as the signature. Every label inside sheets and panels becomes plain words.</p></div><div class="spec" data-labels="b" data-tpl="t-labels"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="size">
+  <div class="intro">
+    <h2>Space, heights and corners</h2>
+    <p>Eight spaces in place of 42, three control heights in place of ten, five corners in place of 35. Everything on this board uses only these.</p>
+  </div>
+  <div class="cols">
+    <div class="col onsky"><h3>Space</h3>
+      <div class="spacebars">
+        <figure><i style="width:2px"></i><figcaption class="val">2</figcaption></figure><figure><i style="width:4px"></i><figcaption class="val">4</figcaption></figure><figure><i style="width:8px"></i><figcaption class="val">8</figcaption></figure><figure><i style="width:12px"></i><figcaption class="val">12</figcaption></figure><figure><i style="width:16px"></i><figcaption class="val">16</figcaption></figure><figure><i style="width:24px"></i><figcaption class="val">24</figcaption></figure><figure><i style="width:32px"></i><figcaption class="val">32</figcaption></figure><figure><i style="width:48px"></i><figcaption class="val">48</figcaption></figure>
+      </div>
+      <p class="val">4 inside a control · 8 between related things · 16 inside a box · 24 between boxes · 48 between parts of a page</p>
+    </div>
+    <div class="col onsky"><h3>Control heights</h3>
+      <div class="row"><button class="btn btn-s">Small 24</button><button class="btn">Regular 32</button><button class="btn btn-l">Large 40</button></div>
+      <p class="val">Small on tiles and in rows · regular everywhere · large for the one main action, and for everything on touch screens</p>
+    </div>
+  </div>
+  <div class="col onsky"><h3>Corners</h3>
+    <div class="corners">
+      <figure><i style="border-radius:4px"></i><figcaption class="val">4 · tick boxes, tags, paper</figcaption></figure>
+      <figure><i style="border-radius:8px"></i><figcaption class="val">8 · rows, text boxes</figcaption></figure>
+      <figure><i style="border-radius:12px"></i><figcaption class="val">12 · file boxes, menus</figcaption></figure>
+      <figure><i style="border-radius:20px"></i><figcaption class="val">20 · sheets, dialogs, header</figcaption></figure>
+      <figure><i style="border-radius:999px"></i><figcaption class="val">full · buttons, switches, toasts</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="glass">
+  <div class="intro">
+    <h2>The two glasses</h2>
+    <p><strong style="color:var(--ink);font-weight:500">Box glass</strong> holds your things: light, flat, see-through. <strong style="color:var(--ink);font-weight:500">Bar glass</strong> holds Mutt's: darker, for the top bar, menus, sheets, dialogs and toasts. Today there are three recipes and 17 strengths of frost; two of the recipes are gradients, which your own rule excludes. Each sample sits over the same bright sky, a ribbon and a planet so you can see what the frost does to them.</p>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 4</b><span>How strong should the frost and the edge be?</span></div>
+    <div class="opts two">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="glass" data-v="now"><i></i>Now</button><p class="why">Box glass brightens the sky behind it, which is why words wash out low on the page. Menus and sheets are a dark gradient.</p></div><div class="spec" data-glass="now" data-tpl="t-glass"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="glass" data-v="a"><i></i>A · Clear</button><p class="why">Thinnest. You see the sky sharply through it, and ribbons cut straight across your words.</p></div><div class="spec" data-glass="a" data-tpl="t-glass"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="glass" data-v="b"><i></i>B · Frosted <em>my pick</em></button><p class="why">A deeper frost and a slightly firmer edge. The sky behind goes soft and a touch deeper, so words hold anywhere on the page. Bar glass becomes one flat dark sheet.</p></div><div class="spec" data-glass="b" data-tpl="t-glass"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="glass" data-v="c"><i></i>C · Milky</button><p class="why">The most solid and the easiest to read, but it starts to hide the sky, and the sky is what makes it Mutt.</p></div><div class="spec" data-glass="c" data-tpl="t-glass"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="gloss">
+  <div class="intro">
+    <h2>Gloss</h2>
+    <p>Gloss is for things you press and nothing else. Today the shine is drawn four ways: one on the blue button, another on the plain button, a brighter one on the chosen segment, and a hand-mixed one on Delete. The proposal is one light, from above, laid over whatever colour the control is. Try them: they press, switch and slide.</p>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 5</b><span>How glossy should the Vita controls be?</span></div>
+    <div class="opts two">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="gloss" data-v="now"><i></i>Now</button><p class="why">Four shines that nearly agree. Look at the switch beside the chosen segment.</p></div><div class="spec" data-gloss="now" data-tpl="t-gloss"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="gloss" data-v="a"><i></i>A · Satin</button><p class="why">A soft sheen with no line across the middle. Quiet and current, but it stops being the Vita.</p></div><div class="spec" data-gloss="a" data-tpl="t-gloss"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="gloss" data-v="b"><i></i>B · Vita <em>my pick</em></button><p class="why">A bright lip on the top edge and a sheen over the upper half that fades at the middle instead of stopping at a hard line. Plainly Vita, not a toy.</p></div><div class="spec" data-gloss="b" data-tpl="t-gloss"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="gloss" data-v="c"><i></i>C · Gel</button><p class="why">The full glossy bubble with a hard line. The most nostalgic, and it reads cartoony beside the stippled void.</p></div><div class="spec" data-gloss="c" data-tpl="t-gloss"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="paper">
+  <div class="intro">
+    <h2>Paper</h2>
+    <p>Paper is for things that are writing: documents, book pages, the little pages on planets. One cream instead of three, flat, with square-ish corners so it never looks like glass. A serif appears on paper and nowhere else. Today documents use one serif and the book reader another, so the same paragraph looks different in the two.</p>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 6</b><span>Which serif for everything on paper?</span></div>
+    <div class="opts">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="serif" data-v="news"><i></i>A · Newsreader <em>my pick</em></button><p class="why">Already what documents use. Looks the same on every device, has real italics, and tightens itself for titles and opens up for small text.</p></div><div class="spec" data-serif="news" data-tpl="t-paper"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="serif" data-v="system"><i></i>B · The computer's own serif</button><p class="why">What the book reader uses now. Nothing to fetch, but a Mac shows Iowan and Windows shows Palatino or Georgia, so pages differ between devices.</p></div><div class="spec" data-serif="system" data-tpl="t-paper"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="serif" data-v="lit"><i></i>C · Literata</button><p class="why">Made for long reading on screens. Sturdier in small sizes, plainer in titles, and one more typeface to fetch.</p></div><div class="spec" data-serif="lit" data-tpl="t-paper"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="depth">
+  <div class="intro">
+    <h2>Four heights</h2>
+    <p>Four shadows, named by how far a thing is lifted off the sky, replace today's 94. One shadow colour, the night blue of the top of the sky. On a dark sky shadows are quiet by nature; the edge and the frost do most of the lifting.</p>
+  </div>
+  <div class="scene short">
+    <svg class="rb" viewBox="0 0 600 200" preserveAspectRatio="none"><path d="M0 60 L120 100 L300 70 L460 20 L600 50 V200 H0Z" fill="var(--ribbon)" fill-opacity="0.06" stroke="var(--ribbon-line)" stroke-opacity="0.35" vector-effect="non-scaling-stroke"/></svg>
+    <div class="box sh" style="box-shadow:inset 0 1px 0 rgba(255,255,255,var(--lip)),var(--shadow-rest)"><span class="val" style="color:var(--ink-2)">Resting<br>file boxes</span></div>
+    <div class="box sh" style="box-shadow:inset 0 1px 0 rgba(255,255,255,var(--lip)),var(--shadow-raised)"><span class="val" style="color:var(--ink-2)">Raised<br>pointed at, dragged</span></div>
+    <div class="barglass sh" style="box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-float)"><span class="val" style="color:var(--ink-2)">Floating<br>menus, toasts</span></div>
+    <div class="barglass sh" style="border-radius:20px;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-overlay)"><span class="val" style="color:var(--ink-2)">Overlay<br>sheets, dialogs</span></div>
+  </div>
+</section>
+
+<section id="parts">
+  <div class="intro">
+    <h2>The parts</h2>
+    <p>One of each, in every state. Today there are about a dozen buttons, seven text boxes and five menus. The file boxes are in the planet's page at the top.</p>
+  </div>
+  <div class="col"><h3>Buttons: four kinds, five states</h3>
+    <div class="scroll"><div class="matrix">
+      <span></span><span class="val">Resting</span><span class="val">Pointed at</span><span class="val">Pressed</span><span class="val">Keyboard</span><span class="val">Switched off</span>
+      <span class="val">Main</span><span><button class="btn btn-main">Add</button></span><span><button class="btn btn-main is-hover">Add</button></span><span><button class="btn btn-main is-down">Add</button></span><span><button class="btn btn-main is-focus">Add</button></span><span><button class="btn btn-main is-off">Add</button></span>
+      <span class="val">Plain</span><span><button class="btn">Share</button></span><span><button class="btn is-hover">Share</button></span><span><button class="btn is-down">Share</button></span><span><button class="btn is-focus">Share</button></span><span><button class="btn is-off">Share</button></span>
+      <span class="val">Quiet</span><span><button class="btn btn-quiet">Not now</button></span><span><button class="btn btn-quiet is-hover">Not now</button></span><span><button class="btn btn-quiet is-down">Not now</button></span><span><button class="btn btn-quiet is-focus">Not now</button></span><span><button class="btn btn-quiet is-off">Not now</button></span>
+      <span class="val">Danger</span><span><button class="btn btn-danger">Delete</button></span><span><button class="btn btn-danger is-hover">Delete</button></span><span><button class="btn btn-danger is-down">Delete</button></span><span><button class="btn btn-danger is-focus">Delete</button></span><span><button class="btn btn-danger is-off">Delete</button></span>
+    </div></div>
+    <div class="row onsky"><span class="val">Three sizes</span><button class="btn btn-main btn-s">Add</button><button class="btn btn-main">Make it a list</button><button class="btn btn-main btn-l">Make it a list</button><button class="btn btn-s">Upload</button><button class="btn">Share</button><button class="btn btn-l">Sign out</button><button class="btn btn-quiet btn-s">Keep it</button></div>
+    <p class="val onsky">Main: one per view, the thing you most likely want. Plain: everything else. Quiet: turning something down. Danger: only inside a "are you sure" dialog. Underlined words stop being used as buttons.</p>
+  </div>
+  <div class="cols">
+    <div class="col"><h3>Text boxes: boxed and bare</h3>
+      <input class="field field-l" id="f-search" placeholder="Search your galaxy" aria-label="Search your galaxy">
+      <input class="field" id="f-name" placeholder="Someone's username" aria-label="Someone's username">
+      <div class="field is-hover"><span class="ph">Pointed at</span></div>
+      <div class="field is-focus"><span>pier</span><i class="caret"></i></div>
+      <div class="onsky"><span class="bare">Add a note</span><span class="bare is-hover">Add a note (pointed at)</span><span class="bare is-focus">The summer we kept writing home</span></div>
+      <p class="val onsky">Boxed is a sunken well. Bare is for a planet's or file's own name and note: no box until you point or type. The first two are real, try them.</p>
+    </div>
+    <div class="col"><h3>Menu</h3>
+      <div class="menu barglass">
+        <button class="mi"><svg class="ic"><use href="#i-pen"/></svg><span>Rename</span></button>
+        <button class="mi is-hover"><svg class="ic"><use href="#i-swatch"/></svg><span>Change its look</span></button>
+        <button class="mi"><svg class="ic"><use href="#i-list"/></svg><span>Make it a list</span></button>
+        <button class="mi"><svg class="ic"><use href="#i-moon"/></svg><span>Add a moon</span><small>2 of 4</small></button>
+        <div class="msep"></div>
+        <button class="mi danger"><svg class="ic"><use href="#i-trash"/></svg><span>Delete planet</span></button>
+      </div>
+      <p class="val onsky">One menu for the ••• button, right-click, the editor and the reader. The icons are stand-ins on the proposed grid; the real set is session 6.</p>
+    </div>
+    <div class="col"><h3>Dialog, toast, switch, segmented bar</h3>
+      <div class="dialog barglass"><b>Delete Postcards?</b><span style="color:var(--ink-2)">Its 3 files stay in your galaxy as loose files.</span><div class="acts"><button class="btn">Cancel</button><button class="btn btn-danger">Delete</button></div></div>
+      <div class="toast barglass"><span>Sent to Recipes</span><button>Move</button></div>
+      <div class="row"><span class="sw" role="switch" aria-checked="true" tabindex="0"><span class="sw-track"><span class="sw-knob"></span></span>Others can add files</span><span class="sw" role="switch" aria-checked="false" tabindex="0"><span class="sw-track"><span class="sw-knob"></span></span>Off</span></div>
+      <span class="seg" data-seg style="align-self:flex-start"><button aria-pressed="true">Public</button><button aria-pressed="false">People</button><button aria-pressed="false">Code</button><button aria-pressed="false">Private</button></span>
+    </div>
+  </div>
+  <div class="cols">
+    <div class="col onsky"><h3>One section heading for every mode</h3>
+      <div class="sec-head"><b>Files</b><span>12</span></div>
+      <div class="sec-head"><b>Books</b><span>2</span></div>
+      <div class="sec-head"><b>Documents</b><span>4 · 518 words</span></div>
+      <div class="sec-head"><b>Recipes</b><span>9 · 3 chapters</span></div>
+      <p class="val">A name in plain words and a fact in mono, straight on the sky. Today each mode writes its own ("Documents · 518 words", "Books 2", "4 items", nothing on the cookbook).</p>
+    </div>
+    <div class="col onsky"><h3>Small text: one caption, one fact</h3>
+      <div class="t-cap">pier-at-dusk.jpg</div>
+      <div class="t-fact">3 files · just now · Public</div>
+      <div class="t-cap t-hint">Add a note</div>
+      <p class="val">Captions in Red Hat Text, facts (anything you could count or date) in Red Hat Mono. Today small text is set five ways.</p>
+    </div>
+  </div>
+</section>
+
+<section id="identity">
+  <div class="intro">
+    <h2>Logo and skies</h2>
+    <p>Two settings exist today that decide how much there is to keep consistent. Neither changes anything else on this board, so picking here only records your answer.</p>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 7</b><span>Keep five logo styles in Settings?</span></div>
+    <div class="opts">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="logos" data-v="now"><i></i>Now · Five</button><p class="why">Wonky, Editorial, Stamp, Wide, Mono. Stamp is a pixel typeface, which your own rule excludes.</p></div><div class="logos"><span class="lg-wonk">mutt</span><span class="lg-ed">Mutt</span><span class="lg-stamp">mutt</span><span class="lg-wide">mutt</span><span class="lg-mono">mutt</span></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="logos" data-v="one"><i></i>A · One, the Wonky <em>my pick</em></button><p class="why">A logo is the one thing that shouldn't be a setting. Wonky is already the one on the sign-in light and the tab. It removes a row from Settings and most of the 27 typefaces fetched on every load.</p></div><div class="logos"><span class="lg-wonk">mutt</span></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="logos" data-v="three"><i></i>B · Three</button><p class="why">Wonky, Editorial and Wide. Keeps some choice, drops the pixel one and the Mono.</p></div><div class="logos"><span class="lg-wonk">mutt</span><span class="lg-ed">Mutt</span><span class="lg-wide">mutt</span></div></div>
+    </div>
+  </div>
+  <div class="choice">
+    <div class="q"><b>Choice 8</b><span>Keep four skies?</span></div>
+    <div class="opts">
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skies" data-v="now"><i></i>Now · Four, as they are</button><p class="why">Each was coloured by eye, so words and glass read a little differently on each. Use the dots in the bar to see this whole board under each one.</p></div><div class="skies" data-tpl="t-skies"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skies" data-v="tuned"><i></i>A · Four, tuned alike <em>my pick</em></button><p class="why">A sky is cheap to keep and it is the most personal setting Mutt has. Each one gets the same steps from dark to bright as Vita (done in session 7), so everything on this board reads the same under all four.</p></div><div class="skies" data-tpl="t-skies"></div></div>
+      <div class="opt"><div class="opt-head"><button class="pick" data-k="skies" data-v="one"><i></i>B · Vita only</button><p class="why">One sky to get perfect, and one less row in Settings. Loses a choice people can feel.</p></div><div class="skies"><div class="scene" data-sky="vita" style="grid-column:1/-1"><div class="box">the pier at dusk</div><span class="t-cap">Vita</span></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="motion">
+  <div class="intro">
+    <h2>Motion, for later</h2>
+    <p>Five lengths and three curves replace today's 79 lengths and 12 curves. They are here so you can feel them; they get judged properly, at real speed on the real app, in session 8. At rest only three things may move: the sky, planets turning, and the slow float of boxes.</p>
+  </div>
+  <div class="lanes" id="lanes">
+    <span class="val onsky">Quick · 0.12 s<br>pressing, pointing</span><div class="lane"><i style="transition:left .12s var(--glide)"></i></div>
+    <span class="val onsky">Change · 0.2 s<br>colour, switch, tick</span><div class="lane"><i style="transition:left .2s var(--spring)"></i></div>
+    <span class="val onsky">Move · 0.32 s<br>menus, rows, lean</span><div class="lane"><i style="transition:left .32s var(--glide)"></i></div>
+    <span class="val onsky">Arrive · 0.5 s<br>boxes, sheets, dialogs</span><div class="lane"><i style="transition:left .5s var(--settle)"></i></div>
+    <span class="val onsky">Scene · 0.8 s<br>planet to galaxy, sky</span><div class="lane"><i style="transition:left .8s var(--settle)"></i></div>
+  </div>
+  <div class="row"><button class="btn" id="play">Play</button><span class="val onsky">Settle: things arriving. Glide: things moving from one place to another. Spring: things you press.</span></div>
+</section>
+
+<section id="yours">
+  <div class="yours barglass">
+    <h2 style="text-shadow:none">Your choices</h2>
+    <ol id="sum"></ol>
+    <textarea id="sumtext" readonly aria-label="Your choices as text"></textarea>
+    <div class="row"><button class="btn btn-main" id="copy">Copy my choices</button><button class="btn btn-quiet" id="reset">Back to the suggested picks</button><span class="val" id="copied" aria-live="polite"></span></div>
+    <p style="color:var(--ink-2)">Send these back, with anything you want different that isn't one of the eight: a colour that is off, a size that feels wrong, something missing. I'll revise the board until it is right, and only then write it up as the one standard.</p>
+  </div>
+</section>
+
+</main>
+
+<template id="t-greys">
+  <div class="strip">
+    <div style="--bg:#020721"><span class="w1">Postcards</span><span class="w2">the pier at dusk</span><span class="w3">pier-at-dusk.jpg</span><span class="w4">3 files · just now</span><span class="w5">Add a note</span></div>
+    <div style="--bg:#0a1f6c"><span class="w1">Postcards</span><span class="w2">the pier at dusk</span><span class="w3">pier-at-dusk.jpg</span><span class="w4">3 files · just now</span><span class="w5">Add a note</span></div>
+    <div style="--bg:#1a56d0"><span class="w1">Postcards</span><span class="w2">the pier at dusk</span><span class="w3">pier-at-dusk.jpg</span><span class="w4">3 files · just now</span><span class="w5">Add a note</span></div>
+  </div>
+</template>
+<template id="t-pcol">
+  <div class="row own" style="gap:16px;align-items:stretch;flex-wrap:nowrap">
+    <div class="cell" style="flex:1"><div class="box note"><p>the pier at dusk</p></div><div class="t-cap">at rest</div></div>
+    <div class="cell is-on" style="flex:1"><div class="box note is-on"><p>the pier at dusk</p></div><div class="t-cap">pointed at</div></div>
+  </div>
+</template>
+<template id="t-labels">
+  <div class="sheet barglass" style="gap:12px;max-width:none">
+    <div class="col" style="gap:8px"><span class="lab">Who can see it</span><span class="seg" data-seg style="align-self:flex-start"><button aria-pressed="true">Public</button><button aria-pressed="false">People</button><button aria-pressed="false">Code</button></span></div>
+    <div class="col" style="gap:8px"><span class="lab">People</span><div class="field"><span class="ph">Someone's username</span></div></div>
+    <div class="row" style="justify-content:space-between;padding-top:12px;border-top:1px solid var(--line)"><span class="sig">Add</span><span class="sig">Universe ↓</span></div>
+  </div>
+</template>
+<template id="t-glass">
+  <div class="scene">
+    <svg class="rb" viewBox="0 0 600 200" preserveAspectRatio="none"><path d="M0 40 L90 120 L230 150 L420 60 L600 90 V200 H0Z" fill="var(--ribbon)" fill-opacity="0.07" stroke="var(--ribbon-line)" stroke-opacity="0.5" vector-effect="non-scaling-stroke"/><path d="M0 110 L200 80 L380 140 L600 30 V200 H0Z" fill="var(--ribbon)" fill-opacity="0.05" stroke="var(--ribbon-line)" stroke-opacity="0.35" vector-effect="non-scaling-stroke"/></svg>
+    <div class="col" style="gap:8px"><div class="box note"><p>wish you were here. The water was colder than it looks and the chips were better than they had any right to be.</p></div><span class="t-cap onsky">Box glass</span></div>
+    <div class="col" style="gap:8px"><div class="menu barglass" style="width:176px"><button class="mi"><span>Rename</span></button><button class="mi is-hover"><span>Change its look</span></button><button class="mi"><span>Add a moon</span><small>2 of 4</small></button></div><span class="t-cap onsky">Bar glass</span></div>
+  </div>
+</template>
+<template id="t-gloss">
+  <div class="col" style="gap:16px">
+    <div class="row"><button class="btn btn-main">Make it a list</button><button class="btn">Share</button><button class="btn btn-danger">Delete</button></div>
+    <div class="row"><span class="sw" role="switch" aria-checked="true" tabindex="0"><span class="sw-track"><span class="sw-knob"></span></span></span><span class="sw" role="switch" aria-checked="false" tabindex="0"><span class="sw-track"><span class="sw-knob"></span></span></span><span class="seg" data-seg><button aria-pressed="true">Fluid</button><button aria-pressed="false">Calm</button><button aria-pressed="false">Still</button></span></div>
+    <div class="row own" style="--pc:#A66BFF;--pa:#772ee5"><button class="btn btn-main">On a purple planet</button><span class="sw" role="switch" aria-checked="true" tabindex="0"><span class="sw-track"><span class="sw-knob"></span></span></span></div>
+  </div>
+</template>
+<template id="t-paper">
+  <div class="paper page">
+    <h4>The summer we kept writing home</h4>
+    <p>We sent one from every town, <em>whether or not</em> there was anything to say. Mostly there wasn't: the weather, the food, a joke about the landlady.</p>
+    <p>Forty years on they are the only record that any of it happened.</p>
+    <div class="foot">Page 1 · 518 words</div>
+  </div>
+</template>
+<template id="t-skies">
+  <div class="scene" data-sky="vita"><div class="box">the pier at dusk</div><span class="t-cap">Vita</span></div>
+  <div class="scene" data-sky="nebula"><div class="box">the pier at dusk</div><span class="t-cap">Nebula</span></div>
+  <div class="scene" data-sky="aurora"><div class="box">the pier at dusk</div><span class="t-cap">Aurora</span></div>
+  <div class="scene" data-sky="dusk"><div class="box">the pier at dusk</div><span class="t-cap">Dusk</span></div>
+</template>
+<template id="t-pier">
+  <svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" role="img" aria-label="A pier at dusk">
+    <defs>
+      <linearGradient id="pg-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#27255c"/><stop offset="0.45" stop-color="#8a4a78"/><stop offset="0.78" stop-color="#ef8a5c"/><stop offset="1" stop-color="#f8cf8e"/></linearGradient>
+      <linearGradient id="pg-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a4f73"/><stop offset="0.35" stop-color="#3a3a6e"/><stop offset="1" stop-color="#151a3c"/></linearGradient>
+    </defs>
+    <rect width="300" height="190" fill="url(#pg-sky)"/>
+    <circle cx="206" cy="172" r="26" fill="#ffe3ae"/>
+    <rect y="186" width="300" height="114" fill="url(#pg-sea)"/>
+    <path d="M186 190h40l8 16h-56zM176 214h60l10 22h-80zM160 246h92l14 30H146z" fill="#ffd9a0" opacity="0.28"/>
+    <path d="M0 224 L196 182 L196 188 L0 244Z" fill="#0d1026"/>
+    <path d="M150 181h34v-9l-6-6h-22l-6 6z" fill="#0d1026"/><path d="M160 166l7-9 7 9z" fill="#0d1026"/>
+    <path d="M22 236v40M52 229v36M82 222v30M110 215v24M136 208v18M160 201v13M180 195v9" stroke="#0d1026" stroke-width="3" fill="none"/>
+    <path d="M0 214 L196 177" stroke="#0d1026" stroke-width="1.5" fill="none"/>
+  </svg>
+</template>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var $ = function (s, el) { return (el || document).querySelector(s); };
+  var $$ = function (s, el) { return Array.prototype.slice.call((el || document).querySelectorAll(s)); };
+
+  // specimens: each option shows the same sample, dressed by that option's values
+  $$('[data-tpl]').forEach(function (el) { el.appendChild($('#' + el.dataset.tpl).content.cloneNode(true)); });
+  $$('[data-pier]').forEach(function (el) { el.appendChild($('#t-pier').content.cloneNode(true)); });
+
+  // how strongly each word stands out from its strip of sky
+  function lum(c) { c = c.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+  function rgb(s) { var m = s.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [0, 0, 0]; }
+  $$('.strip > div').forEach(function (row) {
+    var bg = lum(rgb(getComputedStyle(row).backgroundColor));
+    $$(':scope > span', row).forEach(function (w) {
+      var fg = lum(rgb(getComputedStyle(w).color)), r = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+      var n = document.createElement('small'); n.textContent = r.toFixed(1); w.appendChild(n);
+    });
+  });
+
+  // ---- the sky, painted. One painter draws every option, for the galaxy and for the universe.
+  function col(s) {
+    s = String(s).trim();
+    if (s[0] === '#') { if (s.length === 4) s = '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3]; return [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]; }
+    var m = s.match(/[\d.]+/g) || [0, 0, 0]; return [+m[0], +m[1], +m[2]];
+  }
+  function mixc(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function ink(c, a) { return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (a == null ? 1 : a) + ')'; }
+  function rng(seed) { return function () { seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function hash(ix, iy) { var n = Math.imul(ix, 374761393) + Math.imul(iy, 668265263) | 0; n = Math.imul(n ^ n >>> 13, 1274126177); return ((n ^ n >>> 16) >>> 0) / 4294967296; }
+  function noise(x, y) {
+    var ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy; fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    var a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  }
+  var WHITE = [255, 255, 255], TAU = Math.PI * 2;
+  var WORLDS = [[0, 168, '#00B2C6', 'Postcards'], [0, 12, '#FFB020', 'Shopping'], [1, 214, '#bcd3e2', 'Recipes to try'], [1, 142, '#c69563', 'Library'], [1, -34, '#A66BFF', 'Essays'], [1, 36, '#14B86A', 'Drafts']];
+  var DOTS = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240'];
+
+  function paint(cv, kind, mode, floor, scene) {
+    var w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
+    var d = Math.min(window.devicePixelRatio || 1, 2); cv.width = Math.round(w * d); cv.height = Math.round(h * d);
+    var g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0);
+    var cs = getComputedStyle(cv), tok = function (n) { return col(cs.getPropertyValue(n)); };
+    var S = { top: tok('--sky-top'), deep: tok('--sky-deep'), mid: tok('--sky-mid'), low: tok('--sky-low'), rib: tok('--ribbon'), line: tok('--ribbon-line') };
+    var R = rng(mode === 'universe' ? 77 : 11), u = Math.max(0.5, w / 1100), dim = floor === 'deep' ? 0.52 : 1;
+
+    function glow(cx, cy, rx, ry, c, a, stop) {
+      g.save(); g.translate(cx, cy); g.scale(rx, ry);
+      var rg = g.createRadialGradient(0, 0, 0, 0, 0, 1); rg.addColorStop(0, ink(c, a)); rg.addColorStop(stop, ink(c, 0));
+      g.fillStyle = rg; g.beginPath(); g.arc(0, 0, 1, 0, TAU); g.fill(); g.restore();
+    }
+    function stars(n, big, sparkle) {
+      for (var i = 0; i < n; i++) {
+        var x = R() * w, y = R() * h, s = R() < big ? 1.6 : 0.6 + R() * 0.5;
+        g.fillStyle = ink(mixc(S.line, WHITE, 0.5), 0.25 + R() * 0.65); g.fillRect(x, y, s, s);
+      }
+      g.strokeStyle = ink(WHITE, 0.7); g.lineWidth = 0.8;
+      for (var j = 0; j < sparkle; j++) { var sx = R() * w, sy = R() * h * 0.7; g.beginPath(); g.moveTo(sx - 4, sy); g.lineTo(sx + 4, sy); g.moveTo(sx, sy - 4); g.lineTo(sx, sy + 4); g.stroke(); }
+    }
+    function threads(list, strength) {
+      g.save(); g.globalCompositeOperation = 'lighter'; g.lineWidth = 0.8;
+      list.forEach(function (b) {
+        var n = b[5];
+        for (var i = 0; i < n; i++) {
+          var t = i / (n - 1); g.beginPath();
+          for (var x = -20; x <= w + 20; x += 8) {
+            var ph = x / w * TAU;
+            var c = b[0] * h + b[1] * h * Math.sin(ph * b[2] + b[3]) + 0.35 * b[1] * h * Math.sin(ph * b[2] * 2.3 + b[3] * 1.7);
+            var spread = b[4] * h * (0.16 + 0.84 * (0.5 + 0.5 * Math.sin(ph * b[2] * 0.8 + b[3] * 2.1)));
+            var y = c + (t - 0.5) * spread + 0.012 * h * Math.sin(ph * 1.5 + t * 9 + b[3]);
+            if (x === -20) g.moveTo(x, y); else g.lineTo(x, y);
+          }
+          g.strokeStyle = ink(S.line, b[6] * strength * (1 - Math.abs(t - 0.5) * 1.3)); g.stroke();
+        }
+      });
+      g.restore();
+    }
+    function sphere(x, y, r, hex) {
+      var c = col(hex);
+      g.save(); g.shadowColor = 'rgba(0,0,18,.6)'; g.shadowBlur = r * 0.6; g.shadowOffsetY = r * 0.2;
+      var rg = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.05, x, y, r);
+      rg.addColorStop(0, ink(mixc(c, WHITE, 0.45))); rg.addColorStop(0.5, ink(c)); rg.addColorStop(1, ink(mixc(c, [4, 7, 26], 0.78)));
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.restore();
+    }
+    function theVoid(x, y, r) {
+      var Q = rng(5), i, j;
+      g.fillStyle = 'rgba(6,7,16,.92)'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      for (i = 0; i < r * r * 2.4; i++) {
+        var a = Q() * TAU, q = Math.sqrt(Q()) * r * 1.14, px = x + Math.cos(a) * q, py = y + Math.sin(a) * q;
+        var den = 0.2 + 0.8 * Math.pow(Math.abs(noise(px / (r * 0.2) + 50, py / (r * 0.2) + 50) - 0.5) * 2, 0.6);
+        if (q > r) den *= (1.14 - q / r) / 0.14 * 0.6;
+        if (Q() < den) { g.fillStyle = ink([238, 234, 255], 0.35 + 0.6 * Q()); g.fillRect(px, py, 0.9, 0.9); }
+      }
+      var web = [];
+      for (j = 0; j < 7; j++) { var a1 = Q() * TAU, a2 = a1 + Math.PI * (0.55 + Q() * 0.7), ca = Q() * TAU, cq = Q() * r * 0.75; web.push([a1, a2, x + Math.cos(ca) * cq, y + Math.sin(ca) * cq, 0.05 + Q() * 0.05]); }
+      function strands(k, from) {
+        g.strokeStyle = '#07080f'; g.lineCap = 'round';
+        for (j = from; j < web.length; j++) {
+          var s = web[j]; g.lineWidth = r * s[4] * k; g.beginPath();
+          g.moveTo(x + Math.cos(s[0]) * r * 1.03, y + Math.sin(s[0]) * r * 1.03); g.quadraticCurveTo(s[2], s[3], x + Math.cos(s[1]) * r * 1.03, y + Math.sin(s[1]) * r * 1.03); g.stroke();
+        }
+      }
+      strands(1, 0);
+      var rg = g.createRadialGradient(x, y, 0, x, y, r * 0.44); rg.addColorStop(0, '#fff'); rg.addColorStop(0.6, '#fff'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, r * 0.44, 0, TAU); g.fill();
+      strands(0.7, 4);
+    }
+
+    if (mode === 'universe') { universe(); return; }
+
+    // the galaxy's sky
+    var hold = (kind === 'print' ? 1 : kind === 'orbits' ? 0.6 : 0) * (floor === 'deep' ? 1 : 0.3);
+    if (floor === 'deep' && hold === 0) hold = 0.45;
+    var lg = g.createLinearGradient(0, 0, 0, h);
+    lg.addColorStop(0, ink(S.top)); lg.addColorStop(0.34, ink(S.deep));
+    lg.addColorStop(0.78, ink(mixc(S.mid, S.deep, hold * 0.5))); lg.addColorStop(1, ink(mixc(mixc(S.mid, S.low, 0.3), S.deep, hold * 0.45)));
+    g.fillStyle = lg; g.fillRect(0, 0, w, h);
+    glow(0.12 * w, 1.12 * h, 1.3 * w, 0.85 * h, S.low, dim * (kind === 'now' || kind === 'threads' ? 1 : 0.88), 0.62);
+    var cx = w / 2, cy = scene ? h * 0.48 : h * 0.56, Rv = h * 0.19;
+    var orb = scene ? [[w * 0.27, h * 0.3], [w * 0.44, h * 0.42]] : [[w * 0.2, h * 0.24], [w * 0.34, h * 0.4], [w * 0.5, h * 0.58], [w * 0.68, h * 0.8]];
+
+    if (kind === 'now') {
+      glow(w, h, 0.9 * w, 0.6 * h, S.low, 0.5 * dim, 0.6);
+      glow(0.7 * w, 0.3 * h, 0.56 * w, 0.42 * h, [70, 130, 255], 0.26, 0.7);
+      glow(0.25 * w, 0.55 * h, 0.49 * w, 0.39 * h, [120, 80, 255], 0.14, 0.7);
+      g.save(); g.globalCompositeOperation = 'screen';
+      [[[0, 150], [230, 190], [470, 160], [720, 60], [1040, 40], [1400, 110]], [[0, 215], [110, 300], [250, 345], [470, 310], [720, 205], [1050, 200], [1200, 290], [1400, 345]], [[0, 255], [180, 268], [420, 240], [700, 300], [980, 270], [1400, 205]]].forEach(function (pts, n) {
+        g.beginPath();
+        pts.forEach(function (p, i) { var x = p[0] / 1400 * w, y = h * 0.34 + p[1] / 500 * h * 0.7; if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+        g.strokeStyle = ink(S.line, [0.3, 0.24, 0.17][n]); g.lineWidth = 1; g.stroke();
+        g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fillStyle = ink(S.rib, 0.045); g.fill();
+      });
+      g.restore();
+      stars(Math.round(w * h / 8000), 0.12, Math.round(3 * u) + 1);
+    }
+    if (kind === 'threads') {
+      threads([[0.56, 0.1, 1.15, 1.2, 0.26, 34, 0.1], [0.7, 0.07, 1.7, 4.0, 0.18, 26, 0.085], [0.86, 0.08, 0.9, 2.4, 0.34, 40, 0.09]], 1);
+      stars(Math.round(w * h / 20000), 0.06, 0);
+    }
+    if (kind === 'print' || kind === 'orbits') {
+      var dot = mixc(S.low, WHITE, 0.72), thin = kind === 'orbits', tries = Math.round(w * h / (thin ? 9 : 2.6));
+      for (var i = 0; i < tries; i++) {
+        var x = R() * w, y = R() * h;
+        var dd = (y - (0.8 * h - 0.58 * h * x / w)) / h, band = Math.exp(-dd * dd / (thin ? 0.028 : 0.017)), n = noise(x / (110 * u) + 3, y / (110 * u) + 9);
+        band *= thin ? 0.25 + 1.1 * n * n : 0.55 + 0.6 * n;
+        var lane = Math.abs(noise(x / (190 * u) + 40, y / (70 * u) + 12) - 0.5), cut = thin ? 1 : lane < 0.04 ? 0.03 : lane < 0.085 ? 0.03 + 0.97 * (lane - 0.04) / 0.045 : 1;
+        var f = Math.max(0, (y / h - 0.5) / 0.5); f = f * f * (1 - 0.45 * x / w) * (floor === 'deep' ? 0.55 : 0.9);
+        var den = thin ? 0.02 + 0.3 * band : 0.006 + 0.9 * band * cut + 0.16 * f * cut;
+        if (scene && !thin) { var q = Math.hypot(x - cx, y - cy) / Rv; den += 0.5 * Math.exp(-Math.pow((q - 1.3) / 0.3, 2)); }
+        if (R() < den) { var lit = R() < 0.012, s = lit ? 1.4 : 0.5 + R() * 0.5; g.fillStyle = ink(lit ? WHITE : dot, lit ? 0.9 : 0.22 + 0.55 * R()); g.fillRect(x, y, s, s); }
+      }
+    }
+    if (kind === 'orbits') {
+      g.strokeStyle = ink(S.line, 0.15); g.lineWidth = 1;
+      orb.forEach(function (o) { g.beginPath(); g.ellipse(cx, cy, o[0], o[1], 0, 0, TAU); g.stroke(); });
+      stars(Math.round(w * h / 26000), 0.25, 0);
+    }
+    if (scene) {
+      theVoid(cx, cy, Rv);
+      g.font = '500 11px "Red Hat Text", system-ui, sans-serif'; g.textAlign = 'center';
+      WORLDS.forEach(function (p) {
+        var o = orb[p[0]], a = p[1] / 360 * TAU, x = cx + o[0] * Math.cos(a), y = cy + o[1] * Math.sin(a), r = h * 0.07;
+        sphere(x, y, r, p[2]);
+        g.save(); g.shadowColor = 'rgba(0,0,18,.9)'; g.shadowBlur = 4; g.shadowOffsetY = 1; g.fillStyle = '#f2f5fc'; g.fillText(p[3], x, y + r + 16); g.restore();
+      });
+    }
+
+    // the universe
+    function universe() {
+      var rg = g.createRadialGradient(w / 2, h * 0.55, 0, w / 2, h * 0.55, Math.max(w, h) * 0.8);
+      rg.addColorStop(0, '#070914'); rg.addColorStop(0.6, '#020307'); rg.addColorStop(1, '#000002');
+      g.fillStyle = rg; g.fillRect(0, 0, w, h);
+      var nodes = [], cols = 3, rows = 4, i, j;
+      for (j = 0; j < rows; j++) for (i = 0; i < cols; i++) {
+        if ((i + j * cols) % 5 === 4) continue;
+        nodes.push([(i + 0.5 + (R() - 0.5) * 0.5) / cols * w, (j + 0.55 + (R() - 0.5) * 0.45) / rows * h]);
+      }
+      var me = nodes[Math.floor(nodes.length / 2)];
+      var links = [];
+      nodes.forEach(function (a, ai) {
+        var near = nodes.map(function (b, bi) { return [Math.hypot(a[0] - b[0], a[1] - b[1]), bi]; }).sort(function (p, q) { return p[0] - q[0]; });
+        [1, 2].forEach(function (k) { if (near[k] && near[k][1] > ai) links.push([a, nodes[near[k][1]]]); });
+      });
+      if (kind === 'now') {
+        g.strokeStyle = 'rgba(140,160,255,.1)'; g.lineWidth = 1;
+        links.forEach(function (l) { g.beginPath(); g.moveTo(l[0][0], l[0][1]); g.lineTo(l[1][0], l[1][1]); g.stroke(); });
+        stars(Math.round(w * h / 4500), 0.1, 2);
+      }
+      if (kind === 'threads') {
+        threads([[0.34, 0.12, 0.8, 0.6, 0.3, 22, 0.07], [0.7, 0.1, 1.1, 3.1, 0.26, 20, 0.06]], 0.9);
+        stars(Math.round(w * h / 12000), 0.06, 0);
+      }
+      if (kind === 'print') {
+        var tries = Math.round(w * h / 3.2), dot = [236, 234, 250];
+        for (var t = 0; t < tries; t++) {
+          var x = R() * w, y = R() * h, den = 0.004 + 0.012 * noise(x / 60, y / 60);
+          for (i = 0; i < nodes.length; i++) { var dx = x - nodes[i][0], dy = y - nodes[i][1]; den += 0.85 * Math.exp(-(dx * dx + dy * dy) / 900); }
+          for (i = 0; i < links.length; i++) {
+            var a = links[i][0], b = links[i][1], vx = b[0] - a[0], vy = b[1] - a[1], len = vx * vx + vy * vy;
+            var k = Math.max(0, Math.min(1, ((x - a[0]) * vx + (y - a[1]) * vy) / len)), ex = x - (a[0] + vx * k), ey = y - (a[1] + vy * k);
+            den += 0.3 * Math.exp(-(ex * ex + ey * ey) / 70) * (0.3 + noise(x / 30 + 9, y / 30));
+          }
+          if (R() < den) { var s = R() < 0.03 ? 1.4 : 0.55 + R() * 0.5; g.fillStyle = ink(dot, 0.25 + 0.7 * R()); g.fillRect(x, y, s, s); }
+        }
+      }
+      if (kind === 'orbits') {
+        g.strokeStyle = 'rgba(200,215,255,.12)'; g.lineWidth = 1;
+        g.beginPath(); g.ellipse(w / 2, h * 0.55, w * 0.62, h * 0.3, -0.2, 0, TAU); g.stroke();
+        g.beginPath(); g.ellipse(w / 2, h * 0.55, w * 0.95, h * 0.5, -0.2, 0, TAU); g.stroke();
+        nodes.forEach(function (n) { g.beginPath(); g.ellipse(n[0], n[1], 15, 10, 0, 0, TAU); g.stroke(); g.beginPath(); g.ellipse(n[0], n[1], 24, 16, 0, 0, TAU); g.stroke(); });
+        stars(Math.round(w * h / 9000), 0.15, 0);
+      }
+      nodes.forEach(function (n, ni) {
+        var big = n === me ? 1.35 : 1, cnt = 3 + Math.floor(R() * 3);
+        for (var p = 0; p < cnt; p++) {
+          var a = R() * TAU, ring = p % 2 ? 24 : 15, r = (2.2 + R() * 1.6) * big;
+          sphere(n[0] + Math.cos(a) * ring * big, n[1] + Math.sin(a) * ring * 0.66 * big, r, DOTS[(ni * 3 + p) % DOTS.length]);
+        }
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(n[0], n[1], 2.4 * big, 0, TAU); g.fill();
+        g.strokeStyle = 'rgba(10,10,20,.9)'; g.lineWidth = 1; g.beginPath(); g.ellipse(n[0], n[1], 4.6 * big, 2.2 * big, 0.6, 0, TAU); g.stroke();
+      });
+    }
+  }
+
+  var painting = 0;
+  function paintSoon() { if (painting) return; painting = requestAnimationFrame(function () { painting = 0; paintAll(); }); }
+  function paintAll() {
+    var look = state.skylook || 'print', floor = state.floor || 'deep';
+    paint($('#pagesky'), look, 'galaxy', floor, false);
+    $$('.skypair').forEach(function (el) {
+      if (!el.firstChild) el.innerHTML = '<figure><canvas data-mode="galaxy"></canvas><figcaption>Your galaxy</figcaption></figure><figure><canvas data-mode="universe"></canvas><figcaption>The universe</figcaption></figure>';
+      $$('canvas', el).forEach(function (cv) { paint(cv, el.dataset.skylook, cv.dataset.mode, floor, true); });
+    });
+    $$('.floorfig').forEach(function (el) { paint($('canvas', el), look, 'galaxy', el.dataset.floor, false); });
+  }
+
+  // the choices
+  var CH = [
+    { k: 'greys', q: 'Small words', pick: 'b', o: { now: 'as now', a: 'A, brighter greys', b: 'B, brighter greys and a soft shadow' } },
+    { k: 'pcol', q: 'Planet colour at rest', pick: 'b', o: { now: 'as now', a: 'A, clear at rest', b: 'B, a faint edge at rest' } },
+    { k: 'labels', q: 'Small labels', pick: 'now', o: { now: 'as now', a: 'A, plain words everywhere', b: 'B, capitals only on the galaxy' } },
+    { k: 'glass', q: 'Glass', pick: 'b', o: { now: 'as now', a: 'A, clear', b: 'B, frosted', c: 'C, milky' } },
+    { k: 'gloss', q: 'Gloss', pick: 'b', o: { now: 'as now', a: 'A, satin', b: 'B, Vita', c: 'C, gel' } },
+    { k: 'serif', q: 'Serif on paper', pick: 'news', o: { news: 'A, Newsreader', system: "B, the computer's own", lit: 'C, Literata' } },
+    { k: 'logos', q: 'Logo styles', pick: 'one', o: { now: 'keep five', one: 'A, one (Wonky)', three: 'B, three' } },
+    { k: 'skies', q: 'Skies', pick: 'tuned', o: { now: 'keep four as they are', tuned: 'A, four tuned alike', one: 'B, Vita only' } },
+    { k: 'skylook', q: 'What the sky is made of', pick: 'print', fresh: 1, o: { now: 'as now', threads: 'A, threads', print: 'B, print', orbits: 'C, orbits' } },
+    { k: 'floor', q: 'Bottom of the sky', pick: 'deep', fresh: 1, o: { bright: 'as now, Vita bright', deep: 'A, deeper' } }
+  ];
+  var KEY = 'mutt-look-board-2', state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function apply() {
+    var lines = [], sum = $('#sum'); sum.textContent = '';
+    CH.forEach(function (c, n) {
+      var v = c.o[state[c.k]] ? state[c.k] : c.pick; state[c.k] = v;
+      root.setAttribute('data-' + c.k, v);
+      $$('.pick[data-k="' + c.k + '"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === v)); });
+      var li = document.createElement('li'), b = document.createElement('b'), s = document.createElement('span');
+      b.textContent = n + 1; li.appendChild(b); li.appendChild(document.createTextNode(c.q + ': '));
+      s.textContent = c.o[v] + (c.fresh ? (v === c.pick ? ' (suggested)' : '') : (v === c.pick ? ' · settled' : ' (changed)')); li.appendChild(s); sum.appendChild(li);
+      if (c.fresh || v !== c.pick) lines.push((n + 1) + ' ' + c.q + ': ' + c.o[v]);
+    });
+    $('#sumtext').value = 'Look board, round two. ' + lines.join('; ') + '.';
+    paintSoon();
+  }
+  apply();
+  document.addEventListener('click', function (e) {
+    var p = e.target.closest('.pick');
+    if (p) { state[p.dataset.k] = p.dataset.v; save(); apply(); return; }
+    var sw = e.target.closest('.sw');
+    if (sw) { sw.setAttribute('aria-checked', String(sw.getAttribute('aria-checked') !== 'true')); return; }
+    var sb = e.target.closest('[data-seg] button');
+    if (sb) { $$('button', sb.parentNode).forEach(function (b) { b.setAttribute('aria-pressed', String(b === sb)); }); return; }
+    var sd = e.target.closest('[data-setsky]');
+    if (sd) { setSky(sd.dataset.setsky); return; }
+    var pd = e.target.closest('[data-pc]');
+    if (pd) { setPlanet(pd.dataset.pc, pd.dataset.pa); return; }
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.classList && e.target.classList.contains('sw')) { e.preventDefault(); e.target.click(); }
+  });
+  $('#reset').addEventListener('click', function () { state = {}; save(); apply(); });
+  $('#copy').addEventListener('click', function () {
+    var t = $('#sumtext'), done = function (ok) { $('#copied').textContent = ok ? 'Copied' : 'Selected: press copy on your keyboard'; };
+    function fallback() { t.focus(); t.select(); done(false); }
+    try { navigator.clipboard.writeText(t.value).then(function () { done(true); }, fallback); } catch (err) { fallback(); }
+  });
+
+  // sky and planet colour
+  function setSky(name) {
+    root.setAttribute('data-sky', name); state.sky = name; save(); paintSoon();
+    $$('[data-setsky]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.setsky === name)); });
+  }
+  var PLANETS = [['#FF5C39', '#e44725'], ['#2F6BFF', '#2e63e5'], ['#14B86A', '#129155'], ['#FFB020', '#a37114'], ['#A66BFF', '#772ee5'], ['#FF6FB0', '#e52e81'], ['#00B2C6', '#138d9a'], ['#9A6240', '#b86b3d']];
+  var pcd = $('#pcdots');
+  PLANETS.forEach(function (p) {
+    var b = document.createElement('button'); b.className = 'dot'; b.style.setProperty('--c', p[0]);
+    b.dataset.pc = p[0]; b.dataset.pa = p[1]; b.setAttribute('aria-label', 'Planet colour ' + p[0]); pcd.appendChild(b);
+  });
+  function setPlanet(pc, pa) {
+    root.style.setProperty('--pc', pc); root.style.setProperty('--pa', pa); state.pc = pc; state.pa = pa; save();
+    $$('[data-pc]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.pc === pc)); });
+  }
+  setSky(['vita', 'nebula', 'aurora', 'dusk'].indexOf(state.sky) >= 0 ? state.sky : 'vita');
+  var keep = PLANETS.filter(function (p) { return p[0] === state.pc; })[0] || PLANETS[0];
+  setPlanet(keep[0], keep[1]);
+
+  // a box leans only while it is pointed at
+  $$('.lean').forEach(function (el) {
+    el.addEventListener('pointermove', function (e) {
+      var r = el.getBoundingClientRect();
+      el.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 2 - 1).toFixed(3));
+      el.style.setProperty('--my', ((e.clientY - r.top) / r.height * 2 - 1).toFixed(3));
+    });
+    el.addEventListener('pointerleave', function () { el.style.setProperty('--mx', 0); el.style.setProperty('--my', 0); });
+  });
+
+  window.addEventListener('resize', paintSoon);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(paintSoon);
+  $('#play').addEventListener('click', function () { $('#lanes').classList.toggle('go'); });
+})();
+</script>

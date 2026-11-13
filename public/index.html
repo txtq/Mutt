@@ -16,6 +16,10 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@1,9..144,500,100,1&display=swap">
   <link rel="stylesheet" href="/assets/tokens.css">
   <link rel="stylesheet" href="/assets/galaxy.css">
+  <!-- Keep this line, and keep it between the stylesheets and the app. A plain script waits for the
+       stylesheets above before anything after it runs; without it Safari starts the app on a first
+       visit before tokens.css has arrived, and every named value reads as nothing (js/wait.js). -->
+  <script src="/assets/js/wait.js"></script>
   <script type="module" src="/assets/js/main.js"></script>
 </head>
 <body>

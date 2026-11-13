@@ -10,7 +10,7 @@
 // planet's modes), anywhere else until the page is reloaded.
 
 import { api } from './api.js';
-import { EASE, h, reducedMotion } from './util.js';
+import { DUR, EASE, h, reducedMotion } from './util.js';
 import { icon } from './icons.js';
 
 const PAUSE = 700;   // ms of quiet typing before the words are read
@@ -47,7 +47,7 @@ export function momentLine(area, { acts, drawerId = null, onWave = null }) {
     if (!key) return;
     say.textContent = words || '';
     btn.textContent = acts[key].label;
-    if (!reducedMotion()) el.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: EASE });
+    if (!reducedMotion()) el.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
   }
 
   async function read(text) {

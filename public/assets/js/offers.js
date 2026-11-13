@@ -7,7 +7,7 @@
 // down to make room; when it's waved away, it glides back up. Only transforms
 // and fades move, so the page isn't laid out again on every frame.
 
-import { DUR, EASE, h, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_LEAVE, h, reducedMotion } from './util.js';
 import { drawing } from './icons.js';
 
 const topOf = (el) => el.getBoundingClientRect().top;
@@ -42,7 +42,7 @@ export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [
     parent.prepend(el);
     if (reducedMotion()) return;
     settle(below, tops, 560);
-    el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: EASE });
+    el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
   };
 
   // Waved away: it lifts off in place while what's below closes the gap.
@@ -57,7 +57,7 @@ export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [
       Object.assign(el.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: '0' });
       settle(below, tops, 460);
       await el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px) scale(0.99)' }],
-        { duration: 240, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+        { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
     }
     el.remove();
   };
@@ -66,7 +66,7 @@ export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [
   el.fade = async () => {
     el.style.pointerEvents = 'none';
     if (reducedMotion() || !el.isConnected) return;
-    await el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.change, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+    await el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
   };
 
   yes.addEventListener('click', async () => {

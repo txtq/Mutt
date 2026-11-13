@@ -101,13 +101,13 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 /* While a document is open the planet's page steps away, leaving the sky. */
 /* The night behind the pages: the galaxy's own sky, dimmed, with the edge of
    the planet you're writing on along the bottom. */
-.de-top, .de-tools, .de-wc { transition: opacity 0.35s var(--ease-settle); }
+.de-top, .de-tools, .de-wc { transition: opacity var(--dur-move) var(--ease-settle); }
 /* Quiet writing: the bars step back once you're typing steadily. */
-.de.is-quiet :is(.de-top, .de-tools, .de-wc) { opacity: 0.07; transition: opacity 1.8s ease; }
+.de.is-quiet :is(.de-top, .de-tools, .de-wc) { opacity: 0.07; transition: opacity var(--dur-grand) ease; }
 /* Going home: the bars and the night fade while the page flies to its place. */
-.de.is-closing :is(.de-top, .de-tools, .de-wc, .de-side, .de-panel, .de-rail, .de-find, .de-banner) { opacity: 0; pointer-events: none; transition: opacity 0.22s ease; }
-.de.is-closing .de-bg { opacity: 0; transition: opacity var(--dur-arrive) ease 0.1s; }
-.de.is-closing .de-limb { transform: translate(-50%, 70px); transition: transform 0.6s var(--ease-settle); }
+.de.is-closing :is(.de-top, .de-tools, .de-wc, .de-side, .de-panel, .de-rail, .de-find, .de-banner) { opacity: 0; pointer-events: none; transition: opacity var(--dur-change) ease; }
+.de.is-closing .de-bg { opacity: 0; transition: opacity var(--dur-arrive) ease var(--dur-quick); }
+.de.is-closing .de-limb { transform: translate(-50%, 70px); transition: transform var(--dur-arrive) var(--ease-settle); }
 .de.is-flying .de-desk { overflow: visible; }
 .de.is-flying .de-stack { transform-origin: 0 0; will-change: transform, clip-path; }
 .de-ghost.dk-paper { position: fixed; z-index: 8; margin: 0; aspect-ratio: auto; transform-origin: 0 0; pointer-events: none; transition: none; will-change: transform, opacity; }
@@ -144,13 +144,13 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 .de-rich-item .menu-hint { margin-left: auto; padding-left: 10px; }
 
 
-.de-main { position: relative; display: grid; grid-template-columns: 0 minmax(0, 1fr) 0; min-height: 0; transition: grid-template-columns 0.3s var(--ease-settle); }
+.de-main { position: relative; display: grid; grid-template-columns: 0 minmax(0, 1fr) 0; min-height: 0; transition: grid-template-columns var(--dur-move) var(--ease-settle); }
 .de.has-side .de-main { grid-template-columns: 248px minmax(0, 1fr) 0; }
 .de.has-panel .de-main { grid-template-columns: 0 minmax(0, 1fr) 320px; }
 .de.has-side.has-panel .de-main { grid-template-columns: 248px minmax(0, 1fr) 320px; }
 
 /* Left: the document's outline, when asked for. */
-.de.has-side .de-side { opacity: 1; visibility: visible; transition: opacity 0.3s var(--ease-settle) 0.08s; }
+.de.has-side .de-side { opacity: 1; visibility: visible; transition: opacity var(--dur-move) var(--ease-settle) var(--dur-quick); }
 
 /* The desk and the pages on it. */
 .de-desk { position: relative; overflow: auto; min-width: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(200, 210, 240, 0.25) transparent; }
@@ -411,7 +411,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 .de-rich-item.is-on { background: var(--tint-2); }
 
 /* ---- the outline (left) and the panel (right: comments on a narrow screen, history): bar glass */
-.de-side { overflow: auto; min-width: 0; margin: 0 0 var(--space-12) var(--space-12); padding: var(--space-12) var(--space-8); border-radius: var(--r-panel); opacity: 0; visibility: hidden; transition: opacity 0.25s var(--ease-settle), visibility 0s 0.3s; }
+.de-side { overflow: auto; min-width: 0; margin: 0 0 var(--space-12) var(--space-12); padding: var(--space-12) var(--space-8); border-radius: var(--r-panel); opacity: 0; visibility: hidden; transition: opacity var(--dur-change) var(--ease-settle), visibility 0s var(--dur-move); }
 .de-side-label { margin: var(--space-4) var(--space-8) var(--space-8); font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .de-side-hint { margin: var(--space-4) var(--space-8); font: var(--type-caption); color: var(--ink-3); }
 .de-out { display: block; width: 100%; padding: 6px var(--space-8); border: 0; border-radius: var(--r-row); background: none; color: var(--ink-2); font: 400 var(--text-label)/16px var(--sans); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -498,7 +498,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 /* ---- the word count: a fact that sits on whatever is behind it, like the tag on a file box */
 .de-wc { position: absolute; left: var(--space-16); bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 3; height: var(--h-small); padding: 0 var(--space-8); border: 0; border-radius: var(--r-mark); background: var(--bar-fill); backdrop-filter: var(--tag-frost); -webkit-backdrop-filter: var(--tag-frost); color: var(--ink-2); font: var(--type-fact); cursor: pointer; }
 .de-wc:hover { color: var(--ink); }
-.de-spin { width: 24px; height: 24px; border: 2px solid var(--line-2); border-top-color: var(--white); border-radius: 50%; animation: de-spin 0.8s linear infinite, de-late 0.4s ease 0.45s backwards; }
+.de-spin { width: 24px; height: 24px; border: 2px solid var(--line-2); border-top-color: var(--white); border-radius: 50%; animation: de-spin var(--beat-quick) linear infinite, de-late var(--dur-move) ease var(--dur-arrive) backwards; }
 .de-pop-label { margin: 0 0 var(--space-8); font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .de-select { height: var(--h-regular); }
 
@@ -509,6 +509,8 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 }
 
 @media (max-width: 760px) {
+  /* the toolbar runs off the right edge here: it fades there, to say there is more to scroll to */
+  .de-tools { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
   .de-back { padding: 0 var(--space-4); }
   .de-name { font-size: var(--text-lead); }
   .de-status { display: none; }

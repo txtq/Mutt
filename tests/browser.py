@@ -451,8 +451,25 @@ def phone(s, seeded):
         s.size(DESK)
 
 
+def keyboard(s, seeded):
+    """Tab stays inside whatever is open on top: here the account sheet (DESIGN.md, section 5 step 10)."""
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
+    s.click('.sb-who')
+    s.see('.sheet.is-open', 'the account sheet did not open')
+    s.settle(0.6)
+    tab = {'actions': [{'type': 'key', 'id': 'kb', 'actions': [{'type': 'keyDown', 'value': '\ue004'}, {'type': 'keyUp', 'value': '\ue004'}]}]}
+    for _ in range(24):
+        s.call('POST', '/actions', tab)
+        where = s.js('const a = document.activeElement; if (!a || a === document.body) return "nowhere";'
+                     'return a.closest(".sheet.is-open") ? "in" : (a.getAttribute("aria-label") || a.className || a.tagName);')
+        if where != 'in':
+            raise Fail(f'with the account sheet open, Tab left it and landed on: {where}')
+    s.shot('keyboard-in-sheet')
+
+
 PATHS = [sign_up, sign_in, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, phone, sample_page]
+         documents_mode, undo, document_editor, open_book, universe, phone, sample_page, keyboard]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

@@ -4,7 +4,7 @@ import { api, session } from './api.js';
 import { nav } from './nav.js';
 import { forgetPrefs } from './theme.js';
 import { openDialog, pinField, toast } from './ui.js';
-import { h, wait } from './util.js';
+import { DUR, EASE, h, reducedMotion, wait } from './util.js';
 
 export async function signOut() {
   try { await api.post('/api/auth/logout'); } catch { /* signed out either way */ }
@@ -54,7 +54,7 @@ function pinSteps({ title, steps, onDone }) {
   const show = () => {
     label.textContent = steps[index].label;
     field.configure(steps[index].pin || { either: true });
-    label.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: 'ease-out' });
+    label.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: reducedMotion() ? 0 : DUR.move, easing: EASE });
     field.state('');
     field.clear();
     setTimeout(() => field.focus(), 40);
@@ -86,7 +86,7 @@ export function deleteAccount() {
       await api.post('/api/me/delete', { pin });
       session.user = null;
       forgetPrefs();
-      setTimeout(() => nav.go('/login', { replace: true }), 450);
+      setTimeout(() => nav.go('/login', { replace: true }), DUR.arrive);
       return null;
     },
   });

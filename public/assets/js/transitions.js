@@ -4,7 +4,7 @@
 // morphs into its counterpart: drawer card → drawer header, block → viewer,
 // drawer row → grid.
 
-import { EASE, inViewport, reducedMotion } from './util.js';
+import { DUR, EASE, inViewport, reducedMotion } from './util.js';
 
 const MAX_SHARED = 40;
 let named = [];
@@ -78,7 +78,7 @@ export function measure(elements) {
   return rects;
 }
 
-export function glide(rects, { duration = 560, easing = EASE } = {}) {
+export function glide(rects, { duration = DUR.arrive, easing = EASE } = {}) {
   if (reducedMotion()) return;
   for (const [el, first] of rects) {
     if (!el.isConnected) continue;

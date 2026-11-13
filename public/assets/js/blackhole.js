@@ -7,7 +7,7 @@
 
 import { center, shockwave } from './fx.js';
 import { theSky } from './sky.js';
-import { h, isEditable, touchScreen } from './util.js';
+import { DUR, h, isEditable, touchScreen } from './util.js';
 import { voidArt } from './voidart.js';
 import { icon } from './icons.js';
 
@@ -46,6 +46,8 @@ export function stillVoid(name) {
   return {
     el: v.el,
     art: v.art.el,
+    ready: () => v.art.ready(),
+    copyTo: (target, r) => v.art.copyTo(target, r),
     size: v.size,
     center: v.center,
     radius: v.radius,
@@ -224,6 +226,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     open = true;
     clearTimeout(lowering);
     el.classList.add('is-open');
+    sheet.inert = false;
     el.closest('.gx')?.classList.add('is-adding');
     core.setAttribute('aria-expanded', 'true');
     setMode(mode, { save: false });
@@ -233,7 +236,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     onToggle?.(true);
     // A phone only brings up its keyboard for a field focused right on the tap.
     if (touchScreen()) input.focus({ preventScroll: true });
-    else setTimeout(() => input.focus({ preventScroll: true }), 380);
+    else setTimeout(() => input.focus({ preventScroll: true }), DUR.move);
     document.addEventListener('pointerdown', outside, true);
     watchKeyboard(true);
     lift();
@@ -243,6 +246,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     open = false;
     hideList();
     el.classList.remove('is-open', 'is-hungry');
+    sheet.inert = true;   // closed, its box takes no keyboard
     el.closest('.gx')?.classList.remove('is-adding');
     core.setAttribute('aria-expanded', 'false');
     art.setOpen(0);
@@ -253,14 +257,15 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     onToggle?.(false);
     // Something sent falls into the void first, then the galaxy settles back.
     const gx = el.closest('.gx');
-    if (gx && lifted) lowering = setTimeout(() => raise(gx, 0), el.classList.contains('is-swallowing') ? 900 : 0);
+    if (gx && lifted) lowering = setTimeout(() => raise(gx, 0), el.classList.contains('is-swallowing') ? DUR.scene : 0);
   }
   setMode(mode, { save: false });
+  sheet.inert = true;
   // The box folds itself back into the dark once it's been sent.
   function swallow() {
     el.classList.add('is-swallowing');
     close();
-    setTimeout(() => el.classList.remove('is-swallowing'), 520);
+    setTimeout(() => el.classList.remove('is-swallowing'), DUR.arrive);
   }
   const reset = () => {
     input.value = '';
@@ -320,6 +325,8 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     el,
     core,
     art: art.el,
+    ready: () => art.ready(),
+    copyTo: (target, r) => art.copyTo(target, r),
     size: v.size,
     play: () => art.play(),
     pause: () => art.pause(),
@@ -355,7 +362,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
       el.classList.remove('is-gulping');
       void el.offsetWidth;
       el.classList.add('is-gulping');
-      setTimeout(() => el.classList.remove('is-gulping'), 800);
+      setTimeout(() => el.classList.remove('is-gulping'), DUR.scene);
       art.gulp();
       const at = this.center();
       shockwave(at, { size: this.radius() * 2.2, color: 'rgba(200, 210, 235, 0.3)' });

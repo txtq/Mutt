@@ -238,28 +238,31 @@
   --icon-large: 20px;    /* the editor's and the reader's bars, the corner back arrow, an empty photo slot */
   --icon-line: 1.5;      /* its line, the same thickness on screen at all three sizes */
   --tick-line: 1.5px;    /* the tick inside a tick box: drawn with the box, at the icons' line */
-  --icon-lit: 0.3;       /* how much light fills an icon's body when its button is pointed at or held on */
+  --icon-lit: 0.45;      /* how much light fills an icon's body when its button is pointed at or held on */
 
-  /* ---------------------------------------------------------------- motion (confirmed at real speed in session 8) */
+  /* ---------------------------------------------------------------- motion (DESIGN.md "Motion"; settled in session 8) */
 
-  --dur-quick: 120ms;    /* pressing, pointing */
-  --dur-change: 200ms;   /* colour, a switch, a tick */
-  --dur-move: 320ms;     /* menus, rows, the lean */
-  --dur-arrive: 500ms;   /* boxes, sheets, dialogs arriving */
-  --dur-scene: 800ms;    /* planet to galaxy, the sky changing */
+  --dur-quick: 120ms;    /* pressing, pointing, a tooltip */
+  --dur-change: 200ms;   /* a colour, a switch, a tick; and everything that leaves */
+  --dur-move: 320ms;     /* a menu opening, a row moving, the lean, a sliding bead */
+  --dur-arrive: 500ms;   /* a box, a sheet, a dialog, a toast arriving */
+  --dur-scene: 800ms;    /* the whole screen changing: planet to galaxy, a page flying open, the sky changing */
+  --dur-grand: 1300ms;   /* set pieces only: sign-in arriving, the light taking the screen, the universe opening */
+  --dur-none: 0.01ms;    /* Motion: Still. An animation ends on its last frame in no time */
+  --stagger: 30ms;       /* between things arriving one after another; never more than 14 steps */
+  --beat-quick: 1s;      /* what never stops, quick: a caret, a spinner, dots while it thinks */
+  --beat-slow: 4s;       /* what never stops, slow: sign-in breathing, steam, a moon's plume */
+  --beat-rest: 9s;       /* what never stops, at rest: a box floating, a moon bobbing, the ring round a target */
   --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);     /* things arriving */
   --ease-glide: cubic-bezier(0.4, 0, 0.2, 1);       /* things moving from one place to another */
-  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);  /* things you press */
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);  /* things you press, and things that pop */
+  --ease-leave: cubic-bezier(0.55, 0, 1, 0.45);     /* things going away */
 
   /* ================================================================ kept from before
      Not in DESIGN.md. Each is still used, and goes (or is adopted there) in the
      session named. Don't use these in new work. */
 
   --bg: #0a1130;         /* a solid stand-in for the sky: the ring round a chosen swatch, the old top bar's fallback (session 7) */
-
-  /* two more curves (session 8 keeps or drops them) */
-  --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
 
 }
 

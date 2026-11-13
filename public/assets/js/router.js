@@ -5,7 +5,7 @@ import { session } from './api.js';
 import { nav } from './nav.js';
 import { canTransition, transition, visibleShared } from './transitions.js';
 import { closeAllPopovers, toast } from './ui.js';
-import { h, reducedMotion } from './util.js';
+import { DUR, EASE_LEAVE, h, reducedMotion } from './util.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
 
 const routes = [];
@@ -64,13 +64,13 @@ const progress = {
   start() {
     this.el ||= document.body.appendChild(h('div', { class: 'progress' }));
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.el.classList.add('is-on'), 140);
+    this.timer = setTimeout(() => this.el.classList.add('is-on'), DUR.quick);
   },
   done() {
     clearTimeout(this.timer);
     if (!this.el?.classList.contains('is-on')) return;
     this.el.classList.add('is-done');
-    setTimeout(() => this.el.classList.remove('is-on', 'is-done'), 420);
+    setTimeout(() => this.el.classList.remove('is-on', 'is-done'), DUR.change * 2 + 20);
   },
 };
 
@@ -199,9 +199,9 @@ export async function render({ pop = false, motion = 'page' } = {}) {
 async function dusk(swap) {
   if (reducedMotion()) { swap(); return; }
   const veil = document.body.appendChild(h('div', { class: 'dusk', 'aria-hidden': 'true' }));
-  await veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+  await veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.arrive, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
   swap();
-  veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, delay: 80, easing: 'ease-out', fill: 'forwards' })
+  veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.scene, delay: DUR.quick, easing: 'ease', fill: 'forwards' })
     .finished.then(() => veil.remove(), () => veil.remove());
 }
 

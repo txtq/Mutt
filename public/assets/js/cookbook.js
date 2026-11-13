@@ -18,10 +18,9 @@ import { icon } from './icons.js';
 import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, openContextMenu, openDialog, openMenu, sectionHead, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
-import { DUR, EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
 
 // A long, soft glide: an easy start, a slow settle (like a sheet on a phone).
-const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 const moving = () => !reducedMotion();
 const OTHER = 'Everything else';
@@ -160,7 +159,7 @@ export class RecipeBoxView {
     }
     const el = this.stack.querySelector(`[data-id="${CSS.escape(id)}"]`);
     const done = () => { this.changed(); this.refresh(); };
-    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-30px) rotate(-2deg)' }], { duration: DUR.move, easing: 'ease-in', fill: 'forwards' }).finished.then(done, done);
+    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-30px) rotate(-2deg)' }], { duration: DUR.move, easing: EASE_LEAVE, fill: 'forwards' }).finished.then(done, done);
     else done();
   }
 
@@ -195,7 +194,7 @@ export class RecipeBoxView {
       [...this.stack.children].forEach((el, i) => {
         if (born && el.dataset.id !== born) return;
         el.animate([{ opacity: 0, transform: 'translateY(26px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 560, delay: born ? 80 : Math.min(i, 16) * 35, easing: EASE, fill: 'backwards' });
+          { duration: DUR.arrive, delay: born ? STAGGER : Math.min(i, 14) * STAGGER, easing: EASE, fill: 'backwards' });
       });
     }
   }
@@ -233,7 +232,7 @@ export class RecipeBoxView {
     const el = this.stack.querySelector(`.cb-divider[data-ch="${CSS.escape(name)}"]`);
     if (!el) return;
     el.scrollIntoView({ behavior: moving() ? 'smooth' : 'auto', block: 'start' });
-    if (moving()) el.animate([{ transform: 'none' }, { transform: 'translateY(-8px)' }, { transform: 'none' }], { duration: 520, easing: EASE });
+    if (moving()) el.animate([{ transform: 'none' }, { transform: 'translateY(-8px)' }, { transform: 'none' }], { duration: DUR.arrive, easing: EASE });
   }
 
   context(e, el, r) {
@@ -467,10 +466,10 @@ class CardView {
       const after = this.el.getBoundingClientRect().height;
       if (moving()) {
         old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 8}%) scale(0.98)` }],
-          { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished.then(() => old.remove(), () => old.remove());
+          { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.then(() => old.remove(), () => old.remove());
         card.animate([{ opacity: 0, transform: `translateX(${dir * 8}%) scale(0.98)` }, { opacity: 1, transform: 'none' }],
-          { duration: 480, delay: 90, easing: EASE, fill: 'backwards' });
-        this.el.animate([{ height: `${before}px` }, { height: `${after}px` }], { duration: 480, easing: EASE });
+          { duration: DUR.arrive, delay: STAGGER * 3, easing: EASE, fill: 'backwards' });
+        this.el.animate([{ height: `${before}px` }, { height: `${after}px` }], { duration: DUR.arrive, easing: EASE });
       } else old.remove();
     } else {
       // It lifts out of its place in the box and glides up to the top, while
@@ -498,7 +497,7 @@ class CardView {
     const page = this.box.el.closest('.page') || this.box.el;
     const shift = scrollY - snap.scroll;
     const boxNow = this.box.boxEl.getBoundingClientRect().top + scrollY;
-    const opts = { duration: 760, easing: GLIDE };
+    const opts = { duration: DUR.scene, easing: EASE_GLIDE };
     if (shift) page.animate([{ transform: `translateY(${shift}px)` }, { transform: 'none' }], opts);
     if (boxNow !== snap.box) this.box.boxEl.animate([{ transform: `translateY(${snap.box - boxNow}px)` }, { transform: 'none' }], opts);
     const end = card.getBoundingClientRect();
@@ -515,7 +514,7 @@ class CardView {
       { transform: `translate(${dx}px, ${dy}px) scaleX(${sx})`, clipPath: `inset(0 0 ${cut}px 0 round 14px)` },
       { transform: `translate(${dx * 0.12}px, ${dy * 0.12}px) scale(1.012)`, clipPath: `inset(0 0 ${cut * 0.25}px 0 round 16px)`, offset: 0.7 },
       { transform: 'none', clipPath: 'inset(0 0 0 0 round 18px)' },
-    ], { ...opts, duration: 820 }).finished.then(() => this.lift(false), () => this.lift(false));
+    ], { ...opts, duration: DUR.scene }).finished.then(() => this.lift(false), () => this.lift(false));
   }
 
   // While a card is in flight it may pass over the box: let it show outside
@@ -744,7 +743,7 @@ class CardView {
     const el = h('div', { class: 'cb-zoom', onclick: () => { el.remove(); this.zoomed = null; } }, h('img', { src, alt: r.title }));
     this.zoomed = el;
     document.body.append(el);
-    if (moving()) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
+    if (moving()) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.change, easing: 'ease' });
   }
 
   more(anchor) {
@@ -922,7 +921,7 @@ class CardView {
     Object.assign(this.el.style, { position: 'absolute', top: `${holder.top - parent.top}px`, left: `${holder.left - parent.left}px`, width: `${holder.width}px` });
     this.lift(true);
     const boxNow = this.box.boxEl.getBoundingClientRect().top;
-    const opts = { duration: 680, easing: GLIDE, fill: 'forwards' };
+    const opts = { duration: DUR.scene, easing: EASE_GLIDE, fill: 'forwards' };
     if (boxNow !== boxThen) this.box.boxEl.animate([{ transform: `translateY(${boxThen - boxNow}px)` }, { transform: 'none' }], { ...opts, fill: 'none' });
     const to = back?.getBoundingClientRect();
     if (to) {
@@ -933,7 +932,7 @@ class CardView {
         { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scaleX(${to.width / from.width})`, clipPath: `inset(0 0 ${cut}px 0 round 14px)`, opacity: 0 },
       ], opts).finished.then(done, done);
     } else {
-      this.cardEl.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(30px) scale(0.98)' }], { ...opts, duration: 340 })
+      this.cardEl.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(30px) scale(0.98)' }], { ...opts, duration: DUR.move })
         .finished.then(done, done);
     }
     back?.querySelector('button')?.focus({ preventScroll: true });
@@ -1026,7 +1025,7 @@ function cook(r, serves, units) {
     next.textContent = at === steps.length - 1 ? 'Done' : 'Next';
     [...dots.children].forEach((d, i) => d.classList.toggle('is-on', i <= at));
     if (dir && moving()) {
-      main.animate([{ opacity: 0, transform: `translateX(${dir * 28}px)` }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE });
+      main.animate([{ opacity: 0, transform: `translateX(${dir * 28}px)` }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
     }
   };
   const go = (dir) => {

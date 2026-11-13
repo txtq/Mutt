@@ -11,7 +11,7 @@ import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { DUR, EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
+import { DUR, EASE, EASE_LEAVE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
@@ -238,6 +238,20 @@ function lockedPlanet(id, data) {
 let editor = null;
 const loadEditor = async () => { if (!editor) [editor] = await Promise.all([import('../doceditor.js'), styles('docs.css')]); return editor; };
 const docEditorOpen = () => editor?.docEditorOpen() || null;
+
+// A planet's right-click menu on the galaxy can ask for something only its page can do (its kind,
+// its colour, a moon, deleting it): it leaves a word here and opens the page, which does it.
+const THEN = 'mutt:then';
+export function askThen(id, what) {
+  try { sessionStorage.setItem(THEN, JSON.stringify({ id, what, at: Date.now() })); } catch { /* it just opens the planet */ }
+}
+function takeThen(id) {
+  try {
+    const kept = JSON.parse(sessionStorage.getItem(THEN) || 'null');
+    sessionStorage.removeItem(THEN);
+    return kept && kept.id === id && Date.now() - kept.at < 10000 ? kept.what : null;
+  } catch { return null; }
+}
 
 export const planetView = {
   async load([id]) {
@@ -609,7 +623,7 @@ export const planetView = {
       shareTip = null;
       api.patch(`/api/drawers/${id}`, { modes: { shareTip: false } }).then((res) => { drawer = res.drawer; inst.drawer = drawer; }).catch(() => {});
       if (reducedMotion()) { tip.remove(); return; }
-      tip.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -6px' }], { duration: 220, easing: 'ease-in', fill: 'forwards' })
+      tip.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -6px' }], { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' })
         .finished.then(() => tip.remove(), () => tip.remove());
     };
     const showShareTip = () => {
@@ -763,7 +777,7 @@ export const planetView = {
       if (!reducedMotion()) {
         await Promise.all([
           outgoing.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px)' }],
-            { duration: DUR.change, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {}),
+            { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {}),
           gone?.fade(),
         ]);
       }
@@ -775,7 +789,7 @@ export const planetView = {
       for (const c of pageClasses) el.classList.toggle(c, !!key && MODES[key].pageClass === c);
       attachHint();
       if (!reducedMotion() && !(key && MODES[key].ownEntrance)) {
-        next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+        next.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, easing: EASE });
       }
     }
 
@@ -1007,7 +1021,11 @@ export const planetView = {
       mounted: () => {
         // One thing at a time: the sharing tip waits while a mode is being offered
         // (it would hang over the offer's buttons).
-        setTimeout(async () => { await lookForModes(); showShareTip(); }, 700);
+        setTimeout(async () => { await lookForModes(); showShareTip(); }, DUR.move);
+        // Asked for from the galaxy (a planet's right-click menu there): do it now that the page is here.
+        const then = takeThen(id);
+        const act = !isMoon && { look: pickLook, colour: pickColor, moon: addMoon, remove }[then];
+        if (act) setTimeout(act, DUR.arrive);
         attachHint();
         const bid = new URL(location.href).searchParams.get('doc');
         if (bid) showDoc(bid);

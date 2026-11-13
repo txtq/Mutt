@@ -52,7 +52,7 @@ h1, h2, h3, p { margin: 0; }
   backdrop-filter: saturate(160%) blur(16px);
   -webkit-backdrop-filter: saturate(160%) blur(16px);
   border-bottom: 1px solid transparent;
-  transition: border-color 0.4s var(--ease-settle);
+  transition: border-color var(--dur-move) var(--ease-settle);
   view-transition-name: topbar;
 }
 body.no-chrome .topbar { display: none; }
@@ -78,10 +78,10 @@ body.no-chrome .topbar { display: none; }
 .logo-l { display: inline-block; }
 
 /* The intro: letters flick through faces, then land */
-.logo.is-glitching .logo-word { overflow: visible; animation: logo-scan 0.9s steps(1, end) both; }
+.logo.is-glitching .logo-word { overflow: visible; animation: logo-scan var(--dur-scene) steps(1, end) both; }
 .logo.is-glitching .logo-l { transform: translateX(var(--gx, 0)); }
 .logo-l.is-inv { background: var(--ink); color: var(--bg); }
-.logo-l.is-landed { animation: logo-land 0.42s var(--ease-settle) backwards; }
+.logo-l.is-landed { animation: logo-land var(--dur-arrive) var(--ease-settle) backwards; }
 @keyframes logo-scan {
   0%, 100% { clip-path: none; }
   14% { clip-path: inset(0 0 58% 0); }
@@ -100,7 +100,7 @@ body.no-chrome .topbar { display: none; }
   background: var(--tint);
   outline: none;
   font-size: var(--text-label);
-  transition: width var(--dur-arrive) var(--ease-settle), background 0.3s, border-color 0.3s;
+  transition: width var(--dur-arrive) var(--ease-settle), background var(--dur-change), border-color var(--dur-change);
 }
 .search::-webkit-search-cancel-button { display: none; }
 .search::placeholder { color: var(--ink-3); }
@@ -143,7 +143,7 @@ body.no-chrome #view { max-width: none; }
 /* Entrances fill `backwards`, never `both`: a held end state leaves a
    blur(0)/translate(0) on the element for good, and that stops the glass
    inside it from frosting (and gives it a layer of its own). */
-.reveal { animation: rise var(--dur-scene) var(--ease-settle) backwards; animation-delay: calc(min(var(--i, 0), 14) * 30ms); }
+.reveal { animation: rise var(--dur-arrive) var(--ease-settle) backwards; animation-delay: calc(min(var(--i, 0), 14) * var(--stagger)); }
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px); filter: blur(8px); }
 }
@@ -191,7 +191,7 @@ body.no-chrome #view { max-width: none; }
   border-radius: var(--r-row);
   text-align: left;
   font-size: var(--text-label);
-  transition: background 0.15s;
+  transition: background var(--dur-quick);
 }
 .cx-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-count { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-3); }
@@ -215,8 +215,8 @@ body.no-chrome #view { max-width: none; }
   opacity: 0;
   pointer-events: none;
 }
-.progress.is-on { opacity: 1; animation: progress 2.4s var(--ease-settle) forwards; }
-.progress.is-done { transform: scaleX(1); animation: none; opacity: 0; transition: transform 0.25s ease, opacity 0.35s 0.2s; }
+.progress.is-on { opacity: 1; animation: progress var(--beat-slow) var(--ease-settle) forwards; }
+.progress.is-done { transform: scaleX(1); animation: none; opacity: 0; transition: transform var(--dur-change) ease, opacity var(--dur-change) var(--dur-change); }
 @keyframes progress { from { transform: scaleX(0); } to { transform: scaleX(0.85); } }
 
 
@@ -231,15 +231,15 @@ body.no-chrome #view { max-width: none; }
   height: 66px;
   border: 1px solid var(--line-2);
   border-radius: 14px;
-  transition: border-color 0.35s var(--ease-settle), background 0.45s var(--ease-settle), transform 0.45s var(--ease-settle);
-  transition-delay: calc(var(--i) * 40ms);
+  transition: border-color var(--dur-move) var(--ease-settle), background var(--dur-arrive) var(--ease-settle), transform var(--dur-arrive) var(--ease-settle);
+  transition-delay: calc(var(--i) * var(--stagger));
 }
 .pin-dot {
   width: 11px;
   height: 11px;
   border-radius: 50%;
   transform: scale(0);
-  transition: transform 0.45s var(--ease-settle), background 0.3s;
+  transition: transform var(--dur-arrive) var(--ease-settle), background var(--dur-move);
 }
 .pin-cell.is-filled .pin-dot { transform: scale(1); }
 .pin-cell { position: relative; }
@@ -251,7 +251,7 @@ body.no-chrome #view { max-width: none; }
   width: 14px;
   height: 1.5px;
   margin-left: -7px;
-  animation: caret 1.1s ease-in-out infinite;
+  animation: caret var(--beat-quick) ease-in-out infinite;
 }
 @keyframes caret { 50% { opacity: 0.15; } }
 .pin-input {
@@ -266,13 +266,13 @@ body.no-chrome #view { max-width: none; }
   background: transparent;
   cursor: text;
 }
-.pin.is-busy .pin-dot { animation: breathe 1s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 110ms); }
+.pin.is-busy .pin-dot { animation: breathe var(--beat-quick) ease-in-out infinite; animation-delay: calc(var(--i, 0) * var(--dur-quick)); }
 .pin-cell:nth-child(2) .pin-dot { --i: 1; }
 .pin-cell:nth-child(3) .pin-dot { --i: 2; }
 .pin-cell:nth-child(4) .pin-dot { --i: 3; }
 @keyframes breathe { 50% { transform: scale(0.55); opacity: 0.5; } }
 .pin.is-ok .pin-dot { transform: scale(0.7); }
-.pin.is-error { animation: shake 0.42s var(--ease-io); }
+.pin.is-error { animation: shake var(--dur-move) var(--ease-glide); }
 .pin.is-error .pin-cell { border-color: color-mix(in srgb, var(--danger) 55%, white); }
 @keyframes shake {
   20% { transform: translateX(-7px); }
@@ -286,27 +286,27 @@ body.no-chrome #view { max-width: none; }
 
 /* ------------------------------------------------------------------ page transitions */
 
-::view-transition-group(*) { animation-duration: 0.6s; animation-timing-function: var(--ease-settle); }
+::view-transition-group(*) { animation-duration: var(--dur-arrive); animation-timing-function: var(--ease-settle); }
 ::view-transition-old(*), ::view-transition-new(*) { animation-timing-function: var(--ease-settle); }
 ::view-transition-group(topbar) { animation: none; z-index: 10; }
 ::view-transition-old(topbar) { display: none; }
 ::view-transition-new(topbar) { animation: none; }
 
-::view-transition-old(root) { animation: page-out var(--dur-move) var(--ease-in) both; }
-::view-transition-new(root) { animation: page-in 0.6s var(--ease-settle) both; }
-@keyframes page-out { to { opacity: 0; filter: blur(3px); } }
+::view-transition-old(root) { animation: page-out var(--dur-move) var(--ease-leave) both; }
+::view-transition-new(root) { animation: page-in var(--dur-arrive) var(--ease-settle) both; }
+@keyframes page-out { to { opacity: 0; } }
 @keyframes page-in { from { opacity: 0; } }
 
 /* A planet glides between the galaxy and its page: even speed in the middle
    and soft at both ends, rather than a jump that then crawls. */
-::view-transition-group(*.planet) { animation-duration: 0.72s; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
-::view-transition-old(*.planet), ::view-transition-new(*.planet) { animation-duration: 0.72s; animation-timing-function: ease-in-out; }
+::view-transition-group(*.planet) { animation-duration: var(--dur-scene); animation-timing-function: var(--ease-glide); }
+::view-transition-old(*.planet), ::view-transition-new(*.planet) { animation-duration: var(--dur-scene); animation-timing-function: ease-in-out; }
 
 /* Opening a planet from a galaxy is a dive: the galaxy rushes past from where the planet is
    (router.js sets --dive-x and --dive-y), the planet swells toward you, then settles into the top
    of its page as the page comes in. Coming back is a pull away: the galaxy shrinks into place
    round the planet. Its lengths and curves are the named ones. */
-html[data-vt="dive"]::view-transition-old(root) { transform-origin: var(--dive-x, 50%) var(--dive-y, 50%); animation: dive-out var(--dur-arrive) var(--ease-in) both; }
+html[data-vt="dive"]::view-transition-old(root) { transform-origin: var(--dive-x, 50%) var(--dive-y, 50%); animation: dive-out var(--dur-arrive) var(--ease-leave) both; }
 html[data-vt="dive"]::view-transition-new(root) { animation: page-in var(--dur-arrive) var(--ease-settle) var(--dur-move) both; }
 html[data-vt="dive"]::view-transition-group(*.planet) { animation-duration: var(--dur-scene); }
 html[data-vt="dive"]::view-transition-old(*.planet), html[data-vt="dive"]::view-transition-new(*.planet) { animation-duration: var(--dur-scene); }
@@ -320,9 +320,9 @@ html[data-vt="rise"]::view-transition-new(root) { transform-origin: var(--dive-x
 html[data-vt="first"]::view-transition-old(root) { animation: none; opacity: 0; }
 
 /* A room arriving or going: the picture of the page fades to the bare sky (and back), evenly both ways. */
-html:is([data-vt="viewer"], [data-vt="room"])::view-transition-old(root) { animation: fade-out 0.38s ease both; }
-html:is([data-vt="viewer"], [data-vt="room"])::view-transition-new(root) { animation: fade-in 0.38s ease both; }
-::view-transition-new(viewer) { animation: fade-in 0.38s ease both; }
+html:is([data-vt="viewer"], [data-vt="room"])::view-transition-old(root) { animation: fade-out var(--dur-move) ease both; }
+html:is([data-vt="viewer"], [data-vt="room"])::view-transition-new(root) { animation: fade-in var(--dur-move) ease both; }
+::view-transition-new(viewer) { animation: fade-in var(--dur-move) ease both; }
 ::view-transition-old(viewer) { animation: fade-out var(--dur-move) ease both; }
 ::view-transition-group(viewer) { animation: none; }
 /* Text, links and file cards look different open and on the planet (big
@@ -330,10 +330,18 @@ html:is([data-vt="viewer"], [data-vt="room"])::view-transition-new(root) { anima
    rather than shrinking as a ghost over the one arriving. Pictures are the
    same both ways and keep the even crossfade. */
 .vw-text, .vw-card, .vw-link, .vw-pdf, .vw-codebox, .face-text, .face-file, .face-link { view-transition-class: card; }
-html[data-vt="viewer"]::view-transition-old(*.card) { animation: fade-out var(--dur-change) ease-out both; mix-blend-mode: normal; }
-html[data-vt="viewer"]::view-transition-new(*.card) { animation: fade-in 0.36s ease-out both; mix-blend-mode: normal; }
+/* The same picture in its box and opened (a photo, a page, a cover): the old one stays whole
+   underneath while the new one fades in over it. A plain cross-fade leaves the pair see-through
+   part-way, and the picture darkened for a moment as it opened (seen in Safari, session 8). */
+.face-shape, .face-img, .vw-img, .vw-video { view-transition-class: pic; }
+/* ... and the file itself travels above the room's dark veil, not under it. */
+html[data-vt="viewer"]::view-transition-group(*.pic), html[data-vt="viewer"]::view-transition-group(*.card) { z-index: 2; }
+html[data-vt="viewer"]::view-transition-old(*.pic) { animation: none; mix-blend-mode: normal; }
+html[data-vt="viewer"]::view-transition-new(*.pic) { animation: fade-in var(--dur-move) ease both; mix-blend-mode: normal; }
+html[data-vt="viewer"]::view-transition-old(*.card) { animation: fade-out var(--dur-change) var(--ease-settle) both; mix-blend-mode: normal; }
+html[data-vt="viewer"]::view-transition-new(*.card) { animation: fade-in var(--dur-move) var(--ease-settle) both; mix-blend-mode: normal; }
 
-html[data-vt="mode"]::view-transition-old(root) { animation: page-out 0.25s var(--ease-in) both; }
+html[data-vt="mode"]::view-transition-old(root) { animation: page-out var(--dur-change) var(--ease-leave) both; }
 html[data-vt="mode"]::view-transition-new(root) { animation: page-in var(--dur-arrive) var(--ease-settle) both; }
 
 /* ------------------------------------------------------------------ page heads */
@@ -390,11 +398,11 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in var(--dur-a
 
 /* ------------------------------------------------------------------ caption & motion settings */
 
-html[data-motion="calm"] .reveal { animation-name: rise-calm; animation-duration: 0.45s; animation-delay: 0s; }
+html[data-motion="calm"] .reveal { animation-name: rise-calm; animation-duration: var(--dur-arrive); animation-delay: 0s; }
 @keyframes rise-calm { from { opacity: 0; } }
 html[data-motion="calm"] .cell[data-id]:hover :is(.face-img, .face-shape) { transform: none; }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after {
-  animation-duration: 0.01ms !important;
+  animation-duration: var(--dur-none) !important;
   animation-delay: 0ms !important;
   transition-delay: 0ms !important;
 }
@@ -424,10 +432,10 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: var(--dur-none) !important;
     animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: var(--dur-none) !important;
     transition-delay: 0ms !important;
   }
 }
@@ -637,9 +645,9 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   background: var(--gloss-on), var(--accent);
   box-shadow: var(--gloss-light), var(--bead-drop);
   opacity: 0;
-  transition: transform 0.45s var(--ease-settle), width 0.45s var(--ease-settle), opacity 0.3s;
+  transition: transform var(--dur-move) var(--ease-glide), width var(--dur-move) var(--ease-glide), opacity var(--dur-change);
 }
-.seg.is-instant .seg-ind { transition: opacity 0.3s; }
+.seg.is-instant .seg-ind { transition: opacity var(--dur-change); }
 .seg-btn { position: relative; display: inline-flex; align-items: center; gap: 6px; height: var(--h-inner); padding: 0 var(--space-12); border-radius: var(--r-full); font: var(--type-label); color: var(--ink-3); white-space: nowrap; transition: color var(--dur-change); }
 .seg-btn:hover { color: var(--ink); }
 .seg-btn[aria-selected="true"] { color: var(--white); text-shadow: var(--on-gloss); }
@@ -689,11 +697,13 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   padding: var(--space-4);
   border-radius: var(--r-box);
   transform-origin: var(--origin, top left);
-  animation: pop-in 0.42s var(--ease-settle) backwards;
+  animation: pop-in var(--dur-move) var(--ease-spring) backwards;
 }
-.pop.is-leaving { animation: pop-out 0.18s var(--ease-in) both; }
-@keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.97); filter: blur(4px); } }
-@keyframes pop-out { to { opacity: 0; transform: scale(0.98); } }
+/* Every menu and small panel opens one way: it grows from where it was asked for (--origin), and
+   leaves as everything leaves. A menu's rows and its gliding highlight are under "right-click menu". */
+.pop.is-leaving { animation: pop-out var(--dur-change) var(--ease-leave) both; pointer-events: none; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.84); } 55% { opacity: 1; } }
+@keyframes pop-out { to { opacity: 0; transform: scale(0.93); } }
 .menu { display: flex; flex-direction: column; }
 .menu-item {
   display: flex;
@@ -716,7 +726,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .menu-hint { color: var(--ink-3); font: var(--type-fact); }
 .menu-icon { display: flex; align-items: center; justify-content: center; flex: none; width: var(--icon); color: var(--ink-3); }
 .menu-item.is-danger .menu-icon { color: inherit; }
-.menu-icon .planet-dot { margin: 0; transition: transform 0.3s var(--ease-settle); }
+.menu-icon .planet-dot { margin: 0; transition: transform var(--dur-move) var(--ease-settle); }
 .menu-item:has(> .menu-icon) { justify-content: flex-start; }
 .menu-item:has(> .menu-icon) .menu-hint { margin-left: auto; }
 .menu-tick { display: flex; flex: none; margin-left: auto; color: var(--ink-2); }
@@ -747,9 +757,9 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   transform: translateX(-50%) translateY(-10px) scale(0.97);
   transform-origin: 50% 0;
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.45s var(--ease-settle);
+  transition: opacity var(--dur-change) ease, transform var(--dur-change) var(--ease-leave);   /* leaving */
 }
-.sheet.is-open { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+.sheet.is-open { opacity: 1; transform: translateX(-50%); pointer-events: auto; transition: opacity var(--dur-move) ease, transform var(--dur-arrive) var(--ease-settle); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); padding-bottom: var(--space-16); }
 .sheet-who { font: var(--type-title); }
 .sheet-sub { margin-top: var(--space-2); font: var(--type-fact); color: var(--ink-3); }
@@ -773,17 +783,17 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   background: var(--scrim);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  animation: fade-in 0.35s ease backwards;
+  animation: fade-in var(--dur-move) ease backwards;
 }
-.scrim.is-leaving { animation: fade-out 0.25s ease both; }
-.scrim.is-leaving .dialog { animation: dialog-out 0.25s var(--ease-in) both; }
+.scrim.is-leaving { animation: fade-out var(--dur-change) ease both; }
+.scrim.is-leaving .dialog { animation: dialog-out var(--dur-change) var(--ease-leave) both; }
 .dialog {
   width: min(340px, 100%);
   max-height: calc(var(--seen, 100svh) - 32px);
   overflow-y: auto;
   padding: 20px;
   border-radius: var(--r-panel);
-  animation: dialog-in 0.6s var(--ease-settle) backwards;
+  animation: dialog-in var(--dur-arrive) var(--ease-settle) backwards;
 }
 .dialog-wide { width: min(560px, 100%); }
 .dialog-title { margin-bottom: var(--space-8); font: 700 var(--text-lead)/24px var(--sans); }
@@ -820,11 +830,11 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   border-radius: var(--r-panel);
   font: 400 var(--text-label)/16px var(--sans);
   pointer-events: auto;
-  animation: toast-in 0.6s var(--ease-settle) backwards;
+  animation: toast-in var(--dur-arrive) var(--ease-settle) backwards;
 }
 .toast::before { content: ""; flex-shrink: 0; width: var(--space-8); height: var(--space-8); border-radius: var(--r-full); background: var(--void); box-shadow: 0 0 0 1px var(--void-ring); }
 .toast button { flex: none; font-weight: 500; color: var(--blue-ink); }
-.toast.is-leaving { animation: toast-out 0.3s var(--ease-in) both; }
+.toast.is-leaving { animation: toast-out var(--dur-change) var(--ease-leave) both; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(0.97); filter: blur(6px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(8px) scale(0.98); filter: blur(4px); } }
 /* uploads: --p runs 0 to 1 as the files go in */
@@ -915,6 +925,17 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
 .swatch:is([aria-pressed="true"], [aria-checked="true"], .is-on) { box-shadow: inset 0 0 0 1px var(--edge-on), 0 0 0 2px var(--swatch-gap, var(--bg)), 0 0 0 3.5px var(--ink); }
 .swatch.is-none { background: linear-gradient(135deg, transparent 45%, var(--danger-fill) 45% 55%, transparent 55%), var(--paper); }   /* "no colour" */
 @media (pointer: coarse) { .swatch::after { content: ''; position: absolute; inset: -8px; } }
+/* Room for a fingertip where a control keeps its small look on a touch screen: the look stays, the
+   area to tap is 40 (the standard's rule; these were found under it in session 8). A new small
+   control joins this list rather than growing its own. */
+@media (pointer: coarse) {
+  :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go is placed already */
+  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .de-tools .btn)::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, var(--h-large)); height: max(100%, var(--h-large)); transform: translate(-50%, -50%);
+  }
+  /* in a row of them, only upward and downward: sideways belongs to the neighbour */
+  :is(.seg-btn, .de-tools .btn)::after { width: 100%; }
+}
 
 /* ================================================================== end of shared parts */
 
@@ -942,7 +963,7 @@ body.no-chrome .sb { display: none; }
 .sb-left { display: flex; align-items: center; min-width: 0; }
 .sb .logo { font-size: 18px; color: var(--ink); }
 .sb .sb-who { gap: 6px; padding: 0 10px 0 12px; color: var(--ink); }
-.sb-who .ic { opacity: 0.6; transition: transform 0.35s var(--ease-settle); }
+.sb-who .ic { opacity: 0.6; transition: transform var(--dur-move) var(--ease-settle); }
 .sb-who[aria-expanded="true"] .ic { transform: rotate(180deg); }
 .sb-at { color: var(--blue-ink); }
 .sb-who.is-other .sb-at { color: #e9b860; }
@@ -964,7 +985,7 @@ body.no-chrome .sb { display: none; }
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--b) 70%, white) 0%, var(--b) 35%, var(--a) 90%);
   box-shadow: 0 0 0 1px var(--line-2), 0 2px 6px rgba(0, 0, 20, 0.35);
-  transition: transform 0.35s var(--ease-spring), box-shadow 0.25s;
+  transition: transform var(--dur-move) var(--ease-spring), box-shadow var(--dur-change);
 }
 .sky-pick:hover .sky-pick-ball { transform: scale(1.06); }
 .sky-pick[aria-pressed="true"] { color: var(--ink); }
@@ -1017,7 +1038,7 @@ body.no-chrome .sb { display: none; }
 .search-people { padding: 18px 6px 4px; }
 .search-label { margin: 0 2px 9px; font: 500 var(--text-small)/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .search-people-row { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.search-person { display: inline-flex; align-items: center; gap: var(--space-8); height: 34px; padding: 0 10px 0 12px; border-radius: var(--r-full); background: var(--well); box-shadow: var(--well-shadow); font-size: 13.5px; color: var(--ink); transition: background 0.15s; }
+.search-person { display: inline-flex; align-items: center; gap: var(--space-8); height: 34px; padding: 0 10px 0 12px; border-radius: var(--r-full); background: var(--well); box-shadow: var(--well-shadow); font-size: 13.5px; color: var(--ink); transition: background var(--dur-quick); }
 .search-person:hover, .search-person:focus-visible { background: var(--tint); }
 .search-person-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent); }
 .search-person-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1063,7 +1084,7 @@ body.no-chrome #view { padding: 0; }
 /* ------------------------------------------------------------------ the galaxy */
 
 .world { position: relative; }
-.gx { position: sticky; z-index: 1; overflow-x: clip; transition: translate 0.45s var(--ease-settle); } /* rises above a phone's keyboard (blackhole.js) */
+.gx { position: sticky; z-index: 1; overflow-x: clip; transition: translate var(--dur-arrive) var(--ease-settle); } /* rises above a phone's keyboard (blackhole.js) */
 .gx-scene { position: relative; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .gx-field { position: absolute; inset: 0; z-index: 3; }
 .gx-core { position: absolute; left: 0; top: 0; z-index: 5; width: 0; height: 0; }
@@ -1079,7 +1100,7 @@ body.no-chrome #view { padding: 0; }
   font-size: var(--text-label);
   color: var(--ink-2);
   text-shadow: var(--sky-shadow);
-  animation: rise 1s var(--ease-settle) 0.6s backwards;
+  animation: rise var(--dur-scene) var(--ease-settle) var(--dur-arrive) backwards;
 }
 .world.is-out .gx { pointer-events: none; }
 
@@ -1103,7 +1124,7 @@ body.no-chrome #view { padding: 0; }
   transition: color var(--dur-change), background var(--dur-change);
 }
 .gx-cue:hover { color: var(--ink); background: var(--tint-2); }
-.gx-cue .ic { animation: nudge 2.4s ease-in-out infinite; }
+.gx-cue .ic { animation: nudge var(--beat-slow) ease-in-out infinite; }
 /* out of the way while you add something (it would sit on the add box above a phone's keyboard) */
 .gx.is-adding ~ .gx-cue { visibility: hidden; }
 @keyframes nudge { 50% { transform: translateY(3px); } }
@@ -1113,7 +1134,11 @@ body.no-chrome #view { padding: 0; }
 /* The black hole is painted on a canvas (voidart.js) in its own layer under
    the planets. While the add box is open it rises above them. */
 .gx-art { position: absolute; left: 0; top: 0; z-index: 2; width: 0; height: 0; pointer-events: none; }
-.void-art { position: absolute; left: 0; top: 0; display: block; transform: translate(-50%, -50%); }
+/* It fades in the moment its cells and dots are worked out (a worker does that, so the page never waits). */
+.void-art { position: absolute; left: 0; top: 0; display: block; transform: translate(-50%, -50%); opacity: 0; transition: opacity var(--dur-move); }
+.void-art.is-in { opacity: 1; }
+/* its layers, one on the other: the browser lays them over each other (voidart.js); nothing is copied */
+.void-art > canvas { position: absolute; display: block; }
 .gx.is-adding .gx-art { z-index: 4; }
 .gx-field, .gx-stars { transition: opacity var(--dur-arrive) var(--ease-settle); }
 .gx.is-adding .gx-field { opacity: 0.4; }
@@ -1138,7 +1163,8 @@ body.no-chrome #view { padding: 0; }
   border-radius: 50%;
   -webkit-tap-highlight-color: transparent;
 }
-.void-core:focus-visible { outline: none; }
+/* the keyboard's outline, as a ring just outside the cage (where the drop ring opens), so it never crosses the print */
+.void-core:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: calc(var(--vr, 80px) * 0.95); }
 /* only measured: the dark's centre and size */
 .void-hole {
   position: absolute;
@@ -1156,7 +1182,7 @@ body.no-chrome #view { padding: 0; }
   gap: var(--space-8);
   color: rgba(16, 13, 24, 0.42);
   pointer-events: none;
-  transition: color 0.3s, opacity 0.25s;
+  transition: color var(--dur-move), opacity var(--dur-change);
 }
 .void-plus { display: grid; transition: transform var(--dur-arrive) var(--ease-settle); }
 .void-label { font: 500 var(--text-small)/1 var(--mono); letter-spacing: 0.22em; text-transform: uppercase; white-space: nowrap; }
@@ -1178,15 +1204,15 @@ body.no-chrome #view { padding: 0; }
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.92);
   pointer-events: none;
-  transition: transform 0.3s var(--ease-in), opacity 0.22s ease-in;
+  transition: transform var(--dur-change) var(--ease-leave), opacity var(--dur-change) var(--ease-leave);
 }
 .void.is-open .vf {
   opacity: 1;
   transform: translate(-50%, -50%);
   pointer-events: auto;
-  transition: transform 0.6s var(--ease-settle) 0.3s, opacity 0.4s ease 0.3s;
+  transition: transform var(--dur-arrive) var(--ease-settle) var(--dur-move), opacity var(--dur-move) ease var(--dur-move);
 }
-.void.is-swallowing .vf { transform: translate(-50%, -50%) scale(0.2); transition-duration: 0.35s; }
+.void.is-swallowing .vf { transform: translate(-50%, -50%) scale(0.2); transition-duration: var(--dur-move); }
 .vf-field { position: relative; border-bottom: 1px solid var(--light-line); transition: border-color var(--dur-change); }
 .vf-field:focus-within { border-color: var(--light-line-on); }
 .vf-input {
@@ -1371,13 +1397,13 @@ body.no-chrome #view { padding: 0; }
   cursor: grab;
 }
 .gx-stars .star { width: var(--chip); height: var(--chip); }
-.gx-scene.is-live .star { transition: transform 0.9s var(--ease-settle); }
+.gx-scene.is-live .star { transition: transform var(--dur-scene) var(--ease-settle); }
 .star .ff {
   width: 100%;
   height: 100%;
   border-radius: 7px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22), 0 4px 10px -3px rgba(0, 0, 16, 0.6);
-  transition: transform 0.35s var(--ease-settle), box-shadow 0.3s;
+  transition: transform var(--dur-move) var(--ease-settle), box-shadow var(--dur-move);
 }
 .star:hover, .star:focus-visible { z-index: 6; }
 .star:focus-visible .ff { transform: scale(1.6); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5), 0 10px 20px -6px rgba(0, 0, 16, 0.6); }
@@ -1385,8 +1411,8 @@ body.no-chrome #view { padding: 0; }
    growing on hover is for a mouse only (the planets and galaxies too). */
 @media (hover: hover) { .star:hover .ff { transform: scale(1.6); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5), 0 10px 20px -6px rgba(0, 0, 16, 0.6); } }
 .star:focus-visible { outline: none; }
-.star.is-new { animation: star-in 0.7s var(--ease-settle) backwards; }
-.star.is-leaving { animation: star-out 0.3s var(--ease-in) forwards; pointer-events: none; }
+.star.is-new { animation: star-in var(--dur-arrive) var(--ease-settle) backwards; }
+.star.is-leaving { animation: star-out var(--dur-change) var(--ease-leave) forwards; pointer-events: none; }
 @keyframes star-in { from { opacity: 0; } }
 @keyframes star-out { to { opacity: 0; scale: 0.3; } }
 
@@ -1406,21 +1432,21 @@ body.no-chrome #view { padding: 0; }
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
 }
-.gx-scene.is-live .planet { transition: transform 1.1s var(--ease-settle); }
+.gx-scene.is-live .planet { transition: transform var(--dur-scene) var(--ease-settle); }
 /* being moved: it follows the pointer, lifted a little */
 .gx-scene .planet.is-moving { z-index: 7; transition: none; }
 .planet.is-moving .planet-body { transform: scale(1.06); }
 .planet:not(.is-gl).is-moving .planet-ball { box-shadow: 0 18px 34px -10px rgba(0, 0, 10, 0.6); }
 /* ...and where it will land: the orbit, dotted, and a dotted ring the
    planet's size, which slides from place to place as it snaps */
-.gx-guide, .gx-ghost { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s var(--ease-settle); }
+.gx-guide, .gx-ghost { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity var(--dur-move) var(--ease-settle); }
 .gx-guide { z-index: 2; width: 100%; height: 100%; overflow: visible; }
 .gx-guide path { fill: none; stroke: rgba(236, 231, 247, 0.22); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 0.1 9; }
 .gx-ghost {
   z-index: 2;
   border-radius: 50%;
   border: 1.5px dashed rgba(236, 231, 247, 0.4);
-  transition: opacity 0.3s var(--ease-settle), transform 0.22s var(--ease-settle), width 0.22s var(--ease-settle), height 0.22s var(--ease-settle);
+  transition: opacity var(--dur-change) var(--ease-settle), transform var(--dur-change) var(--ease-settle), width var(--dur-change) var(--ease-settle), height var(--dur-change) var(--ease-settle);
 }
 .gx-guide.is-on, .gx-ghost.is-on { opacity: 1; }
 .planet:hover, .planet:focus-visible { z-index: 5; }
@@ -1489,16 +1515,16 @@ body.no-chrome #view { padding: 0; }
   -webkit-mask: linear-gradient(135deg, #000 20%, transparent 75%);
   mask: linear-gradient(135deg, #000 20%, transparent 75%);
   pointer-events: none;
-  transition: filter 0.4s;
+  transition: filter var(--dur-move);
 }
-.planet:focus-visible .planet-ball { box-shadow: 0 0 0 2px #7fb3ff, 0 6px 18px -6px rgba(0, 0, 10, 0.55); }
+.planet:focus-visible .planet-ball { box-shadow: 0 0 0 2px var(--blue-ink), 0 6px 18px -6px rgba(0, 0, 10, 0.55); }   /* the keyboard's outline, as a ring round the globe */
 .planet.is-target .planet-body::after {
   content: "";
   position: absolute;
   inset: -14%;
   border-radius: 50%;
   border: 1.5px dashed color-mix(in srgb, var(--ink) 55%, transparent);
-  animation: spin 9s linear infinite;
+  animation: spin var(--beat-rest) linear infinite;
   pointer-events: none;
 }
 .planet-lock { display: none; }
@@ -1562,14 +1588,14 @@ body.no-chrome #view { padding: 0; }
   /* without WebGL: a plain lit ball in the moon's colour */
   background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--mc) 55%, #fff) 0%, var(--mc) 42%, color-mix(in srgb, var(--mc) 25%, #05060c) 92%);
   box-shadow: 0 2px 6px -2px rgba(0, 0, 10, 0.6);
-  transition: box-shadow 0.25s;
+  transition: box-shadow var(--dur-change);
 }
 .moon[data-look="iapetus"]:not(.is-gl) .moon-ball { background: linear-gradient(100deg, #e6e1d8 48%, #1d1814 52%); }
 .moon.is-gl .moon-ball { background: transparent; box-shadow: none; overflow: visible; }
 .moon-map { display: block; position: absolute; left: 50%; top: 50%; width: 112%; height: 112%; margin: -56% 0 0 -56%; }
 /* Phobos and Hyperion are lumps: the painter dents their outline */
 .moon[role="link"] { cursor: pointer; }
-.moon:focus-visible .moon-ball { box-shadow: 0 0 0 2px #7fb3ff; }
+.moon:focus-visible .moon-ball { box-shadow: 0 0 0 2px var(--blue-ink); }
 .moon.is-locked { opacity: 0.55; filter: saturate(0.4); }
 .moon.is-target::after {
   content: "";
@@ -1577,10 +1603,10 @@ body.no-chrome #view { padding: 0; }
   inset: -32%;
   border-radius: 50%;
   border: 1.5px dashed color-mix(in srgb, var(--ink) 60%, transparent);
-  animation: spin 9s linear infinite;
+  animation: spin var(--beat-rest) linear infinite;
   pointer-events: none;
 }
-.moon.is-gulping .moon-ball { animation: moon-gulp 0.9s var(--ease-settle); }
+.moon.is-gulping .moon-ball { animation: moon-gulp var(--dur-scene) var(--ease-settle); }
 @keyframes moon-gulp { 25% { filter: brightness(1.7); } }
 .moon-name {
   position: absolute;
@@ -1619,7 +1645,7 @@ body.no-chrome #view { padding: 0; }
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 238, 180, 0.7), rgba(255, 220, 140, 0.2) 60%, transparent);
   opacity: 0;
-  animation: io-plume 7s ease-out infinite;
+  animation: io-plume var(--beat-slow) var(--ease-settle) infinite;
 }
 @keyframes io-plume {
   0%, 68% { opacity: 0; transform: translateY(40%) scale(0.3); }
@@ -1638,7 +1664,7 @@ body.no-chrome #view { padding: 0; }
   background: linear-gradient(to bottom, rgba(225, 238, 255, 0.6), transparent);
   filter: blur(0.6px);
   transform-origin: 50% 0;
-  animation: geyser 5s ease-in-out infinite;
+  animation: geyser var(--beat-slow) ease-in-out infinite;
 }
 @keyframes geyser { 0%, 100% { opacity: 0.2; transform: scaleY(0.6); } 50% { opacity: 0.65; transform: scaleY(1.1); } }
 /* Titan: a thin blue haze outside its orange one */
@@ -1675,11 +1701,11 @@ body.no-chrome #view { padding: 0; }
   translate:
     calc(var(--side) * (var(--ws) / 2 + var(--m) / 2 + 12px + var(--lv) * 6px))
     calc(var(--ws) * (var(--lv) * 0.6 - 0.24));
-  animation: moon-bob 6s ease-in-out var(--bob, 0s) infinite alternate;
+  animation: moon-bob var(--beat-rest) ease-in-out var(--bob, 0s) infinite alternate;
 }
 .liv-world.has-left .moon.is-beside { left: 50%; }
 @keyframes moon-bob { from { transform: translateY(-3px); } to { transform: translateY(3px); } }
-.moon.is-beside.is-born { animation: moon-born var(--dur-scene) var(--ease-settle) backwards, moon-bob 6s ease-in-out var(--bob, 0s) infinite alternate; }
+.moon.is-beside.is-born { animation: moon-born var(--dur-scene) var(--ease-settle) backwards, moon-bob var(--beat-rest) ease-in-out var(--bob, 0s) infinite alternate; }
 @keyframes moon-born { from { opacity: 0; transform: scale(0.2); } }
 /* on a moon's page, its planet sits beside it, small */
 .liv-world .planet.liv-parent {
@@ -1689,7 +1715,7 @@ body.no-chrome #view { padding: 0; }
   z-index: 3;
   margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
   translate: calc(var(--ws) / 2 + var(--s) / 2 + 10px) calc(var(--ws) * -0.18);
-  animation: moon-bob 7s ease-in-out infinite alternate;
+  animation: moon-bob var(--beat-rest) ease-in-out infinite alternate;
 }
 .liv-world .planet.liv-parent .planet-bubble { display: none; }
 .liv-world .planet.liv-parent.is-target .planet-body { transform: scale(1.15); }
@@ -1757,8 +1783,8 @@ body.no-chrome #view { padding: 0; }
 }
 .planet-meta { display: flex; align-items: center; justify-content: center; gap: var(--space-4); margin-top: var(--space-2); font: 400 var(--text-small)/1.2 var(--mono); color: var(--ink-3); text-shadow: var(--sky-shadow); }
 
-.planet-body.is-gulping .planet-atmo { animation: atmo-flare 0.9s var(--ease-settle); }
-.planet-body.is-gulping .planet-ball { animation: planet-nudge 0.7s var(--ease-settle); }
+.planet-body.is-gulping .planet-atmo { animation: atmo-flare var(--dur-scene) var(--ease-settle); }
+.planet-body.is-gulping .planet-ball { animation: planet-nudge var(--dur-scene) var(--ease-settle); }
 .planet.is-gl .planet-body.is-gulping .planet-map { animation: world-flare var(--dur-scene) var(--ease-settle); }
 @keyframes world-flare { 30% { filter: brightness(1.3); } }
 @keyframes atmo-flare { 30% { filter: brightness(2.2); } }
@@ -1773,7 +1799,7 @@ body.no-chrome #view { padding: 0; }
 .planet.is-private .planet-lock { display: none; }
 .planet.is-private .planet-name { color: var(--ink-3); font-style: italic; }
 .planet.is-private { cursor: default; }
-.planet.is-thawing .planet-ball { animation: thaw 0.42s ease-in forwards; }
+.planet.is-thawing .planet-ball { animation: thaw var(--dur-arrive) var(--ease-leave) forwards; }
 @keyframes thaw { to { filter: brightness(1.8); transform: scale(1.06); } }
 .planet.is-empty:not(.is-locked) .planet-map { filter: saturate(0.7); }
 
@@ -1881,7 +1907,7 @@ html[data-motion="off"] .uv-beads { display: none; }
   color: #e9edf8;
   -webkit-tap-highlight-color: transparent;
 }
-.uvg-sys { position: absolute; inset: 0; transition: transform 0.6s var(--ease-settle); }
+.uvg-sys { position: absolute; inset: 0; transition: transform var(--dur-arrive) var(--ease-settle); }
 .uvg:not(.is-here):focus-visible .uvg-sys { transform: scale(1.04); }
 @media (hover: hover) { .uvg:not(.is-here):hover .uvg-sys { transform: scale(1.04); } }
 .uvg:focus-visible { outline: none; }
@@ -1947,11 +1973,11 @@ html[data-motion="off"] .uv-beads { display: none; }
 .uvg-meta { display: inline-flex; align-items: center; gap: var(--space-4); font: 400 var(--text-small)/1.2 var(--mono); color: rgba(200, 210, 235, 0.5); }
 .uvg-locks { display: inline-flex; align-items: center; gap: 3px; }
 /* far out, the planets' own names are too small to read */
-.planet-label { transition: opacity 0.4s var(--ease-settle); }
+.planet-label { transition: opacity var(--dur-move) var(--ease-settle); }
 .world.is-far .gx-field .planet-label, .world.is-far .gx-hint { opacity: 0; }
 /* diving into a galaxy: everything else falls away */
 .uv-stage.is-diving { pointer-events: none !important; }
-.uv-stage.is-diving .uvg:not(.is-target), .uv-stage.is-diving .uvg-label, .uv-stage.is-diving .uv-head { opacity: 0; transition: opacity 0.45s ease-in; }
+.uv-stage.is-diving .uvg:not(.is-target), .uv-stage.is-diving .uvg-label, .uv-stage.is-diving .uv-head { opacity: 0; transition: opacity var(--dur-arrive) var(--ease-leave); }
 .uv-stage.is-diving .is-target .uvg-sys { transform: none; }
 
 /* ------------------------------------------------------------------ effects */
@@ -2008,7 +2034,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   padding: var(--space-8) 0 0;
   color: var(--ink);
   text-shadow: var(--sky-shadow);
-  animation: liv-in 0.6s var(--ease-settle) backwards;
+  animation: liv-in var(--dur-arrive) var(--ease-settle) backwards;
 }
 @keyframes liv-in { from { opacity: 0; transform: translateY(10px); } }
 .liv-world { display: grid; place-items: center; }
@@ -2031,7 +2057,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 /* Picking people: everyone's username under the search box, a tap adds or takes off. */
 .pp-list { display: flex; flex-direction: column; gap: 1px; max-height: 196px; margin-top: 6px; padding: var(--space-4); overflow-y: auto; overscroll-behavior: contain; border-radius: 14px; background: var(--well); box-shadow: var(--well-shadow); scrollbar-width: thin; }
 .pp-list[hidden] { display: none; }
-.pp-row { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; border-radius: 10px; text-align: left; font-size: var(--text-label); color: var(--ink-2); transition: background 0.15s, color 0.15s; }
+.pp-row { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; border-radius: 10px; text-align: left; font-size: var(--text-label); color: var(--ink-2); transition: background var(--dur-quick), color var(--dur-quick); }
 .pp-row:hover, .pp-row.is-active { background: var(--tint); color: var(--ink); }
 .pp-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent); }
 .pp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2071,7 +2097,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 .pin.is-six { gap: 7px; }
 .pin.is-six .pin-cell { width: 44px; height: 56px; border-radius: var(--r-box); }
 /* a code you already have can be 4 digits (older accounts): the last two stay faint until used */
-.pin-cell.is-extra { opacity: 0.4; transition: opacity 0.3s var(--ease-settle); }
+.pin-cell.is-extra { opacity: 0.4; transition: opacity var(--dur-move) var(--ease-settle); }
 .pin.is-long .pin-cell.is-extra { opacity: 1; }
 
 /* sign in: the void fills the screen, with dust spiralling into it. It opens,
@@ -2110,7 +2136,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 .login-mark .logo { position: relative; z-index: 1; color: var(--ink); font-size: 80px; }
 .login-mark > .logo .logo-word {
   text-shadow: 0 0 1px rgba(12, 9, 17, 0.5), 0 0 7px rgba(12, 9, 17, 0.26), 0 0 20px rgba(58, 40, 104, 0.24);
-  animation: login-bleed 4.2s ease-in-out infinite;
+  animation: login-bleed var(--beat-slow) ease-in-out infinite;
 }
 @keyframes login-bleed {
   50% { text-shadow: 0 0 1px rgba(12, 9, 17, 0.5), 0 0 11px rgba(12, 9, 17, 0.32), 0 0 30px rgba(58, 40, 104, 0.3); }
@@ -2127,12 +2153,12 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   -webkit-mask: radial-gradient(circle at 1.5px 1.5px, #000 0.7px, transparent 1.1px) 0 0 / 3px 3px;
   mask: radial-gradient(circle at 1.5px 1.5px, #000 0.7px, transparent 1.1px) 0 0 / 3px 3px;
   pointer-events: none;
-  animation: login-haze 4.2s ease-in-out infinite;
+  animation: login-haze var(--beat-slow) ease-in-out infinite;
 }
 @keyframes login-haze { 50% { scale: 1.08; opacity: 0.7; } }
 /* The word leaving itself: copies that swell outward and fade. */
-.login-echo { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; animation: login-echo 3.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite; }
-.login-echo + .login-echo { animation-delay: -1.9s; }
+.login-echo { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; animation: login-echo var(--beat-slow) var(--ease-settle) infinite; }
+.login-echo + .login-echo { animation-delay: calc(var(--beat-slow) / -2); }
 @keyframes login-echo {
   from { transform: scale(1); opacity: 0.2; filter: blur(0.5px); }
   to { transform: scale(1.28); opacity: 0; filter: blur(4px); }
@@ -2148,7 +2174,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   gap: var(--space-2);
   margin-top: var(--space-8);
   border-bottom: 1.5px solid var(--line-2);
-  transition: border-color 0.35s var(--ease-settle);
+  transition: border-color var(--dur-move) var(--ease-settle);
 }
 .login-name-row:focus-within { border-color: var(--ink); }
 .login-at { font-size: 17px; color: var(--ink-4); }
@@ -2175,7 +2201,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   border-radius: 50%;
   font-size: 17px;
   color: var(--ink-3);
-  transition: background 0.3s, color 0.3s, transform var(--dur-arrive) var(--ease-settle);
+  transition: background var(--dur-move), color var(--dur-move), transform var(--dur-arrive) var(--ease-settle);
 }
 .login-go:hover { background: var(--tint-2); color: var(--ink); transform: translateX(2px); }
 /* Once the name is given it stays in the page (for password managers) but
@@ -2208,10 +2234,10 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   background: transparent;
   box-shadow: none;
   transform: none;
-  transition: background 0.25s, border-color 0.3s, transform var(--dur-arrive) var(--ease-settle);
+  transition: background var(--dur-change), border-color var(--dur-move), transform var(--dur-arrive) var(--ease-settle);
 }
 .login .pin-cell.is-filled .pin-dot { background: var(--ink); transform: scale(1.12); }
-.login .pin-cell.is-current .pin-dot { animation: login-next 1.2s ease-in-out infinite; }
+.login .pin-cell.is-current .pin-dot { animation: login-next var(--beat-quick) ease-in-out infinite; }
 @keyframes login-next { 50% { transform: scale(1.3); } }
 .login .pin.is-ok .pin-cell { background: none; }
 .login .pin.is-ok .pin-dot { background: var(--ink); transform: scale(0); }
@@ -2225,7 +2251,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   line-height: 1.4;
   color: var(--ink-3);
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity var(--dur-move);
 }
 .login-msg.is-on { opacity: 1; }
 .login-msg.is-error { color: var(--danger); }
@@ -2244,7 +2270,8 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
    no time (the older base, above, sets the duration), so entrances land on their last frame
    and the ones that loop come to rest. Pausing them instead would hold every
    entrance on its first frame, which for most is invisible. */
-html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+/* Still means nothing moves, a transition too: these must stay !important, or any part's own `transition:` wins. */
+html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation-iteration-count: 1 !important; transition-duration: var(--dur-none) !important; }
 
 /* ------------------------------------------------------------------ touch screens */
 
@@ -2259,7 +2286,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   /* Room for a fingertip. */
   .sb-who { height: 30px; }
   .cx-row { padding: 10px; }
-  .gx-cue { height: 38px; padding: 0 18px; }
+  .gx-cue { height: var(--h-large); padding: 0 18px; }
   /* A planet's or a galaxy's name opens it too. */
   .world:not(.is-far) .gx-field .planet-title, .planet-mini .planet-title, .uvg-name { pointer-events: auto; }
   /* Press and hold a file to move it: no text selection or picture menu. */
@@ -2443,17 +2470,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 /* ------------------------------------------------------------ right-click menu
    Grows out of the pointer, rows arrive one after another, and a single
    highlight glides between them. A chosen row blinks once before it closes. */
-.pop-ctx {
-  max-width: min(290px, calc(100vw - 16px));
-  transform-origin: var(--origin, top left);
-  animation: ctx-in 0.36s cubic-bezier(0.22, 1.18, 0.36, 1) backwards;
-}
-.pop-ctx.is-leaving { animation: ctx-out 0.16s var(--ease-in, ease-in) both; pointer-events: none; }
-@keyframes ctx-in {
-  from { opacity: 0; transform: scale(0.84); filter: blur(3px); }
-  55% { opacity: 1; filter: none; }
-}
-@keyframes ctx-out { to { opacity: 0; transform: scale(0.93); filter: blur(2px); } }
+.pop-ctx { max-width: min(290px, calc(100vw - 16px)); }
 
 .ctx-menu { position: relative; outline: none; }
 .ctx-hi {
@@ -2467,24 +2484,26 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.24s var(--ease-settle), height 0.24s var(--ease-settle), opacity 0.16s, background 0.16s;
+  transition: transform var(--dur-change) var(--ease-settle), height var(--dur-change) var(--ease-settle), opacity var(--dur-quick), background var(--dur-quick);
 }
 .ctx-hi.is-on { opacity: 1; }
 .ctx-hi.is-danger { background: color-mix(in srgb, var(--danger) 15%, transparent); }
-.ctx-hi.is-picked { animation: ctx-blink 0.14s linear; }
+.ctx-hi.is-picked { animation: ctx-blink var(--dur-quick) linear; }
 @keyframes ctx-blink { 45% { opacity: 0.2; } }
 
-.ctx-title, .ctx-heading, .ctx-item, .pop-ctx .menu-sep {
-  animation: ctx-row 0.34s var(--ease-settle) backwards;
-  animation-delay: calc(30ms + var(--i, 0) * 16ms);
+.ctx-menu > :is(.ctx-title, .menu-head, .menu-item, .menu-sep) {
+  animation: ctx-row var(--dur-move) var(--ease-settle) backwards;
+  animation-delay: calc(var(--stagger) + min(var(--i, 0), 14) * var(--stagger) / 2);   /* rows are half a step apart: a menu is small */
 }
 @keyframes ctx-row { from { opacity: 0; transform: translateY(-5px); } }
+.ctx-menu.is-refilled > * { animation: none; }
 .ctx-title { overflow: hidden; margin: 0 var(--space-2) var(--space-4); padding: var(--space-8) 6px 6px; border-bottom: 1px solid var(--line); font: var(--type-caption); color: var(--ink-3); white-space: nowrap; text-overflow: ellipsis; }
-.ctx-item { position: relative; z-index: 1; justify-content: flex-start; }
-.pop-ctx .ctx-item:hover, .pop-ctx .ctx-item:focus-visible, .pop-ctx .ctx-item:active { background: transparent; }
+.ctx-menu .menu-item { position: relative; z-index: 1; }
+.ctx-item { justify-content: flex-start; }
+.ctx-menu .menu-item:is(:hover, :focus-visible, :active) { background: transparent; }
 .ctx-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ctx-item:hover .planet-dot, .ctx-item:focus .planet-dot { transform: scale(1.18) rotate(-12deg); }
-.ctx-item.is-picked .planet-dot { transform: scale(0.6) translateX(4px); opacity: 0.4; transition-duration: 0.14s; }
+.ctx-item.is-picked .planet-dot { transform: scale(0.6) translateX(4px); opacity: 0.4; transition-duration: var(--dur-quick); }
 .moon-dot {
   width: 11px;
   height: 11px;
@@ -2495,12 +2514,13 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .cell.is-ctx .face { outline: 1.5px solid var(--line-2); outline-offset: 3px; }
 .lm-item.is-ctx > .lm-row { border-color: var(--fg-edge-hi); background: var(--fg-fill-hover); }
 .star.is-ctx { outline: 1.5px solid var(--line-2); outline-offset: 3px; }
+.planet.is-ctx .planet-ball { outline: 1.5px solid var(--line-2); outline-offset: 3px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pop-ctx, .pop-ctx * { animation: none !important; }
+  .pop, .ctx-menu > * { animation: none !important; }
   .ctx-hi { transition: opacity var(--dur-quick); }
 }
-html[data-motion="off"] .pop-ctx, html[data-motion="off"] .pop-ctx * { animation: none !important; }
+html[data-motion="off"] .pop, html[data-motion="off"] .ctx-menu > * { animation: none !important; }
 
 /* ================================================================== READING: THE SHELF
    reading.js. A planet of books. Covers stand at their own shape with their
@@ -2661,7 +2681,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 /* While you read, the bar stays, but quieter; a tap in the middle brings it up fully. */
-.rd-top .rd-btn, .rd-heading { opacity: 0.62; transition: opacity 0.3s ease; }
+.rd-top .rd-btn, .rd-heading { opacity: 0.62; transition: opacity var(--dur-move) ease; }
 .rd.is-chrome .rd-top .rd-btn, .rd.is-chrome .rd-heading, .rd-top:hover .rd-btn, .rd-top:hover .rd-heading,
 .rd-top .rd-btn:focus-visible, .rd-top .rd-btn[aria-expanded="true"], .rd-top .rd-btn[aria-pressed="true"] { opacity: 1; }
 .rd-heading { flex: 1; min-width: 0; text-align: center; padding: 0 6px; }
@@ -2677,16 +2697,16 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   position: absolute; top: calc(54px + env(safe-area-inset-top)); right: max(18px, calc((100% - var(--rd-vw, 680px)) / 2 - 6px)); z-index: 2;
   width: 16px; height: 38px; background: linear-gradient(90deg, color-mix(in srgb, var(--ribbon-red), #000 18%), var(--ribbon-red) 45%, color-mix(in srgb, var(--ribbon-red), #000 12%));
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
-  transform: translateY(-110%); transition: transform 0.4s var(--ease-spring); pointer-events: none;
+  transform: translateY(-110%); transition: transform var(--dur-move) var(--ease-spring); pointer-events: none;
 }
 .rd-ribbon.is-on { transform: none; }
 
 .rd-foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 0 18px calc(12px + env(safe-area-inset-bottom)); color: var(--ink-3); font: var(--type-fact); pointer-events: none; }
-.rd-foot-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 14px; align-items: center; font-variant-numeric: tabular-nums; transition: opacity 0.3s; }
-.rd-foot-ch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0; transition: opacity 0.3s; }
+.rd-foot-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 14px; align-items: center; font-variant-numeric: tabular-nums; transition: opacity var(--dur-move); }
+.rd-foot-ch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0; transition: opacity var(--dur-move); }
 .rd-foot-left { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rd.is-chrome .rd-foot-ch { opacity: 1; }
-.rd-scrub-row { position: relative; height: 0; opacity: 0; overflow: hidden; transition: height 0.38s var(--ease-spring), opacity 0.25s; }
+.rd-scrub-row { position: relative; height: 0; opacity: 0; overflow: hidden; transition: height var(--dur-move) var(--ease-spring), opacity var(--dur-change); }
 .rd.is-chrome .rd-scrub-row { height: 34px; opacity: 1; pointer-events: auto; }
 .rd-scrub { width: 100%; height: 30px; margin: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
 .rd-scrub::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: var(--line); }
@@ -2794,10 +2814,10 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .rd-card-hint { margin-top: var(--space-8); font: var(--type-caption); color: var(--ink-3); }
 .rd-card-btns { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--space-8); margin-top: 18px; }
 .rd-bar { height: 4px; margin: var(--space-16) var(--space-8) 0; border-radius: var(--r-mark); background: var(--line); overflow: hidden; }
-.rd-bar-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--blue-ink); transition: width 0.25s ease; }
+.rd-bar-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--blue-ink); transition: width var(--dur-change) ease; }
 .rd-loading { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; }
 .rd-loading[hidden] { display: none; }
-.rd-spin { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--blue-ink); animation: rd-spin 0.9s linear infinite; }
+.rd-spin { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--blue-ink); animation: rd-spin var(--beat-quick) linear infinite; }
 @keyframes rd-spin { to { transform: rotate(360deg); } }
 
 /* A PDF as its printed pages. */
@@ -2903,7 +2923,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   border-radius: var(--r-box);
   box-shadow: 0 0 0 1px var(--box-edge), var(--shadow-rest);
   opacity: 0;
-  transition: opacity 0.6s var(--ease-settle), transform 0.9s var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
+  transition: opacity var(--dur-arrive) var(--ease-settle), transform var(--dur-arrive) var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
 }
 .face-img.is-loaded, video.face-img { opacity: 1; }
 .face-shape {
@@ -2912,7 +2932,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   aspect-ratio: var(--ar);
   border-radius: var(--r-box);
   box-shadow: 0 0 0 1px var(--box-edge), var(--shadow-rest);
-  transition: transform 0.9s var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
+  transition: transform var(--dur-arrive) var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
 }
 .face-shape.is-wide { width: 100%; }
 .face-shape.is-tall { height: 100%; }
@@ -2944,7 +2964,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 /* a link: its title and what the page says, set to the foot; its picture, if it has one, across the top */
 .face-link { display: flex; flex-direction: column; justify-content: flex-end; }
 .face-link-pic { flex: 1; min-height: 0; margin: calc(var(--space-16) * -1) calc(var(--space-16) * -1) var(--space-12); border-bottom: 1px solid var(--line); overflow: hidden; }
-.face-link-pic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.6s var(--ease-settle); }
+.face-link-pic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity var(--dur-arrive) var(--ease-settle); }
 .face-link-pic img.is-loaded { opacity: 1; }
 .face-link-title { font: 500 var(--text-lead)/22px var(--sans); color: var(--ink); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .face-link-desc { margin-top: var(--space-4); font: var(--type-caption); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -2995,7 +3015,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   -webkit-backdrop-filter: var(--tag-frost);
   opacity: 0;
   transform: translateY(-3px);
-  transition: opacity 0.35s var(--ease-settle), transform 0.45s var(--ease-settle);
+  transition: opacity var(--dur-change) var(--ease-settle), transform var(--dur-move) var(--ease-settle);
   pointer-events: none;
 }
 .cell-tag.is-always, .cell:hover .cell-tag { opacity: 1; transform: none; }
@@ -3012,7 +3032,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   gap: var(--space-8);
   opacity: 0;
   transform: translateY(6px);
-  transition: opacity 0.3s var(--ease-settle), transform var(--dur-arrive) var(--ease-settle);
+  transition: opacity var(--dur-change) var(--ease-settle), transform var(--dur-move) var(--ease-settle);
   pointer-events: none;
 }
 .cell:hover .cell-actions, .cell:focus-within .cell-actions { opacity: 1; transform: none; pointer-events: auto; }
@@ -3020,11 +3040,11 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .pill { background: var(--gloss-clear), var(--bar-fill); background-origin: border-box; backdrop-filter: var(--tag-frost); -webkit-backdrop-filter: var(--tag-frost); }
 .pill.btn-main { background: var(--gloss-on), var(--accent); background-origin: border-box; }
 
-.cell-hover-video { position: absolute; object-fit: contain; border-radius: var(--r-box); opacity: 0; transition: opacity 0.4s var(--ease-settle); pointer-events: none; }
+.cell-hover-video { position: absolute; object-fit: contain; border-radius: var(--r-box); opacity: 0; transition: opacity var(--dur-move) var(--ease-settle); pointer-events: none; }
 .cell-hover-video.is-playing { opacity: 1; }
 
 /* ---- a file still on its way up */
-.cell.is-pending .cell-fill { opacity: 0.55; transition: opacity 0.4s; }
+.cell.is-pending .cell-fill { opacity: 0.55; transition: opacity var(--dur-move); }
 .cell-progress {
   position: absolute;
   left: 0;
@@ -3034,7 +3054,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   background: var(--ink);
   transform-origin: left;
   transform: scaleX(var(--p, 0));
-  transition: transform 0.3s var(--ease-settle);
+  transition: transform var(--dur-move) var(--ease-settle);
 }
 .cell.is-failed .cell-progress { background: var(--danger); }
 .cell-error { color: var(--danger); }
@@ -3045,7 +3065,7 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   inset: 0;
   background: linear-gradient(100deg, transparent, var(--tint-2) 50%, transparent);
   /* the band slides across rather than repainting each frame */
-  animation: shimmer 1.6s linear infinite;
+  animation: shimmer var(--beat-quick) linear infinite;
 }
 @keyframes shimmer { from { transform: translateX(-112.5%); } to { transform: translateX(262.5%); } }
 
@@ -3087,12 +3107,12 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   font: var(--type-body);
   font-size: calc(var(--text-body) * var(--t));
 }
-.entry textarea::placeholder { color: var(--ink-3); transition: opacity 0.3s; }
+.entry textarea::placeholder { color: var(--ink-3); transition: opacity var(--dur-change); }
 .entry textarea:focus::placeholder { opacity: 0.55; }
 .entry-foot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: 44px; padding: var(--space-8); }
-.entry .entry-files { transition: opacity 0.3s, transform 0.45s var(--ease-settle); }
+.entry .entry-files { transition: opacity var(--dur-change), transform var(--dur-move) var(--ease-settle); }
 .entry.has-text .entry-files { opacity: 0; transform: translateY(-4px); pointer-events: none; }
-.entry .entry-add { margin-left: auto; opacity: 0; transform: translateY(4px) scale(0.96); pointer-events: none; transition: opacity 0.3s, transform 0.45s var(--ease-settle); }
+.entry .entry-add { margin-left: auto; opacity: 0; transform: translateY(4px) scale(0.96); pointer-events: none; transition: opacity var(--dur-change), transform var(--dur-move) var(--ease-settle); }
 .entry.has-text .entry-add { opacity: 1; transform: none; pointer-events: auto; }
 @media (pointer: coarse) {
   /* a phone zooms the page in on any field whose text is under 16px */
@@ -3107,16 +3127,16 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 @keyframes cell-slide { from { transform: translateY(16px); } }
 .cell.reveal :is(.face-text, .face-file, .face-link, .entry, .face-shape, .cell-fill > .face-img, .cell-cap),
 .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * {
-  animation: part-fade 0.65s var(--ease-settle) backwards;
-  animation-delay: calc(min(var(--i, 0), 14) * 30ms);
+  animation: part-fade var(--dur-arrive) var(--ease-settle) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * var(--stagger));
 }
-.cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-focus; animation-duration: 0.85s; }
-.cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap) { animation-name: part-fade, part-focus; animation-duration: 0.65s, 0.85s; }
+.cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-focus; animation-duration: var(--dur-scene); }
+.cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap) { animation-name: part-fade, part-focus; animation-duration: var(--dur-arrive), var(--dur-arrive); }
 @keyframes part-fade { from { opacity: 0; } }
 @keyframes part-focus { from { filter: blur(8px); } }
 html[data-motion="calm"] .cell.reveal { animation-name: none; }
 html[data-motion="calm"] .cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap),
-html[data-motion="calm"] .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-fade; animation-duration: 0.45s; animation-delay: 0s; }
+html[data-motion="calm"] .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-fade; animation-duration: var(--dur-arrive); animation-delay: 0s; }
 
 /* ---- at rest a box only floats, each on its own slow beat (the box). The
    box being pointed at leans toward the pointer (the fill inside it), so the
@@ -3125,7 +3145,7 @@ html[data-motion="calm"] .cell.reveal :is(.face-text, .face-file, .face-link, .e
 @property --mx { syntax: '<number>'; inherits: false; initial-value: 0; }
 @property --my { syntax: '<number>'; inherits: false; initial-value: 0; }
 body[data-page="planet"] .grid > .cell .cell-box {
-  animation: cell-float var(--float, 9s) ease-in-out var(--float-at, 0s) infinite alternate;
+  animation: cell-float var(--float, var(--beat-rest)) ease-in-out var(--float-at, 0s) infinite alternate;
 }
 body[data-page="planet"] .grid > .cell:nth-child(3n + 1) { --float: 8.2s; --float-at: -3.1s; }
 body[data-page="planet"] .grid > .cell:nth-child(3n + 2) { --float: 10.4s; --float-at: -7.6s; }
@@ -3166,7 +3186,10 @@ html:is([data-motion="calm"], [data-motion="off"]) body[data-page="planet"] .gri
    comments are a column of words straight on the sky beside it (under it on a
    narrow screen). No pane and no line between the two. DESIGN.md "File view". */
 .viewer { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: 56px minmax(0, 1fr); animation: fade-in var(--dur-move) ease backwards; }
-html[data-vt] .viewer { animation: none; }
+/* Arriving inside a page change it has no fade of its own, and must never get one back: a rule that
+   only held while the change ran (html[data-vt]) gave the fade back the moment the change ended, and
+   the whole file view blinked out and in (session 8). So the view itself is marked. */
+.viewer.is-carried, html[data-vt] .viewer { animation: none; }
 html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-top { grid-row: 1; grid-column: 1; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-24); }
 .vw-nav { display: flex; align-items: center; gap: var(--space-4); }
@@ -3309,7 +3332,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 /* Steam: soft wisps rising off the dish while you point at it. */
 .cb-steam { position: absolute; left: 50%; bottom: calc(100% - 6px); width: 56px; height: 36px; margin-left: -28px; overflow: visible; pointer-events: none; }
 .cb-steam path { fill: none; stroke: color-mix(in srgb, var(--ink) 60%, transparent); stroke-width: 2.4; stroke-linecap: round; opacity: 0; filter: blur(0.8px); transform-box: fill-box; transform-origin: 50% 100%; }
-.cb-top-btn:is(:hover, :focus-visible) .cb-steam path { animation: cb-steam 2.8s ease-in-out infinite; animation-delay: calc(var(--i) * 0.6s); }
+.cb-top-btn:is(:hover, :focus-visible) .cb-steam path { animation: cb-steam var(--beat-slow) ease-in-out infinite; animation-delay: calc(var(--i) * var(--dur-arrive)); }
 @keyframes cb-steam {
   0% { opacity: 0; transform: translateY(10px) scaleY(0.6); }
   30% { opacity: 0.75; }
@@ -3376,7 +3399,7 @@ html.cb-locked, html.cb-locked body { overflow: hidden; }
 }
 .cbc-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: transform var(--dur-scene) var(--ease-settle); }
 .cbc-photo:hover img { transform: scale(1.03); }
-.cbc-photo.is-loading img { animation: cb-pulse 1.4s ease-in-out infinite; }
+.cbc-photo.is-loading img { animation: cb-pulse var(--beat-quick) ease-in-out infinite; }
 @keyframes cb-pulse { 50% { opacity: 0.55; } }
 .cbc-photo.is-empty {
   display: grid; place-items: center; align-content: center; gap: var(--space-8); height: 172px; padding: var(--space-12);
@@ -3511,8 +3534,8 @@ html[data-motion="off"] .cb-steam { display: none; }
 /* ---------------------------------------------------------------- the sharing tip on a new planet
    Shown once, the first time its owner opens it, hanging under Share.
    It's a child of the page (not the header) so its frost blurs what's under it. */
-.share-tip { position: absolute; z-index: 6; text-align: left; animation: share-tip-in 0.6s var(--ease-settle) both; }  /* placed under Share by placeTip() in views/planet.js */
-.share-tip > * { animation: share-tip-part 0.6s var(--ease-settle) both; }
+.share-tip { position: absolute; z-index: 6; text-align: left; animation: share-tip-in var(--dur-arrive) var(--ease-settle) both; }  /* placed under Share by placeTip() in views/planet.js */
+.share-tip > * { animation: share-tip-part var(--dur-arrive) var(--ease-settle) both; }
 @keyframes share-tip-in { from { opacity: 0; translate: 0 -8px; } }
 @keyframes share-tip-part { from { filter: blur(6px); } }
 @media (prefers-reduced-motion: reduce) { .share-tip, .share-tip > * { animation: none; } }
@@ -3534,7 +3557,7 @@ html[data-motion="off"] .cb-steam { display: none; }
   border-radius: var(--r-box);
   animation: cm-in var(--dur-arrive) var(--ease-settle) backwards;
 }
-.vw-cm-item.is-new { animation: cm-arrive 0.6s var(--ease-settle) backwards; }
+.vw-cm-item.is-new { animation: cm-arrive var(--dur-arrive) var(--ease-settle) backwards; }
 /* The fade sits on the box's parts, never on the glass's parent. */
 .vw-cm-item > * { animation: inherit; animation-name: cm-part; }
 @keyframes cm-in { from { translate: 0 6px; } }
@@ -3589,7 +3612,7 @@ html[data-motion="off"] .cb-steam { display: none; }
   color: var(--ink);
 }
 .vw-cm-input::placeholder { color: var(--ink-3); }
-.vw-cm-bar { display: flex; align-items: center; gap: 10px; height: 0; overflow: hidden; opacity: 0; transition: height 0.3s var(--ease-settle), opacity 0.25s, margin 0.3s var(--ease-settle); }
+.vw-cm-bar { display: flex; align-items: center; gap: 10px; height: 0; overflow: hidden; opacity: 0; transition: height var(--dur-move) var(--ease-settle), opacity var(--dur-change), margin var(--dur-move) var(--ease-settle); }
 .vw-cm-compose:focus-within .vw-cm-bar, .vw-cm-compose.has-text .vw-cm-bar { height: 28px; margin-top: 6px; opacity: 1; }
 .vw-cm-hint { flex: 1; min-width: 0; font-size: var(--text-fact); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vw-cm-left { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-3); }
@@ -3626,13 +3649,15 @@ html[data-motion="off"] .cb-steam { display: none; }
 }
 
 /* On a phone: a quiet note that Mutt is in testing and works best on a computer (phonenote.js) */
-.phone-note { position: fixed; left: 16px; right: 16px; top: calc(env(safe-area-inset-top) + 62px); z-index: var(--z-sheet); display: flex; align-items: flex-start; gap: 6px; width: auto; padding: var(--space-12) var(--space-8) var(--space-12) var(--space-16); }
-.phone-note > * { animation: phone-note-in 0.6s var(--ease-settle) both; }
-.phone-note.is-leaving > * { animation: phone-note-out 0.3s var(--ease-settle) both; }
+/* It sits at the foot, where toasts sit, so it covers nothing you came to read (session 8); a toast that arrives meanwhile stands above it. */
+.phone-note { position: fixed; left: var(--space-16); right: var(--space-16); bottom: calc(env(safe-area-inset-bottom) + var(--space-16)); z-index: var(--z-sheet); display: flex; align-items: flex-start; gap: 6px; width: auto; padding: var(--space-12) var(--space-8) var(--space-12) var(--space-16); }
+.phone-note > * { animation: phone-note-in var(--dur-arrive) var(--ease-settle) both; }
+.phone-note.is-leaving > * { animation: phone-note-out var(--dur-change) var(--ease-leave) both; }
 .phone-note-text { flex: 1; margin: 0; }
 .phone-note .phone-note-x { flex: none; margin: -4px 0; font-size: var(--text-title); }
-@keyframes phone-note-in { from { opacity: 0; translate: 0 -6px; filter: blur(6px); } }
-@keyframes phone-note-out { to { opacity: 0; translate: 0 -6px; } }
+@keyframes phone-note-in { from { opacity: 0; translate: 0 6px; filter: blur(6px); } }
+@keyframes phone-note-out { to { opacity: 0; translate: 0 6px; } }
+body:has(> .phone-note) .toasts { bottom: calc(env(safe-area-inset-bottom) + 104px); }
 .phone-note.is-leaving { pointer-events: none; }
 
 /* ------------------------------------------------------------------ documents, before the desk loads

@@ -41,7 +41,7 @@ def count_css(css):
     n['corners'] = sum(1 for v in declarations(css, 'border-radius') if re.search(LENGTH, v))
     n['shadows'] = sum(1 for v in declarations(css, 'box-shadow', 'text-shadow') if re.search(LENGTH, v))
     for v in declarations(css, 'transition', 'animation', 'transition-duration', 'animation-duration', 'transition-delay', 'animation-delay'):
-        n['speeds'] += len(re.findall(TIME, v))
+        n['speeds'] += sum(1 for t in re.findall(TIME, v) if float(t.rstrip('ms')) != 0)   # no wait at all (0s) is not a speed
     n['speeds'] += len(re.findall(r'cubic-bezier\(', css))
     return n
 

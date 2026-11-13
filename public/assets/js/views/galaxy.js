@@ -14,10 +14,11 @@ import { fileFace, holdPlanets, orbitReach, planetEl, planetSize, worldPicture }
 import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
-import { openDialog, pinField, toast } from '../ui.js';
+import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
+import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { DUR, EASE, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
-import { beads, paintWeb } from '../uvweb.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
+import { beads, beadsRun, paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
 
@@ -74,6 +75,11 @@ const Z_MIN = 0.42;
 
 // Out in the universe each void draws this much smaller beside its planets.
 const VOID_UV = 0.5;
+// Following the scroll out to the universe (track, snap, carry):
+const SETTLES = 6.6;      // a spring of stiffness w is within a hundredth of its goal after 6.6 / w seconds
+const CRAWL = 0.25;       // slower than this many pixels a millisecond, a scroll is running out
+const LET_GO = DUR.quick;       // this long without a scroll, well on your way: you have let go
+const LET_GO_BACK = DUR.arrive; // not yet on your way: it waits longer before taking you back
 function fitted(width, viewH, place, hold = 0) {
   if (hold) {
     const m = metrics(width, viewH, hold);
@@ -857,12 +863,23 @@ class Galaxy {
     this.onScroll = () => {
       if (this.heldAt != null) return;
       if (!this.uvLoading) this.loadUniverse();
-      if (scrollY !== this.lastY) this.heading = scrollY > this.lastY ? 1 : -1;
+      const now = performance.now();
+      // how fast the page is being scrolled, in pixels a millisecond (0 for the page's own jump)
+      const speed = this.carried ? 0 : Math.abs(scrollY - this.lastY) / Math.max(1, now - (this.scrolledAt || now - 16));
+      this.scrolledAt = now;
+      if (scrollY !== this.lastY && !this.carried) this.heading = scrollY > this.lastY ? 1 : -1;
+      this.carried = false;
       this.lastY = scrollY;
       cancelAnimationFrame(this.scrollFrame);
       this.scrollFrame = requestAnimationFrame(() => this.track());
       clearTimeout(this.snapTimer);
-      this.snapTimer = setTimeout(() => this.snap(), 450);
+      // Well on your way and slowing to a crawl (a trackpad's glide running out): it carries you the
+      // rest now, without first coming to a stop. Otherwise it waits to see you have let go.
+      const p = this.goalNow();
+      const onward = this.heading > 0 ? p > 0.4 : p < 0.6;
+      this.crawl = onward && speed < CRAWL ? (this.crawl || 0) + 1 : 0;
+      if (this.crawl >= 3) this.snap();
+      else this.snapTimer = setTimeout(() => this.snap(), onward ? LET_GO : LET_GO_BACK);
     };
     if (this.mine) this.listen();
   }
@@ -879,13 +896,33 @@ class Galaxy {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(el.planet); });
     }
     else if (this.mine) this.makeMovable(el);
+    if (!planet.private && !planet.locked) {
+      // Right-click: what you can do with this planet. Its kind, colour, a moon and deleting it are
+      // done on its own page, so those open it and carry on there (askThen in views/planet.js).
+      el.addEventListener('contextmenu', (e) => {
+        if (document.body.classList.contains('is-carrying') || el.classList.contains('is-moving') || this.p > 0.02) return;
+        const now = el.planet;
+        const open = () => nav.go(`/p/${now.id}`);
+        const there = (what) => () => { askThen(now.id, what); open(); };
+        openContextMenu(e, [
+          { icon: 'open', label: 'Open', run: open },
+          ...(this.mine ? [
+            { icon: 'planet', label: 'Planet type…', run: there('look') },
+            { icon: 'colour', label: 'Planet colour…', run: there('colour') },
+            (now.moons || []).length < 4 ? { icon: 'moon', label: 'Add a moon…', run: there('moon') } : null,
+            '-',
+            { icon: 'trash', label: 'Delete planet…', danger: true, run: there('remove') },
+          ] : []),
+        ], { title: now.title, target: el });
+      });
+    }
     this.planetEls.set(planet.id, el);
     this.field.append(el);
     if (born && !reducedMotion()) {
       el.body.animate([
         { transform: 'scale(0.2)', opacity: 0 },
         { transform: 'none', opacity: 1 },
-      ], { duration: 900, easing: EASE });
+      ], { duration: DUR.scene, easing: EASE });
     }
     return el;
   }
@@ -901,6 +938,7 @@ class Galaxy {
     let shown = null;
     let open = [];
     let snap = null;
+    let swap = null;   // the planet under the one being carried: let go there and the two change places
     const toScene = (pointer) => {
       const r = this.scene.getBoundingClientRect();
       return { x: pointer.x - r.left - this.size.cx, y: pointer.y - r.top - this.size.cy };
@@ -917,6 +955,7 @@ class Galaxy {
         at = { x: spot.x, y: spot.y };
         shown = { ...at };
         snap = null;
+        swap = null;
         open = this.m.narrow ? [] : this.openFor(el.planet);
         el.classList.add('is-moving');
       },
@@ -929,14 +968,29 @@ class Galaxy {
         const k = reducedMotion() ? 1 : 1 - Math.exp(-dt / 47);
         shown = { x: shown.x + (at.x - shown.x) * k, y: shown.y + (at.y - shown.y) * k };
         el.style.transform = `translate(${this.size.cx + shown.x}px, ${this.size.cy + shown.y}px)`;
-        if (open.length) {
+        // Carried over another planet: the two will change places. Its place is shown as the
+        // landing spot, and it lights as a planet does when something is about to land on it.
+        const over = this.planetOver(el.planet, at);
+        if (over !== swap) {
+          this.planetEls.get(swap?.id)?.classList.remove('is-target');
+          swap = over;
+          this.planetEls.get(swap?.id)?.classList.add('is-target');
+          snap = null;
+          if (swap) this.showGuide(this.spots.get(swap.id), planetSize(el.planet.count, this.m.scale));
+          else if (!open.length) this.hideGuide();
+        }
+        if (!swap && open.length) {
           const next = snapTo(open, at);
           if (next !== snap) this.showGuide((snap = next), planetSize(el.planet.count, this.m.scale));
         }
       },
       onEnd: (pointer, cancelled) => {
         this.hideGuide();
+        const other = swap;
+        this.planetEls.get(other?.id)?.classList.remove('is-target');
+        swap = null;
         if (cancelled) { el.classList.remove('is-moving'); this.layout(); return; }
+        if (other) { this.place(el.planet, this.spots.get(other.id), el, true, { planet: other, at: this.spots.get(el.planet.id) }); return; }
         if (snap) this.place(el.planet, snap, el, true);
         else this.place(el.planet, at, el);
       },
@@ -962,6 +1016,19 @@ class Galaxy {
     });
   }
 
+  // The planet the one being carried is over, if any: its middle is within the other's globe.
+  planetOver(planet, at) {
+    let best = null;
+    let near = Infinity;
+    for (const p of this.data.planets) {
+      const spot = this.spots.get(p.id);
+      if (p.id === planet.id || !spot || p.private) continue;
+      const d = Math.hypot(spot.x - at.x, spot.y - at.y);
+      if (d < (spot.size || planetSize(p.count, this.m.scale)) * 0.5 && d < near) { near = d; best = p; }
+    }
+    return best;
+  }
+
   // Where a planet you're holding could go: the free places on the orbits,
   // across the void from the others, and where it was.
   openFor(planet) {
@@ -981,7 +1048,7 @@ class Galaxy {
     const { cx, cy, width, height } = this.size;
     // It appears where it lands, then slides between places.
     const first = !this.ghost.classList.contains('is-on');
-    if (first) this.ghost.style.transition = 'opacity 0.3s';
+    if (first) this.ghost.style.transition = `opacity ${DUR.change}ms`;
     Object.assign(this.ghost.style, { width: `${s}px`, height: `${s}px`, transform: `translate(${(cx + spot.x - s / 2).toFixed(1)}px, ${(cy + spot.y - s / 2).toFixed(1)}px)` });
     this.ghost.classList.add('is-on');
     if (first) requestAnimationFrame(() => { this.ghost.style.transition = ''; });
@@ -1010,16 +1077,19 @@ class Galaxy {
 
   // Put a planet down and remember where. The first time, every planet's
   // spot is saved, so none of the others wander off later.
-  async place(planet, at, el = null, exact = false) {
+  // `also` moves a second planet in the same go ({ planet, at }): two planets changing places.
+  async place(planet, at, el = null, exact = false, also = null) {
     const spot = exact ? at : this.freeSpot(planet, at);
+    const going = new Map([[planet.id, spot]]);
+    if (also?.at) going.set(also.planet.id, also.at);
     const unit = (x, y) => ({ x: Math.round((x / (this.m.scale * this.fx)) * 10) / 10, y: Math.round((y / (this.m.scale * this.stretch)) * 10) / 10 });
     const first = !this.data.planets.some(placed);
     const list = first
       ? this.data.planets.map((p) => {
-        const s = p.id === planet.id ? spot : this.spots.get(p.id);
+        const s = going.get(p.id) || this.spots.get(p.id);
         return { id: p.id, ...unit(s.x, s.y) };
       })
-      : [{ id: planet.id, ...unit(spot.x, spot.y) }];
+      : [...going].map(([id, s]) => ({ id, ...unit(s.x, s.y) }));
     const before = new Map(this.data.planets.map((p) => [p.id, { x: p.x, y: p.y }]));
     for (const s of list) {
       const p = this.data.planets.find((q) => q.id === s.id);
@@ -1122,7 +1192,7 @@ class Galaxy {
     for (const id of known) {
       const el = this.planetEls.get(id);
       this.planetEls.delete(id);
-      el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, easing: 'ease-in' })
+      el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.change, easing: EASE_LEAVE })
         .finished.then(() => el.remove(), () => el.remove());
     }
     if (this.mine) {
@@ -1264,7 +1334,7 @@ class Galaxy {
   async dropStar(block, target, ghost) {
     const at = target.measure();
     if (target.kind === 'hole') {
-      await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 900 });
+      await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: DUR.scene });
       this.hole.gulp();
       try {
         const res = await api.post(`/api/blocks/${block.id}/autosort`, {});
@@ -1277,7 +1347,7 @@ class Galaxy {
       return;
     }
     const el = target.kind === 'moon' ? target.el : this.planetEls.get(target.id);
-    await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: 620, turns: 0.5 });
+    await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: DUR.scene, turns: 0.5 });
     el?.gulp();
     try {
       const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: target.id });
@@ -1298,7 +1368,7 @@ class Galaxy {
     const el = this.starsEl.querySelector(`.star[data-id="${CSS.escape(id)}"]`);
     this.stars = this.stars.filter((b) => b.id !== id);
     el?.classList.add('is-leaving');
-    setTimeout(() => { this.renderStars(); this.layout(); }, el && !reducedMotion() ? 320 : 0);
+    setTimeout(() => { this.renderStars(); this.layout(); }, el && !reducedMotion() ? DUR.change : 0);
   }
 
   // ------------------------------------------------------------ putting things in
@@ -1350,7 +1420,7 @@ class Galaxy {
           ? h('img', { src: URL.createObjectURL(file), alt: '' })
           : h('span', { class: 'fx-chip-text' }, file.name);
         const chip = float(h('div', { class: 'fx-chip fx-chip-file' }, face), start);
-        spiralInto(chip, start, this.hole.center(), { duration: 950 + i * 40 }).then(() => this.hole.gulp());
+        spiralInto(chip, start, this.hole.center(), { duration: DUR.scene + i * STAGGER }).then(() => this.hole.gulp());
       }, i * 140);
     });
     const sort = dest.mode === 'sort';
@@ -1379,7 +1449,7 @@ class Galaxy {
     files.slice(0, 6).forEach((file, i) => {
       setTimeout(() => {
         const chip = float(h('div', { class: 'fx-chip fx-chip-file' }, h('span', { class: 'fx-chip-text' }, file.name)), at);
-        spiralInto(chip, at, el.center(), { duration: 700, turns: 0.5 }).then(() => el.gulp());
+        spiralInto(chip, at, el.center(), { duration: DUR.scene, turns: 0.5 }).then(() => el.gulp());
       }, i * 120);
     });
     addFiles(files, { drawerId: planetId });
@@ -1399,7 +1469,7 @@ class Galaxy {
       { transform: 'translate(0px, 0px) scale(0.1)', opacity: 0 },
       { transform: `${to} scale(1.2)`, opacity: 1, offset: 0.7 },
       { transform: `${to} scale(1)`, opacity: 1 },
-    ], { duration: 900, easing: EASE });
+    ], { duration: DUR.scene, easing: EASE });
   }
 
   // Out of the void to the planet it went onto: the file itself, flying.
@@ -1416,7 +1486,7 @@ class Galaxy {
     const from = this.hole.center();
     const to = el.center();
     const chip = float(h('div', { class: 'fx-file' }, fileFace(block)), from);
-    await arcTo(chip, from, to, { duration: 950, lift: 0.22, startScale: 0.4, endScale: 0.3 });
+    await arcTo(chip, from, to, { duration: DUR.scene, lift: 0.22, startScale: 0.4, endScale: 0.3 });
     el.gulp();
     el.bump(1);
     burst(to, { color: 'rgba(255,255,255,0.8)', count: 5, reach: 20 });
@@ -1519,24 +1589,34 @@ class Galaxy {
   // A still picture of this page's void, for the galaxies out there. Taken
   // whenever the void is drawn closed, so it matches. Turning the picture
   // into an image is slow, so it's only taken again when the void's size
-  // changes, not every time the page lays itself out.
+  // changes, not every time the page lays itself out; and the browser is
+  // asked to do the turning in its own time, so the page never waits for it.
   snapVoid(m) {
     if (this.hole?.isOpen()) return;
-    const src = this.void.art;
-    const css = parseFloat(src.style.width);
-    if (!src.width || !css) return;
-    const dpr = src.width / css;
+    // Not drawn yet (its cells and dots are still being worked out): look again shortly.
+    if (!this.void.ready()) {
+      clearTimeout(this.snapSoon);
+      this.snapSoon = setTimeout(() => { if (this.el.isConnected) this.snapVoid(this.m || m); }, 160);
+      return;
+    }
+    if (!parseFloat(this.void.art.style.width)) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
     const r = m.hole * REACH.y * 1.05;
     const key = `${r}×${dpr}`;
     if (key === this.voidKey) return;
     this.voidKey = key;
     const out = document.createElement('canvas');
     out.width = out.height = Math.min(360, Math.round(r * 2 * dpr));
-    out.getContext('2d').drawImage(src, src.width / 2 - r * dpr, src.height / 2 - r * dpr, r * 2 * dpr, r * 2 * dpr, 0, 0, out.width, out.height);
+    this.void.copyTo(out, r);
     out.css = r;
     this.voidPic = out;
-    this.uvStage.style.setProperty('--void-pic', `url(${out.toDataURL()})`);
-    this.uvStage.classList.add('has-void');
+    out.toBlob((blob) => {
+      if (!blob || this.voidPic !== out || !this.el.isConnected) return;
+      if (this.voidUrl) URL.revokeObjectURL(this.voidUrl);
+      this.voidUrl = URL.createObjectURL(blob);
+      this.uvStage.style.setProperty('--void-pic', `url(${this.voidUrl})`);
+      this.uvStage.classList.add('has-void');
+    });
   }
 
   // Each galaxy drawn at its true size for this screen. Only redrawn when
@@ -1577,7 +1657,10 @@ class Galaxy {
 
   placeUniverse(width, viewH, m, home) {
     this.homePlan = home;
-    this.snapVoid(m);
+    // The void's still picture is only needed out in the universe: taken at once if you are
+    // already out there, and otherwise when the page next has nothing to do.
+    if (this.p > 0.02 || !window.requestIdleCallback) this.snapVoid(m);
+    else { cancelIdleCallback(this.snapIdle); this.snapIdle = requestIdleCallback(() => { if (this.el.isConnected) this.snapVoid(this.m || m); }, { timeout: 4000 }); }
     this.renderUniverse(width, viewH);
     const plans = this.uvEls.map((el, i) => (i === this.homeAt ? home : el.plan));
     const here = this.uvEls[this.homeAt];
@@ -1640,29 +1723,50 @@ class Galaxy {
       const H = viewH * M;
       const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
       const threads = paintWeb(this.webCanvas, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner);
+      this.webBeads.dataset.run = this.p > 0.02 ? 'yes' : 'no';
       beads(this.webBeads, threads, reducedMotion());
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
     }
   }
 
-  // Scroll position → how far out we are (0 here, 1 in the universe). The
-  // picture follows the scroll with a little weight, so it glides rather
-  // than stepping with each notch of the wheel.
-  track(jump = false) {
-    if (!this.size) return;
+  // Scroll position → how far out we are (0 here, 1 in the universe).
+  goalNow() {
+    if (!this.size) return 0;
     const { height, viewH } = this.size;
     // The page can stop a fraction of a pixel short of its end (on many
     // screens it does), and that's still all the way out.
     const raw = (scrollY - (height - viewH)) / this.travel;
-    const goal = clamp(raw > 1 - 2 / this.travel ? 1 : raw);
+    return clamp(raw > 1 - 2 / this.travel ? 1 : raw);
+  }
+
+  // The picture follows the scroll on a spring, so its speed changes gently as well as its place:
+  // a flick or a notch of the wheel never kicks it, and when it carries on by itself (snap) it
+  // leaves at the speed it already had. The spring is tight while you scroll (it settles in
+  // --dur-arrive) and slow when the trip is its own (--dur-grand, a set piece). DESIGN.md "Motion".
+  track(jump = false) {
+    if (!this.size) return;
+    const goal = this.goalNow();
     this.goal = goal;
     const now = performance.now();
     const dt = this.tickAt ? Math.min(64, now - this.tickAt) : 16;
+    // carried: the page jumped to an end and the picture is gliding there by itself
+    if (this.carriedTo != null && Math.abs(goal - this.carriedTo) > 0.02) this.carriedTo = null;
     let p = goal;
+    let v = 0;
     if (!jump && !this.jump && !reducedMotion()) {
-      p = this.p + (goal - this.p) * (1 - Math.exp(-dt / 140));
-      if (Math.abs(goal - p) < 0.0008) p = goal;
+      const w = SETTLES / (Math.max(100, this.carriedTo != null ? DUR.grand : DUR.arrive) / 1000);
+      p = this.p;
+      v = this.speed || 0;
+      const steps = Math.ceil(dt / 8);
+      const h = dt / steps / 1000;
+      for (let i = 0; i < steps; i++) {
+        v += (w * w * (goal - p) - 2 * w * v) * h;
+        p += v * h;
+      }
+      if (p <= 0 || p >= 1) { p = clamp(p); if (p === goal) v = 0; }
+      if (Math.abs(goal - p) < 0.0008 && Math.abs(v) < 0.004) { p = goal; v = 0; }
     }
+    this.speed = v;
     this.jump = false;
     this.render(p);
     if (p !== goal) {
@@ -1671,11 +1775,15 @@ class Galaxy {
       this.scrollFrame = requestAnimationFrame(() => this.track());
     } else {
       this.tickAt = 0;
+      this.carriedTo = null;
     }
   }
 
   render(p) {
     this.p = p;
+    // The universe's beads rest while it is out of sight.
+    if ((p > 0.02) !== this.beadsOn) { this.beadsOn = p > 0.02; beadsRun(this.webBeads, this.beadsOn); }
+    if (p > 0.02 && !this.voidPic && this.m) this.snapVoid(this.m);
     // An even pull back: each bit of scrolling shrinks things by the same
     // ratio, only softened at the very start and end.
     const e = 0.4 * p + 0.6 * smooth(p);
@@ -1760,17 +1868,33 @@ class Galaxy {
     const start = this.size.height - this.size.viewH;
     // Only a nudge: it finishes the trip once you're well on your way.
     const out = this.heading > 0 ? p > 0.4 : p > 0.6;
-    scrollTo({ top: out ? start + this.travel : start, behavior: 'smooth' });
+    this.carry(out ? start + this.travel : start, out ? 1 : 0);
+  }
+
+  // The rest of a trip, made by the picture itself. The page's own scroll goes straight to the end:
+  // nothing on screen follows it but the picture (track), which glides there on its slow spring
+  // from the speed it had. The browser's own smooth scroll is not used: it starts from a
+  // standstill, and that pause was the roughness.
+  carry(top, to) {
+    this.crawl = 0;
+    clearTimeout(this.snapTimer);
+    this.carriedTo = to;
+    if (Math.abs(scrollY - top) > 0.5) { this.carried = true; scrollTo({ top, behavior: 'instant' }); }
+    cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = requestAnimationFrame(() => this.track());
   }
 
   goOut(instant = false) {
     if (!this.size) return;
-    if (instant) this.jump = true;
-    scrollTo({ top: this.size.height - this.size.viewH + this.travel, behavior: instant || reducedMotion() ? 'auto' : 'smooth' });
+    const top = this.size.height - this.size.viewH + this.travel;
+    if (instant || reducedMotion()) { if (instant) this.jump = true; scrollTo({ top, behavior: 'instant' }); return; }
+    this.carry(top, 1);
   }
 
   goHome() {
-    scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+    if (reducedMotion() || !this.size || this.p <= 0.01) { scrollTo({ top: 0, behavior: reducedMotion() ? 'instant' : 'smooth' }); return; }
+    // back to the galaxy: the picture glides in, and the page is already there
+    this.carry(this.size.height - this.size.viewH, 0);
   }
 
   // Out in the universe from someone else's galaxy, the page quietly becomes
@@ -1839,10 +1963,10 @@ class Galaxy {
     const anim = this.uvStage.animate([
       { transform: 'none' },
       { transform: `translate(${(to.x - g.x).toFixed(1)}px, ${(to.y - g.y).toFixed(1)}px) scale(${z.toFixed(4)})` },
-    ], { duration, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
+    ], { duration, easing: EASE_GLIDE, fill: 'forwards' });
     el.querySelector('.uvg-core')?.animate([{ transform: 'none' }, { transform: `scale(${1 / VOID_UV})` }],
-      { duration, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
-    const fade = { duration: duration * 0.55, easing: 'ease-in', fill: 'forwards' };
+      { duration, easing: EASE_GLIDE, fill: 'forwards' });
+    const fade = { duration: duration * 0.55, easing: EASE_LEAVE, fill: 'forwards' };
     this.stage.animate([{ opacity: 1 }, { opacity: 0 }], fade);
     this.webLayer.animate([{ opacity: getComputedStyle(this.webLayer).opacity }, { opacity: 0 }], fade);
     // The sky comes back from the dark as you arrive.
@@ -1858,15 +1982,15 @@ class Galaxy {
 
   entrance() {
     if (reducedMotion()) return;
-    this.coreEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 300, fill: 'backwards' });
+    this.coreEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.move, fill: 'backwards' });
     this.void.art.animate([{ transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }],
-      { duration: 1200, easing: EASE });
-    this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 200, fill: 'backwards' });
+      { duration: DUR.grand, easing: EASE });
+    this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.change, fill: 'backwards' });
     [...this.planetEls.values()].forEach((p, i) => {
       p.body.animate([
         { transform: 'scale(0.85)', opacity: 0 },
         { transform: 'none', opacity: 1 },
-      ], { duration: DUR.scene, delay: 120 + i * 50, easing: EASE, fill: 'backwards' });
+      ], { duration: DUR.scene, delay: DUR.quick + Math.min(i, 14) * STAGGER, easing: EASE, fill: 'backwards' });
     });
   }
 

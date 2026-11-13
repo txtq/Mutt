@@ -6,7 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, h, named, onMotionChange, plural, reducedMotion, seeded } from './util.js';
+import { BLUE, DUR, h, named, onMotionChange, plural, reducedMotion, seeded } from './util.js';
 import { icon } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -661,12 +661,16 @@ const turning = new Set();
 const spinning = new Set();
 let frame = 0;
 let held = false;
+// Planets also keep their picture while the screen is changing (a page change sets data-vt on the
+// page): the browser is showing pictures of both pages then, and repainting under them is waste.
+const changing = () => !!document.documentElement.dataset.vt;
+new MutationObserver(() => { if (!changing()) { wake(); wakeOrbits(); } }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-vt'] });
 let beat = 0;
 let lastNow = 0;
 let gap = 16.7;
 function tick(now) {
   // Held or Still: every planet keeps its picture, so the loop rests until wake().
-  const resting = held || reducedMotion();
+  const resting = held || changing() || reducedMotion();
   if (resting && !spinning.size && !lifting.size) { frame = 0; lastNow = 0; return; }
   frame = turning.size ? requestAnimationFrame(tick) : 0;
   const dt = lastNow ? Math.min(100, now - lastNow) : 16.7;
@@ -803,7 +807,7 @@ function makeGlobe(canvas, rand, rate = 1) {
     draw(now, force = false) {
       if (!tex || !size || (!visible && !force)) return;
       const still = reducedMotion();
-      if (!force && drawn && (still || held)) return;
+      if (!force && drawn && (still || held || changing())) return;
       const own = still || !rate ? offset / period : (((now * rate) + offset) % period) / period;
       const turn = (((own + spin) % 1) + 1) % 1;
       job.source = tex;
@@ -1096,7 +1100,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     body.classList.remove('is-gulping');
     void body.offsetWidth;
     body.classList.add('is-gulping');
-    setTimeout(() => body.classList.remove('is-gulping'), 900);
+    setTimeout(() => body.classList.remove('is-gulping'), DUR.scene);
   };
   el.center = () => {
     const r = ball.getBoundingClientRect();
@@ -1172,7 +1176,7 @@ export function moonEl(moon, { size = 28, link = true } = {}) {
     el.classList.remove('is-gulping');
     void el.offsetWidth;
     el.classList.add('is-gulping');
-    setTimeout(() => el.classList.remove('is-gulping'), 900);
+    setTimeout(() => el.classList.remove('is-gulping'), DUR.scene);
   };
   if (link) {
     const open = (e) => {

@@ -9,9 +9,9 @@ import { markdown } from './md.js';
 import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
-import { transition } from './transitions.js';
+import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, toast } from './ui.js';
-import { EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, styles, touchScreen, wait } from './util.js';
+import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
 import { icon } from './icons.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
@@ -49,7 +49,9 @@ export async function openViewer(id, { list = [], drawer = null } = {}) {
   state = { block, list: list.length ? list : [block], drawer, connections };
   const from = findCell(id);
   const fromVisible = from && inViewport(from) ? from : null;
-  await transition(() => mount(), {
+  // Carried in by the page change, it must not also play its own fade once that is over.
+  const carried = canTransition();
+  await transition(() => mount(carried), {
     type: 'viewer',
     before: () => (fromVisible ? [[fromVisible, `b-${id}`]] : []),
     after: () => (state?.media ? [[state.media, `b-${id}`]] : []),
@@ -117,7 +119,7 @@ function step(delta) {
   state.stepping?.cancel();
   const slide = state.stage.animate(
     [{ opacity: 0, transform: `translateX(${delta * 14}px)`, filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-    { duration: 420, easing: EASE },
+    { duration: reducedMotion() ? 0 : DUR.move, easing: EASE },
   );
   state.stepping = slide;
   // A picture that isn't ready waits a moment to slide in whole, rather
@@ -141,7 +143,7 @@ async function loadConnections() {
   } catch { /* the side panel just shows what it has */ }
 }
 
-function mount() {
+function mount(carried = false) {
   const counter = h('span', { class: 'vw-count' });
   const prev = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Previous', title: 'Previous', onclick: () => step(-1) }, icon('chevron-left'));
   const next = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Next', title: 'Next', onclick: () => step(1) }, icon('chevron-right'));
@@ -150,7 +152,7 @@ function mount() {
   state.side = h('aside', { class: 'vw-side' });
   state.counter = counter;
   state.nav = h('div', { class: 'vw-nav' }, prev, counter, next);
-  state.el = h('div', { class: 'viewer room', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Block' },
+  state.el = h('div', { class: `viewer room${carried ? ' is-carried' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Block' },
     h('div', { class: 'vw-top' }, state.nav, close),
     state.stage,
     state.side);

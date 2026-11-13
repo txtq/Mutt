@@ -11,7 +11,7 @@ import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
 import { openContextMenu, openMenu, sectionHead, toast } from './ui.js';
-import { EASE, bus, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { DUR, EASE, EASE_LEAVE, STAGGER, bus, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
 import { icon } from './icons.js';
 
 // The desk's look comes with its code. Whoever loads this file waits for the
@@ -168,7 +168,7 @@ export class DeskView {
     this.info.delete(id);
     const el = this.grid.querySelector(`[data-id="${CSS.escape(id)}"]`);
     const done = () => { this.changed(); this.render(); };
-    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.94)' }], { duration: 220, easing: 'ease-in' }).finished.then(done, done);
+    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.94)' }], { duration: DUR.change, easing: EASE_LEAVE }).finished.then(done, done);
     else done();
   }
 
@@ -237,14 +237,14 @@ export class DeskView {
         const dx = was.left - now.left;
         const dy = was.top - now.top;
         if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
-        el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 520, easing: EASE });
+        el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: DUR.arrive, easing: EASE });
       }
     }
     if (moving() && (entrance || born)) {
       [...this.grid.children].forEach((el, n) => {
         if (born && el.dataset.id !== born) return;
         el.animate([{ opacity: 0, transform: 'translateY(14px) scale(0.97)' }, { opacity: 1, transform: 'none' }],
-          { duration: 520, delay: born ? 0 : Math.min(n, 12) * 40, easing: EASE, fill: 'backwards' });
+          { duration: DUR.arrive, delay: born ? 0 : Math.min(n, 14) * STAGGER, easing: EASE, fill: 'backwards' });
       });
     }
   }

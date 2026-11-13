@@ -3,7 +3,7 @@
 // moment to pick it up, otherwise the page just scrolls.
 
 import { float } from './fx.js';
-import { reducedMotion } from './util.js';
+import { DUR, EASE_SPRING, reducedMotion } from './util.js';
 
 const HOLD_MS = 260;
 const EDGE = 72;
@@ -125,7 +125,7 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
         await ghostEl.animate([
           { transform: ghostEl.style.transform },
           { transform: `translate(${home.x}px, ${home.y}px) translate(-50%, -50%) scale(1)` },
-        ], { duration: reducedMotion() ? 1 : 520, easing: 'cubic-bezier(0.34, 1.4, 0.64, 1)', fill: 'forwards' }).finished.catch(() => {});
+        ], { duration: reducedMotion() ? 1 : DUR.arrive, easing: EASE_SPRING, fill: 'forwards' }).finished.catch(() => {});
         ghostEl.remove();
       }
       el.classList.remove('is-lifted');

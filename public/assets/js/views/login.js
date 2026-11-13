@@ -13,7 +13,7 @@ import { nav } from '../nav.js';
 import { theSky } from '../sky.js';
 import { setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
-import { DUR, EASE, h, reducedMotion, touchScreen, wait } from '../util.js';
+import { DUR, EASE, EASE_LEAVE, STAGGER, h, reducedMotion, touchScreen, wait } from '../util.js';
 import { voidArt } from '../voidart.js';
 import { icon } from '../icons.js';
 
@@ -327,7 +327,7 @@ export const loginView = {
     const appear = (node, delay = 0) => {
       if (reducedMotion()) return;
       node.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
-        { duration: 600, delay, easing: EASE, fill: 'backwards' });
+        { duration: DUR.arrive, delay, easing: EASE, fill: 'backwards' });
     };
 
     // The light is as wide as what it holds, and the cage and dust make room.
@@ -420,7 +420,7 @@ export const loginView = {
       pin.state('error');
       say(text, 'error');
       fit();
-      await wait(420);
+      await wait(DUR.move);
       pin.clear();
       fed = 0;
       pin.state('');
@@ -434,17 +434,17 @@ export const loginView = {
       const at = eyeAt();
       dust.fall();
       art.gulp();
-      theSky()?.pull(at.x, at.y, { strength: 1.4, radius: Math.hypot(innerWidth, innerHeight), duration: 1500 });
+      theSky()?.pull(at.x, at.y, { strength: 1.4, radius: Math.hypot(innerWidth, innerHeight), duration: DUR.grand });
       core.animate([{ opacity: 1, scale: 1 }, { opacity: 0, scale: 0.86 }],
-        { duration: 420, easing: 'ease-in', fill: 'forwards' });
-      await wait(640);
+        { duration: DUR.move, easing: EASE_LEAVE, fill: 'forwards' });
+      await wait(DUR.arrive);
       const from = art.radius();
       const far = Math.hypot(Math.max(at.x, innerWidth - at.x), Math.max(at.y, innerHeight - at.y)) + 24;
       const flash = h('div', { class: 'login-flash', 'aria-hidden': 'true' });
       Object.assign(flash.style, { left: `${at.x - far}px`, top: `${at.y - far}px`, width: `${far * 2}px`, height: `${far * 2}px` });
       document.body.append(flash);
       await flash.animate([{ transform: `scale(${(from / far).toFixed(3)})` }, { transform: 'scale(1)' }],
-        { duration: 760, easing: 'cubic-bezier(0.7, 0, 0.84, 0)' }).finished.catch(() => {});
+        { duration: DUR.scene, easing: EASE_LEAVE }).finished.catch(() => {});
       return flash;
     }
 
@@ -484,7 +484,7 @@ export const loginView = {
         await nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
         phoneNote();
         if (flash) {
-          flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, delay: 140, easing: 'ease-out', fill: 'forwards' })
+          flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.scene, delay: DUR.quick, easing: 'ease', fill: 'forwards' })
             .finished.then(() => flash.remove(), () => flash.remove());
         }
       } catch (err) {
@@ -527,15 +527,15 @@ export const loginView = {
       const word = mark.firstElementChild;
       if (reducedMotion()) { open(); return; }
       const centred = 'translate(-50%, -50%)';
-      art.el.animate([{ transform: `${centred} scale(0.55)`, opacity: 0 }, { transform: centred, opacity: 1 }], { duration: 1600, easing: EASE });
-      dust.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 2200, easing: 'ease-out' });
-      timers.push(setTimeout(open, 650));
+      art.el.animate([{ transform: `${centred} scale(0.55)`, opacity: 0 }, { transform: centred, opacity: 1 }], { duration: DUR.grand, easing: EASE });
+      dust.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.grand, easing: 'ease' });
+      timers.push(setTimeout(open, DUR.arrive));
       mark.animate([
         { opacity: 0, transform: 'scale(0.6)', filter: 'blur(6px)' },
         { opacity: 1, transform: 'none', filter: 'blur(0px)' },
-      ], { duration: 900, delay: 1150, easing: EASE, fill: 'backwards' });
-      timers.push(setTimeout(() => { if (!gone) glitch(word, { hard: true }); }, 1150));
-      [...form.children].forEach((node, i) => appear(node, 1500 + i * 70));
+      ], { duration: DUR.scene, delay: DUR.scene, easing: EASE, fill: 'backwards' });
+      timers.push(setTimeout(() => { if (!gone) glitch(word, { hard: true }); }, DUR.scene));
+      [...form.children].forEach((node, i) => appear(node, DUR.grand + i * STAGGER));
     }
 
     // Settled, the logo still twitches now and then.

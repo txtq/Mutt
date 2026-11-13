@@ -161,6 +161,9 @@ async function sync() {
     }, 900);
     return;
   }
+  // Starting the sound engine holds the page for about 60 thousandths of a second. At sign-in that
+  // falls while the light has the whole screen and nothing moves, the one place it can't be seen:
+  // measured in session 8, and moving it later only made it show. Leave it here.
   await setup();
   if (!wanted()) return;
   await ctx.resume();

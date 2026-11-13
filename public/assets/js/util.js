@@ -32,16 +32,22 @@ export function append(el, children) {
 // The shared speeds and curves. They are written once, in tokens.css, and read
 // from there, so a script and a stylesheet can't drift apart (DESIGN.md, Motion).
 // Use these in `.animate()` and timers instead of typing a number or a curve.
+// Closing is the opening backwards: DUR.change on EASE_LEAVE.
 const shared = getComputedStyle(document.documentElement);
 export const named = (name) => shared.getPropertyValue(name).trim();   // a named value from tokens.css, as written there
 const ms = (name) => { const v = named(name); return v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000 || 0; };
+// index.html makes sure tokens.css has arrived before this runs (js/wait.js). If a name still reads
+// as nothing, say so loudly: every speed would be 0 and nothing would say why.
+if (!named('--dur-quick')) console.error('Mutt: tokens.css was not read before the app started; speeds and curves are missing (index.html must keep js/wait.js before main.js).');
 export const DUR = {
-  quick: ms('--dur-quick'), change: ms('--dur-change'), move: ms('--dur-move'), arrive: ms('--dur-arrive'), scene: ms('--dur-scene'),
+  quick: ms('--dur-quick'), change: ms('--dur-change'), move: ms('--dur-move'), arrive: ms('--dur-arrive'), scene: ms('--dur-scene'), grand: ms('--dur-grand'),
 };
-export const EASE = named('--ease-settle') || 'ease-out';        // things arriving
-export const EASE_GLIDE = named('--ease-glide') || 'ease-in-out';  // things moving from one place to another
-export const EASE_SPRING = named('--ease-spring') || 'ease-out';   // things you press
-export const EASE_IN = named('--ease-in') || 'ease-in';            // kept from before (session 8)
+export const STAGGER = ms('--stagger') || 30;                       // between things arriving one after another (at most 14 steps)
+export const BEAT = { quick: ms('--beat-quick'), slow: ms('--beat-slow'), rest: ms('--beat-rest') };   // what never stops
+export const EASE = named('--ease-settle') || 'ease-out';         // things arriving
+export const EASE_GLIDE = named('--ease-glide') || 'ease-in-out';   // things moving from one place to another
+export const EASE_SPRING = named('--ease-spring') || 'ease-out';    // things you press, and things that pop
+export const EASE_LEAVE = named('--ease-leave') || 'ease-in';       // things going away
 export const BLUE = named('--blue') || '#3f7cf0';                  // Mutt blue, for colour worked out in script
 
 // A stylesheet a feature brings with it (`styles('docs.css')`), linked the first

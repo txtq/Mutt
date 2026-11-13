@@ -264,7 +264,6 @@ function dustPainter(canvas) {
   // Graphics drawn by the processor instead of a graphics card: far too slow to move.
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   const software = /swiftshader|llvmpipe|software|basic render/i.test(info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '');
-  const pixel = new Uint8Array(4);
   const size = (w, hgt, dpr) => {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(hgt * dpr);
@@ -288,7 +287,8 @@ function dustPainter(canvas) {
     software,
     size(w, hgt, dpr) { last = [w, hgt, dpr]; if (!lost) size(w, hgt, dpr); },
     // `t` is the liquid's own clock, `seed` picks the grain, `colors` the sky's four ([r, g, b] 0 to 1).
-    // With `timed` it waits for the picture and says how many milliseconds it took.
+    // With `timed` it gives a promise of how many milliseconds the picture took. The page never waits
+    // for it: a marker is left behind the picture and looked for between the page's other jobs.
     draw(t, seed, dpr, colors, timed = false) {
       if (lost || !fw) return null;
       const began = timed ? performance.now() : 0;
@@ -315,8 +315,16 @@ function dustPainter(canvas) {
       gl.uniform3fv(paint.loc.cLow, colors[3]);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       if (!timed) return null;
-      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-      return performance.now() - began;
+      const mark = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      return new Promise((done) => {
+        const look = () => {
+          const took = performance.now() - began;
+          if (lost || took > 200 || gl.getSyncParameter(mark, gl.SYNC_STATUS) === gl.SIGNALED) { gl.deleteSync(mark); done(took); }
+          else setTimeout(look, 1);
+        };
+        setTimeout(look, 1);
+      });
     },
   };
 }
@@ -363,6 +371,7 @@ export function createSky() {
   const SLOW_MS = 14;
   let slow = !!dust?.software;
   const timings = [];
+  let timing = false;    // one picture is being timed
 
   // Stars sit at fractions of the screen, so a small resize (a phone's address
   // bar sliding away) stretches the sky a little instead of reshuffling it.
@@ -484,8 +493,16 @@ export function createSky() {
     const style = getComputedStyle(wash.isConnected ? wash : document.documentElement);
     const colors = ['--sky-top', '--sky-deep', '--sky-mid', '--sky-low'].map((name) => channels(style.getPropertyValue(name)).map((v) => v / 255));
     // the grain changes six times a second, like film; it holds still when nothing moves
-    const took = dust.draw(clock, resting() ? 0 : Math.floor(time / 166), dustDpr, colors, !slow && timings.length < 5);
-    if (took != null && timings.push(took) === 5) slow = timings.sort((a, b) => a - b)[2] > SLOW_MS;
+    const took = dust.draw(clock, resting() ? 0 : Math.floor(time / 166), dustDpr, colors, !slow && !timing && timings.length < 5);
+    if (took) {
+      timing = true;
+      took.then((ms) => {
+        timing = false;
+        if (timings.push(ms) === 5) slow = timings.sort((a, b) => a - b)[2] > SLOW_MS;
+        // too slow to move: paint it once more and keep that picture (a copy is only good in the job that painted it)
+        if (slow) drawDust(performance.now());
+      });
+    }
     if (slow) keepStill();
     lastDust = time;
   }

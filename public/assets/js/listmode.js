@@ -11,7 +11,7 @@ import { api } from './api.js';
 import { nav } from './nav.js';
 import { openContextMenu, openDialog, openPopover, sectionHead, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
-import { DUR, EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_GLIDE, STAGGER, autosize, bus, h, plural, reducedMotion } from './util.js';
 import { icon } from './icons.js';
 
 export const LIST_TYPES = [
@@ -54,9 +54,9 @@ function flip(container, change, { duration = 460, sink = null } = {}) {
     if (el === sink && dy <= 0.5) {
       el.animate([
         { transform: `translateY(${dy}px)` },
-        { transform: `translateY(${dy + 4}px) scale(0.985)`, offset: 0.16, easing: 'cubic-bezier(0.45, 0, 0.2, 1)' },
+        { transform: `translateY(${dy + 4}px) scale(0.985)`, offset: 0.16, easing: EASE_GLIDE },
         { transform: 'none' },
-      ], { duration: Math.min(720 + Math.abs(dy) * 0.6, 1000), easing: 'cubic-bezier(0.5, 0, 0.1, 1)' });
+      ], { duration: DUR.scene, easing: EASE_GLIDE });
       continue;
     }
     if (Math.abs(dy) < 0.5) continue;
@@ -70,7 +70,7 @@ function grow(el, { delay = 0 } = {}) {
   el.animate([
     { height: '0px', opacity: 0, transform: 'translateY(-8px) scale(0.985)' },
     { height: `${height}px`, opacity: 1, transform: 'none' },
-  ], { duration: 420, delay, easing: EASE, fill: 'backwards' });
+  ], { duration: DUR.move, delay, easing: EASE, fill: 'backwards' });
 }
 
 async function shrink(el) {
@@ -81,7 +81,7 @@ async function shrink(el) {
     await el.animate([
       { height: `${height}px`, opacity: 1, transform: 'none' },
       { height: '0px', opacity: 0, transform: 'translateX(24px) scale(0.98)' },
-    ], { duration: 300, easing: EASE, fill: 'forwards' }).finished.catch(() => {});
+    ], { duration: DUR.change, easing: EASE, fill: 'forwards' }).finished.catch(() => {});
   }
   el.remove();
 }
@@ -89,7 +89,7 @@ async function shrink(el) {
 function nudge(el) {
   if (!moving()) return;
   el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(3px)' },
-    { transform: 'translateX(-2px)' }, { transform: 'translateX(0)' }], { duration: 260, easing: 'ease-out' });
+    { transform: 'translateX(-2px)' }, { transform: 'translateX(0)' }], { duration: DUR.change, easing: EASE });
 }
 
 const tmpId = () => `tmp-${Math.random().toString(36).slice(2)}`;
@@ -191,7 +191,7 @@ export class ListView {
     if (!moving()) return;
     this.ol.querySelectorAll('.lm-mark').forEach((m, i) => m.animate(
       [{ opacity: 0 }, { opacity: 1 }],
-      { duration: 240, delay: Math.min(i, 12) * 14, easing: 'ease-out', fill: 'backwards' }));
+      { duration: DUR.arrive, delay: Math.min(i, 14) * STAGGER, easing: EASE, fill: 'backwards' }));
   }
 
   // ------------------------------------------------------------ drawing
@@ -217,7 +217,7 @@ export class ListView {
     if (entrance && moving()) {
       items.slice(0, 24).forEach((li, i) => li.animate(
         [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
-        { duration: 480, delay: 60 + i * 28, easing: EASE, fill: 'backwards' }));
+        { duration: DUR.arrive, delay: Math.min(i + 1, 14) * STAGGER, easing: EASE, fill: 'backwards' }));
     }
     this.updateCount();
   }
@@ -231,7 +231,7 @@ export class ListView {
         if (li) this.ol.append(li);
       }
       this.placeDivider();
-    }, sink ? { duration: 620, sink } : undefined);
+    }, sink ? { duration: DUR.scene, sink } : undefined);
   }
 
   placeDivider() {
@@ -876,7 +876,7 @@ export class ListView {
       }
       // Settle from where it was let go.
       const to = li.getBoundingClientRect();
-      if (moving()) li.animate([{ transform: `translateY(${from.top - to.top}px) scale(1.02)` }, { transform: 'none' }], { duration: 380, easing: EASE });
+      if (moving()) li.animate([{ transform: `translateY(${from.top - to.top}px) scale(1.02)` }, { transform: 'none' }], { duration: DUR.move, easing: EASE });
       if (target !== start) this.saveOrder();
     };
     grip.addEventListener('pointermove', move);

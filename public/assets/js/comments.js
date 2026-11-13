@@ -5,7 +5,7 @@
 
 import { api } from './api.js';
 import { toast } from './ui.js';
-import { autosize, fullDate, h, nameColor, timeAgo, touchScreen } from './util.js';
+import { DUR, EASE_LEAVE, autosize, fullDate, h, nameColor, reducedMotion, timeAgo, touchScreen } from './util.js';
 import { icon } from './icons.js';
 
 const LIMIT = 2000;
@@ -68,7 +68,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
     try {
       const res = await api.del(`/api/blocks/${block.id}/comments/${c.id}`);
       await row.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateX(10px)' }],
-        { duration: 260, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }).finished.catch(() => {});
+        { duration: reducedMotion() ? 0 : DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
       show(res.comments);
       toast(c.mine ? 'Comment taken back' : 'Comment removed');
     } catch (err) {

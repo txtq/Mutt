@@ -154,4 +154,12 @@ export function beads(host, threads, still) {
     const time = (len * (to - from) * 1000) / BEAD_SPEED;
     bead.animate(n % 2 ? frames.reverse() : frames, { duration: time, delay: -rand() * time, iterations: Infinity, easing: 'linear' });
   });
+  beadsRun(host, host.dataset.run !== 'no');
+}
+
+// The beads move only while the universe can be seen: on a galaxy's own page they would run all
+// day out of sight. The page says when (views/galaxy.js, as the scroll crosses into the universe).
+export function beadsRun(host, on) {
+  host.dataset.run = on ? 'yes' : 'no';
+  for (const a of host.getAnimations({ subtree: true })) { if (on) a.play(); else a.pause(); }
 }

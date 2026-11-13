@@ -22,6 +22,7 @@ const save = (patch) => updatePrefs(patch, (err) => err && toast(err.message));
 const sheets = new Set();
 function sheet(className, build) {
   const el = h('div', { class: `sheet ${className}`, role: 'dialog' });
+  el.inert = true;   // closed, nothing in it takes the keyboard
   document.body.append(el);
   let open = false;
   let anchor = null;
@@ -32,6 +33,7 @@ function sheet(className, build) {
     for (const s of sheets) if (s !== api_) s.close();
     anchor = from;
     el.replaceChildren(build(close));
+    el.inert = false;
     open = true;
     anchor?.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => { if (open) el.classList.add('is-open'); });
@@ -42,6 +44,7 @@ function sheet(className, build) {
     if (!open) return;
     open = false;
     el.classList.remove('is-open');
+    el.inert = true;
     anchor?.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', key, true);

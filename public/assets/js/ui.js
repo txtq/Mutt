@@ -106,7 +106,7 @@ export function stepper({ value, min = -Infinity, max = Infinity, step = 1, form
   return { el, set, get value() { return current; }, down, up, out };
 }
 
-function exit(el, className = 'is-leaving', fallback = 320) {
+function exit(el, className = 'is-leaving', fallback = DUR.change + 60) {
   return new Promise((resolve) => {
     if (reducedMotion()) { el.remove(); resolve(); return; }
     el.classList.add(className);
@@ -232,13 +232,44 @@ export function confirmDialog({ title, message, confirm = 'Confirm', danger = fa
   });
 }
 
+// ---------------------------------------------------------------- the keyboard stays where you are
+
+// Tab stays inside whatever is open on top (a dialog, a menu or small panel, a room, a sheet) until
+// it is closed; it never walks out into the page behind. A new kind of layer is added to `topLayer`.
+const CAN_FOCUS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+function topLayer() {
+  // (the sample page draws parts that are not open layers: those don't count)
+  const last = (q) => { const all = [...document.querySelectorAll(q)].filter((el) => !el.closest('.parts')); return all[all.length - 1] || null; };
+  return last('.scrim:not(.is-leaving)') || last('.pop:not(.is-leaving)') || last('.room') || last('.sheet.is-open');
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+  const layer = topLayer();
+  if (!layer) return;
+  const at = document.activeElement;
+  // Where Tab writes (a document's page), it is the writer's.
+  if (at?.isContentEditable && layer.contains(at)) return;
+  const stops = [...layer.querySelectorAll(CAN_FOCUS)].filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert]'));
+  if (!stops.length) return;
+  const first = stops[0];
+  const end = stops[stops.length - 1];
+  if (!layer.contains(at) || at === (e.shiftKey ? first : end)) {
+    e.preventDefault();
+    (e.shiftKey ? end : first).focus();
+  }
+}, true);
+
 // ---------------------------------------------------------------- popovers & menus
 
 export function openPopover(anchor, content, { align = 'start', className = '', onClose, width } = {}) {
+  // Pressed again while its own menu or panel is open, a button closes it: it never opens a second.
+  const mine = [...openPopovers].find((p) => p.anchor === anchor);
   closeAllPopovers();
+  if (mine) return mine;
   const el = h('div', { class: `pop ${className}` }, content);
   if (width) el.style.width = `${width}px`;
   document.body.append(el);
+  if (content?.classList?.contains('menu') && !content.classList.contains('ctx-menu')) glideLight(content);
   const place = () => {
     if (!anchor.isConnected) { close(); return; }
     const a = anchor.getBoundingClientRect();
@@ -272,7 +303,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
       if (anchor.isConnected) anchor.focus?.({ preventScroll: true });
       else document.activeElement.blur();
     }
-    exit(el, 'is-leaving', 200);
+    exit(el, 'is-leaving', DUR.change + 60);
     anchor.setAttribute?.('aria-expanded', 'false');
     onClose?.();
   };
@@ -292,7 +323,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
   };
   addEventListener('scroll', follow, { capture: true, passive: true });
   anchor.setAttribute?.('aria-expanded', 'true');
-  const api = { el, close, place };
+  const api = { el, close, place, anchor };
   openPopovers.add(api);
   openLayers.push(api);
   return api;
@@ -301,6 +332,55 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
 const openPopovers = new Set();
 export function closeAllPopovers() {
   for (const p of [...openPopovers]) p.close();
+}
+
+// One highlight that glides between a menu's rows, and rows that arrive one after another: every
+// menu has both (DESIGN.md "Menu"). `list` is the `.menu`; its rows are its `.menu-item`s.
+function glideLight(list) {
+  const hi = h('span', { class: 'ctx-hi', 'aria-hidden': 'true' });
+  list.classList.add('ctx-menu');
+  list.prepend(hi);
+  let n = 0;
+  for (const row of list.children) if (row !== hi) row.style.setProperty('--i', n++);
+  const api = { hi, current: null, light };
+  function light(btn) {
+    if (btn === api.current) return;
+    const first = !api.current;
+    api.current = btn;
+    if (!btn) { hi.classList.remove('is-on'); return; }
+    hi.style.transform = `translateY(${btn.offsetTop}px)`;
+    hi.style.height = `${btn.offsetHeight}px`;
+    hi.classList.toggle('is-danger', btn.classList.contains('is-danger'));
+    if (first) {
+      // Appear in place rather than sliding in from the top.
+      hi.style.transition = 'none';
+      void hi.offsetWidth;
+      hi.style.transition = '';
+    }
+    hi.classList.add('is-on');
+  }
+  const rowOf = (ev) => { const b = ev.target.closest?.('.menu-item'); return b && list.contains(b) ? b : null; };
+  list.addEventListener('pointerover', (ev) => { const b = rowOf(ev); if (b) light(b); });
+  list.addEventListener('focusin', (ev) => { const b = rowOf(ev); if (b) light(b); });
+  list.addEventListener('pointerleave', () => light(null));
+  // A menu that fills itself again (search's choices, ticked one by one) keeps its highlight, and
+  // rows put in later don't arrive a second time.
+  new MutationObserver(() => {
+    if (hi.parentNode !== list) { api.current = null; hi.classList.remove('is-on'); list.prepend(hi); }
+    list.classList.add('is-refilled');
+  }).observe(list, { childList: true });
+  return api;
+}
+
+// A chosen row blinks once before its menu closes.
+function pickRow(btn, done) {
+  const list = btn.closest('.ctx-menu');
+  if (!list || reducedMotion()) { done(); return; }
+  if (list.dataset.picked) return;
+  list.dataset.picked = '1';
+  btn.classList.add('is-picked');
+  list.querySelector(':scope > .ctx-hi')?.classList.add('is-picked');
+  setTimeout(done, DUR.quick + 20);
 }
 
 // What leads and ends a menu row. `icon` is a name from icons.js (or an element, for a planet's dot).
@@ -317,7 +397,7 @@ export function openMenu(anchor, items, opts = {}) {
       ? h('div', { class: 'menu-sep' })
       : h('button', {
         type: 'button', ...rowRole(item), class: `menu-item${item.danger ? ' is-danger' : ''}`,
-        onclick: () => { pop.close(); item.run(); },
+        onclick: (ev) => pickRow(ev.currentTarget, () => { pop.close(); item.run(); }),
       }, rowIcon(item), h('span', null, item.label), rowEnd(item))));
   pop = openPopover(anchor, list, opts);
   return pop;
@@ -335,18 +415,15 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
   target?.classList.add('is-ctx');
   const x = e.clientX;
   const y = e.clientY;
-  const hi = h('span', { class: 'ctx-hi', 'aria-hidden': 'true' });
   const rows = [];
-  let n = 0;
-  const list = h('div', { class: 'menu ctx-menu', role: 'menu', 'aria-label': title || 'Actions' }, hi,
+  const list = h('div', { class: 'menu', role: 'menu', 'aria-label': title || 'Actions' },
     title ? h('div', { class: 'ctx-title' }, title) : null,
     items.filter(Boolean).map((item) => {
       if (item === '-') return h('div', { class: 'menu-sep' });
-      if (item.heading) return h('div', { class: 'menu-head ctx-heading', style: { '--i': n++ } }, item.heading);
+      if (item.heading) return h('div', { class: 'menu-head ctx-heading' }, item.heading);
       const btn = h('button', {
         type: 'button', ...rowRole(item), tabindex: '-1',
         class: `menu-item ctx-item${item.danger ? ' is-danger' : ''}`,
-        style: { '--i': n++ },
         onclick: () => pick(btn, item),
       }, rowIcon(item), h('span', { class: 'ctx-label' }, item.label), rowEnd(item));
       rows.push(btn);
@@ -367,23 +444,8 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
   el.style.setProperty('--origin', `${x - left}px ${y - top}px`);
 
   // The highlight follows the row under the pointer (or the keyboard).
-  let current = null;
-  const light = (btn) => {
-    if (btn === current) return;
-    const first = !current;
-    current = btn;
-    if (!btn) { hi.classList.remove('is-on'); return; }
-    hi.style.transform = `translateY(${btn.offsetTop}px)`;
-    hi.style.height = `${btn.offsetHeight}px`;
-    hi.classList.toggle('is-danger', btn.classList.contains('is-danger'));
-    if (first) {
-      // Appear in place rather than sliding in from the top.
-      hi.style.transition = 'none';
-      void hi.offsetWidth;
-      hi.style.transition = '';
-    }
-    hi.classList.add('is-on');
-  };
+  const glide = glideLight(list);
+  const { hi, light } = glide;
   list.addEventListener('pointerover', (ev) => {
     const btn = ev.target.closest?.('.ctx-item');
     if (btn) { light(btn); if (!keepFocus) btn.focus({ preventScroll: true }); }
@@ -393,15 +455,15 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
   const keys = (ev) => {
     if (keepFocus && ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); return; }
     // Typing on (or Enter before choosing anything) goes to the words, and the menu goes.
-    if (keepFocus && (!/^(Arrow(Up|Down)|Enter|Tab)$/.test(ev.key) || (ev.key === 'Enter' && !current))) { close(); return; }
+    if (keepFocus && (!/^(Arrow(Up|Down)|Enter|Tab)$/.test(ev.key) || (ev.key === 'Enter' && !glide.current))) { close(); return; }
     if (keepFocus) ev.stopPropagation();
-    const i = rows.indexOf(current);
+    const i = rows.indexOf(glide.current);
     let next = null;
     if (ev.key === 'ArrowDown') next = rows[(i + 1) % rows.length];
     else if (ev.key === 'ArrowUp') next = rows[(i - 1 + rows.length) % rows.length];
     else if (ev.key === 'Home') next = rows[0];
     else if (ev.key === 'End') next = rows[rows.length - 1];
-    else if ((ev.key === 'Enter' || ev.key === ' ') && current) { ev.preventDefault(); current.click(); return; }
+    else if ((ev.key === 'Enter' || ev.key === ' ') && glide.current) { ev.preventDefault(); glide.current.click(); return; }
     else if (ev.key === 'Tab') { ev.preventDefault(); close(); return; }
     if (!next) return;
     ev.preventDefault();
@@ -426,7 +488,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     if (reducedMotion()) { close(); item.run(); return; }
     btn.classList.add('is-picked');
     hi.classList.add('is-picked');
-    setTimeout(() => { close(); item.run(); }, 140);
+    setTimeout(() => { close(); item.run(); }, DUR.quick + 20);
   }
 
   let closed = false;
@@ -445,7 +507,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
       if (before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
       else document.activeElement.blur();
     }
-    exit(el, 'is-leaving', 200);
+    exit(el, 'is-leaving', DUR.change + 60);
     target?.classList.remove('is-ctx');
     onClose?.();
   }

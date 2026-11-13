@@ -1,7 +1,7 @@
 // Motion for things moving through space: spiralling into a black hole,
 // arcing across the sky, little bursts of light where they land.
 
-import { EASE, h, reducedMotion } from './util.js';
+import { DUR, EASE, h, reducedMotion } from './util.js';
 
 const layer = () => document.querySelector('.fx-layer') || document.body.appendChild(h('div', { class: 'fx-layer', 'aria-hidden': 'true' }));
 
@@ -83,7 +83,7 @@ export function burst(at, { color = '#ffffff', count = 10, reach = 34 } = {}) {
     dot.animate([
       { transform: `translate(${at.x}px, ${at.y}px) translate(-50%, -50%) scale(1)`, opacity: 1 },
       { transform: `translate(${at.x + Math.cos(angle) * dist}px, ${at.y + Math.sin(angle) * dist}px) translate(-50%, -50%) scale(0.2)`, opacity: 0 },
-    ], { duration: 600 + Math.random() * 400, easing: EASE }).finished.then(() => dot.remove(), () => dot.remove());
+    ], { duration: DUR.arrive + Math.random() * DUR.arrive, easing: EASE }).finished.then(() => dot.remove(), () => dot.remove());
   }
 }
 

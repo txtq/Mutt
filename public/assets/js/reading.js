@@ -12,7 +12,7 @@ import { nav } from './nav.js';
 import { openReader } from './reader.js';
 import { openContextMenu, sectionHead } from './ui.js';
 import { contextKey } from './uploads.js';
-import { EASE, bus, h, reducedMotion, seeded, timeAgo } from './util.js';
+import { DUR, EASE, EASE_LEAVE, STAGGER, bus, h, reducedMotion, seeded, timeAgo } from './util.js';
 
 const moving = () => !reducedMotion();
 
@@ -118,7 +118,7 @@ export class ShelfView {
     this.info.delete(id);
     const el = this.shelf.querySelector(`[data-id="${CSS.escape(id)}"]`);
     const done = () => { this.changed(); this.render(); };
-    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.92)' }], { duration: 220, easing: 'ease-in' }).finished.then(done, done);
+    if (el && moving()) el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.92)' }], { duration: DUR.change, easing: EASE_LEAVE }).finished.then(done, done);
     else done();
   }
 
@@ -188,7 +188,7 @@ export class ShelfView {
       [...this.shelf.children].forEach((el, i) => {
         if (born && el.dataset.id !== born) return;
         el.animate([{ opacity: 0, transform: 'translateY(14px) scale(0.97)' }, { opacity: 1, transform: 'none' }],
-          { duration: 520, delay: born ? 0 : Math.min(i, 12) * 40, easing: EASE, fill: 'backwards' });
+          { duration: DUR.arrive, delay: born ? 0 : Math.min(i, 14) * STAGGER, easing: EASE, fill: 'backwards' });
       });
     }
   }

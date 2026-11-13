@@ -24,7 +24,7 @@ import { docTitle } from './docs.js';
 import { DocSpelling, autocorrectOn, setAutocorrect } from './docspell.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
-import { DUR, EASE, bus, debounce, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, EASE_SPRING, STAGGER, bus, debounce, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
 import { icon as draw } from './icons.js';
 
 // The editor's look comes with its code (a document can open on a planet that
@@ -35,7 +35,6 @@ const moving = () => !reducedMotion();
 const PX = 96 / 72;            // screen pixels per point
 const GAP = 26;                // between pages on the desk
 const SAVE_AFTER = 900;
-const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';   // the page's flight to and from the desk
 const QUIET_AFTER = 7000;      // steady typing for this long, and the bars fade back
 const QUIET_KEYS = 30;
 
@@ -316,12 +315,12 @@ class DocEditor {
     if (moving()) {
       // The sky dims, then the bars drop in one after another. Each fades by
       // itself, so the glass keeps its frost all the way through.
-      const drop = (el, delay) => el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay, easing: EASE, fill: 'backwards' });
-      this.bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 520, easing: 'ease-out' });
-      this.bg.firstChild.animate([{ transform: 'translate(-50%, 70px)' }, { transform: 'translate(-50%, 0)' }], { duration: 1100, easing: EASE });
+      const drop = (el, delay) => el.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, delay, easing: EASE, fill: 'backwards' });
+      this.bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.arrive, easing: 'ease' });
+      this.bg.firstChild.animate([{ transform: 'translate(-50%, 70px)' }, { transform: 'translate(-50%, 0)' }], { duration: DUR.scene, easing: EASE });
       drop(this.top, 140);
       drop(this.tools, 210);
-      this.countBtn.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay: 420, easing: EASE, fill: 'backwards' });
+      this.countBtn.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, delay: DUR.move, easing: EASE, fill: 'backwards' });
     }
     try {
       const data = await api.get(`/api/docs/${this.id}`);
@@ -507,7 +506,7 @@ class DocEditor {
     }
     if (key && moving()) {
       [...this.contextTools.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }],
-        { duration: DUR.move, delay: n * 24, easing: EASE, fill: 'backwards' }));
+        { duration: DUR.move, delay: Math.min(n, 14) * STAGGER, easing: EASE, fill: 'backwards' }));
       this.contextTools.lastChild?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
   }
@@ -598,7 +597,7 @@ class DocEditor {
     clearTimeout(this.toldLater);
     this.toldLater = setTimeout(() => { if (this.status.textContent === text) this.setStatus(this.dirty ? 'Editing…' : 'Saved', { told: true }); }, 5200);
     if (this.kindBtn && moving()) {
-      this.kindBtn.animate([{ backgroundColor: 'rgba(200, 215, 255, 0.26)' }, { backgroundColor: 'rgba(200, 215, 255, 0)' }], { duration: 1600, easing: 'ease-out' });
+      this.kindBtn.animate([{ backgroundColor: 'rgba(200, 215, 255, 0.26)' }, { backgroundColor: 'rgba(200, 215, 255, 0)' }], { duration: DUR.grand, easing: 'ease' });
     }
   }
 
@@ -800,7 +799,7 @@ class DocEditor {
     }
     if (!this.aidsShown && moving()) {
       this.aidsShown = true;
-      layer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 360, easing: 'ease-out' });
+      layer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.move, easing: 'ease' });
     }
   }
 
@@ -912,8 +911,8 @@ class DocEditor {
     // A new page slides out from under the one before it.
     if (this.settled && moving() && n > this.sheetCount && !this.previewing) {
       sheets.slice(this.sheetCount).forEach((sheet, i) => {
-        sheet.animate([{ transform: `translateY(${-(GAP + 46)}px) scale(0.985)` }, { transform: 'none' }], { duration: 640, delay: i * 60, easing: EASE, fill: 'backwards' });
-        sheet.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, delay: i * 60, fill: 'backwards' });
+        sheet.animate([{ transform: `translateY(${-(GAP + 46)}px) scale(0.985)` }, { transform: 'none' }], { duration: DUR.arrive, delay: i * STAGGER, easing: EASE, fill: 'backwards' });
+        sheet.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.change, delay: i * STAGGER, fill: 'backwards' });
       });
     }
     this.sheetCount = n;
@@ -956,19 +955,19 @@ class DocEditor {
     if (!moving()) return;
     const f = card?.isConnected ? this.flight(card) : null;
     if (!f) {
-      this.stack.animate([{ opacity: 0, transform: 'translateY(34px) scale(0.985)' }, { opacity: 1, transform: 'none' }], { duration: 720, easing: EASE });
+      this.stack.animate([{ opacity: 0, transform: 'translateY(34px) scale(0.985)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, easing: EASE });
       return;
     }
     const ghost = this.ghostOf(card, f);
     card.style.opacity = '0';
     this.el.classList.add('is-flying');
-    const opts = { duration: 760, easing: GLIDE };
+    const opts = { duration: DUR.scene, easing: EASE_GLIDE };
     // The little page's words fade off the paper, then the real ones fade on,
     // so the two sizes of type are never seen together.
     ghost.animate([{ transform: 'none' }, { transform: f.ghostBig }], opts);
-    ghost.firstElementChild?.animate([{ opacity: 1 }, { opacity: 0, offset: 0.2 }, { opacity: 0 }], { duration: 760 });
-    ghost.animate([{ opacity: 1 }, { opacity: 1, offset: 0.2 }, { opacity: 0, offset: 0.36 }, { opacity: 0 }], { duration: 760 });
-    this.flow.animate([{ opacity: 0 }, { opacity: 0, offset: 0.24 }, { opacity: 1, offset: 0.62 }, { opacity: 1 }], { duration: 760 });
+    ghost.firstElementChild?.animate([{ opacity: 1 }, { opacity: 0, offset: 0.2 }, { opacity: 0 }], { duration: DUR.scene });
+    ghost.animate([{ opacity: 1 }, { opacity: 1, offset: 0.2 }, { opacity: 0, offset: 0.36 }, { opacity: 0 }], { duration: DUR.scene });
+    this.flow.animate([{ opacity: 0 }, { opacity: 0, offset: 0.24 }, { opacity: 1, offset: 0.62 }, { opacity: 1 }], { duration: DUR.scene });
     this.stack.animate([f.small, f.big], opts).finished.catch(() => {}).then(() => {
       ghost.remove();
       this.el.classList.remove('is-flying');
@@ -986,16 +985,16 @@ class DocEditor {
     this.canvas.style.marginTop = `${-scrolled}px`;
     const f = card?.isConnected && this.d ? this.flight(card) : null;
     if (!f) {
-      await this.stack.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px) scale(0.985)' }], { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }).finished.catch(() => {});
+      await this.stack.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(26px) scale(0.985)' }], { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
       return;
     }
     const ghost = this.ghostOf(card, f);
     card.style.opacity = '0';
-    const opts = { duration: 620, easing: GLIDE, fill: 'forwards' };
+    const opts = { duration: DUR.scene, easing: EASE_GLIDE, fill: 'forwards' };
     ghost.animate([{ transform: f.ghostBig }, { transform: 'none' }], opts);
-    ghost.firstElementChild?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], { duration: 620, fill: 'forwards' });
-    ghost.animate([{ opacity: 0 }, { opacity: 0, offset: 0.2 }, { opacity: 1, offset: 0.42 }, { opacity: 1 }], { duration: 620, fill: 'forwards' });
-    this.flow.animate([{ opacity: 1 }, { opacity: 0, offset: 0.3 }, { opacity: 0 }], { duration: 620, fill: 'forwards' });
+    ghost.firstElementChild?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], { duration: DUR.scene, fill: 'forwards' });
+    ghost.animate([{ opacity: 0 }, { opacity: 0, offset: 0.2 }, { opacity: 1, offset: 0.42 }, { opacity: 1 }], { duration: DUR.scene, fill: 'forwards' });
+    this.flow.animate([{ opacity: 1 }, { opacity: 0, offset: 0.3 }, { opacity: 0 }], { duration: DUR.scene, fill: 'forwards' });
     await this.stack.animate([f.big, f.small], opts).finished.catch(() => {});
     card.style.opacity = '';
   }
@@ -1344,7 +1343,7 @@ class DocEditor {
     this.paintEntryBtn();
     if (!at && moving()) {
       const head = into.previousElementSibling;
-      head?.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+      head?.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, easing: EASE });
     }
   }
 
@@ -2358,7 +2357,7 @@ class DocEditor {
     this.selBar.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
     this.selBar.style.top = `${above ? r.top - 48 : Math.min(innerHeight - 52, r.bottom + 10)}px`;
     if (was && moving()) {
-      this.selBar.firstChild.animate([{ opacity: 0, transform: `translateY(${above ? 8 : -8}px) scale(0.92)` }, { opacity: 1, transform: 'none' }], { duration: 300, easing: 'cubic-bezier(0.2, 1.3, 0.4, 1)' });
+      this.selBar.firstChild.animate([{ opacity: 0, transform: `translateY(${above ? 8 : -8}px) scale(0.92)` }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE_SPRING });
     }
   }
 
@@ -2467,8 +2466,8 @@ class DocEditor {
     this.slash.style.transformOrigin = up ? '18px 100%' : '18px 0';
     this.slashMove(this.slashFor.at);
     if (fresh && moving()) {
-      this.slash.animate([{ transform: 'scale(0.94)' }, { transform: 'none' }], { duration: 340, easing: 'cubic-bezier(0.2, 1.25, 0.4, 1)' });
-      [...this.slash.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: Math.min(n, 8) * 18, easing: EASE, fill: 'backwards' }));
+      this.slash.animate([{ transform: 'scale(0.94)' }, { transform: 'none' }], { duration: DUR.move, easing: EASE_SPRING });
+      [...this.slash.children].forEach((el, n) => el.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.move, delay: Math.min(n, 14) * STAGGER, easing: EASE, fill: 'backwards' }));
     }
   }
 
@@ -2738,7 +2737,7 @@ class DocEditor {
     this.panelKind = kind;
     this.panel.hidden = false;
     this.el.classList.add('has-panel');
-    if (moving()) this.panel.animate([{ opacity: 0, transform: 'translateX(14px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
+    if (moving()) this.panel.animate([{ opacity: 0, transform: 'translateX(14px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
     if (kind === 'comments') this.paintMarks();
     if (kind === 'history') this.renderHistory();
     setTimeout(() => this.layout(), 340);

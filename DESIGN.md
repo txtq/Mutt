@@ -5,11 +5,11 @@ The one standard for how Mutt looks and moves. Read it before touching anything 
 - **A value, part or rule that isn't in this file doesn't exist.** Don't invent one inside a feature. If a feature needs something new, add it here first (show the user), then build it.
 - **Every session that settles something visible updates this file before it ends**, so the file is never behind the app.
 - It is written as instructions. Where it says "is", build it that way.
-- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3, 4, 5, 6 and 7 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
+- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3, 4, 5, 6, 7 and 8 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
 
 ## Where the app stands against this file
 
-The app does not match this file yet. Session 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
+The eight design sessions of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` brought the app into line with this file, in this order. Keep the table true: a session that changes an area updates its row.
 
 | Area | In the app today | Lands in |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ The app does not match this file yet. Session 8 of the plan in `/Users/edan/Mutt
 | Icons | **Done (session 6).** One set of 94 in `public/assets/js/icons.js`, drawn the same way everywhere and got with `icon(name)`; no keyboard character stands in for an icon; menus of things to do carry icons; the four offer drawings are panes from the same file. Section 4, "Icons". | Session 6 ✓ |
 | The sky, the universe, the logo | **Done (session 7, part one).** The sky of section 3, built to its cost rules in `js/sky.js`; the universe is black with no stars, and beads of light travel the threads of its web; one logo, the Wonky. | Session 7 ✓ |
 | Planets, the files on them, how they show their use, their motion | **Done (session 7, part two).** Twelve kinds each with its own weather and effect, files as cards in a belt each drawn as what it is, use shown as weather or dust, rings on any planet with ten files, the dive on opening a planet. Section 3, "Planets". | Session 7 ✓ |
-| Motion | The five lengths and three curves are named and used where they matched; 386 other lengths and curves are still typed by hand (279 in stylesheets, 107 in scripts) | Session 8 |
+| Motion, speed, the keyboard and phone sizes | **Done (session 8).** Six lengths, four curves, one step and three beats, all named; no stylesheet or script types a length or a curve (`tests/run.sh drift` counts 0 of each). Every menu opens one way. Section 2 "Motion" has the rules, the list of everything that moves, what Mutt may cost and how to measure it. Not done, and named there: the sign-in hang seen twice, the editor's word count on a phone, Safari and a real phone. | Session 8 ✓ |
 
 ### Values that still hold yesterday's number
 
@@ -28,17 +28,15 @@ Session 2 changed nothing a person can see. So where this file asks for a differ
 
 None are left: the sky was the last, switched in session 7.
 
-Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-io`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
+One name kept from before that is not in this file (`--bg`) sits in a marked block at the foot of `tokens.css`. Don't use it in new work.
 
 ### What sessions 2 to 6 left for later, on purpose
 
-- **Values off the scales stay hand-typed** until their part is rebuilt: a few 12.5 and 11.5 text sizes, 14 and 10 corners, 0.3 and 0.25 second motion. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3, 4, 5 and 6: colours 501 → 448 → 432 → 189 → 180, text sizes 204 → 176 → 163 → 74 → 73, corners 168 → 141 → 137 → 90 → 82, shadows 97 → 94 → 93 → 64 → 62, speeds 279 → 254 → 243 → 191 → 191. After session 7's first part: colours 177, text sizes 69, corners 80, shadows 62, speeds 187 (the old sky's and the four other logos' rules went).
+- **Values off the scales stay hand-typed** until their part is rebuilt: a few 12.5 and 11.5 text sizes, 14 and 10 corners, 0.3 and 0.25 second motion. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3, 4, 5 and 6: colours 501 → 448 → 432 → 189 → 180, text sizes 204 → 176 → 163 → 74 → 73, corners 168 → 141 → 137 → 90 → 82, shadows 97 → 94 → 93 → 64 → 62, speeds 279 → 254 → 243 → 191 → 191. After session 7's first part: colours 177, text sizes 69, corners 80, shadows 62, speeds 187 (the old sky's and the four other logos' rules went). After session 8: speeds 0, in stylesheets and in scripts.
 - **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet (the top bar, page heads, sign-in, the markdown rules, settings). The file view's rules left it in session 5. Nothing new goes in that section.
 - **A setting is not a palette.** The editor and the reader keep a few names of their own for what the owner has chosen, set by their scripts: `--de-size`, `--de-lh`, `--de-face` (a document's type size, line height and face) and `--rd-size`, `--rd-lh`, `--rd-font`, `--rd-h`, `--rd-vw` (the reader's, and the size of its page). They hold no colour.
 - **A document's own colours are typed where they are used**: the eleven inks a writer can choose and the six rhyme colours of a poem (`doceditor.js`, `docs.css`), and the colours a `::highlight()` paints (find, spelling, rhyme, comments), which can't read a named value in every browser.
 - The planet colour picker's dots are the planet's own kind of world painted in each colour (`worldDot`, `.planet-swatch`), not the shared swatch. The lock drawn on a locked world is the set's lock at whatever size the world asks for (`icon('lock', n)` in `planets.js`), the one place an icon is not 12, 16 or 20.
-- *For session 8 (motion), from session 7:* nobody but the user has watched at real speed the sky's drift, the stars bending round the void, the beads, the void (turning, opening, swallowing, sign-in), the planets' weather and effects, the hover's bounce and spin, the dust lifting, the dive and the pull away. The dive's lengths are the named ones and untuned. A galaxy of many planets now paints more than before (twice as sharp, richer kinds): measure it.
-- *For session 8 (motion):* an icon's body lights over `--dur-change` when pointed at; nobody has watched it at real speed. The lengths typed by hand in the shared parts (a menu's 0.42 s, a sheet's 0.45 s, a dialog's and a toast's 0.6 s, the bead's 0.45 s), in the file box (a picture's 0.6 s fade and 0.9 s lift, the tag's 0.35 s) and in the rooms (the 0.38 s fade as a room arrives, the editor's own flight, the reader's page turns) are the app's old ones, kept so nothing moves differently yet. A room arrives as a fade between two pictures of the screen; in a browser without that (older Safari) the page behind fades by itself and its glass loses its frost for that half second.
 - Mutt keeps no icon for a link's site, so a link's caption is the site's name alone. Search's planet picker rows (`.cx-row`) are their own.
 
 ## 1. Principles
@@ -136,7 +134,7 @@ The user kept the spaced capitals for small labels on purpose; don't turn them i
 
 - **Sizes** (`--icon` 16, `--icon-small` 12, `--icon-large` 20): 16 nearly everywhere; 12 inside a chip, a tag or a caption; 20 in the editor's and the reader's bars, for the back arrow in the corner of a page, an empty photo slot and Stop cooking.
 - **The line** (`--icon-line` 1.5): the same thickness on screen at all three sizes. `--tick-line` (1.5px) is the tick inside a tick box, drawn with the box.
-- **The light** (`--icon-lit` 0.3): how much of its own colour fills an icon's body when its button is pointed at or held on.
+- **The light** (`--icon-lit` 0.45; it was 0.3 until the user asked for a little more in session 8): how much of its own colour fills an icon's body when its button is pointed at or held on.
 
 ### Depth
 
@@ -166,24 +164,155 @@ Ten layers, lowest first. They were checked against the app in session 2 (the se
 
 - **Inside one part, order its own pieces with 1 to 9.** Those are not layers and stay as plain numbers (a planet's ring in front of its globe, a tab above its card). Never use a number above 9 without a name from this table.
 - **A new full-screen place is a room** (section 4, "Room"); a new thing that opens over the page is a sheet, a dialog or a menu. If it fits none of the ten, stop and add a layer here first. Inside a room, its own bars and panels are ordered with 1 to 9.
-- **Still on numbers of their own** (the app's order is kept exactly; tidying it would be a change, so it waits): the progress line 99, the drop hint 75 inside the page, the corner back arrow 38 (41 on a phone), the dusk veil between scenes 950 (session 8).
+- **Still on numbers of their own** (the app's order is kept exactly; tidying it would be a change, so it waits): the progress line 99, the drop hint 75 inside the page, the corner back arrow 38 (41 on a phone), the dusk veil between scenes 950.
 
 ### Motion
 
-To be confirmed at real speed in session 8; use these until then.
+Settled in session 8 with the user: the names, the rules, and the list of everything that moves. A thing that moves uses these and nothing else. `tests/run.sh drift` counts lengths and curves typed by hand in stylesheets and scripts, and the count is 0.
+
+**The names**
 
 | Name | Value | Use |
 | --- | --- | --- |
-| `--dur-quick` | 120 ms | Pressing, pointing. |
-| `--dur-change` | 200 ms | Colour, a switch, a tick. |
-| `--dur-move` | 320 ms | Menus, rows, the lean. |
-| `--dur-arrive` | 500 ms | Boxes, sheets, dialogs arriving. |
-| `--dur-scene` | 800 ms | Planet to galaxy, the sky changing. |
+| `--dur-quick` | 120 ms | Pressing, pointing, a tooltip, a chosen row's blink. |
+| `--dur-change` | 200 ms | A colour, a switch, a tick. **And everything that leaves.** |
+| `--dur-move` | 320 ms | A menu opening, a row moving, the lean, a sliding bead, a room's fade, a page turning. |
+| `--dur-arrive` | 500 ms | A box, a sheet, a dialog, a toast, a tip, an offer arriving. |
+| `--dur-scene` | 800 ms | The whole screen changing: planet to galaxy, a page flying open, the void opening, the sky changing. |
+| `--dur-grand` | 1300 ms | Set pieces only: sign-in arriving, the universe opening, the editor's bars stepping back unnoticed. |
+| `--dur-none` | 0.01 ms | Motion: Still. Never use it yourself. |
+| `--stagger` | 30 ms | Between things arriving one after another. Never more than 14 steps (`min(var(--i), 14)`). A menu's rows are half a step apart. |
+| `--beat-quick` | 1 s | What never stops, quick: a caret, a spinner, dots while it thinks, a shimmer. |
+| `--beat-slow` | 4 s | What never stops, slow: sign-in breathing, steam, a moon's plume, the arrow to the universe. |
+| `--beat-rest` | 9 s | What never stops, at rest: a box floating, a moon bobbing, the ring round a thing you are dragging onto. |
 | `--ease-settle` | `cubic-bezier(0.16, 1, 0.3, 1)` | Things arriving. |
-| `--ease-glide` | `cubic-bezier(0.4, 0, 0.2, 1)` | Things moving from one place to another. |
-| `--ease-spring` | `cubic-bezier(0.34, 1.3, 0.64, 1)` | Things you press. |
+| `--ease-glide` | `cubic-bezier(0.4, 0, 0.2, 1)` | Things moving from one place to another: a planet to its page, a page flying open, a bead, a shake. |
+| `--ease-spring` | `cubic-bezier(0.34, 1.3, 0.64, 1)` | Things you press, and things that pop: a button, a switch's knob, a menu growing, a dropped planet. |
+| `--ease-leave` | `cubic-bezier(0.55, 0, 1, 0.45)` | Things going away. |
 
-Scripts use the same numbers, read from one place, never their own: `util.js` reads them from `tokens.css` and gives them out as `DUR.quick`, `DUR.change`, `DUR.move`, `DUR.arrive`, `DUR.scene` (milliseconds) and `EASE` (settle), `EASE_GLIDE`, `EASE_SPRING`. An `.animate()` call takes its `duration` and `easing` from those.
+Scripts use the same numbers, read from `tokens.css` by `util.js`, never their own: `DUR.quick`, `DUR.change`, `DUR.move`, `DUR.arrive`, `DUR.scene`, `DUR.grand` (milliseconds); `EASE` (settle), `EASE_GLIDE`, `EASE_SPRING`, `EASE_LEAVE`; `STAGGER`; `BEAT.quick`, `BEAT.slow`, `BEAT.rest`. An `.animate()` call takes its `duration`, `delay` and `easing` from those, and so does a timer that waits for a motion to end.
+
+**The rules**
+
+1. **Pick the length by what the thing is, from the table.** Not by taste, and never a number between two names.
+2. **Arriving is `--ease-settle`. Leaving is the arriving played backwards, over `--dur-change` on `--ease-leave`,** whatever the thing and however long it took to arrive. No part has a leaving time of its own. Two set pieces are let off: the void closes over `--dur-arrive`, and a room leaves as it came (rule 4).
+3. **Travelling a long way is `--ease-glide`**, the same length both ways. The arriving curve covers most of the way at once and crawls the rest; on a large move it reads as a jump.
+4. **A room arrives and goes as one even fade** between two pictures of the screen, `--dur-move` each way.
+5. **A plain fade or a change of colour names no curve** (the browser's own gentle one). A loop that breathes back and forth uses `ease-in-out`; one that turns or fills uses `linear`. Those two keywords are for loops only.
+6. **Things that arrive together arrive one after another**, one `--stagger` apart, the first at once, at most 14 steps.
+7. **Nothing new moves at rest.** What may: the sky, planets turning and their weather, the void turning, a file box's slow float, a moon's bob. A loop takes one of the three beats.
+8. **Never blur or fade a parent of glass**; put it on the parts. A menu, a dialog and a toast move and fade; they are not blurred.
+9. **Calm** (Motion: Calm): things fade in place instead of travelling, nothing loops but the planets turning and the void (slower), the sky holds still. **Still** (Motion: Still, and the system's reduced-motion setting): nothing moves at all and everything still shows. Every CSS animation runs once in `--dur-none`, so entrances land on their last frame; a script asks `reducedMotion()` before it animates. Never pause an animation to stop it.
+10. **Painted things keep their own clocks**, written here as rules and nowhere else: the sky's dust 8 pictures a second and its stars 4; a planet and the void about 30; the dust lifting off a forgotten planet 2.5 seconds, once; a bead 22 pixels a second; the logo's flicker, uneven on purpose.
+11. **What follows your hand follows it on a spring, and is never handed to the browser's smooth scroll.** The galaxy's zoom out to the universe is the model (`track`, `snap`, `carry` in `views/galaxy.js`): the picture chases the scroll on a spring, so its speed changes gently as well as its place and a flick or a wheel's notch never kicks it; the spring settles in `--dur-arrive` while you scroll. When you are well on your way and let go, or your scroll slows to a crawl, the page's own scroll jumps to the end (nothing on screen follows the page itself) and the picture glides there on a slower spring (`--dur-grand`) from the speed it already had. It never comes to a stop first: the browser's own smooth scroll starts from a standstill, and that pause was the roughness. Under Still the picture is simply where the scroll is.
+
+**What Mutt may cost.** Measured in session 8 on a sharp screen (1440 by 900 at two pixels a point). A change must not make these worse; measure before and after (below).
+
+- **Safari is measured too, and it is the browser the owner uses.** There, after session 8: the galaxy, a planet's page and the universe hold sixty at rest; sign-in about 59 (52 while typing); the void opens at about 55 and holds 60 while open; the scroll out to the universe, the dive and the pull away 57 to 60. Before the void was rebuilt the galaxy ran at 18 and the void opened at 13.
+- **In Chrome, at rest every screen holds sixty pictures a second.** Share of one processor core kept busy, page plus drawing: sign-in about 30 + 30, the galaxy about 15 + 30 (11 + 64 with 27 planets), a planet's page about 10 + 25, the universe about 12 + 10, anything under Still about what an empty page costs.
+- **Nothing makes the page wait.** No task longer than 50 thousandths of a second while a page is showing, except the moment a galaxy is first built (about 180, hidden under sign-in's white light when it comes from there). So: slow sums go to a worker (the void's cells and dots); nothing reads a picture back from the graphics chip and waits for it (the sky times itself with a marker; the void's still picture for the universe is made at an idle moment, and encoded by the browser in its own time).
+- **A canvas that is copied from is only as big as what is drawn on it.** Safari copies all of it every time (the void, above). The same is still true of the planets: each is painted on one shared 1024 canvas and copied out, which costs Safari about 40 to 100 thousandths of every second; not yet changed.
+- **The app starts only once `tokens.css` has arrived.** `index.html` keeps a plain script, `js/wait.js`, between the stylesheets and the app for this. Without it Safari started the app first on a visit with nothing cached, every named value read as nothing, and every scripted move took no time. Never remove it, and never read a named value in a way that could run before it.
+- **Painters rest while the screen is changing.** The void and the planets keep their picture for the length of a page change (`html[data-vt]`): the dive, the pull away, a room arriving. A new painter does the same.
+- **Nothing runs out of sight.** A painter rests when its thing is off screen, when the tab is hidden and under Still. The universe's beads rest until you scroll out to them.
+- **A mode's code and styles are fetched only when a planet uses them** (`CLAUDE.md`, "How to add a mode").
+- **Starting the sound engine costs about 60.** It happens while sign-in's light has the whole screen, the one place it cannot be seen. Leave it there.
+- Sign-in at rest is the heaviest screen because the void fills it at the fineness the user chose; it is no heavier than before that choice. Don't lighten it by drawing it less finely.
+
+- **An entrance switched off only while a page change runs comes back when it ends.** A rule such as `html[data-vt] .thing { animation: none }` hands the animation back the moment `data-vt` is removed, and the thing plays its entrance then: the file view blinked out and in after every opening. Mark the thing itself instead (`.is-carried`).
+
+**How to measure** (the tools are in `/Users/edan/Mutt-notes/design/session8/`; the hidden test browser can draw with this Mac's real graphics chip, nothing on screen, at a true sixty pictures a second: `GL_REAL` in `kit.py`):
+
+- `measure.py <repo> <out.json> [many]`: each screen at rest and each big move: pictures a second, late pictures (a gap over 25 thousandths), long tasks, processor share. `compare.py a b` sets two runs side by side.
+- `census.py <repo> <out.json> fluid|smooth|off|calm`: walks about thirty-five things and writes down what the browser was really animating (lengths, curves) and whether a picture was late; `off` and `calm` use the account's real Motion setting. Use `smooth` for late pictures: the others sample while things move, and the sampling itself makes pictures late.
+- `deeper.py`: where script time goes. `audit.py <repo> <dir> keyboard|phone`: walks every screen with Tab, and at 375 and 320 wide.
+- A late picture at the very start of a page change is the new page being built (50 to 80), once; the browser shows a still picture meanwhile. That one is expected.
+- **Safari**: `safari_measure.py <repo> <out.json>` (every screen at rest and moving), `safari_probe.py <repo>` (what repaints, how often, what each costs, and any error), `safari_bench.py` (small trials of one way of drawing). Safari cannot run hidden: a window opens, is brought to the front, and must be left alone; ask the user first. A change to a painter is measured in both browsers: what is free in Chrome can be ruinous in Safari.
+- `edge_check.py <repo>`: whether the void's strands slide or jump (the amount of strand in front of the light, picture by picture). `film_photo.py <repo> <out.jpg> <picture>`: a photo opening from its box, as a strip of pictures with how bright the photo is in each (it must not dip).
+- `scroll_probe.py`: the scroll out to the universe, driven as a trackpad drives it (steady, a flick, letting go halfway): stand-stills mid-trip and the sharpest change of speed between two pictures. `film.py <repo> <out.jpg> void-open|void-close|void-send`: a strip of pictures of one move on one sheet, to see a jump or a part arriving out of turn.
+- What these cannot tell: whether a move feels right. Give the user a short list to watch.
+
+**Everything that moves.** A new thing that moves is added here, beside the thing it is most like, and does as that one does. Lengths are the names without `--dur-`; "leaves" always means `change` on `--ease-leave`.
+
+| Thing | How it moves |
+| --- | --- |
+| *Shared parts* | |
+| A button, a stepper | pressed and pointed at: quick and change, on the spring |
+| A text box taking the keyboard, an icon lighting, a swatch, a tick | change |
+| A switch | its track change; its knob move on the spring |
+| The segmented bar's bead, the tabs' sliding light | move, on the glide |
+| A menu (•••, right-click, the editor's, the reader's) | grows from where it was asked for, move on the spring; rows half a step apart, move; highlight glides, change; a chosen row blinks, quick; leaves |
+| A small panel (Share, a list's settings, Aa) | grows like a menu; leaves |
+| A sheet (account, search) | arrive (its fade move); leaves |
+| A dialog | arrive (its veil move); leaves |
+| A toast; the upload toast's void filling | arrive; leaves; the fill move, steady |
+| The tooltip | waits 500, fades quick |
+| The drop hint | change, move and arrive |
+| A tip (the sharing tip, the phone note) | arrive; leaves |
+| An offer | move (the user found arrive a little slow); it is looked for `--dur-move` after the page is up; leaves |
+| The line at the top while a page loads | creeps on the slow beat; finishes in change |
+| "Write it as a document"; a comment arriving, being removed | move; arrive; leaves |
+| *File boxes and the add box* | |
+| A box arriving | rises 16 over arrive, its parts fading in one step apart |
+| A box at rest | floats 2.5 up and down on the rest beat, each box offset |
+| A box pointed at | glass and glow move and arrive; a picture, page or cover lifts over arrive; the lean follows the pointer |
+| A picture fading in when loaded | arrive |
+| The tag and the buttons on a box; the add box's buttons | fade change, move move |
+| A video starting when pointed at | move |
+| A box being added | its line move; its shimmer on the quick beat |
+| A box leaving; the others closing up | leaves; arrive |
+| A box picked up, carried, dropped | lifts change; lands move or change |
+| *The screen changing* | |
+| One page to another | the old fades in move on the leaving curve; the new fades in over arrive. No blur. |
+| Opening a planet: the dive | galaxy leaves over arrive; the planet travels and swells over scene on the glide; its page fades in over arrive after move |
+| Coming back: the pull away | page fades change; the galaxy closes in over scene; the planet glides scene |
+| A mode switching on or off | leaves; arrives over arrive |
+| A room arriving and going; a file gliding from its box | move each way, evenly. A picture, page or cover keeps its old self whole underneath while the opened one fades in over it (`view-transition-class: pic`), so it never dims part-way; the file travels above the room's dark veil (`z-index` on its group), and the room, carried in by the page change, has no fade of its own (`.viewer.is-carried`) |
+| Signing out | the dark comes over arrive, lifts over scene |
+| *Rooms* | |
+| File view: side panel, connections, comments | arrive |
+| Editor and recipe card: the page flying open and back | scene each way, on the glide |
+| Editor: bars dropping in; the sky rising behind | arrive; scene |
+| Editor: bars stepping back while you write | out over grand, back in move |
+| Editor: panels, the bubble, the "/" menu | move (the bubble and "/" on the spring) |
+| Reader: opening, closing | move; leaves |
+| Reader: a page turning, its bars, panels, ribbon | move |
+| Cooking: the next step | move |
+| *Modes* | |
+| List: an item ticked and sinking to Done | scene on the glide, however far |
+| List: items arriving, one added, one removed | arrive, one step apart; move; leaves |
+| Cookbook, desk, shelf: cards, pages, covers arriving | arrive, one step apart |
+| A desk's page or a shelf's cover lifting | arrive (the cover on the spring) |
+| *The galaxy and its planets* | |
+| The galaxy arriving | planets rise over arrive, one step apart; the hint over scene |
+| A planet pointed at | rises 3 and swells to 1.09 over arrive on the spring; spins up, then coasts |
+| Planets turning, weather, effects | painted (rule 10) |
+| Planets moved to new places; stars with them | scene; the ghost and guide change |
+| A planet dropped on an orbit | arrive on the spring |
+| A file dropped on a planet | the bubble arrive on the spring; the gulp scene |
+| Moons | bob on the rest beat; born over scene; plumes on the slow beat |
+| Stars (loose files) arriving, leaving | arrive; leaves |
+| *The void* | |
+| Turning | painted (rule 10): about 30 pictures a second, every picture when it is big (sign-in); rests while the screen is changing; fades in over move once its pictures are worked out |
+| Opening, closing | scene open, arrive closed; its box arrives over arrive after move, and leaves |
+| Swallowing | the file spirals in over scene (several: one step apart); the void gulps |
+| *Sign-in* | |
+| The page arriving | the void and the dust over grand; the logo lands at scene |
+| The keys appearing; a key pressed | move and arrive, one step apart |
+| A wrong code | shakes for move on the glide |
+| The right code | the words go in move; the light takes the screen over scene on the leaving curve, then fades over scene |
+| Breathing, the caret | the slow beat; the quick beat |
+| *The universe and the sky* | |
+| Out to the universe and back | follows the scroll on a spring (rule 11): tight while you scroll, slow when it carries on by itself |
+| The universe appearing; its galaxies shifting | grand and scene; arrive |
+| Diving into someone's galaxy | arrive on the glide |
+| Beads, dust, stars | painted (rule 10) |
+| Changing sky | scene |
+| *The top bar* | |
+| The search box widening; the account's caret; the sky picker | arrive; move; move on the spring |
+| The corner back arrow; the logo's letters landing | change; arrive |
+
+**Not finished, and known:** in Safari sign-in drops to about 52 pictures a second while you type (its dust alone makes thousands of strokes a second), and the planets' copies cost the page about a tenth of every second; a new star being born lays the whole galaxy out again, which drops one picture (about 33) as it appears; after the right code, sign-in's white light held for most of a second in 2 of 14 measured runs and could not be made to do it again; the cause is not found. On a phone the editor's word count sits over the page's words. Safari and a real phone are unmeasured.
 
 ## 3. Materials
 
@@ -262,7 +391,11 @@ How it is drawn (`js/voidart.js`; session 7 drew it finer at the user's word, th
 - **Brighter places get more dots, not bigger ones**: each layer (cells, rims and rays, the light's glow, its core) is punched with the same tile, shifted, so where layers overlap the dots add up.
 - **Strands are smooth curves** (`ribbon`), never straight pieces: at sign-in the void fills the screen and corners show.
 - **A hairline of light on the near strands** (`edges`): 0.6 wide, on the side toward the light, brightest beside it and gone by the edge of the cage. It is the only light on the strands; no gradients, no glow.
-- **Cost.** It is redrawn about thirty times a second at rest and every frame only while opening, closing, hungry or swallowing; it rests when off screen, when the tab is hidden and under Motion: Still. Keep that.
+- **Cost.** It is redrawn about thirty times a second at rest and every frame only while opening, closing, hungry or swallowing; it rests when off screen, when the tab is hidden and under Motion: Still. Keep that. Its cells and its tile of dots are slow sums, so they are worked out off the page's own thread (`js/voidmake.js` has the sums and may not touch the page; `js/void-worker.js` runs them; `voidart.js` falls back to doing them itself), once, and kept for every void on every page. Until they are in, a void draws nothing; then it fades in over `--dur-move`. Opening takes `--dur-scene`, closing `--dur-arrive`.
+- **It is a stack of canvases, and nothing is ever copied from one canvas onto another.** `el` is a box holding seven canvases, bottom to top: `body`, `cells`, `rims`, `halo`, `core`, `behind` (the strands behind the light, then the light), `front` (the strands in front, their hairlines, the open light). Each layer of light is painted on its own canvas and the dots are punched through it there; the browser lays the seven over each other. It was once one picture with hidden canvases copied onto it six times a redraw, and Safari pays for the whole of a canvas each time it is copied from: that held the void to 13 to 27 pictures a second there and made its strands jump. A layer is only as big as what is on it (the ball's square; for `halo` and `core`, which reach past the ball when the void is open, the wider `box`), and the dots keep their places on the picture wherever a layer's corner is. `copyTo(target, r)` makes a still picture when one is truly needed (the universe's). A new layer of light is a new canvas in the stack, never a copy.
+- **A strand changes sides exactly at the ball's edge.** Each strand is drawn from 120 points, black where it is in front of the light and grey where it is behind. Where it passes from front to back, between two of its points, the run is cut at a point worked out where the strand's depth is nothing (`runs` in `voidart.js`), never at the nearest of its points: cut at the points, the black and grey changed over a whole piece at a time and jumped along the edges as the cage turned (the user saw it; measured at sign-in as 30 sudden steps in five seconds, now 1). Anything else that splits a turning shape into near and far does the same.
+- **A big void is redrawn every picture.** On a galaxy it turns by a fraction of a pixel a picture and thirty a second is smooth; at sign-in it fills the screen, its strands travel further between pictures, and thirty looked jagged (the user, session 8). `BIG` in `voidart.js` is the size above which it is drawn every picture.
+- **It rests while the screen is changing**, as the planets do: a page change sets `data-vt` on the page, and the browser is showing pictures of both pages then.
 
 Sign-in: only the dark sky and the void, no box and no horizon. The void is huge and looming (it fills the screen; on a phone its cage runs off the sides). Every word (logo, name, code) sits in dark ink on its clean white light: never put text over the speckled cage. Dust spirals in and stars streak toward it along the same swirl; it reacts to every key, ripples on a wrong code, and on the right code everything rushes in and the light takes the screen. Ominous, an experience. One step to start: type a name (a known name asks for its code, a new one picks a code); never an "are you new?" question. Always night.
 
@@ -288,7 +421,7 @@ Built in session 7 (`public/assets/js/sky.js`, the rules headed `.sky` in `galax
 2. **The liquid is worked out small**: a picture a sixth of the screen each way (`FIELD`), holding how much dust, the light on the liquid, where it shows and how wide its colour line is. It needs more than 8 bits, so the dust needs WebGL2 with half-float pictures.
 3. **One light pass at full size** (at most 1.5 pixels a point) turns that into ground, dots, sheen and grain. Nothing slow may go in this pass: no noise of more than one step, no loops.
 4. **Eight pictures a second** (`DUST_FPS`), not sixty. **None while the tab is hidden, none out in the universe** (the black covers it), and **one** under Motion: Still, under Calm, and on a slow computer.
-5. **A slow computer gets the still sky.** The first five pictures of dust are timed; if the middle one takes more than 14 thousandths of a second, or the graphics are drawn by the processor, the dust is drawn once, copied onto a plain picture, and never moves. Without WebGL2 there is no dust at all: the ground, the stars and a still grain (`.sky.is-flat`).
+5. **A slow computer gets the still sky.** The first five pictures of dust are timed (a marker is left behind each and looked for between the page's other jobs: the page never stops to wait for the graphics chip); if the middle one takes more than 14 thousandths of a second, or the graphics are drawn by the processor, the dust is drawn once, copied onto a plain picture, and never moves. Without WebGL2 there is no dust at all: the ground, the stars and a still grain (`.sky.is-flat`).
 6. **Stars are a still layer**: ready-made pictures (a point per colour, one picture per flare) placed with `drawImage`, redrawn four times a second to twinkle (`STAR_FPS`) and every frame only while something pushes them about: the pointer (they lean a little), a scroll, the void bending them into a ring (`setLens`), or the void swallowing a file (`pull`).
 7. **Night is the stylesheet's.** `setNight(0..1)` only sets `--night`; the black fades in, the stars fade out and the dust rests, with nothing redrawn for the fade.
 8. **A sky's colours are read, not typed**: the painter reads `--sky-*` off `.sky-wash`, where they ease when another sky is picked, and follows that ease frame by frame.
@@ -342,7 +475,9 @@ Built in session 7 (`public/assets/js/planets.js`, painted by `planetgl.js`). Th
 
 **Use.** A planet shows how used it is, to everyone who can open it. What counts: a file added to it or changed on it (`planet_use` in `mutt/api.py`, from times Mutt already keeps). The scale: busy for a day (1), calm by a week (0.5), the first dust at a month (under 0.385), all of it at three (0). Busy is more weather, faster, and brighter light of its own; forgotten is no weather, thin air, drained colour and a coat of dust over ground and files. When something lands on a dusty world the dust lifts as weather does (2.5 seconds, once): a wind gets up, the coat breaks into patches and streams off as dust in the air, and the weather comes back behind it (`wakeUp`). Still shows the state without the movement.
 
-**Opening a planet** from a galaxy is a dive: the galaxy rushes past from where the planet is, the planet swells toward you and settles at the top of its page. Coming back is a pull away. Between two planets, pages just change. (`router.js`, the rules headed "Opening a planet" in `galaxy.css`; its lengths and curves are the named ones.)
+**Moving planets.** A planet is carried by its name to a free place on an orbit (the ghost and the guide show where). Carried over another planet, the two change places when you let go: the other one lights as a planet does when something is about to land on it, and the ghost sits on its place (`planetOver`, `place(…, also)` in `views/galaxy.js`).
+
+**Opening a planet** from a galaxy is a dive: the galaxy rushes past from where the planet is, the planet swells toward you and settles at the top of its page. Coming back is a pull away. Between two planets, pages just change. (`router.js`, the rules headed "Opening a planet" in `galaxy.css`; its lengths and curves are the named ones: the galaxy leaves over `--dur-arrive` on `--ease-leave`, the planet travels and swells over `--dur-scene` on `--ease-glide`, its page fades in over `--dur-arrive` after `--dur-move`; coming back the page fades over `--dur-change` and the galaxy closes in over `--dur-scene`. The user watched a sketch of it in session 8 and kept it as built.)
 
 **Without the painter** (no WebGL2, or `?flat=1`): the plain painter wraps a flat picture round a ball, with the same cards. It has no kinds beyond colour, no weather and no use. Keep it working; don't grow it.
 
@@ -406,22 +541,26 @@ Underlined words are not buttons: "Upload", "Retry", "Take off", "Delete", "Dele
 
 ### Menu
 
-One menu for the ••• button, right-click, the editor and the reader. Bar glass, corners 12, padding 4, at least 220 wide, `--shadow-float`. Rows 32 high, corners 8, 8 side padding, 8 gap, 13px `--ink`; icon 16 in `--ink-3`; a fact on the right in mono 11 `--ink-3`.
+One menu for the ••• button, right-click, the editor and the reader, and it opens one way (below). Bar glass, corners 12, padding 4, at least 220 wide, `--shadow-float`. Rows 32 high, corners 8, 8 side padding, 8 gap, 13px `--ink`; icon 16 in `--ink-3`; a fact on the right in mono 11 `--ink-3`.
 
 - **A menu of things to do gives every row an icon** (a file's menu, a planet's •••, a list item's, a recipe card's, a book's, the editor's Insert and More): `{ icon: 'trash', label: 'Delete', … }`. A planet you can move a file to shows its colour dot in the icon's place.
 - **A menu that picks one of a list gives none** (Sort, the text style, a chapter, a format to download as). Pass `on: true` or `on: false` on each row and the chosen one ends in the `check` icon.
 - A menu never mixes rows with and without icons. If one row would need an icon that doesn't exist, draw it (see "Icons") or give the menu none.
  Pointed at: `--tint-2`. A dangerous row is `--danger` (words and icon), washed 15% `--danger` when pointed at, and is last, below a divider (1px `--line`, margin 4/8). A group's heading is a small label with 8/8/4 padding. A row's keyboard outline is drawn 2 inside the row so the menu's edge doesn't cut it. On touch screens rows are 40 high with 14px words.
 
-**Small panel**: a menu that holds controls instead of rows (Share, a list's settings, the editor's Aa). The same glass and shadow, corners 20, padding 16, 12 between its parts. It opens and closes like a menu.
+- **How every menu opens** (the user's pick in session 8, "lively, everywhere"): it grows from where it was asked for (0.84 to full size about `--origin`: the corner at the button, or the pointer) over `--dur-move` on `--ease-spring`; its rows follow one after another, half a step apart (`--stagger` / 2, because a menu is small), each over `--dur-move` on `--ease-settle`; one highlight glides between rows over `--dur-change` instead of each row lighting; a chosen row blinks once (`--dur-quick`) before the menu leaves. Pressed again while its own menu or panel is open, a button closes it; it never opens a second one (`openPopover` does this for every caller). It leaves as everything leaves: `--dur-change` on `--ease-leave`. `openMenu`, `openContextMenu` and any `.menu` handed to `openPopover` get all of this from `glideLight` in `ui.js`; a feature never animates a menu itself. Never a blur on the menu's glass.
+
+- **A planet's right-click menu** on its owner's galaxy: `Open`, then `Planet type…`, `Planet colour…`, `Add a moon…` and, last and red, `Delete planet…`; on someone else's galaxy, `Open` alone. The four are done on the planet's own page, so they open it and carry on there (`askThen` in `views/planet.js`): a thing only a page can do is never built a second time for a menu.
+
+**Small panel**: a menu that holds controls instead of rows (Share, a list's settings, the editor's Aa). The same glass and shadow, corners 20, padding 16, 12 between its parts. It opens and closes like a menu (it grows from its button; its controls do not arrive one by one).
 
 ### Sheet, dialog, toast
 
-- **Sheet** (account, search): bar glass, corners 20, padding 20, 16 between groups, `--shadow-overlay`, `min(440px, 100vw - 20px)` wide. Name in Title; under it a Fact line. A settings row is a 96-wide label (13px `--ink-2`) and its control, at least 32 high. A foot row of buttons sits above a 1px `--line` with 16 above them.
-- **Dialog**: bar glass, corners 20, padding 20, 340 wide (560 when it must be), `--shadow-overlay`, over `--scrim`, which also blurs the page behind by 10px. Title in Lead 700, words in Body `--ink-2`, buttons right-aligned 8 apart with 12 above. The quiet or plain button comes first, the main or danger one last.
-- **Toast**: bar glass, corners 20 (full at one line), at least 40 high, padding 8 16 8 14, 12 gap, 13px/16. A long message wraps to a second line and the toast grows; it is never cut short. A black 8px dot with a pale ring leads it (the void, small). Its one action is `--blue-ink` 500, not underlined: `Sent to Recipes · Move`.
+- **Sheet** (account, search): arrives over `--dur-arrive` on `--ease-settle` (its fade `--dur-move`), leaves over `--dur-change` on `--ease-leave`. Closed, it is `inert`. Bar glass, corners 20, padding 20, 16 between groups, `--shadow-overlay`, `min(440px, 100vw - 20px)` wide. Name in Title; under it a Fact line. A settings row is a 96-wide label (13px `--ink-2`) and its control, at least 32 high. A foot row of buttons sits above a 1px `--line` with 16 above them.
+- **Dialog**: arrives over `--dur-arrive` (its veil `--dur-move`), leaves over `--dur-change`. Bar glass, corners 20, padding 20, 340 wide (560 when it must be), `--shadow-overlay`, over `--scrim`, which also blurs the page behind by 10px. Title in Lead 700, words in Body `--ink-2`, buttons right-aligned 8 apart with 12 above. The quiet or plain button comes first, the main or danger one last.
+- **Toast**: arrives over `--dur-arrive`, leaves over `--dur-change`. Bar glass, corners 20 (full at one line), at least 40 high, padding 8 16 8 14, 12 gap, 13px/16. A long message wraps to a second line and the toast grows; it is never cut short. A black 8px dot with a pale ring leads it (the void, small). Its one action is `--blue-ink` 500, not underlined: `Sent to Recipes · Move`.
 - **Uploads** are a toast, not a tray: `Uploading 3 of 7`, then `Added 7 files`, or `2 uploads failed · Retry` with a red ring. Its void is 16 and fills with white light from the middle as the files go in (black at none, bright with a soft glow at all); when the last file lands the same toast says what was added. Under Motion: Still the light steps without easing.
-- **Tip** (the sharing tip, the phone note): Mutt speaking once. Bar glass, corners 20, padding 16, 300 wide at most, `--shadow-float`: a line in Label `--ink`, one or two sentences in 13/18 `--ink-2`, then small buttons (main first when there is something to do, quiet "Got it").
+- **Tip** (the sharing tip, the phone note): Mutt speaking once. The phone note sits at the foot of the screen, where toasts sit, so it covers nothing (the user's pick in session 8); a toast that arrives meanwhile stands above it. Bar glass, corners 20, padding 16, 300 wide at most, `--shadow-float`: a line in Label `--ink`, one or two sentences in 13/18 `--ink-2`, then small buttons (main first when there is something to do, quiet "Got it").
 - **Tooltip**: what an icon button or a cut-off name is called. Bar glass, corners 8, 24 high, padding 0 8, Caption in `--ink`; a key beside it as a Fact in `--ink-3`, 8 apart. It appears 8 below the thing (above when there is no room), centred and kept inside the window, half a second after pointing (at once when moving from one to the next) and on keyboard focus; it fades over `--dur-quick`. Never on touch screens. The browser's own labels are not used: anything with a `title` gets this instead.
 - **Drop hint**: while files are dragged over the window nothing frames the page. The thing that will take them lights up: on a planet the add box (edge `--blue-ink`, a ring of `--accent` at 32% and a soft glow), on the galaxy a ring opens round the void, just outside its cage (1.5px `--blue-ink` with the same ring and glow; the void itself is not redrawn). One label sits where toasts sit, shaped like a main button: `Drop to add to Postcards`, `Drop into the void`, and over a planet on the galaxy `Drop onto Postcards`. Where nothing can take files the label is clear glass and says why. A page says what takes files through its view's `dropTarget()`: `label`, `el` (the thing to light), `lit(on)` and what `over(e)` returns (main.js).
 
@@ -447,7 +586,7 @@ One frame for every kind of file, wherever files are shown (a planet's page, sea
 - **The buttons on a box** (`.cell-actions`): two small plain buttons (`.btn.btn-small.pill`), 12 above the foot of the box, on the same dark see-through glass as the tag. They appear when the box is pointed at or focused, and never on touch screens (right-click and a long press open the same menu).
 - **At rest** a box floats: 2.5px up and down, 8 to 12 seconds, each on its own beat. Nothing else: no glow, no lean.
 - **Pointed at or typed in**: the edge, glow and fill of box glass, plus a lean toward the pointer (up to 3° and 2.4°). Only that one box leans; it settles back when the pointer leaves (`drift.js`, which writes the lean on that box alone).
-- **Arriving**: the box slides up 16px while its parts fade in and come into focus, 30 ms apart.
+- **Arriving**: the box slides up 16px over `--dur-arrive` while its parts fade in and come into focus, one `--stagger` apart (at most 14 steps).
 - **Being added**: the box at 55% with a 2px line under it filling left to right; red when it fails, with the reason and "Retry" as the caption.
 - **The add box** (`.entry`, `entry.js`) is the first box on a planet you can add to. It is a sunken slot, not a file: a well with corners 12 and a 1px `--line-2` edge (`--line-3` pointed at), the placeholder "Type, paste or drop" in `--ink-3`, "Upload" as a small quiet button at the foot, and a small main button "Add" in the planet's colour once there are words. While you type in it, or drag files over it, its edge is the planet's paled colour and it has the 3px ring of a text box being typed in.
 
@@ -615,11 +754,11 @@ Follow these in order. For a mode, this is step 6 of "How to add a mode" in `CLA
 5. **Space it** with the eight spaces, the three heights and the five corners. A corner inside a corner is the outer one minus the padding.
 6. **Colour it** only with named colours. On a planet's page, box-glass things take `--pc` and their main button takes `--pa`; nothing on bar glass does. Signals only where they mean it.
 7. **Frame less.** A caption, a heading or a row doesn't get a box. Only a thing someone would pick up (a file, a card, a panel) is boxed. When in doubt, set it straight on the sky.
-8. **Make it arrive.** Opening: the box slides up 16px while its parts fade in and come into focus (`--dur-arrive`, `--ease-settle`, parts 30 ms apart, at most 14 of them). Closing: the same in reverse, about half as long. Pointing and pressing: `--dur-quick` and `--dur-change`. Put fades and blurs on the box's parts, never on a parent of glass. Fill entrances `backwards`, never `both`.
+8. **Make it move by the rules in section 2, "Motion".** Find the nearest thing in its list of everything that moves and do as it does. Opening: the box slides up 16px while its parts fade in and come into focus (`--dur-arrive`, `--ease-settle`, parts one `--stagger` apart, at most 14 of them). Closing: the same backwards over `--dur-change` on `--ease-leave`. Pointing and pressing: `--dur-quick` and `--dur-change`. Never type a length or a curve: a name from `tokens.css`, or `DUR` / `EASE…` / `STAGGER` / `BEAT` from `util.js`. Put fades and blurs on the box's parts, never on a parent of glass. Fill entrances `backwards`, never `both`. Add the new thing's line to the list.
 9. **Keep it calm at rest.** A new feature adds nothing that moves while idle. Only the sky, planets turning and the slow float of file boxes may. No endless animation without the user's yes.
-10. **Make it work without a pointer.** Every control is reachable by keyboard and shows the outline. On touch screens controls are 40 high, and nothing appears only on hover.
+10. **Make it work without a pointer.** Every control is reachable by keyboard and shows the outline (`:focus-visible`: 2px `--blue-ink`, 2 away; round things carry it as a ring: a planet, the void). Tab stays inside whatever is open on top (a dialog, a menu or panel, a room, a sheet): `topLayer` in `ui.js` does that for those four, and a new kind of layer is added there. Anything closed but still on the page (a sheet, the void's box) is `inert`. On touch screens controls are 40 high; one that must keep a small look gets a 40 tap area by joining the list under "Room for a fingertip" in `galaxy.css`. Nothing appears only on hover.
 11. **Make it work under Motion: Still.** Every animation ends on its last frame, in no time. Never pause an animation to stop it (a paused entrance stays invisible).
-12. **Keep it light.** Its styles go in its own stylesheet, fetched together with its code, and waited for: `Promise.all([import('./name.js'), styles('name.css')])` (`styles` is in `util.js`; copy the `documents` entry in `modes.js`). Only what must show before its code arrives (an offer's drawing) goes in `galaxy.css`. A plain planet loads none of it.
+12. **Keep it light.** It meets "What Mutt may cost" in section 2 (nothing new runs at rest; nothing makes the page wait). Its styles go in its own stylesheet, fetched together with its code, and waited for: `Promise.all([import('./name.js'), styles('name.css')])` (`styles` is in `util.js`; copy the `documents` entry in `modes.js`). Only what must show before its code arrives (an offer's drawing) goes in `galaxy.css`. A plain planet loads none of it.
 13. **Look at it** in the hidden browser at 1280 and 375 wide (`tests/run.sh browser`, pictures in `tests/shots/latest`), before and after. Give the user a short list of what to watch at real speed.
 14. **Write it down**: anything new or changed goes into this file in the same session.
 
@@ -634,8 +773,8 @@ Checklist before calling it done:
 - [ ] Paper is `--paper`, flat, corners 4; a serif only on it.
 - [ ] Nothing new glows, leans or moves at rest.
 - [ ] A file is shown in the file box (`renderCell`), a group of files under a section heading (`sectionHead`); nothing on a planet's page is inset on its own.
-- [ ] Opens and closes on the shared lengths and curves; no fade or blur on a parent of glass.
-- [ ] Keyboard outline visible everywhere; nothing hover-only; 40-high controls on touch.
+- [ ] Opens and closes on the shared lengths and curves; leaving is `--dur-change` on `--ease-leave`; no fade or blur on a parent of glass; its line is in the list of everything that moves.
+- [ ] Keyboard outline visible everywhere; Tab stays inside what is open; nothing hover-only; 40 to tap on touch.
 - [ ] No sideways scroll at 375 wide; no console errors; Motion: Still shows everything.
 - [ ] A plain planet loads none of its files.
 - [ ] `DESIGN.md` updated, and the "where the app stands" table if this changed it.
@@ -718,4 +857,14 @@ Decided by the user, 2026-11-13 (design session 7; the page with the alternative
 - The logo flickers when pointed at as well as when Mutt opens (my pick of only when Mutt opens was turned down).
 - Built in two parts: the sky, the universe and the logo first; then the planets.
 
-Still open, with the session that settles it: every length and curve at real speed (8).
+Decided by the user, 2026-11-13 (design session 8; the page with the alternatives and the measurements is `/Users/edan/Mutt-notes/design/session8/motion-and-speed-2026-11-13.html`):
+
+- Things arrive at today's pace, tidied onto the names (a brisker pace was offered).
+- Everything leaves in a fifth of a second (`--dur-change`), speeding up as it goes (a third of a second was offered).
+- Every menu opens the lively way the right-click menu did: it grows from where you pressed, rows follow, one highlight glides (plain everywhere, and two kinds, were offered).
+- The dive and the pull away stay as session 7 built them (a shorter, flatter one and a long fall were offered).
+- A page flies open on the even glide, eight tenths of a second each way (the arriving curve, and the editor's old curve of its own, were offered).
+- The phone note sits at the foot (a slim line under the top bar, and the top with the page below it, were offered).
+- The new names: `--dur-grand`, `--ease-leave`, `--stagger`, the three beats.
+
+Still open: whether every move feels right at real speed (the user's eye: the watch list on session 8's page); the three things under "Not finished, and known" in section 2, "Motion".

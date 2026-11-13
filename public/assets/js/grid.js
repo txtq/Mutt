@@ -2,7 +2,7 @@
 
 import { renderCell, renderDivider, renderPending, updatePending } from './cells.js';
 import { glide, measure } from './transitions.js';
-import { EASE, EASE_IN, h, inViewport, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_LEAVE, STAGGER, h, inViewport, reducedMotion } from './util.js';
 
 const nearby = (els) => [...els].filter((el) => el.isConnected && inViewport(el, 300));
 
@@ -132,7 +132,7 @@ export class Grid {
         if (!el.classList.contains('is-new')) continue;
         el.classList.remove('is-new');
         if (inViewport(el)) {
-          shift(el, { duration: 620, delay: 80 + Math.min(i++, 12) * 28 });
+          shift(el, { duration: DUR.arrive, delay: STAGGER + Math.min(i++, 14) * STAGGER });
         }
       }
     } else {
@@ -165,7 +165,7 @@ export class Grid {
       width: `${rect.width}px`, pointerEvents: 'none', zIndex: 0,
     });
     this.el.append(el);
-    shift(el, { into: false, duration: 300, easing: EASE_IN, moved: 'translateY(10px)' })
+    shift(el, { into: false, duration: DUR.change, easing: EASE_LEAVE, moved: 'translateY(10px)' })
       .finished.then(() => el.remove(), () => el.remove());
   }
 
@@ -211,7 +211,7 @@ export class Grid {
     }
     old.replaceWith(cell);
     this.cells.set(block.id, cell);
-    cell.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: 400, easing: 'ease-out' });
+    if (!reducedMotion()) cell.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: DUR.move, easing: 'ease' });
     return cell;
   }
 
@@ -308,7 +308,7 @@ export class Grid {
     };
     // Lifts on top of wherever it's carried ('add'), so it follows the
     // pointer from the start instead of sitting still until the lift ends.
-    ghost.animate([{ transform: `scale(${1 / 1.035})` }, { transform: 'scale(1)' }], { duration: 260, easing: EASE, composite: 'add' });
+    ghost.animate([{ transform: `scale(${1 / 1.035})` }, { transform: 'scale(1)' }], { duration: DUR.change, easing: EASE, composite: 'add' });
     this.dragMove(ev);
     this.scrollLoop();
   }
@@ -368,7 +368,7 @@ export class Grid {
     const rects = measure(nearby(items));
     if (slot > current) target.after(d.cell);
     else target.before(d.cell);
-    glide(rects, { duration: 420 });
+    glide(rects, { duration: DUR.arrive });
   }
 
   scrollLoop(now, last) {
@@ -411,7 +411,7 @@ export class Grid {
         d.ghost.animate(
           [{ transform: d.ghost.style.transform, opacity: 1 },
             { transform: `translate(${c.x - w * 0.05}px, ${c.y - hgt * 0.05}px) scale(0.1)`, opacity: 0 }],
-          { duration: 420, easing: EASE_IN, fill: 'forwards' },
+          { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' },
         ).finished.then(done, done);
       }
       this.onDropTo?.(target, d.cell.dataset.id);
@@ -426,7 +426,7 @@ export class Grid {
     else {
       d.ghost.animate(
         [{ transform: d.ghost.style.transform }, { transform: `translate(${to.left}px, ${to.top}px) scale(1)` }],
-        { duration: 380, easing: EASE, fill: 'forwards' },
+        { duration: DUR.move, easing: EASE, fill: 'forwards' },
       ).finished.then(finish, finish);
     }
     const keys = this.keys();

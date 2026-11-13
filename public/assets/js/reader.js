@@ -14,7 +14,7 @@ import { api } from './api.js';
 import { loadPdfjs } from './pdfjs.js';
 import { NoText, outlineOf, pdfToBook } from './pdfbook.js';
 import { segmented, stepper, toast } from './ui.js';
-import { DUR, EASE, debounce, h, paperFaces, plural, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_LEAVE, debounce, h, paperFaces, plural, reducedMotion } from './util.js';
 import { icon as draw } from './icons.js';
 
 const THEMES = [
@@ -245,7 +245,7 @@ class Reader {
     this.prevFocus = document.activeElement;
     document.body.append(this.el);
     document.documentElement.classList.add('is-reading');
-    if (moving()) this.el.animate([{ opacity: 0, transform: 'scale(1.015)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE });
+    if (moving()) this.el.animate([{ opacity: 0, transform: 'scale(1.015)' }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
     this.wire();
     try {
       const data = await api.get(`/api/books/${this.id}`);
@@ -284,7 +284,7 @@ class Reader {
   showCard(content) {
     this.cardEl.replaceChildren(content);
     this.cardEl.hidden = false;
-    if (moving()) this.cardEl.animate([{ opacity: 0, transform: 'translate(-50%, -46%) scale(0.98)' }, { opacity: 1, transform: 'translate(-50%, -50%)' }], { duration: 420, easing: EASE });
+    if (moving()) this.cardEl.animate([{ opacity: 0, transform: 'translate(-50%, -46%) scale(0.98)' }, { opacity: 1, transform: 'translate(-50%, -50%)' }], { duration: DUR.arrive, easing: EASE });
   }
 
   hideCard() { this.cardEl.hidden = true; }
@@ -313,7 +313,7 @@ class Reader {
     await Promise.race([this.saveProgress(), new Promise((r) => setTimeout(r, 1500))]);
     this.off.forEach((off) => off());
     this.pdf?.destroy?.();
-    if (moving()) await this.el.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(1.01)' }], { duration: 220, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+    if (moving()) await this.el.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(1.01)' }], { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
     this.el.remove();
     document.documentElement.classList.remove('is-reading');
     if (openOne === this) openOne = null;
@@ -376,7 +376,7 @@ class Reader {
     this.tocBtn.setAttribute('aria-expanded', String(kind === 'toc'));
     if (moving()) {
       const from = kind === 'toc' ? 'translateX(-14px)' : 'translateY(-8px)';
-      this.panelEl.animate([{ opacity: 0, transform: from }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
+      this.panelEl.animate([{ opacity: 0, transform: from }, { opacity: 1, transform: 'none' }], { duration: DUR.move, easing: EASE });
     }
   }
 
@@ -596,7 +596,7 @@ class Reader {
     } else if (at) page = this.pageOf(at);
     this.goPage(page, { animate: false });
     if (dir && moving()) {
-      this.flow.animate([{ opacity: 0, translate: `${dir * 36}px 0` }, { opacity: 1, translate: '0 0' }], { duration: 360, easing: EASE });
+      this.flow.animate([{ opacity: 0, translate: `${dir * 36}px 0` }, { opacity: 1, translate: '0 0' }], { duration: DUR.move, easing: EASE });
     }
   }
 
@@ -727,7 +727,7 @@ class Reader {
     if (animate && moving()) {
       const from = getComputedStyle(this.flow).transform;
       this.flow.style.transform = to;
-      this.flow.animate([{ transform: from === 'none' ? 'none' : from }, { transform: to }], { duration: 420, easing: EASE });
+      this.flow.animate([{ transform: from === 'none' ? 'none' : from }, { transform: to }], { duration: DUR.move, easing: EASE });
     } else {
       this.flow.style.transform = to;
     }
@@ -993,7 +993,7 @@ class Reader {
     pop.style.left = `${x}px`;
     pop.style.top = `${Math.min(r.height - hgt - 10, y)}px`;
     pop.classList.toggle('is-below', below);
-    if (moving()) pop.animate([{ opacity: 0, transform: `translateY(${below ? -4 : 4}px) scale(0.96)` }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE });
+    if (moving()) pop.animate([{ opacity: 0, transform: `translateY(${below ? -4 : 4}px) scale(0.96)` }, { opacity: 1, transform: 'none' }], { duration: DUR.change, easing: EASE });
   }
 
   colorRow(active, pick) {
@@ -1053,7 +1053,7 @@ class Reader {
     this.marks.push(temp);
     this.wrap(a, b, temp);
     const els = [...this.flow.querySelectorAll(`.rd-hl[data-id="${temp.id}"]`)];
-    if (moving()) els.forEach((el) => el.animate([{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }], { duration: 360, easing: EASE }));
+    if (moving()) els.forEach((el) => el.animate([{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }], { duration: DUR.move, easing: EASE }));
     try {
       const { mark } = await api.post(`/api/books/${this.id}/marks`, { kind: 'highlight', loc: temp.loc, text: temp.text, color, percent });
       Object.assign(temp, mark);
@@ -1132,7 +1132,7 @@ class Reader {
     this.markBtn.title = on ? 'Remove this bookmark' : 'Bookmark this page';
     if (on !== this.ribbon.classList.contains('is-on')) {
       this.ribbon.classList.toggle('is-on', on);
-      if (on && moving()) this.ribbon.animate([{ transform: 'translateY(-100%)' }, { transform: 'none' }], { duration: 420, easing: EASE });
+      if (on && moving()) this.ribbon.animate([{ transform: 'translateY(-100%)' }, { transform: 'none' }], { duration: DUR.move, easing: EASE });
     }
   }
 

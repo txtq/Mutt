@@ -173,8 +173,10 @@ export class ShelfView {
           this.coverEl(v),
           v.percent > 0 ? h('span', { class: 'rp-prog', 'aria-hidden': 'true' }, h('i', { style: { width: `${Math.round(v.percent * 100)}%` } })) : null),
         h('p', { class: 'rp-name', title: v.title }, v.title),
-        h('p', { class: 'rp-by' }, v.author || ' '),
-        h('p', { class: `rp-state${v.percent >= 0.995 ? ' is-done' : ''}` }, stateText(v)));
+        // the author, with one fact beside them: how far through, New, PDF
+        h('p', { class: 'rp-cap' },
+          v.author ? h('span', { class: 'rp-by' }, v.author) : null,
+          h('span', { class: `rp-state${v.percent >= 0.995 ? ' is-done' : ''}` }, stateText(v))));
       el.addEventListener('contextmenu', (e) => this.context(e, el, v));
       return el;
     });

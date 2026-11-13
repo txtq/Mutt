@@ -11,7 +11,7 @@ import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
 import { openContextMenu, openMenu, sectionHead, toast } from './ui.js';
-import { EASE, bus, h, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { EASE, bus, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
 
 // The desk's look comes with its code. Whoever loads this file waits for the
 // stylesheet too (`load` in modes.js), so the desk never shows undressed.
@@ -61,6 +61,7 @@ export class DeskView {
     this.onOpen = onOpen;
     this.onNew = onNew;
     this.info = new Map();
+    paperFaces();
 
     this.collection = makeCollection(blocks.filter((b) => !isDocBlock(b)), {
       onChange: () => this.changed(),

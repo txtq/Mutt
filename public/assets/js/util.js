@@ -58,6 +58,18 @@ export function styles(name) {
   return sheets.get(name);
 }
 
+// Paper's own typefaces (Newsreader, and the typewriter face a script is set in), fetched the first
+// time paper is about to show: a desk, a document, a book. Nothing else loads them.
+let facesAsked = false;
+export function paperFaces() {
+  if (facesAsked) return;
+  facesAsked = true;
+  document.head.append(h('link', {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap',
+  }));
+}
+
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 // The system setting, or Motion: Off in Mutt's own settings.
 export const reducedMotion = () => motionQuery.matches || document.documentElement.dataset.motion === 'off';

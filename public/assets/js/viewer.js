@@ -10,7 +10,7 @@ import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { transition } from './transitions.js';
-import { toast } from './ui.js';
+import { enterRoom, leaveRoom, toast } from './ui.js';
 import { EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, styles, touchScreen, wait } from './util.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
@@ -48,7 +48,6 @@ export async function openViewer(id, { list = [], drawer = null } = {}) {
   state = { block, list: list.length ? list : [block], drawer, connections };
   const from = findCell(id);
   const fromVisible = from && inViewport(from) ? from : null;
-  document.documentElement.classList.add('has-viewer');
   await transition(() => mount(), {
     type: 'viewer',
     before: () => (fromVisible ? [[fromVisible, `b-${id}`]] : []),
@@ -72,7 +71,7 @@ export async function closeViewer() {
   s.cleanup?.();
   await transition(() => {
     s.el.remove();
-    document.documentElement.classList.remove('has-viewer');
+    leaveRoom();
     removeEventListener('keydown', s.onKey);
   }, {
     type: 'viewer',
@@ -150,7 +149,7 @@ function mount() {
   state.side = h('aside', { class: 'vw-side' });
   state.counter = counter;
   state.nav = h('div', { class: 'vw-nav' }, prev, counter, next);
-  state.el = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Block' },
+  state.el = h('div', { class: 'viewer room', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Block' },
     h('div', { class: 'vw-top' }, state.nav, close),
     state.stage,
     state.side);
@@ -162,6 +161,7 @@ function mount() {
   addEventListener('keydown', state.onKey);
   swipeable(state.stage);
   document.body.append(state.el);
+  enterRoom();
   renderStage();
   renderSide();
 }
@@ -237,7 +237,7 @@ function stageMedia(block) {
   if (block.kind === 'link') return linkStage(block);
   if (block.kind === 'text') return textStage(block);
   if (block.kind === 'audio' && block.file) {
-    return h('div', { class: 'vw-media vw-card' },
+    return h('div', { class: 'vw-media vw-card fglass' },
       h('div', { class: 'vw-card-ext' }, extLabel(block)),
       h('div', { class: 'vw-card-name' }, displayTitle(block)),
       h('audio', { src: block.file, controls: true, preload: 'metadata' }));
@@ -247,7 +247,7 @@ function stageMedia(block) {
     fetch(block.file, { credentials: 'same-origin' }).then((r) => (r.ok ? r.text() : null)).then((t) => { if (t != null) pre.textContent = t; }).catch(() => {});
     return h('div', { class: 'vw-media vw-codebox' }, pre);
   }
-  return h('div', { class: 'vw-media vw-card' },
+  return h('div', { class: 'vw-media vw-card fglass' },
     h('div', { class: 'vw-card-ext' }, extLabel(block)),
     h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
     h('div', { class: 'vw-card-sub' }, fmtBytes(block.size)),
@@ -454,7 +454,7 @@ function pdfStage(block) {
       boxes.forEach((box) => observer.observe(box));
     } catch {
       if (gone) return;
-      wrap.replaceChildren(h('div', { class: 'vw-card' },
+      wrap.replaceChildren(h('div', { class: 'vw-card fglass' },
         h('div', { class: 'vw-card-ext' }, 'PDF'),
         h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
         h('a', { class: 'btn btn-main', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗')));
@@ -568,7 +568,7 @@ function renderSide() {
       actions,
       saveButton(block),
       metaRows(block),
-      connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', null, plural(count, 'planet'))) : null,
+      connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', { class: 'vw-conn-label' }, `On ${plural(count, 'planet')}`)) : null,
       connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => {
         const href = drawerHref(d);
         return h('li', null, h('a', {
@@ -579,7 +579,7 @@ function renderSide() {
     return;
   }
 
-  const connectBtn = h('button', { type: 'button', class: 'btn btn-main btn-small' }, 'Planets →');
+  const connectBtn = h('button', { type: 'button', class: 'btn btn-small' }, 'Planets →');
   connectBtn.addEventListener('click', () => openConnect(connectBtn, state.block, { align: 'end' }));
 
   const list = connections == null
@@ -589,18 +589,18 @@ function renderSide() {
         h('a', { href: drawerHref(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(drawerHref(d)); } },
           planetDot(d), h('span', null, d.title)),
         h('button', {
-          type: 'button', class: 'vw-conn-x', 'aria-label': `Take off ${d.title}`, title: `Take off ${d.title}`,
+          type: 'button', class: 'btn btn-quiet btn-small btn-round vw-conn-x', 'aria-label': `Take off ${d.title}`, title: `Take off ${d.title}`,
           onclick: () => removeFromDrawer(state.block, d.id, d.title),
         }, '×'))))
       : null;
 
   fill(state.side,
-    editable(block, 'title', { placeholder: 'Untitled', className: 'vw-title' }),
-    editable(block, 'description', { placeholder: 'Add a note', className: 'vw-desc' }),
+    editable(block, 'title', { placeholder: 'Untitled', className: 'field-bare vw-title' }),
+    editable(block, 'description', { placeholder: 'Add a note', className: 'field-bare vw-desc' }),
     actions,
     metaRows(block),
     h('section', { class: 'vw-conn-head' },
-      h('span', null, count ? plural(count, 'planet') : 'A loose star'),
+      h('span', { class: 'vw-conn-label' }, count ? `On ${plural(count, 'planet')}` : 'A loose star'),
       connectBtn),
     list,
     comments(block),

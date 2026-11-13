@@ -155,7 +155,8 @@ addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (e.key === '/' && session.user && !isEditable(document.activeElement) && !e.metaKey && !e.ctrlKey) {
+  // not inside a room: search is a sheet, and a room covers sheets
+  if (e.key === '/' && session.user && !isEditable(document.activeElement) && !e.metaKey && !e.ctrlKey && !document.querySelector('.room')) {
     e.preventDefault();
     bar.search.focus();
   }

@@ -2,9 +2,29 @@
 // bar and tabs, the stepper, toasts, dialogs, small panels, menus, and the PIN field.
 
 import { glyph } from './planets.js';
-import { h, reducedMotion } from './util.js';
+import { DUR, h, reducedMotion } from './util.js';
 
 // ---------------------------------------------------------------- segmented bar, tabs
+
+// A room: a place that covers the page and its bar (the file view, the editor, cooking).
+// Give the room's own element the class `room`. Call enterRoom() when it is put on the page
+// and leaveRoom() when it is taken off: while a room is open the page steps away and the sky
+// stays behind it (the rules are under "room" in galaxy.css).
+let rooms = 0;
+let leaving = 0;
+export function enterRoom() {
+  rooms += 1;
+  clearTimeout(leaving);
+  document.documentElement.classList.remove('leaving-room');
+  document.documentElement.classList.add('in-room');
+}
+export function leaveRoom() {
+  rooms = Math.max(0, rooms - 1);
+  if (rooms) return;
+  document.documentElement.classList.add('leaving-room');
+  document.documentElement.classList.remove('in-room');
+  leaving = setTimeout(() => document.documentElement.classList.remove('leaving-room'), DUR.arrive);
+}
 
 // A segmented bar picks one value of a setting. With `tabs: true` the same
 // thing is drawn as tabs (words with a sliding light), for switching what a

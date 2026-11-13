@@ -5,10 +5,8 @@
    DESIGN.md (section 2) says what each name is for. The two files must agree:
    a name is added there first, then here, with exactly that name.
 
-   Some values are not yet what DESIGN.md asks for. Changing them changes how
-   Mutt looks, so each waits for the design session that shows it to the user
-   first. Those lines end with:   WANTS <the value in DESIGN.md> (session N)
-   The same list is in DESIGN.md under "Where the app stands".
+   A value that is not yet what DESIGN.md asks for ends with:
+   WANTS <the value in DESIGN.md> (session N). Only the sky is left (session 7).
 
    tests/run.sh drift fails if a stylesheet or script gains a hand-typed colour,
    text size, corner, shadow or speed. This file is the only one left out. */
@@ -92,13 +90,53 @@
   --tag-frost: blur(12px) brightness(0.7);                  /* behind the tag and the buttons that sit on a file box (their fill is --bar-fill) */
 
   /* paper */
-  --paper: linear-gradient(180deg, #fcfbf7, #f2f0e9);   /* WANTS #f8f5ee, flat (session 5) */
+  --paper: #f8f5ee;      /* one cream, flat: documents, a page in a file box, the reader's Paper page */
   --paper-edge: #e9e4d8;
-  --paper-ink: #262a34;                                  /* WANTS #1d1b18 (session 5) */
+  --paper-ink: #1d1b18;
   --paper-ink-2: #5c5852;
   --paper-ink-3: #8f897f;
-  --paper-shadow: 0 0 0 1px rgba(0, 0, 18, 0.2), var(--shadow-raised);   /* under paper: a page or a cover in a file box */
+  --paper-rule: #ddd6c8;   /* a ruled line on paper: a quote's bar, a journal entry's line, a table's lines */
+  --paper-well: #efebe2;   /* a sunk patch on paper: code, a table's heading row */
+  --paper-blue: #1f4fa8;   /* a link on paper */
+  --paper-caret: #b3261e;  /* the caret in a document; the first rhyme colour */
+  --paper-shadow: 0 0 0 1px rgba(0, 0, 18, 0.2), var(--shadow-raised);   /* under paper: a page or a cover */
+  --paper-shadow-on: 0 0 0 1px rgba(0, 0, 18, 0.2), var(--shadow-overlay);   /* the same, pointed at and lifted */
   --spine: linear-gradient(90deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.12) 70%, rgba(255, 255, 255, 0.14) 86%, rgba(0, 0, 0, 0.1));   /* the shaded spine on a book's cover */
+
+  /* markers: the highlighters, shared by the reader and documents. Yellow is also a comment's colour. */
+  --mark-yellow: #f2c43a;
+  --mark-green: #5cc86e;
+  --mark-blue: #50a0ff;
+  --mark-pink: #ff69a0;
+  --mark-purple: #aa6ef0;
+  --mark-ink: #2a2108;     /* words on a marker-yellow badge */
+
+  /* a room: a place that covers the page (the file view, the editor, cooking). The page
+     steps away, the sky stays, and this dims it. */
+  --room-veil: rgba(5, 8, 24, 0.62);
+
+  /* the reader's page: one of four (Night here; Quiet, Sepia and Paper below). Inside the
+     reader the usual names (--ink, --line, --well, --blue-ink…) are read from these. */
+  --page-night: #0f1530; --page-night-ink: #dfe3ee;   /* the three page colours that aren't paper, and their words */
+  --page-quiet: #232325; --page-quiet-ink: #d2cfc8;
+  --page-sepia: #f3e8d2; --page-sepia-ink: #4a3a28;
+  --page: var(--page-night);
+  --page-ink: var(--page-night-ink);
+  --page-ink-3: #7f89a6;
+  --page-line: rgba(220, 228, 255, 0.1);
+  --page-raised: #182046;  /* a panel or menu that floats over the page */
+  --page-bar: rgba(16, 22, 52, 0.86);
+  --page-accent: #86a9ff;
+  --page-gutter: rgba(0, 0, 10, 0.32);   /* the fold between two pages */
+  --ribbon-red: #e0574a;   /* a bookmark's ribbon; an underlined highlight */
+
+  /* the void's light: the add box that opens inside the void is ink on white light */
+  --light: rgba(255, 255, 255, 0.94);
+  --light-ink: #15171f;
+  --light-ink-3: rgba(21, 23, 31, 0.52);
+  --light-line: rgba(18, 20, 32, 0.22);
+  --light-line-on: rgba(18, 20, 32, 0.55);
+  --light-tint: rgba(18, 20, 32, 0.05);
 
   /* the sky (Vita). The other three skies are below. */
   --sky-top: #020721;
@@ -110,7 +148,8 @@
 
   --sans: "Red Hat Text", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;   /* paper only */
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;   /* paper only (and a desk's own names) */
+  --typewriter: "Courier Prime", "Courier New", Courier, monospace;   /* a script, and a document set in Typewriter */
   --t: 1;                /* the owner's text-size setting (S 0.93, M 1, L 1.1), set by theme.js */
 
   /* the sizes */
@@ -123,6 +162,7 @@
   --text-caption: 12px;
   --text-fact: 11px;
   --text-small: 10.5px;
+  --text-reach: clamp(22px, 1.6vw + 14px, 40px);   /* words read from across a room: a step while cooking */
 
   /* the roles, whole: `font: var(--type-label)`. Display and Page also take their
      letter-spacing from DESIGN.md's table; a small label is capitals at 0.14em. */
@@ -150,6 +190,7 @@
   --h-small: 24px;       /* on tiles and in rows */
   --h-regular: 32px;     /* everywhere */
   --h-large: 40px;       /* the one main action; every control on touch screens */
+  --h-reach: 52px;       /* a button pressed at arm's length: Back and Next while cooking */
   --h-inner: 26px;       /* a choice or round button inside a well (32 less the well's 3 all round) */
   --inset: 3px;          /* the padding of a well that holds choices: segmented bar, stepper */
   --ring: 3px;           /* the ring round a text box being typed in, and round a place files can be dropped */
@@ -179,8 +220,8 @@
   --z-sky: -1;           /* the sky, behind the page */
   --z-page: 1;           /* the page; the top bar and drop hint are inside it */
   --z-bar: 40;           /* the top bar, within the page */
-  --z-room: 50;          /* a place that covers the page: the file view */
   --z-sheet: 60;         /* sheets, the phone note, a box while it is dragged */
+  --z-room: 70;          /* a place that covers the page and its bar: the file view, the editor, cooking, the reader */
   --z-dialog: 80;        /* the scrim and its dialog */
   --z-pop: 85;           /* menus */
   --z-toast: 95;         /* toasts */
@@ -202,19 +243,7 @@
      Not in DESIGN.md. Each is still used, and goes (or is adopted there) in the
      session named. Don't use these in new work. */
 
-  --bg: #0a1130;         /* a solid stand-in for the sky behind a few old parts (sessions 3 to 5) */
-
-  /* documents' own names (session 5 moves documents onto --serif, --sans, --mono and the paper names) */
-  --de-serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --de-sans: "Red Hat Text", ui-sans-serif, system-ui, sans-serif;
-  --de-mono: "Red Hat Mono", ui-monospace, Menlo, monospace;
-  --de-type: "Courier Prime", "Courier New", Courier, monospace;
-  --de-paper: #f8f5ee;
-  --de-paper-edge: #e9e4d8;
-  --de-ink: #1d1b18;
-  --de-ink-2: #5c5852;
-  --de-ink-3: #8f897f;
-  --de-rule: #ddd6c8;
+  --bg: #0a1130;         /* a solid stand-in for the sky: the ring round a chosen swatch, the old top bar's fallback (session 7) */
 
   /* the old sky's ribbons and colour clouds (session 7 replaces the sky) */
   --ribbon: #a8d4ff;
@@ -242,6 +271,21 @@ html[data-sky="aurora"] {
 html[data-sky="dusk"] {
   --sky-top: #0b0214; --sky-deep: #1e0720; --sky-mid: #3a0b37; --sky-low: #b23e58;
   --ribbon: #ffd6c6; --ribbon-line: #fff1ea; --neb-a: rgba(255, 110, 130, 0.22); --neb-b: rgba(255, 180, 110, 0.12);
+}
+
+/* The reader's three other pages. A page is only these values; every part of the
+   reader is written once and reads them. Paper is the one cream. */
+.rd[data-theme="quiet"] {
+  --page: var(--page-quiet); --page-ink: var(--page-quiet-ink); --page-ink-3: #8d8a84; --page-line: rgba(255, 250, 240, 0.09);
+  --page-raised: #2e2e31; --page-bar: rgba(38, 38, 40, 0.9); --page-accent: #c8b48c; --page-gutter: rgba(0, 0, 0, 0.3);
+}
+.rd[data-theme="sepia"] {
+  --page: var(--page-sepia); --page-ink: var(--page-sepia-ink); --page-ink-3: #9a8466; --page-line: rgba(74, 58, 40, 0.14);
+  --page-raised: #f8efdd; --page-bar: rgba(243, 232, 210, 0.92); --page-accent: #9b5a28; --page-gutter: rgba(90, 60, 20, 0.16);
+}
+.rd[data-theme="paper"] {
+  --page: var(--paper); --page-ink: var(--paper-ink); --page-ink-3: var(--paper-ink-3); --page-line: rgba(29, 27, 24, 0.1);
+  --page-raised: #fdfbf6; --page-bar: rgba(248, 245, 238, 0.92); --page-accent: var(--paper-blue); --page-gutter: rgba(29, 27, 24, 0.12);
 }
 
 /* The sky's colours are registered as colours so that choosing another sky

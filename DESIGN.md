@@ -5,18 +5,18 @@ The one standard for how Mutt looks and moves. Read it before touching anything 
 - **A value, part or rule that isn't in this file doesn't exist.** Don't invent one inside a feature. If a feature needs something new, add it here first (show the user), then build it.
 - **Every session that settles something visible updates this file before it ends**, so the file is never behind the app.
 - It is written as instructions. Where it says "is", build it that way.
-- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3 and 4 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
+- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3, 4 and 5 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
 
 ## Where the app stands against this file
 
-The app does not match this file yet. Sessions 5 to 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
+The app does not match this file yet. Sessions 6 to 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
 
 | Area | In the app today | Lands in |
 | --- | --- | --- |
 | Named values (section 2) | **Done (session 2).** Every name below is in `public/assets/tokens.css`, the one place raw values are written. `mutt.css` is gone (folded into `galaxy.css`). `tests/run.sh drift` fails if a hand-typed value is added. | Session 2 ✓ |
 | Shared parts (section 4) | **Done (session 3).** One button, text box, switch, segmented bar, tabs, tick box, chip, stepper, menu, small panel, sheet, dialog, toast, tip, tooltip and drop hint, in one marked section of `galaxy.css`, each drawn in every state at `/parts`. What the modes still draw themselves is listed under "What session 3 left for later". | Session 3 ✓ |
 | Planet page, file boxes, planet colour rule | **Done (session 4).** One frame for every kind of file (`cells.js`, the section of `galaxy.css` headed THE FILE BOX), the header on the sky, one section heading for every mode, the readable greys, box glass to its recipe, nothing glowing at rest and only the pointed-at box leaning. What the modes still draw themselves is under "What sessions 2 to 4 left for later". | Session 4 ✓ |
-| Modes on the shared look | Private palettes `--lm-*`, `--de-*`, `--rd-*`, `--vf-*` | Session 5 |
+| Modes on the shared look | **Done (session 5).** List, cookbook, documents, reading and the file view are built from the named values and the shared parts (section 4, "The modes"); their four private palettes are gone; paper is the one cream; the full-screen places are rooms on one layer. | Session 5 ✓ |
 | Icons | Four sets and about 35 keyboard characters | Session 6 |
 | The sky, planets, logo | Old gradient sky; five logo styles in Settings | Session 7 |
 | Motion | The five lengths and three curves are named and used where they matched; 386 other lengths and curves are still typed by hand (279 in stylesheets, 107 in scripts) | Session 8 |
@@ -27,21 +27,20 @@ Session 2 changed nothing a person can see. So where this file asks for a differ
 
 | Name | Holds today | This file asks for | Switched in |
 | --- | --- | --- | --- |
-| `--paper` `--paper-ink` | a cream gradient; `#262a34` | `#f8f5ee` flat; `#1d1b18` | Session 5 |
 | The sky | the old gradient, clouds and ribbons (`--neb-*`, `--ribbon*`) | the sky in section 3 | Session 7 |
 
-Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-io`, documents' `--de-*`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
+Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-io`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
 
-### What sessions 2 to 4 left for later, on purpose
+### What sessions 2 to 5 left for later, on purpose
 
-- **Values off the scales stay hand-typed** until their part is rebuilt: 12.5 and 11.5 text, 14 and 10 corners, 0.3 and 0.25 second motion, 6, 10 and 14 spacing. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3 and 4: colours 501 → 448 → 432, text sizes 204 → 176 → 163, corners 168 → 141 → 137, shadows 97 → 94 → 93, speeds 279 → 254 → 243.
-- **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet. The shared parts' rules and the file box's have left it; the rest moves when session 5 rebuilds each part. Nothing new goes in that section.
-- **Three rooms sit on numbers of their own** (see Depth).
-- **Session 3 left these half-way.** Each is on the shared parts as far as it could go without redrawing a mode's own panel:
-  - *Left by session 4, for session 5:* list mode keeps its own count line inside its box (`4 items`) and its own rows; the cookbook's cards, the shelf's covers and the desk's pages are their own drawings, and the small words under them (`.rp-state`, a page's `259 words`) are still the old sizes and the faintest grey; on a desk the planet's name and note are set in the documents' serif (`.liv.is-desk`); the file view opened from a box is unchanged. The lengths typed by hand in the file box (a picture's 0.6 s fade and 0.9 s lift, the tag's 0.35 s) are the app's old ones, for session 8. Mutt keeps no icon for a link's site, so a link's caption is the site's name alone.
-  - *For session 5 (the modes):* the reader keeps its own panels, its selection menu and its row choices for typeface, spacing, pages and edges (`.rd-panel`, `.rd-pop`, `.rd-pop-btn`, `.rd-choice`), reading the reader's four page colours; its buttons, tabs and text-size stepper are shared, through the colour names mapped on `.rd`. The editor keeps its Aa panel's groups of toggles (`.de-aa-seg`, `.de-aa-opt`), its swatches, the selection bubble's buttons (`.de-bub`), the slash menu's rows (`.de-slash-item`) and its word-buttons (`.de-word`); its toolbar buttons stay 32 on touch screens. The cookbook's editor fields are shared text boxes on the card's own type and padding (`.cbe-field`); cooking's big buttons and ingredient ticks (`.cbk-*`) are its own sizes. The file view's buttons are shared; its panel and note box are not. Search's row of filters (`.search-opt`) are shared small quiet buttons; its colour dots and the planet picker's rows (`.cx-row`) are their own.
-  - *For session 6 (icons):* menu rows have no icons yet; round buttons still hold `•••`, `×`, `←` and `→` as characters.
-  - *For session 8 (motion):* the lengths typed by hand in the shared parts (a menu's 0.42 s, a sheet's 0.45 s, a dialog's and a toast's 0.6 s, the bead's 0.45 s) are the app's old ones, kept so nothing moves differently yet.
+- **Values off the scales stay hand-typed** until their part is rebuilt: a few 12.5 and 11.5 text sizes, 14 and 10 corners, 0.3 and 0.25 second motion. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3, 4 and 5: colours 501 → 448 → 432 → 189, text sizes 204 → 176 → 163 → 74, corners 168 → 141 → 137 → 90, shadows 97 → 94 → 93 → 64, speeds 279 → 254 → 243 → 191.
+- **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet (the top bar, page heads, sign-in, the markdown rules, settings). The file view's rules left it in session 5. Nothing new goes in that section.
+- **A setting is not a palette.** The editor and the reader keep a few names of their own for what the owner has chosen, set by their scripts: `--de-size`, `--de-lh`, `--de-face` (a document's type size, line height and face) and `--rd-size`, `--rd-lh`, `--rd-font`, `--rd-h`, `--rd-vw` (the reader's, and the size of its page). They hold no colour.
+- **A document's own colours are typed where they are used**: the eleven inks a writer can choose and the six rhyme colours of a poem (`doceditor.js`, `docs.css`), and the colours a `::highlight()` paints (find, spelling, rhyme, comments), which can't read a named value in every browser.
+- *For session 6 (icons):* menu rows have no icons yet; round buttons still hold `•••`, `×`, `←` and `→` as characters; the editor's, reader's and cookbook's three icon sets are untouched; the mode offers' small drawings are still hand-made.
+- *For session 7 (planets and sky):* the planet colour picker's dots are small worlds of their own (`.planet-swatch`), not the shared swatch.
+- *For session 8 (motion):* the lengths typed by hand in the shared parts (a menu's 0.42 s, a sheet's 0.45 s, a dialog's and a toast's 0.6 s, the bead's 0.45 s), in the file box (a picture's 0.6 s fade and 0.9 s lift, the tag's 0.35 s) and in the rooms (the 0.38 s fade as a room arrives, the editor's own flight, the reader's page turns) are the app's old ones, kept so nothing moves differently yet. A room arrives as a fade between two pictures of the screen; in a browser without that (older Safari) the page behind fades by itself and its glass loses its frost for that half second.
+- Mutt keeps no icon for a link's site, so a link's caption is the site's name alone. Search's planet picker rows (`.cx-row`) are their own.
 
 ## 1. Principles
 
@@ -49,7 +48,7 @@ Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-i
 2. **Five materials, no sixth.** Sky, glass (two kinds), gloss, paper, print. Section 3 says what each is for.
 3. **Your files are the brightest thing.** Chrome is dim and thin. Pictures, pages and covers carry the colour.
 4. **A planet lends its colour to its own things only.** If it sits on box glass on that planet's page, it may take the planet's colour. If it sits on bar glass, it is Mutt's and stays Mutt blue on every page.
-5. **Two typefaces, two jobs.** Red Hat Text for words, Red Hat Mono for small facts and small labels. A serif only on paper.
+5. **Two typefaces, two jobs.** Red Hat Text for words, Red Hat Mono for small facts and small labels. A serif only on paper, and for a desk's own names (see "Documents").
 6. **Things arrive, they don't appear.** Opening and closing are the same motion in two directions, on the shared lengths and curves.
 7. **Simple until needed.** A feature has no button until what you're doing calls for it (see "Direction" in `CLAUDE.md`).
 8. **Calm at rest.** At rest a box only floats, slowly. Glow and lean belong to the one box being pointed at or typed in.
@@ -95,11 +94,17 @@ Every name in this section is written once, in `public/assets/tokens.css`, which
 | `--box-edge` `--box-edge-on` | `rgba(225,232,255,.18)` `.24` | A box's edge at rest and pointed at, before the planet's tint is mixed in. `--box-edge` is also a picture's edge. |
 | `--pic-edge-on` | `rgba(225,232,255,.4)` | A picture's edge, pointed at. |
 
-Signals mean something or they aren't used. No other colour may be typed anywhere; a picture's own colours are the exception.
+| `--mark-yellow` `--mark-green` `--mark-blue` `--mark-pink` `--mark-purple` | `#f2c43a` `#5cc86e` `#50a0ff` `#ff69a0` `#aa6ef0` | The five highlighters, shared by the reader and documents. Yellow is also a comment's colour (its count on a page, the edge of the comment in hand); words on it are `--mark-ink` `#2a2108`. A highlight on words is the marker at 36 to 40%. |
+| `--room-veil` | `rgba(5,8,24,.62)` | What a room lays over the sky (section 4, "Room"). |
+| `--page` `--page-ink` `--page-ink-3` `--page-line` `--page-raised` `--page-bar` `--page-accent` `--page-gutter` | Night: `#0f1530` `#dfe3ee` `#7f89a6` `rgba(220,228,255,.1)` `#182046` `rgba(16,22,52,.86)` `#86a9ff` `rgba(0,0,10,.32)` | The reader's page: its fill, words, faint words, lines, the fill of a panel floating over it, the bar's fill, its links and outline, the fold between two pages. One of four; Quiet, Sepia and Paper redefine the eight in `tokens.css` (`.rd[data-theme]`). The four fills and their words are also `--page-night`, `--page-quiet`, `--page-sepia` (each with `-ink`) and `--paper`. |
+| `--ribbon-red` | `#e0574a` | A bookmark's ribbon and an underlined highlight in the reader. |
+| `--light` `--light-ink` `--light-ink-3` `--light-line` `--light-line-on` `--light-tint` | `rgba(255,255,255,.94)` `#15171f` and four see-through steps of it | The add box that opens inside the void: ink on the void's white light. Nothing else uses them. |
+
+Signals mean something or they aren't used. No other colour may be typed anywhere; a picture's own colours are the exception (and a document's, listed under "left for later").
 
 ### Type
 
-Families: `--sans` Red Hat Text (400, 500, 700 only), `--mono` Red Hat Mono (400, 500), `--serif` `"Newsreader", "Iowan Old Style", Georgia, serif` (paper only, documents and the book reader alike).
+Families: `--sans` Red Hat Text (400, 500, 700 only), `--mono` Red Hat Mono (400, 500), `--serif` `"Newsreader", "Iowan Old Style", Georgia, serif` (paper only, documents and the book reader alike), `--typewriter` `"Courier Prime", "Courier New", Courier, monospace` (a script, and a document its writer set in Typewriter). The two paper faces are fetched by `paperFaces()` in `util.js` the first time paper is about to show (a desk, a document, a book); call it from anything new that shows paper.
 
 | Role | Name | Size / line | Weight | Use |
 | --- | --- | --- | --- | --- |
@@ -111,7 +116,8 @@ Families: `--sans` Red Hat Text (400, 500, 700 only), `--mono` Red Hat Mono (400
 | Label | `--type-label` | 13 / 16 | 500 | Buttons, menu rows, tabs, a section heading's name. |
 | Caption | `--type-caption` | 12 / 16 | 400 | Names under file boxes, hints, small help. |
 | Fact | `--type-fact` | 11 / 16, mono | 400 | Anything you could count or date: `12 files · 3 Nov · 4.2 MB`. |
-| Small label | `--type-small` | 10.5 / 1, mono, `0.14em`, capitals | 500, `--ink-3` | The label above a control or group (`WHO CAN SEE IT`), and `ADD` / `UNIVERSE` on the galaxy (`0.18em`, `--ink-2`). |
+| Small label | `--type-small` | 10.5 / 1, mono, `0.14em`, capitals | 500, `--ink-3` | The label above a control or group (`WHO CAN SEE IT`, `INGREDIENTS`, `TICKED`), and `ADD` / `UNIVERSE` on the galaxy (`0.18em`, `--ink-2`). |
+| Reach | `--text-reach` | 22 to 40 with the window / 1.3 | 500 | Words read from across a room: the step while cooking. Nothing else. |
 
 Set a line of text with the whole role: `font: var(--type-label)`. It carries weight, size, line height and family; letter-spacing and capitals are added beside it where the table gives them. When only the size is wanted (inside a `calc`, or beside the owner's text-size setting), each role's size is also `--text-display`, `--text-page`, `--text-title`, `--text-lead`, `--text-body`, `--text-label`, `--text-caption`, `--text-fact`, `--text-small`. The old stylesheets use the sizes; new work uses the roles.
 
@@ -120,6 +126,7 @@ The user kept the spaced capitals for small labels on purpose; don't turn them i
 ### Space, heights, corners
 
 - **Space** (`--space-2` … `--space-48`): 2, 4, 8, 12, 16, 24, 32, 48. 4 inside a control, 8 between related things, 16 inside a box, 24 between boxes, 48 between parts of a page.
+- **Reach** (`--h-reach` 52): a button pressed at arm's length, with messy hands: Back and Next while cooking. Only a room made to be used from a distance may use it.
 - **Control heights** (`--h-small` 24, `--h-regular` 32, `--h-large` 40): small on tiles and in rows; regular everywhere; large for the one main action. On touch screens regular controls become 40 high; a small control keeps its 24 look and gets an unseen 40-high area to tap (decided in session 3: a 40-high button on a file box is a third of the box). The top bar is 36 (`--bar`; 44 on a phone). Inside a well that holds choices (segmented bar, stepper) the padding is `--inset` 3 and a choice or round button is `--h-inner` 26. The ring round a text box being typed in, and round a place files can be dropped, is `--ring` 3 wide.
 - **The page** (`--max` 1360, `--gutter` 40, `--cols` 4): how wide a page may grow, the space at its sides (28 under 1100 wide, 16 under 720), and how many file boxes sit in a row (2 under 720). A planet's page adds `--space-48` at each side above 720 wide, so its one column clears the back arrow in the corner.
 - **Corners** (`--r-mark` 4, `--r-row` 8, `--r-box` 12, `--r-panel` 20, `--r-full` 999px): 4 tick boxes, tags, paper; 8 rows and text boxes; 12 file boxes and menus; 20 sheets, dialogs, a planet's header; full for buttons, switches, segmented bars, toasts. A thing inside a rounded thing has the outer corner minus the padding (menu 12, padding 4, rows 8).
@@ -142,8 +149,8 @@ Ten layers, lowest first. They were checked against the app in session 2 (the se
 | `--z-sky` | -1 | The sky, behind the page. |
 | `--z-page` | 1 | The page (`#app`). The top bar and the drop hint are inside it, so nothing in the page can rise above the layers below. |
 | `--z-bar` | 40 | The top bar, within the page. |
-| `--z-room` | 50 | A place that covers the page and its bar: the file view. |
 | `--z-sheet` | 60 | Sheets (account, search), the phone note, a box while it is being dragged. |
+| `--z-room` | 70 | A room: a place that covers the page and its bar (the file view, the editor, cooking, the reader). Above sheets, so nothing of the page shows over it; dialogs, menus and toasts open above it. |
 | `--z-dialog` | 80 | The scrim and its dialog. |
 | `--z-pop` | 85 | Menus (••• and right-click). |
 | `--z-toast` | 95 | Toasts. |
@@ -151,8 +158,8 @@ Ten layers, lowest first. They were checked against the app in session 2 (the se
 | `--z-curtain` | 900 | The light that takes the screen at sign-in. |
 
 - **Inside one part, order its own pieces with 1 to 9.** Those are not layers and stay as plain numbers (a planet's ring in front of its globe, a tab above its card). Never use a number above 9 without a name from this table.
-- **A new full-screen place is a room**; a new thing that opens over the page is a sheet, a dialog or a menu. If it fits none of the ten, stop and add a layer here first.
-- **Still on numbers of their own** (the app's order is kept exactly; tidying it would be a change, so it waits): the editor 77, cooking 78 and the reader 93 are rooms that sit above sheets, and the reader above menus too, because it draws its own (session 5 brings the three onto one room layer above sheets and checks a dialog opened from the reader still shows); the uploads tray and a zoomed recipe picture 90, the progress line 99, the drop hint 75 inside the page, the corner back arrow 38 (41 on a phone), the dusk veil between scenes 950 (session 8).
+- **A new full-screen place is a room** (section 4, "Room"); a new thing that opens over the page is a sheet, a dialog or a menu. If it fits none of the ten, stop and add a layer here first. Inside a room, its own bars and panels are ordered with 1 to 9.
+- **Still on numbers of their own** (the app's order is kept exactly; tidying it would be a change, so it waits): the progress line 99, the drop hint 75 inside the page, the corner back arrow 38 (41 on a phone), the dusk veil between scenes 950 (session 8).
 
 ### Motion
 
@@ -209,7 +216,7 @@ Use the `.fglass` class (don't write a fill). Its recipe, each value a name in `
 - Shadow: `--shadow-float` for menus, toasts, tips and tooltips, `--shadow-overlay` for sheets and dialogs.
 - The top bar is the same glass with fill `--bar-fill` `rgba(6,10,30,.58)`, no edge but a 1px `--line` along the bottom, no shadow.
 - Bar glass never takes a planet's colour. The planet's colour is set on the planet's own page content (`#view`), never on `body`, so anything that opens over the page (menus, sheets, dialogs, toasts, the top bar) is outside it.
-- In the stylesheet it is the one rule headed "bar glass" in the shared parts section; a new thing on bar glass is added to that rule's list.
+- In the stylesheet it is the one rule headed "bar glass" in the shared parts section. A new shared part on bar glass is added to that rule's list; a feature's own tool on Mutt's glass (the editor's toolbar, its bubble, its find box) takes the class `.bar-glass` and writes no glass of its own.
 - Don't put `position` in the bar glass rule: `.pop` must stay `position: fixed`, and each part places itself.
 
 ### Gloss
@@ -229,7 +236,13 @@ One light, from above, laid over whatever colour the control is. A pressed thing
 
 ### Paper
 
-One cream, flat: `--paper` `#f8f5ee`, edge `--paper-edge` `#e9e4d8`, words `--paper-ink` `#1d1b18`, `--paper-ink-2` `#5c5852`, `--paper-ink-3` `#8f897f`. Corners 4, so it never reads as glass. Shadow `--paper-shadow`: `0 0 0 1px rgba(0,0,18,.2), var(--shadow-raised)`. A book's cover carries `--spine`, a shaded band 7% wide down its left edge. Type on paper is `--serif`: titles 600, text 400, at the reader's or document's own size (17/26 on the board).
+One cream, flat, everywhere paper shows: a page on a desk, the pages of a document, a page or a cover in a file box, the reader's Paper page.
+
+- Fill `--paper` `#f8f5ee`. Never a gradient, a sheen or a rim. Corners 4 (`--r-mark`), so it never reads as glass.
+- Words `--paper-ink` `#1d1b18`, `--paper-ink-2` `#5c5852` (a subtitle, a quote), `--paper-ink-3` `#8f897f` (a page's number, a helper in the margin). A ruled line is `--paper-rule` `#ddd6c8`; a sunk patch (code, a table's heading row) `--paper-well` `#efebe2`; a link `--paper-blue` `#1f4fa8`; the caret in a document `--paper-caret` `#b3261e`. `--paper-edge` `#e9e4d8` is kept for a page's edge where one is wanted.
+- Shadow `--paper-shadow`: `0 0 0 1px rgba(0,0,18,.2), var(--shadow-raised)`. Pointed at and lifted, `--paper-shadow-on`: the same hairline with `--shadow-overlay`. Paper never glows and never takes a planet's colour.
+- A book's cover is paper's shape with the left corners 2 and `--spine`, a shaded band 7% wide down its left edge.
+- Type on paper is `--serif`: titles 600, text 400, at the reader's or document's own size. The serif is used nowhere else, with one exception the user chose in session 5: on a desk, the planet's name and note and the names under the pages are serif too (section 4, "Documents").
 
 ### Print: the void
 
@@ -292,9 +305,10 @@ Underlined words are not buttons: "Upload", "Retry", "Take off", "Delete", "Dele
 
 - **Switch**: track 40 × 24, a well. Knob 20, the pearl, 2 from the edge, travels 16 on `--ease-spring` over `--dur-move`. On: `--gloss-on` over `--accent`, the top light, and `inset 0 0 0 1px rgba(0,0,30,.25)`. Its label is 13px `--ink-2`, 8 to the right.
 - **Segmented bar**: a well with corners full and 3 padding, 32 high in all. Each choice is 26 high, 12 side padding, 13px 500, `--ink-3` (`--ink` pointed at). The chosen one: `--gloss-on` over `--accent`, white words, the top light, `--bead-drop`. It picks one value of a setting; at most four short choices.
-- **Tick box**: for "include this when I confirm" (a switch means "this happens now"). A 16 square, corners 4, a well with a 1px `--line-2` edge (`--line-3` pointed at). Ticked: `--gloss-on` over `--accent`, the top light, and a white tick drawn with a 1.8 line that springs in over `--dur-change`. Its label is 13px `--ink-2`, 8 to the right. Never the browser's own tick box.
+- **Tick box**: for "include this when I confirm" (a switch means "this happens now"). A 16 square, corners 4, a well with a 1px `--line-2` edge (`--line-3` pointed at). Ticked: `--gloss-on` over `--accent`, the top light, and a white tick drawn with a 1.8 line that springs in over `--dur-change`. Its label is 13px `--ink-2`, 8 to the right. Never the browser's own tick box. It is also the tick on a list's items and (at 24) on an ingredient while cooking, where it means "done".
 - **Chip**: one for people in Share and filters in search. A small plain button's look (24 high, 12px 500, padding 0 4 0 10) holding a name, an 8px dot of colour when it stands for a person or planet, and a 16 round × that takes it away (`--tint-2` behind when pointed at).
 - **Stepper**: a well with corners full and 3 padding, 32 high, like the segmented bar. A quiet round button 26 at each end (minus and plus, `--ink-2`; pointed at `--tint-2` and `--ink`; pressed 92% size) and the value between them, at least 36 wide, 13px 500 `--ink`, digits of equal width. A button at its limit is switched off.
+- **Swatch**: a colour to pick. A dot of the colour, 20 across (24, `.swatch-large`, in a panel of nothing but colours), with a 1px inner edge of `--edge`. Pointed at, 10% larger; pressed, 6% smaller. The chosen one wears a ring: 2 of the surface behind it (`--swatch-gap`, `--bg` unless the part sets it), then 1.5 of `--ink`. "No colour" is the paper dot with a red stroke across it (`.is-none`). On touch screens it keeps its size and gets a larger area to tap. One swatch for the highlighters, a document's inks and search's colours; the planet colour picker's small worlds are their own drawing.
 - **Tabs**: for switching what a panel shows (a segmented bar picks a setting). A row of words 32 high, 16 apart, 13px 500, `--ink-3` (`--ink` pointed at and chosen), over a 1px `--line`. A 2px line of `--blue-ink` with a soft glow of itself sits on that hairline under the chosen word and slides to the next over `--dur-move` on `--ease-glide`. Any number of tabs; the row scrolls sideways when it must.
 
 ### Menu
@@ -346,9 +360,69 @@ One frame for every kind of file, wherever files are shown (a planet's page, sea
 - **Section heading** (`.sec-head`, built by `sectionHead()` in `ui.js`): one for every mode. The name in Label `--ink-2` and one Fact beside it (`Books 2`, `Documents 4 · 518 words`), 8 apart, straight on the sky with `--sky-shadow`, in a row 32 high with 12 under it; the group's own buttons (Sort, New document) at the far end. **Only where a page has more than one group, or the group has its own buttons**: a plain planet has no heading, because its header already says how many files it holds.
 - **Small text**: one Caption and one Fact. Anything you could count or date is a Fact (mono); everything else small is a Caption.
 
-### Offer, tip, and parts not drawn yet
+### Offer
 
-An offer (a mode's "This planet looks like …") is box glass: Title, one or two sentences of Body, a main button in the planet's colour whose words match the menu's, and a quiet "Not now". It is the one box in `offers.js`; a mode only supplies words and a 40px drawing.
+An offer (a mode's "This planet looks like …") is box glass with corners 20 and padding 16: a 40px drawing in a well, then a line in Lead 700, the signs it noticed as Body `--ink-2` behind small `--ink-4` dots, one line of Caption `--ink-3` saying nothing is lost, and at the far end a quiet "Not now" then a main button in the planet's colour whose words match the menu's. It is the one box in `offers.js` (`modeOffer`); a mode only supplies words and its drawing. On a phone the buttons sit under the words.
+
+### Room
+
+A room is a place that covers the page and its bar: the file view, the document editor, cooking, the reader. Build a new full-screen place this way and no other.
+
+- Its own element has the class `.room` (fixed, edge to edge, on `--z-room`). Call `enterRoom()` (`ui.js`) when it is put on the page and `leaveRoom()` when it is taken off.
+- **The page steps away and the sky stays.** While a room is open the page, the top bar and the back arrow fade out (`html.in-room`); what shows behind the room is the real sky, dimmed by `--room-veil`. A room never paints a background of its own, and never blurs the page behind it.
+- **It arrives as one even fade**: put it on the page inside `transition(fn, { type: 'room' })` (`transitions.js`), which fades from a picture of the page to a picture of the room, so the page's glass keeps its frost while it goes. Leave the same way. The file view does this with its own type, `viewer`, so the file can glide from its box.
+- Words set straight on a room's veil carry `--sky-shadow`, like words on the sky.
+- What Mutt gives you to work with in a room is bar glass (`.bar-glass`) holding shared parts, and stays Mutt blue; the owner's things in it are box glass or paper and may take the planet's colour.
+- Dialogs, menus and toasts open above a room. A sheet can't: `/` does not open search while a room is up.
+- Two rooms bend the rule, each for a reason: the editor's veil is a layer of its own (`.de-bg`) so it can fade while the page flies home, and it steps the page away with its own older class (`html.is-writing`); the reader's page fills the screen, so it has no veil and doesn't step the page away.
+
+### The modes
+
+How each mode is built. A new mode follows the nearest of these.
+
+**List** (`listmode.js`; the section of `galaxy.css` headed LIST MODE).
+- The shared section heading: `List`, then how many and how many ticked (`8 items · 2 ticked`), with a small quiet "Clear ticked" and a small round ••• at the far end.
+- Under it a 2px line that fills in the planet's paled colour as things are ticked.
+- Then "Add an item": a sunken slot like the add box (a well, corners 12, a 1px `--line-2` edge, the ring of a text box while typing).
+- **Every item is its own strip of box glass** (`.lm-row.fglass`, corners 12, at least 48 high, 8 apart), because each is a file you can pick up and drag. Nothing boxes the strips together. Pointed at, a strip takes box glass's pointed-at look and shows its grip (six `--ink-4` dots) and a small quiet round ×. A ticked strip is fainter, its words `--ink-3` and struck through.
+- Words are the owner's own: Lead size at 400, times their text-size setting.
+- The tick is the shared tick box in the planet's colour. Bullets and numbers are the planet's paled colour and `--ink-3`.
+- "Ticked", between what's left and what's done, is a small label with a hairline after it.
+- Its options are a small panel (kind of list, where ticked items go, the longest item). A sample list inside it sits on bar glass, so its rows are washes.
+
+**Cookbook** (`cookbook.js`; the section headed THE COOKBOOK).
+- The cards are a box of index cards: box glass, corners 12, the next card overlapping the foot of the one before by 16, a 2px line of the planet's paled colour along each top edge. On a card: its name in Title, servings as a Fact, the first ingredients in Body `--ink-2`, and its photo (92 × 72, corners 8) at the far end. Pointed at, a card lifts 8.
+- Chapters are dividers: a sheet of glass tinted 14% with the planet's colour and a tab standing up from it (28 high, corners 8 at the top) carrying the chapter's name in Label and its count as a Fact. This is the cookbook's own sign; keep it.
+- A card opened sits in the page above the cards: box glass, corners 20, padding 16/24/24. Its name in Page; the stepper and segmented bar for servings and measures; "Ingredients", "Method" and "Notes" as small labels; amounts in 700 `--ink`; step numbers as Facts in 24 wells; its photo 252 wide with corners 12.
+- Editing a card keeps its layout, with shared text boxes that keep the card's own type; "+ Add an ingredient" and the row's × are small quiet buttons.
+- A photo looked at closely opens over the dialog's scrim, on the dialog's layer.
+- **Cooking is a room, sized for arm's length**: the recipe's name in Title; ingredients down the side in Lead with the tick box at 24; the step in `--text-reach` under a small label (`STEP 2 OF 5`); Back (plain) and Next (main, the planet's colour) at `--h-reach`; a dot for every step, the ones passed in the planet's paled colour. On a phone the ingredients open over the step from a button.
+
+**Documents** (`docs.js`, `doceditor.js`; `docs.css`).
+- The desk is the shared heading (`Documents`, how many, how many words; Sort as a quiet button, "New document" plain) over a grid of pages, 24 apart across and 32 down, at least 220 wide.
+- **A page on the desk is paper**: flat cream, corners 4, `--paper-shadow`, the proportions of a real sheet, its first words set small on it and fading out at the foot. No rim and no glow at rest. Pointed at, it lifts 7, tilts half a degree and takes `--paper-shadow-on`; it leans toward the pointer like a file box.
+- **A desk keeps its own voice** (chosen by the user): the planet's name (600) and note (italic), and the name under each page (Lead size, 600), are `--serif`. Under the name, one Fact line (`Letter · 142 words · just now`). Nowhere else is a serif used off paper.
+- "Continue writing" is one strip of box glass with a small page, a small label, the name and a main button.
+- **The editor is a room.** Its pages are paper with `--paper-shadow`. The document's name in the top row is a bare text box in the desk's serif (Title size, 600).
+- Everything it gives you to write with is bar glass holding shared parts, and stays Mutt blue: the toolbar (one pill, shared quiet buttons 32 high; a button that opens a menu has a caret), the Aa panel (a small panel: each row a 72-wide label and its control; a group that picks one is a segmented bar; a group of things to do is quiet round buttons; colours are swatches), the bubble beside selected words (a pill of quiet round buttons), the "/" menu (shared menu rows under small labels), find, the outline, history.
+- Comments in the margin are people's words: box glass, with a marker-yellow edge on the one in hand. Inside the panel they sit on bar glass, so they are washes.
+- The word count is a fact on a tag (`--bar-fill` under `--tag-frost`), bottom left.
+
+**Reading** (`reading.js`, `reader.js`; the sections headed READING).
+- The shelf is the shared heading (`Books`, how many) over covers standing with their feet level, straight on the sky: each at its own shape (two to three), at least 132 wide, 24 apart across and 32 down. A cover is paper's shadow with the left corners 2 and the `--spine` band; a book without one gets a flat cloth cover with its name in the serif. Pointed at, it lifts 4.
+- Under a cover: its name in Label `--ink`, then its author in Caption `--ink-3` with one Fact at the far end (`34%`, `New`, `PDF`; a finished book's in `--good`). How far through is also a 2px line under the cover in the planet's paled colour.
+- "Continue reading" is one strip of box glass: the cover, a small label, the name in Title, a 4px track, a Fact, a main button.
+- **The reader is a room whose page fills the screen**, in one of four page colours: Night, Quiet, Sepia and Paper (the one cream). Each is flat. Books are set in `--serif` (sans is the other choice) at the reader's own size.
+- **Its bar, panels and menus are cut from the page's colour** (chosen by the user), in the shared parts' shapes. Inside `.rd` the usual names (`--ink`, `--ink-3`, `--line`, `--tint`, `--well`, `--edge`, `--blue-ink`) are read from the page's eight values, so a shared button, tab, stepper, text box or swatch is right on all four with nothing written twice. This is the one place Mutt's controls take a colour that isn't Mutt's; don't copy it elsewhere.
+- A panel is the small panel's shape (corners 20) filled with `--page-raised`; its settings are a small label over each control; a row of choices is the segmented bar's shape with the chosen one a bead of the page itself; page colours are four tiles showing "Aa" on each fill; contents are rows 32 high.
+- Words you pick get a pill of `--page-raised`: the five marker swatches and an underline, then small quiet buttons (Note, Copy).
+- The foot's two lines are Facts (`10%`, `6 pages left in chapter`).
+
+**File view** (`viewer.js`; the section headed THE FILE VIEW).
+- A room. The file is as large as it can be on the left; a picture or a video keeps its shape with corners 12, a 1px `--box-edge` and `--shadow-raised`; a PDF's pages are white paper with `--paper-shadow`; a note is its words on the sky at the size of a list's items; a link is its address in a well, a picture of the page, then its title in Title; a file with nothing to show is a card of box glass.
+- **Its name, note, facts, planets and comments are a column of words straight on the sky** to the right, 360 wide, with `--sky-shadow`: no pane and no line between it and the file. The name (Title) and note (Body `--ink-2`) are bare text boxes. Then its buttons (plain "Download", quiet "Original ↗"), a hairline, its facts as a two-column list of Facts, a hairline, a small label (`ON 1 PLANET`) with a small plain "Planets →", each planet as a 32-high row, the comments, and last the small quiet "Take off …" and "Delete".
+- Top left, the arrows and `1 / 4` as a Fact; top right, a quiet "Close".
+- On a narrow screen it is one page to scroll, the file then its words, with the top row staying put on Mutt's bar glass.
 
 ### The parts as built, and the sample page
 
@@ -361,7 +435,11 @@ Every part above is one set of classes in the section of `galaxy.css` headed **S
 | Switch | `label.switch` > `input` + `.switch-track` > `.switch-knob`, then its words | markup |
 | Segmented bar | `.seg` > `.seg-ind` + `.seg-btn` | `segmented()` in `ui.js` |
 | Tabs | `.tabs` > `.tabs-ind` + `.tab` | `segmented(…, { tabs: true })` |
-| Tick box | `label.tick` > `input` + `.tick-box`, then its words; or `.tick-box` alone in a row that is `.is-on` | markup |
+| Tick box | `label.tick` > `input` + `.tick-box`, then its words; or `.tick-box` alone in a row that is `.is-on`, or in a button that carries `aria-checked` | markup |
+| Swatch | `button.swatch` with `--c` (`.swatch-large`, `.is-none`); chosen by `aria-pressed`, `aria-checked` or `.is-on` | markup |
+| Bar glass for a feature's tool | `.bar-glass` on the tool's own element | markup |
+| Room | `.room` on the place's own element | `enterRoom()`, `leaveRoom()` in `ui.js`; `transition(fn, { type: 'room' })` |
+| Offer | `.lm-offer` > its drawing, `.lm-offer-text` (`.lm-offer-title`, `.lm-offer-signs`, `.lm-offer-note`), `.lm-offer-btns` | `modeOffer()` in `offers.js` |
 | Chip | `.chip` > `.chip-dot`, words, `.chip-x` | markup |
 | Stepper | `.stepper` > `.stepper-btn` + `.stepper-value` + `.stepper-btn` | `stepper()` in `ui.js` |
 | Menu | `.pop` > `.menu` > `.menu-item` (`.is-danger`), `.menu-sep`, `.menu-head`, `.menu-hint` | `openMenu()`, `openContextMenu()` |
@@ -392,7 +470,7 @@ Session 6 replaces the four sets with one: one 16 grid, one 1.5 line, round ends
 Follow these in order. For a mode, this is step 6 of "How to add a mode" in `CLAUDE.md`.
 
 1. **Read this file and open `design/look-board.html`.** Find the nearest thing already drawn.
-2. **Say what each piece is**, then take its material from the table in section 3. The owner's things and what a feature shows them on a planet: box glass (`.fglass`). Mutt speaking (menus, sheets, dialogs, toasts): bar glass. Writing: paper. A thing you press: gloss. A thing you type in or slide: a well. If nothing fits, the piece is probably one too many.
+2. **Say what each piece is**, then take its material from the table in section 3. The owner's things and what a feature shows them on a planet: box glass (`.fglass`). Mutt speaking (menus, sheets, dialogs, toasts) and Mutt's own tools inside a room: bar glass (`.bar-glass`). Writing: paper. A thing you press: gloss. A thing you type in or slide: a well. If nothing fits, the piece is probably one too many. If the feature takes the whole screen, it is a room: follow "Room" in section 4, and read the nearest mode under "The modes".
 3. **Build it from the parts in section 4.** A feature's file contains layout and the parts' class names. It does not contain a button, a menu or a box of its own. If a part is missing, stop: draw it on `/parts`, show the user, add it to this file and to the shared parts, then use it (section 4, "To add a part").
 4. **Set the words.** Each line of text takes one role from the type table and the grey that goes with its job. Words straight on the sky get `--sky-shadow`. A serif only on paper.
 5. **Space it** with the eight spaces, the three heights and the five corners. A corner inside a corner is the outer one minus the padding.
@@ -412,6 +490,8 @@ Checklist before calling it done:
 - [ ] No colour, size, corner, shadow or speed typed by hand; no new text size or weight. `tests/run.sh drift` passes.
 - [ ] Only parts from section 4; anything new was added here first.
 - [ ] Planet colour only on box-glass things on that planet's page; nothing on bar glass took it.
+- [ ] A full-screen place is a `.room`: it paints no background of its own, the page steps away, it arrives through `transition(…, { type: 'room' })`, and a dialog opened from it shows.
+- [ ] Paper is `--paper`, flat, corners 4; a serif only on it.
 - [ ] Nothing new glows, leans or moves at rest.
 - [ ] A file is shown in the file box (`renderCell`), a group of files under a section heading (`sectionHead`); nothing on a planet's page is inset on its own.
 - [ ] Opens and closes on the shared lengths and curves; no fade or blur on a parent of glass.
@@ -461,4 +541,16 @@ Decided by the user, 2026-11-12 (design session 4; the page with the alternative
 - The add box is a sunken slot, not glass like a file.
 - A section heading shows only where a page has more than one group.
 
-Still open, with the session that settles it: the three rooms on their own layer numbers (5); the icon sheet (6); sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).
+Decided by the user, 2026-11-12 (design session 5; the page with the alternatives is `/Users/edan/Mutt-notes/design/session5/modes-2026-11-12.html`):
+
+- Behind a full-screen place: the real sky, stepped back (one flat night was offered).
+- The file view: its words on the sky with no pane (a glass pane, and the file alone with a Details button, were offered).
+- A list's items: a strip of glass each (my pick of one ruled pane was turned down; written on the sky was offered).
+- A list's tick: the shared tick box (my pick of keeping the pen stroke was turned down).
+- Recipe cards: the box of index cards with chapter tabs, tidied (cards in the file grid were offered).
+- Cooking: kept large, for arm's length, with two named sizes of its own.
+- A desk keeps its serif for the planet's name and the names under pages (my pick of serif only on the paper was turned down).
+- The shelf: covers standing (the file frame, and a glass ledge, were offered).
+- The reader: its bar and panels take the page's colour (my pick of a page lying on the sky was turned down; Mutt's dark glass over the page was offered).
+
+Still open, with the session that settles it: the icon sheet (6); sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).

@@ -9,9 +9,9 @@
 import { blockContextMenu, deleteBlock } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { openContextMenu, openDialog, openPopover, segmented, toast } from './ui.js';
+import { openContextMenu, openDialog, openPopover, sectionHead, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
-import { EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
+import { DUR, EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
 
 export const LIST_TYPES = [
   { value: 'check', label: 'Checklist' },
@@ -30,40 +30,8 @@ export const MARKERS = [
 export const LIMITS = [60, 120, 200, 400];
 export const LIST_DEFAULTS = { type: 'check', marker: 'dot', limit: 120, doneLast: true };
 
-// Ticking fills the box in with a pen: big back-and-forth strokes slanting
-// across it, working from the top-left corner down to the bottom-right and
-// running a little past the edges, a bit different for every item.
-function scribble(key = '') {
-  let s = 7;
-  for (const c of String(key)) s = (s * 31 + c.charCodeAt(0)) % 2147483647;
-  const rand = () => (s = (s * 16807) % 2147483647 || 1) / 2147483647;
-  const j = (n) => (rand() - 0.5) * n;
-  const f = (n) => n.toFixed(1);
-  const lo = 0.6;
-  const hi = 19.4;
-  // each stroke lies along x + y = c, from its lower-left end to its upper-right end
-  const ends = (c) => [[Math.max(lo, c - hi), Math.min(hi, c - lo)], [Math.min(hi, c - lo), Math.max(lo, c - hi)]];
-  let c = 2 * lo + 1.6;
-  let [x, y] = ends(c)[0];
-  let d = `M${f(x + j(0.6))} ${f(y + j(0.6))}`;
-  for (let up = true; c < 2 * hi - 1.4; up = !up) {
-    c = Math.min(c + 2.9 + j(0.6), 2 * hi - 1.4);
-    const [nx, ny] = ends(c)[up ? 1 : 0].map((v) => v + j(1.1));
-    // each stroke bows a little, the way a wrist swings
-    const bow = (up ? 1 : -1) * (0.6 + rand() * 0.8);
-    d += `Q${f((x + nx) / 2 + bow)} ${f((y + ny) / 2 + bow)} ${f(nx)} ${f(ny)}`;
-    x = nx; y = ny;
-  }
-  return `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${d}"/></svg>`;
-}
-
-// A faint wobble on the strokes so they read as graphite, not vector lines.
-function pencilGrain() {
-  if (document.getElementById('lm-pencil')) return;
-  document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lm-pencil" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="0.7" xChannelSelector="R" yChannelSelector="G"/></filter></svg>');
-}
-
-const SCRIBBLE_MS = 560;
+// How long the shared tick box takes to tick (its tick springs in over this), before a ticked item sinks.
+const TICK_MS = DUR.change;
 const moving = () => !reducedMotion();
 const NEAR = 0.8; // show what's left once an item is this far to its limit
 
@@ -144,15 +112,17 @@ export class ListView {
     this.queue = Promise.resolve();
 
     this.ol = h('ol', { class: 'lm-items' });
-    this.countEl = h('span', { class: 'lm-count' });
     this.fill = h('i');
     this.bar = h('span', { class: 'lm-bar', 'aria-hidden': 'true' }, this.fill);
-    this.clearBtn = editable ? h('button', { type: 'button', class: 'lm-clear', onclick: () => this.clearTicked() }, 'Clear ticked') : null;
+    this.clearBtn = editable ? h('button', { type: 'button', class: 'btn btn-quiet btn-small lm-clear', onclick: () => this.clearTicked() }, 'Clear ticked') : null;
     this.optsBtn = editable && onOptions
-      ? h('button', { type: 'button', class: 'lm-opts', 'aria-label': 'List options', title: 'List options', 'aria-haspopup': 'dialog' }, h('i'), h('i'), h('i'))
+      ? h('button', { type: 'button', class: 'btn btn-small btn-round lm-opts', 'aria-label': 'List options', title: 'List options', 'aria-haspopup': 'dialog' }, '•••')
       : null;
     this.optsBtn?.addEventListener('click', () => onOptions(this.optsBtn));
-    this.head = h('div', { class: 'lm-head' }, this.bar, this.countEl, h('span', { class: 'lm-gap' }), this.clearBtn, this.optsBtn);
+    // The one heading every mode has: how many, how many ticked, and the list's own buttons.
+    const head = sectionHead('List', { tools: [this.clearBtn, this.optsBtn] });
+    this.head = head.el;
+    this.countEl = head.fact;
     this.divider = h('li', { class: 'lm-divider', role: 'presentation' }, h('span', null, 'Ticked'));
 
     if (editable) {
@@ -161,7 +131,7 @@ export class ListView {
       this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }), this.input, this.left);
       this.wireAdder();
     }
-    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.adder || null, this.ol);
+    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.ol.addEventListener('contextmenu', (e) => this.context(e));
     // A right-press anywhere on an item only opens its menu: it doesn't focus
@@ -276,9 +246,9 @@ export class ListView {
     const grip = this.editable ? h('span', { class: 'lm-grip', 'aria-hidden': 'true', title: 'Drag to move' }) : null;
     grip?.addEventListener('pointerdown', (e) => this.drag(e, li));
     const remove = this.editable && block.mine !== false
-      ? h('button', { type: 'button', class: 'lm-x', 'aria-label': 'Remove', title: 'Remove', onclick: () => this.remove(block.id) })
+      ? h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove', title: 'Remove', onclick: () => this.remove(block.id) }, '×')
       : null;
-    li.append(h('div', { class: 'lm-row' }, grip, this.markEl(block), this.bodyEl(block), remove));
+    li.append(h('div', { class: 'lm-row fglass' }, grip, this.markEl(block), this.bodyEl(block), remove));
     return li;
   }
 
@@ -296,9 +266,7 @@ export class ListView {
         type: 'button', class: 'lm-mark lm-box', role: 'checkbox',
         'aria-checked': String(!!block.checked), 'aria-label': `Tick off ${textOf(block).slice(0, 60)}`,
         disabled: !this.editable,
-      });
-      pencilGrain();
-      box.innerHTML = scribble(block.id);
+      }, h('span', { class: 'tick-box' }));
       box.addEventListener('click', () => this.toggle(block.id));
       return box;
     }
@@ -334,7 +302,7 @@ export class ListView {
     const total = this.blocks.length;
     const done = this.blocks.filter((b) => b.checked).length;
     // Just how many items; the thin line on top shows how much is ticked.
-    this.countEl.textContent = total ? plural(total, 'item') : 'Nothing on it yet';
+    this.countEl.textContent = !total ? 'Nothing on it yet' : this.ticking() && done ? `${plural(total, 'item')} · ${done} ticked` : plural(total, 'item');
     if (this.ticking()) this.fill.style.transform = `scaleX(${total ? done / total : 0})`;
     this.lastDone = done;
     this.bar.hidden = !this.ticking();
@@ -656,7 +624,7 @@ export class ListView {
     this.updateCount();
     clearTimeout(this.sinkTimer);
     if (this.opts.doneLast) {
-      this.sinkTimer = setTimeout(() => this.arrange(was ? null : id), was ? 160 : (moving() ? SCRIBBLE_MS + 80 : 0));
+      this.sinkTimer = setTimeout(() => this.arrange(was ? null : id), was ? 160 : (moving() ? TICK_MS + 160 : 0));
     }
     try {
       await api.post(`/api/drawers/${this.drawer.id}/check`, { block: id, checked: !was });
@@ -669,7 +637,7 @@ export class ListView {
     }
   }
 
-  paintTick(id, { draw = false } = {}) {
+  paintTick(id) {
     const li = this.rows.get(id);
     const block = this.find(id);
     if (!li || !block) return;
@@ -677,18 +645,7 @@ export class ListView {
     const box = li.querySelector('.lm-box');
     if (!box) return;
     box.setAttribute('aria-checked', String(!!block.checked));
-    const path = box.querySelector('path');
-    if (!draw || !path || !moving()) return;
-    path.getAnimations().forEach((a) => a.cancel());
-    if (block.checked) {
-      // the pencil goes back and forth until the box is full
-      const len = Math.ceil(path.getTotalLength()) + 1;
-      path.animate(
-        [{ strokeDasharray: `${len} ${len}`, strokeDashoffset: len }, { strokeDasharray: `${len} ${len}`, strokeDashoffset: 0 }],
-        { duration: SCRIBBLE_MS, easing: 'cubic-bezier(0.3, 0, 0.5, 1)' });
-      box.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.92)', offset: 0.25 }, { transform: 'scale(1)' }],
-        { duration: 300, easing: 'ease-out' });
-    }
+    // the shared tick box draws its own tick (galaxy.css): nothing to animate here
   }
 
   // ------------------------------------------------------------ right-click
@@ -965,8 +922,7 @@ export function listSettings({ options, onChange, onTurnOff, anchor, onClose }) 
     preview.dataset.marker = opts.marker;
     preview.replaceChildren(...samples.map((s, i) => {
       const li = h('li', { class: `lm-item${opts.type === 'check' && i === 1 ? ' is-done' : ''}` });
-      const mark = opts.type === 'check' ? h('span', { class: 'lm-mark lm-box', 'aria-checked': String(i === 1) }) : h('span', { class: 'lm-mark' });
-      if (opts.type === 'check') { pencilGrain(); mark.innerHTML = scribble(s); }
+      const mark = opts.type === 'check' ? h('span', { class: 'lm-mark lm-box', 'aria-checked': String(i === 1) }, h('span', { class: 'tick-box' })) : h('span', { class: 'lm-mark' });
       const text = s.length > opts.limit ? `${s.slice(0, opts.limit - 1)}…` : s;
       li.append(h('div', { class: 'lm-row' }, mark, h('div', { class: 'lm-text is-static' }, text)));
       return li;

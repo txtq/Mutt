@@ -241,7 +241,7 @@ export function searchBody(close) {
   sortBtn.classList.add('is-sort');
 
   const swatches = () => COLORS.map((c) => h('button', {
-    type: 'button', class: 'search-swatch', title: c.label, 'aria-label': c.label,
+    type: 'button', class: 'swatch', title: c.label, 'aria-label': c.label,
     'aria-pressed': String(state.color === c.name), style: { '--c': c.hex },
     onclick: () => { state.color = state.color === c.name ? null : c.name; changed(); },
   }));

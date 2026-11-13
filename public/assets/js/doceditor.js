@@ -24,7 +24,7 @@ import { docTitle } from './docs.js';
 import { DocSpelling, autocorrectOn, setAutocorrect } from './docspell.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
-import { DUR, EASE, bus, debounce, h, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { DUR, EASE, bus, debounce, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
 
 // The editor's look comes with its code (a document can open on a planet that
 // isn't a desk). Whoever loads this file waits for the stylesheet too.
@@ -142,16 +142,6 @@ function readAids() {
 }
 function saveAids(aids) {
   try { localStorage.setItem(AIDS_KEY, JSON.stringify(aids)); } catch { /* fine */ }
-}
-
-let fontsAsked = false;
-function loadFonts() {
-  if (fontsAsked) return;
-  fontsAsked = true;
-  document.head.append(h('link', {
-    rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap',
-  }));
 }
 
 // ------------------------------------------------------------ places in the text
@@ -327,7 +317,7 @@ class DocEditor {
     this.commentsBtn = btn('comment', 'Comments', () => this.togglePanel('comments'));
     this.commentsCount = h('span', { class: 'de-count' });
     this.commentsBtn.append(this.commentsCount);
-    const back = h('button', { type: 'button', class: 'de-back', 'aria-label': this.drawer ? `Back to ${this.drawer.title}` : 'Close the document' },
+    const back = h('button', { type: 'button', class: 'btn btn-quiet de-back', 'aria-label': this.drawer ? `Back to ${this.drawer.title}` : 'Close the document' },
       icon('back'), this.drawer ? h('span', { class: 'de-back-name' }, this.drawer.title) : h('span', { class: 'de-back-name' }, 'Close'));
     back.addEventListener('click', () => this.close());
     this.sideBtn = btn('side', 'Outline', () => this.toggleSide());
@@ -339,7 +329,7 @@ class DocEditor {
       h('div', { class: 'de-heading' }, this.titleIn),
       h('div', { class: 'de-top-tools' }, this.status, this.commentsBtn, this.historyBtn, this.downloadBtn, this.moreBtn));
 
-    this.tools = h('div', { class: 'de-tools fglass', role: 'toolbar', 'aria-label': 'Formatting' });
+    this.tools = h('div', { class: 'de-tools bar-glass', role: 'toolbar', 'aria-label': 'Formatting' });
     this.flow = h('div', { class: 'de-flow', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Document' });
     this.sheets = h('div', { class: 'de-sheets', 'aria-hidden': 'true' });
     this.aidsLayer = h('div', { class: 'de-aids', 'aria-hidden': 'true' });
@@ -348,16 +338,16 @@ class DocEditor {
     this.canvas = h('div', { class: 'de-canvas' }, this.stack, this.rail);
     this.desk = h('div', { class: 'de-desk' }, this.canvas);
 
-    this.side = h('aside', { class: 'de-side fglass', 'aria-label': 'Outline' });
-    this.panel = h('aside', { class: 'de-panel fglass', hidden: true });
-    this.findBar = h('div', { class: 'de-find fglass', hidden: true, role: 'search' });
+    this.side = h('aside', { class: 'de-side bar-glass', 'aria-label': 'Outline' });
+    this.panel = h('aside', { class: 'de-panel bar-glass', hidden: true });
+    this.findBar = h('div', { class: 'de-find bar-glass', hidden: true, role: 'search' });
     this.selBar = h('div', { class: 'de-selbar', hidden: true, role: 'toolbar', 'aria-label': 'Selected words' });
-    this.slash = h('div', { class: 'de-slash fglass', hidden: true, role: 'listbox', 'aria-label': 'Insert' });
+    this.slash = h('div', { class: 'de-slash bar-glass', hidden: true, role: 'listbox', 'aria-label': 'Insert' });
     // A point for menus to hang from when they belong to a place in the text.
     this.spot = h('span', { class: 'de-spot', 'aria-hidden': 'true' });
     // The night behind the pages: the galaxy's own sky, and the planet's edge below.
     this.bg = h('div', { class: 'de-bg', 'aria-hidden': 'true' }, h('i', { class: 'de-limb' }));
-    this.banner = h('div', { class: 'de-banner fglass', hidden: true });
+    this.banner = h('div', { class: 'de-banner bar-glass', hidden: true });
     this.countBtn = h('button', { type: 'button', class: 'de-wc' });
     this.countBtn.addEventListener('click', () => this.countDetails());
     this.loading = h('div', { class: 'de-loading' }, h('span', { class: 'de-spin' }));
@@ -369,7 +359,7 @@ class DocEditor {
   }
 
   async open() {
-    loadFonts();
+    paperFaces();
     this.build();
     this.prevFocus = document.activeElement;
     document.body.append(this.el);
@@ -440,7 +430,7 @@ class DocEditor {
     const b = this.btn;
     const sep = () => h('span', { class: 'de-sep' });
     const pick = (cls, label, run, ...kids) => {
-      const el = h('button', { type: 'button', class: `de-pick ${cls}`, title: label, 'aria-label': label, 'aria-haspopup': 'menu' }, ...kids);
+      const el = h('button', { type: 'button', class: `btn btn-quiet de-pick ${cls}`, title: label, 'aria-label': label, 'aria-haspopup': 'menu' }, ...kids);
       el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
       el.addEventListener('click', () => run(el));
       return el;
@@ -480,7 +470,7 @@ class DocEditor {
   // The tools that only this kind of writing has.
   kindTools(kind) {
     const word = (label, title, run, extra = {}) => {
-      const el = h('button', { type: 'button', class: 'de-word', title, ...extra }, label);
+      const el = h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', title, ...extra }, label);
       el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
       el.addEventListener('click', () => run(el));
       return el;
@@ -494,7 +484,7 @@ class DocEditor {
         el.classList.toggle('is-on', this.aids[key]);
         el.setAttribute('aria-pressed', String(this.aids[key]));
         this.drawAids();
-      }, { class: `de-word de-aid${this.aids[key] ? ' is-on' : ''}`, 'aria-pressed': String(!!this.aids[key]) });
+      }, { class: `btn btn-quiet btn-small de-word de-aid${this.aids[key] ? ' is-on' : ''}`, 'aria-pressed': String(!!this.aids[key]) });
       this.aidBtns = [
         aid('syllables', 'Syllables', 'Count the syllables in each line'),
         aid('rhymes', 'Rhymes', 'Show which lines rhyme (A, B, A, B…)'),
@@ -503,13 +493,13 @@ class DocEditor {
       return this.aidBtns;
     }
     if (kind === 'journal') {
-      this.entryBtn = word('New entry', 'Start today’s entry', () => this.newEntry(), { class: 'de-word de-word-ic' });
+      this.entryBtn = word('New entry', 'Start today’s entry', () => this.newEntry(), { class: 'btn btn-quiet btn-small de-word de-word-ic' });
       this.entryBtn.prepend(icon('date'));
       this.paintEntryBtn();
       return [this.entryBtn];
     }
     if (kind === 'letter') {
-      const date = word('Date', 'Put today’s date at the top', () => this.dateLetter(), { class: 'de-word de-word-ic' });
+      const date = word('Date', 'Put today’s date at the top', () => this.dateLetter(), { class: 'btn btn-quiet btn-small de-word de-word-ic' });
       date.prepend(icon('date'));
       const sign = this.pick('de-pick-sign', 'Sign it off', (el) => this.signMenu(el), icon('sign'), h('span', null, 'Sign-off'));
       return [date, sign];
@@ -548,7 +538,7 @@ class DocEditor {
     if (this.contextTools.dataset.key === key) return;
     this.contextTools.dataset.key = key;
     const word = (label, run, title = label) => {
-      const el = h('button', { type: 'button', class: 'de-word', title }, label);
+      const el = h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', title }, label);
       el.addEventListener('pointerdown', (e) => e.preventDefault());
       el.addEventListener('click', run);
       return el;
@@ -1546,7 +1536,7 @@ class DocEditor {
     const row = (label, ...kids) => h('div', { class: 'de-aa-row' }, h('span', { class: 'de-aa-label' }, label), h('div', { class: 'de-aa-ctl' }, ...kids));
     const opt = (label, on, run, extra = {}) => h('button', { type: 'button', class: `de-aa-opt${on ? ' is-on' : ''}`, 'aria-pressed': String(!!on), onclick: () => { run(); draw(); }, ...extra }, label);
     const ic = (name, label, on, run) => opt(icon(name), on, run, { 'aria-label': label, title: label });
-    const swatch = (c, run, label, cls = '') => h('button', { type: 'button', class: `de-swatch ${cls}`, style: { '--c': c }, 'aria-label': label, title: label, onclick: () => { run(); draw(); } });
+    const swatch = (c, run, label, cls = '') => h('button', { type: 'button', class: `swatch de-swatch ${cls}`, style: { '--c': c }, 'aria-label': label, title: label, onclick: () => { run(); draw(); } });
     const spaceBlocks = (v) => {
       this.restore();
       this.record();
@@ -1592,7 +1582,7 @@ class DocEditor {
           opt(label, lh === v, () => (some ? spaceBlocks(v) : this.setSettings({ spacing: v })))))),
         h('div', { class: 'de-aa-foot' },
           h('span', null, some ? 'Changes the selected words' : 'Typeface, size and spacing change the whole document'),
-          h('button', { type: 'button', class: 'de-word', onclick: () => { pop.close(); this.pageSetup(); } }, 'Page setup…')));
+          h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', onclick: () => { pop.close(); this.pageSetup(); } }, 'Page setup…')));
     };
     draw();
     this.typeBtn.classList.add('is-on');
@@ -2294,11 +2284,11 @@ class DocEditor {
     this.findBar.hidden = false;
     this.findBar.classList.toggle('is-replace', replace && this.mine);
     if (!this.findIn) {
-      this.findIn = h('input', { class: 'de-find-in', type: 'search', placeholder: 'Find in document', 'aria-label': 'Find' });
-      this.replaceIn = h('input', { class: 'de-find-in de-replace-in', type: 'text', placeholder: 'Replace with', 'aria-label': 'Replace with' });
+      this.findIn = h('input', { class: 'field de-find-in', type: 'search', placeholder: 'Find in document', 'aria-label': 'Find' });
+      this.replaceIn = h('input', { class: 'field de-find-in de-replace-in', type: 'text', placeholder: 'Replace with', 'aria-label': 'Replace with' });
       this.findCount = h('span', { class: 'de-find-count' });
       const b = this.btn;
-      const word = (label, run) => h('button', { type: 'button', class: 'de-word', onclick: run }, label);
+      const word = (label, run) => h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', onclick: run }, label);
       this.findIn.addEventListener('input', () => { this.findAt = 0; this.find(); });
       this.findIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.findStep(e.shiftKey ? -1 : 1); } });
       this.replaceIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.replaceOne(); } });
@@ -2395,15 +2385,15 @@ class DocEditor {
         el.addEventListener('click', run);
         return el;
       };
-      const b = (name, label, run) => tap(h('button', { type: 'button', class: 'de-bub', 'aria-label': label, title: label }, icon(name)), run);
+      const b = (name, label, run) => tap(h('button', { type: 'button', class: 'btn btn-quiet btn-round de-bub', 'aria-label': label, title: label }, icon(name)), run);
       this.bubToggles = this.mine ? {
         bold: b('bold', 'Bold', () => { this.exec('bold'); this.selectionBar(); }),
         italic: b('italic', 'Italic', () => { this.exec('italic'); this.selectionBar(); }),
         underline: b('underline', 'Underline', () => { this.exec('underline'); this.selectionBar(); }),
       } : {};
       this.markBtn = this.mine ? b('mark', 'Highlight', () => { this.exec('hiliteColor', this.marked() ? 'transparent' : MARKS[0]); this.selectionBar(); }) : null;
-      const comment = tap(h('button', { type: 'button', class: 'de-bub de-bub-word' }, icon('comment'), 'Comment'), () => this.startComment());
-      this.selBar.append(h('div', { class: 'de-bubble' }, ...[
+      const comment = tap(h('button', { type: 'button', class: 'btn btn-quiet de-bub de-bub-word' }, icon('comment'), 'Comment'), () => this.startComment());
+      this.selBar.append(h('div', { class: 'de-bubble bar-glass' }, ...[
         ...Object.values(this.bubToggles),
         this.mine ? b('link', 'Link (⌘K)', () => this.linkBox(this.spotAt(sel.getRangeAt(0).getBoundingClientRect()))) : null,
         this.markBtn,
@@ -2513,7 +2503,7 @@ class DocEditor {
     const fresh = this.slash.hidden;
     this.slashFor = { block, items, at: fresh ? 0 : Math.min(this.slashFor?.at || 0, items.length - 1) };
     this.slash.replaceChildren(h('p', { class: 'de-slash-label' }, label), ...items.map((it, n) => {
-      const row = h('button', { type: 'button', class: 'de-slash-item', role: 'option' }, it.icon ? icon(it.icon) : null, h('span', null, it.label), it.hint ? h('span', { class: 'de-slash-hint' }, it.hint) : null);
+      const row = h('button', { type: 'button', class: 'menu-item de-slash-item', role: 'option' }, it.icon ? icon(it.icon) : null, h('span', null, it.label), it.hint ? h('span', { class: 'de-slash-hint' }, it.hint) : null);
       row.addEventListener('pointerdown', (e) => e.preventDefault());
       row.addEventListener('pointermove', () => this.slashMove(n, { scroll: false }));
       row.addEventListener('click', () => this.slashPick(n));
@@ -2820,7 +2810,7 @@ class DocEditor {
   }
 
   renderCommentsPanel(cards, tops, repliesOf) {
-    const toggle = h('button', { type: 'button', class: 'de-word', onclick: () => { this.showDone = !this.showDone; this.paintMarks(); } }, this.showDone ? 'Hide done' : 'Show done');
+    const toggle = h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', onclick: () => { this.showDone = !this.showDone; this.paintMarks(); } }, this.showDone ? 'Hide done' : 'Show done');
     const doneCards = this.showDone ? tops.filter((c) => c.resolved).map((c) => this.commentCard(c, repliesOf(c.id))) : [];
     const list = this.narrow() ? cards.map((x) => x.el) : [];
     this.panel.replaceChildren(this.panelHead('Comments', toggle),
@@ -2831,7 +2821,7 @@ class DocEditor {
 
   async renderHistory() {
     const body = h('div', { class: 'de-panel-body' }, h('p', { class: 'de-side-hint' }, 'Loading…'));
-    const nameBtn = h('button', { type: 'button', class: 'de-word', onclick: () => this.nameVersion() }, 'Name this version');
+    const nameBtn = h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', onclick: () => this.nameVersion() }, 'Name this version');
     this.panel.replaceChildren(this.panelHead('Version history', nameBtn), body);
     try {
       await this.save();

@@ -14,7 +14,7 @@ import { api } from './api.js';
 import { loadPdfjs } from './pdfjs.js';
 import { NoText, outlineOf, pdfToBook } from './pdfbook.js';
 import { segmented, stepper, toast } from './ui.js';
-import { DUR, EASE, debounce, h, plural, reducedMotion } from './util.js';
+import { DUR, EASE, debounce, h, paperFaces, plural, reducedMotion } from './util.js';
 
 const THEMES = [
   { value: 'night', label: 'Night' },
@@ -244,12 +244,13 @@ class Reader {
     this.cardEl = h('div', { class: 'rd-card', hidden: true });
     this.loading = h('div', { class: 'rd-loading' }, h('span', { class: 'rd-spin' }));
 
-    this.el = h('div', { class: 'rd is-chrome', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Reader' },
+    this.el = h('div', { class: 'rd room is-chrome', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Reader' },
       this.top, this.stage, this.foot, this.backBtn, this.panelEl, this.popEl, this.cardEl, this.loading);
     this.applySettings();
   }
 
   async open() {
+    paperFaces();
     this.build();
     this.prevFocus = document.activeElement;
     document.body.append(this.el);
@@ -490,7 +491,7 @@ class Reader {
     }
     return h('ul', { class: 'rd-list' }, marks.map((m) => {
       const where = m.loc.startsWith('p:') ? `Page ${Number(m.loc.slice(2)) + 1}` : this.chapterTitle(Number(m.loc.split(':')[0])) || '';
-      const del = h('button', { type: 'button', class: 'rd-row-del', 'aria-label': 'Remove', title: 'Remove' }, icon('trash'));
+      const del = h('button', { type: 'button', class: 'btn btn-quiet btn-round rd-row-del', 'aria-label': 'Remove', title: 'Remove' }, icon('trash'));
       const row = h('li', { class: 'rd-mark-row' },
         h('button', { type: 'button', class: 'rd-row', dataset: { color: m.color || '' }, onclick: () => { this.closePanel(); this.remember(); this.goToLoc(m.loc); } },
           kind === 'highlight' ? h('span', { class: 'rd-swatch', dataset: { color: m.color } }) : icon('mark'),
@@ -1008,7 +1009,7 @@ class Reader {
   colorRow(active, pick) {
     return h('div', { class: 'rd-colors' },
       [...COLORS, 'underline'].map((c) => h('button', {
-        type: 'button', class: `rd-color${c === active ? ' is-on' : ''}`, dataset: { color: c },
+        type: 'button', class: `swatch rd-color${c === active ? ' is-on' : ''}`, dataset: { color: c },
         'aria-label': c === 'underline' ? 'Underline' : `Highlight ${c}`, title: c === 'underline' ? 'Underline' : c[0].toUpperCase() + c.slice(1),
         onclick: () => pick(c),
       }, c === 'underline' ? icon('underline') : null)));
@@ -1023,8 +1024,8 @@ class Reader {
     this.popEl.replaceChildren(
       this.colorRow(null, (c) => this.addHighlight(span, text, c)),
       h('span', { class: 'rd-pop-sep' }),
-      h('button', { type: 'button', class: 'rd-pop-btn', onclick: () => this.addHighlight(span, text, 'yellow', { note: true }) }, icon('note'), 'Note'),
-      h('button', { type: 'button', class: 'rd-pop-btn', onclick: () => { navigator.clipboard?.writeText(text).then(() => toast('Copied')); getSelection().removeAllRanges(); this.hidePop(); } }, icon('copy'), 'Copy'));
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small rd-pop-btn', onclick: () => this.addHighlight(span, text, 'yellow', { note: true }) }, icon('note'), 'Note'),
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small rd-pop-btn', onclick: () => { navigator.clipboard?.writeText(text).then(() => toast('Copied')); getSelection().removeAllRanges(); this.hidePop(); } }, icon('copy'), 'Copy'));
     this.placePop(rect);
   }
 
@@ -1033,7 +1034,7 @@ class Reader {
     if (!mark) return;
     this.popKind = 'mark';
     const rect = el.getBoundingClientRect();
-    const note = h('textarea', { class: 'rd-note', rows: '3', placeholder: 'Add a note', maxlength: '4000' });
+    const note = h('textarea', { class: 'field rd-note', rows: '3', placeholder: 'Add a note', maxlength: '4000' });
     note.value = mark.note || '';
     const noteWrap = h('div', { class: 'rd-note-wrap', hidden: !mark.note }, note);
     const saveNote = debounce(() => this.updateMark(mark, { note: note.value }), 600);
@@ -1041,9 +1042,9 @@ class Reader {
     this.popEl.replaceChildren(h('div', { class: 'rd-pop-main' },
       this.colorRow(mark.color, (c) => this.updateMark(mark, { color: c })),
       h('span', { class: 'rd-pop-sep' }),
-      h('button', { type: 'button', class: 'rd-pop-btn', onclick: () => { noteWrap.hidden = false; note.focus(); } }, icon('note'), mark.note ? 'Note' : 'Add note'),
-      h('button', { type: 'button', class: 'rd-pop-btn', onclick: () => { navigator.clipboard?.writeText(mark.text).then(() => toast('Copied')); this.hidePop(); } }, icon('copy'), 'Copy'),
-      h('button', { type: 'button', class: 'rd-pop-btn is-danger', 'aria-label': 'Remove highlight', title: 'Remove highlight', onclick: () => { this.hidePop(); this.removeMark(mark, { undo: true }); } }, icon('trash'))),
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small rd-pop-btn', onclick: () => { noteWrap.hidden = false; note.focus(); } }, icon('note'), mark.note ? 'Note' : 'Add note'),
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small rd-pop-btn', onclick: () => { navigator.clipboard?.writeText(mark.text).then(() => toast('Copied')); this.hidePop(); } }, icon('copy'), 'Copy'),
+      h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round rd-pop-btn is-danger', 'aria-label': 'Remove highlight', title: 'Remove highlight', onclick: () => { this.hidePop(); this.removeMark(mark, { undo: true }); } }, icon('trash'))),
     noteWrap);
     this.placePop(rect);
   }

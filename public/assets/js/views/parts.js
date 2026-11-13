@@ -212,11 +212,45 @@ function fileBoxes() {
   ];
 }
 
+// What session 5 added: the pieces the modes share.
+function modeParts() {
+  const MARKS = ['yellow', 'green', 'blue', 'pink', 'purple'];
+  const dot = (c, on, extra = '') => h('button', { type: 'button', class: `swatch ${extra}`.trim(), style: { '--c': c }, 'aria-pressed': String(!!on), 'aria-label': 'A colour' });
+  const round = (words, on) => h('button', { type: 'button', class: `btn btn-quiet btn-round${on ? ' is-on' : ''}`, 'aria-label': words }, words);
+  const item = (words, { done = false, state = '' } = {}) => {
+    const li = h('li', { class: `lm-item${done ? ' is-done' : ''}` },
+      h('div', { class: 'lm-row fglass' },
+        h('span', { class: 'lm-grip', 'aria-hidden': 'true' }),
+        h('button', { type: 'button', class: 'lm-mark lm-box', role: 'checkbox', 'aria-checked': String(done), 'aria-label': `Tick off ${words}` }, h('span', { class: 'tick-box' })),
+        h('div', { class: 'lm-text is-static' }, words),
+        h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove' }, '×')));
+    return state ? held(li, state) : li;
+  };
+  return [
+    section('Swatch', 'A colour to pick: a dot of it, 20 across; the chosen one wears a ring. Used for the highlighters in the reader and in documents, a document’s inks, and colours in search. The five highlighters are one named set.',
+      row('Highlighters', ...MARKS.map((m, i) => dot(`var(--mark-${m})`, i === 1))),
+      row('No colour', dot('transparent', false, 'is-none')),
+      row('Large, in a panel of nothing but colours', ...MARKS.map((m, i) => dot(`var(--mark-${m})`, i === 3, 'swatch-large')))),
+    section('A tool on bar glass', 'What Mutt gives you to work with inside a room (the editor’s toolbar, the bubble beside selected words) is bar glass holding shared quiet buttons, and stays Mutt blue on every planet. Give it the class bar-glass.',
+      h('div', { class: 'bar-glass parts-toolbar' }, round('B'), round('I', true), round('U'), h('span', { class: 'parts-sep' }), h('button', { type: 'button', class: 'btn btn-quiet' }, 'Link'), h('button', { type: 'button', class: 'btn btn-quiet' }, 'Comment'))),
+    section('List item', 'On a list planet every item is its own strip of box glass, with the shared tick box in the planet’s colour. Pointed at, it shows its grip and its ×.',
+      h('div', { class: 'parts-own parts-list' }, h('ol', { class: 'lm lm-items', dataset: { type: 'check' } },
+        item('tide table for next year'), item('renew the ferry pass', { state: 'hover' }), item('bread', { done: true })))),
+    section('Paper, and a room’s veil', 'Paper is one flat cream with barely rounded corners and its own shadow; a book’s cover adds a shaded spine. A room (the file view, the editor, cooking) steps the page away and dims the sky with one veil.',
+      h('div', { class: 'parts-room' },
+        h('div', { class: 'parts-paper' }, h('b', null, 'Low water'), 'The harbour gives its floor away, the ropes lie slack along the quay.'),
+        h('div', { class: 'parts-cover' }, h('i', { class: 'rp-spine' }), h('b', null, 'The Quiet Coast')))),
+    section('Arm’s length', 'Cooking is read from across a kitchen: its step is set in the reach size and its Back and Next are 52 high. Nothing else uses these two sizes.',
+      row(null, h('button', { type: 'button', class: 'btn cbk-back' }, 'Back'), h('button', { type: 'button', class: 'btn btn-main cbk-next' }, 'Next')),
+      h('p', { class: 'cbk-text parts-reach' }, 'Rub the chicken with butter.')),
+  ];
+}
+
 export function partsView() {
   const el = h('div', { class: 'parts' },
     h('header', { class: 'parts-head' }, h('h1', { class: 'parts-title' }, 'Parts'),
       note('Every shared part in every state, as DESIGN.md section 4 gives them. This page is linked from nowhere. A new part is drawn here first.')),
-    buttons(), textBoxes(), ...switches(), menus(), ...overlays(), ...fileBoxes());
+    buttons(), textBoxes(), ...switches(), menus(), ...overlays(), ...fileBoxes(), ...modeParts());
   return {
     el,
     title: 'Parts',

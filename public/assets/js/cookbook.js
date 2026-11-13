@@ -15,7 +15,8 @@ import { convertible, convertText, fraction, showLine, splitLine, systemOf } fro
 import { api } from './api.js';
 import { nav } from './nav.js';
 import { glyph } from './planets.js';
-import { openContextMenu, openDialog, openMenu, sectionHead, segmented, toast } from './ui.js';
+import { canTransition, transition } from './transitions.js';
+import { enterRoom, leaveRoom, openContextMenu, openDialog, openMenu, sectionHead, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
 import { DUR, EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
 
@@ -606,7 +607,7 @@ class CardView {
       less,
       h('span', { class: 'stepper-value cbc-serves', 'aria-live': 'polite' }, r.serves ? servesText(r, now) : `×${fraction(now)}`),
       more,
-      now !== base ? h('button', { type: 'button', class: 'cbc-reset', onclick: () => this.setScale(base) }, 'as written') : null);
+      now !== base ? h('button', { type: 'button', class: 'btn btn-quiet btn-small cbc-reset', onclick: () => this.setScale(base) }, 'as written') : null);
 
     const canConvert = convertible(r.ingredients, r.steps);
     const written = systemOf(r.ingredients);
@@ -803,7 +804,7 @@ class CardView {
       return row;
     };
     for (const line of r.ingredients.length ? r.ingredients : ['']) ings.append(ingRow(line));
-    const addIng = h('button', { type: 'button', class: 'cbe-add', onclick: () => { const row = ingRow(); ings.append(row); row.querySelector('.cbe-amt').focus(); } }, '+ Add an ingredient');
+    const addIng = h('button', { type: 'button', class: 'btn btn-quiet btn-small cbe-add', onclick: () => { const row = ingRow(); ings.append(row); row.querySelector('.cbe-amt').focus(); } }, '+ Add an ingredient');
 
     // The method: one box per step, numbered.
     const steps = h('ol', { class: 'cbe-rows cbe-steps' });
@@ -828,7 +829,7 @@ class CardView {
       return row;
     };
     for (const s of r.steps.length ? r.steps : ['']) steps.append(stepRow(s));
-    const addStep = h('button', { type: 'button', class: 'cbe-add', onclick: () => { const row = stepRow(); steps.append(row); row.querySelector('textarea').focus(); } }, '+ Add a step');
+    const addStep = h('button', { type: 'button', class: 'btn btn-quiet btn-small cbe-add', onclick: () => { const row = stepRow(); steps.append(row); row.querySelector('textarea').focus(); } }, '+ Add a step');
 
     const notes = h('textarea', { class: 'field cbe-field cbe-notes', rows: 2, placeholder: 'Notes: what you’d change, what it goes with…', 'aria-label': 'Notes', maxlength: 4000 });
     notes.value = r.notes;
@@ -940,7 +941,7 @@ class CardView {
 }
 
 function rowX(run) {
-  return h('button', { type: 'button', class: 'cbe-x', 'aria-label': 'Remove', tabindex: '-1', onclick: run }, '×');
+  return h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round cbe-x', 'aria-label': 'Remove', tabindex: '-1', onclick: run }, '×');
 }
 
 function drop(row, list) {
@@ -1002,13 +1003,14 @@ function cook(r, serves, units) {
     unlayer();
     release();
     document.removeEventListener('visibilitychange', wake);
-    const done = () => el.remove();
-    if (moving()) el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: 'forwards' }).finished.then(done, done);
+    // The room goes and the page comes back as one even fade (a picture of each, so the page's glass keeps its frost).
+    const done = () => { el.remove(); leaveRoom(); };
+    if (canTransition()) transition(done, { type: 'room', before: () => [], after: () => [] });
     else done();
   };
-  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbk-close', 'aria-label': 'Stop cooking', onclick: close }, closeIcon());
+  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbk-close', 'aria-label': 'Stop cooking', onclick: close }, closeIcon());
   const main = h('main', { class: 'cbk-main' }, stepNo, sectionEl, text);
-  const el = h('div', { class: 'cbk', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Cooking ${r.title}` },
+  const el = h('div', { class: 'cbk room', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Cooking ${r.title}` },
     h('header', { class: 'cbk-head' }, h('h2', { class: 'cbk-title' }, r.title), ingToggle, closeBtn),
     side, main,
     h('footer', { class: 'cbk-foot' }, back, dots, next),
@@ -1070,11 +1072,10 @@ function cook(r, serves, units) {
       if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
     },
   }, { lock: true });
-  document.body.append(el);
-  show();
-  wake();
-  if (moving()) el.animate([{ opacity: 0, transform: 'scale(1.02)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE });
-  requestAnimationFrame(() => next.focus({ preventScroll: true }));
+  // The page goes and the room comes as one even fade (a picture of each, so the page's glass keeps its frost).
+  const mount = () => { document.body.append(el); enterRoom(); show(); wake(); next.focus({ preventScroll: true }); };
+  if (canTransition()) transition(mount, { type: 'room', before: () => [], after: () => [] });
+  else mount();
 }
 
 // ------------------------------------------------------------ little drawings

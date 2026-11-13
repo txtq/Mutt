@@ -23,6 +23,16 @@
 .parts-heads { display: flex; flex-direction: column; width: 100%; }
 .parts-box, .parts-ctx { display: grid; place-items: center; width: 150px; height: 96px; border-radius: var(--r-box); font: var(--type-caption); color: var(--ink-2); }
 
+.parts-toolbar { display: inline-flex; max-width: 100%; overflow-x: auto; align-items: center; gap: var(--space-2); padding: var(--inset); border-radius: var(--r-full); }
+.parts-sep { width: 1px; height: 20px; margin: 0 var(--space-4); background: var(--line-2); }
+.parts-list { width: min(520px, 100%); }
+.parts-list .lm { margin: 0; }
+.parts-room { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-24); max-width: 100%; padding: var(--space-24); border-radius: var(--r-box); background: var(--room-veil); }
+.parts-paper { width: min(180px, 100%); aspect-ratio: 1 / 1.4142; padding: var(--space-16); border-radius: var(--r-mark); background: var(--paper); box-shadow: var(--paper-shadow); color: var(--paper-ink); font: 400 var(--text-label)/1.5 var(--serif); }
+.parts-paper b { display: block; margin-bottom: var(--space-8); font-size: var(--text-lead); font-weight: 600; }
+.parts-cover { position: relative; width: 120px; aspect-ratio: 2 / 3; padding: var(--space-16) var(--space-12) var(--space-12) var(--space-16); overflow: hidden; border-radius: 2px var(--r-mark) var(--r-mark) 2px; background: var(--ink-4); box-shadow: var(--paper-shadow); color: var(--paper); font: 600 var(--text-label)/1.2 var(--serif); }
+.parts-reach { margin: 0; text-shadow: var(--sky-shadow); }
+
 /* things that float in the app stand still here */
 .parts .pop { position: relative; z-index: auto; animation: none; }
 .parts .pop-share { width: min(340px, 100%); }

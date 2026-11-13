@@ -383,7 +383,7 @@ export const planetView = {
       custom.addEventListener('change', () => pick(custom.value));
       const body = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Planet colour' },
         PALETTE.map((c) => h('button', {
-          type: 'button', class: 'swatch', role: 'radio', style: { '--c': c }, 'aria-label': c,
+          type: 'button', class: 'planet-swatch', role: 'radio', style: { '--c': c }, 'aria-label': c,
           'aria-checked': String(c === current), onclick: () => pick(c),
         })),
         custom);

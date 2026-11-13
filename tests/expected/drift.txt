@@ -1,29 +1,29 @@
 # Values typed by hand instead of taken from a name in tokens.css (tests/drift.py).
 # The first ten lines are the limits; the rest only help find where a new one crept in.
-styles | colours: 432
-styles | text sizes: 163
-styles | corners: 137
-styles | shadows: 93
-styles | speeds: 243
+styles | colours: 189
+styles | text sizes: 74
+styles | corners: 90
+styles | shadows: 64
+styles | speeds: 191
 scripts | colours: 215
 scripts | text sizes: 0
 scripts | corners: 0
 scripts | shadows: 0
-scripts | speeds: 107
-docs.css | colours: 116
-docs.css | corners: 27
-docs.css | shadows: 9
-docs.css | speeds: 32
-docs.css | text sizes: 51
-galaxy.css | colours: 316
-galaxy.css | corners: 110
-galaxy.css | shadows: 84
-galaxy.css | speeds: 211
-galaxy.css | text sizes: 112
+scripts | speeds: 103
+docs.css | colours: 34
+docs.css | corners: 7
+docs.css | shadows: 2
+docs.css | speeds: 14
+docs.css | text sizes: 21
+galaxy.css | colours: 155
+galaxy.css | corners: 82
+galaxy.css | shadows: 62
+galaxy.css | speeds: 177
+galaxy.css | text sizes: 53
 js/account.js | speeds: 1
 js/blackhole.js | colours: 3
 js/comments.js | speeds: 2
-js/cookbook.js | speeds: 13
+js/cookbook.js | speeds: 11
 js/doceditor.js | colours: 19
 js/doceditor.js | speeds: 27
 js/docexport.js | colours: 17
@@ -33,7 +33,7 @@ js/drag.js | speeds: 1
 js/fx.js | colours: 2
 js/fx.js | speeds: 1
 js/grid.js | speeds: 7
-js/listmode.js | speeds: 11
+js/listmode.js | speeds: 9
 js/look.js | colours: 13
 js/moments.js | speeds: 1
 js/offers.js | speeds: 2
@@ -56,3 +56,4 @@ js/views/login.js | speeds: 9
 js/views/planet.js | colours: 1
 js/views/planet.js | speeds: 2
 js/voidart.js | colours: 17
+parts.css | corners: 1

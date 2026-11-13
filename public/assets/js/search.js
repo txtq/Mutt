@@ -7,9 +7,10 @@ import { api } from './api.js';
 import { renderCell } from './cells.js';
 import { COLORS, TRAITS, arrange, ensureLooks } from './look.js';
 import { nav } from './nav.js';
-import { glyph, planetEl } from './planets.js';
+import { planetEl } from './planets.js';
 import { openPopover } from './ui.js';
 import { debounce, h, nameColor, nameMatch } from './util.js';
+import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- what can be picked
 
@@ -165,7 +166,7 @@ export function searchBody(close) {
 
   const input = h('input', { class: 'search-input', type: 'search', placeholder: 'Search your planets, stars and people', 'aria-label': 'Search', autocomplete: 'off', enterkeyhint: 'search' });
   const chipsEl = h('span', { class: 'search-chips' });
-  const box = h('label', { class: 'field field-search sheet-search' }, glyph('search', 14), chipsEl, input);
+  const box = h('label', { class: 'field field-search sheet-search' }, icon('search'), chipsEl, input);
   const options = h('div', { class: 'search-options' });
   const results = h('div', { class: 'search-results' });
 
@@ -208,7 +209,7 @@ export function searchBody(close) {
       h('button', {
         type: 'button', class: 'chip-x', 'aria-label': `Remove ${c.label}`,
         onclick: (e) => { e.preventDefault(); c.drop(); changed(); input.focus(); },
-      }, '×'))));
+      }, icon('close', 12)))));
     paintOptions();
   }
 
@@ -262,7 +263,7 @@ export function searchBody(close) {
     const btn = h('button', { type: 'button', class: 'btn btn-quiet btn-small search-opt', 'aria-haspopup': 'true', onclick: () => open(btn) });
     btn.paint = () => {
       const text = label();
-      btn.replaceChildren(h('span', null, text), h('span', { class: 'search-opt-caret' }, glyph('caret', 10)));
+      btn.replaceChildren(h('span', null, text), h('span', { class: 'search-opt-caret' }, icon('caret', 12)));
       btn.classList.toggle('is-set', !/^(Kind|Added|Vibe|Colour|Sort: New)$/.test(text));
     };
     return btn;
@@ -280,7 +281,7 @@ export function searchBody(close) {
         changed();
         if (many) fill(); else pop.close();
       },
-    }, h('span', null, item.label), h('span', { class: 'search-tick' }, item.on ? '✓' : '')))));
+    }, h('span', null, item.label), h('span', { class: 'search-tick' }, item.on ? icon('check', 12) : null)))));
     fill();
     pop = openPopover(anchor, list, { className: 'search-pop' });
   }
@@ -373,7 +374,7 @@ export function searchBody(close) {
     type: 'button', class: 'search-person', title: `Visit @${name}’s galaxy`,
     onclick: () => visit(name),
   }, h('i', { class: 'search-person-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'search-person-name' }, `@${name}`),
-  h('span', { class: 'search-person-go' }, 'Galaxy', glyph('chevron', 10)));
+  h('span', { class: 'search-person-go' }, 'Galaxy', icon('chevron-right', 12)));
 
   let planets = [];
   let lastMore = false;

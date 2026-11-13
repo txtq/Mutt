@@ -6,10 +6,10 @@
 // void fall in the same way.
 
 import { center, shockwave } from './fx.js';
-import { glyph } from './planets.js';
 import { theSky } from './sky.js';
 import { h, isEditable, touchScreen } from './util.js';
 import { voidArt } from './voidart.js';
+import { icon } from './icons.js';
 
 const MODES = [
   { value: 'star', label: 'Star', hint: 'A loose star by the void' },
@@ -25,7 +25,7 @@ function hole({ tag = 'div', label = '', attrs = {} } = {}) {
   const art = voidArt();
   const mark = h('span', { class: 'void-hole' });
   const text = h('span', { class: 'void-label' }, label);
-  const core = h(tag, { class: 'void-core', ...attrs }, mark, h('span', { class: 'void-mid' }, tag === 'button' ? h('span', { class: 'void-plus' }, glyph('plus', 16)) : null, text));
+  const core = h(tag, { class: 'void-core', ...attrs }, mark, h('span', { class: 'void-mid' }, tag === 'button' ? h('span', { class: 'void-plus' }, icon('plus')) : null, text));
   const el = h('div', { class: 'void' }, core);
   return {
     art, core, text, el,
@@ -72,11 +72,11 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   const whereDot = h('span', { class: 'vf-where-dot' });
   const whereText = h('span', { class: 'vf-where-text' });
   const where = h('button', { type: 'button', class: 'vf-where', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', title: 'Where it goes' },
-    h('span', { class: 'vf-where-to' }, 'To'), whereDot, whereText, glyph('caret', 12));
+    h('span', { class: 'vf-where-to' }, 'To'), whereDot, whereText, icon('caret'));
   const list = h('div', { class: 'vf-list', role: 'listbox', 'aria-label': 'Where it goes', hidden: true });
   const nameInput = h('input', { class: 'vf-name', type: 'text', maxlength: '80', placeholder: 'Name it', 'aria-label': 'New planet name', spellcheck: 'false' });
   const go = h('button', { type: 'button', class: 'vf-go' }, 'Add', h('kbd', { class: 'vf-keys' }, /Mac|iP/.test(navigator.platform) ? '⌘↵' : 'Ctrl ↵'));
-  const upload = h('button', { type: 'button', class: 'vf-upload', title: 'Upload files', 'aria-label': 'Upload files', onclick: () => picker.click() }, glyph('upload', 15));
+  const upload = h('button', { type: 'button', class: 'vf-upload', title: 'Upload files', 'aria-label': 'Upload files', onclick: () => picker.click() }, icon('upload'));
   const field = h('div', { class: 'vf-field' }, input, h('div', { class: 'vf-drop' }, h('span', null, 'Drop to add')));
   const sheet = h('div', { class: 'vf', role: 'dialog', 'aria-label': 'Add something' },
     field,

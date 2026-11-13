@@ -6,6 +6,7 @@ import { drawerHref, nav } from './nav.js';
 import { planetDot } from './planets.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './ui.js';
 import { bus, h, plural, wait } from './util.js';
+import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- connect picker
 
@@ -45,7 +46,7 @@ export async function openConnect(anchor, block, { align = 'start' } = {}) {
     const exact = drawers.some((d) => d.title.toLowerCase() === q);
     if (q && !exact) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
-        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
+        h('span', { class: 'cx-plus' }, icon('plus')), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
     }
     if (!rows.length) rows.push(h('div', { class: 'cx-note' }, 'Type a name to make one'));
     list.replaceChildren(...rows);
@@ -164,7 +165,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     const rows = [];
     if (!q) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(null) },
-        h('span', { class: 'cx-plus' }, '✦'), h('span', { class: 'cx-title' }, 'Keep as a star')));
+        h('span', { class: 'cx-plus' }, icon('star')), h('span', { class: 'cx-title' }, 'Keep as a star')));
     }
     for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(d) },
@@ -172,7 +173,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     }
     if (q && !drawers.some((d) => d.title.toLowerCase() === q)) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
-        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
+        h('span', { class: 'cx-plus' }, icon('plus')), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
     }
     list.replaceChildren(...rows);
     pop.place();
@@ -255,7 +256,7 @@ export async function openMove(anchor, block, from, { created = false, onClose }
     const rows = [];
     if (!q) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => move(null) },
-        h('span', { class: 'cx-plus' }, '✦'), h('span', { class: 'cx-title' }, 'Keep as a star')));
+        h('span', { class: 'cx-plus' }, icon('star')), h('span', { class: 'cx-title' }, 'Keep as a star')));
     }
     for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => move(d) },
@@ -263,7 +264,7 @@ export async function openMove(anchor, block, from, { created = false, onClose }
     }
     if (q && !drawers.some((d) => d.title.toLowerCase() === q)) {
       rows.push(h('button', { type: 'button', class: 'cx-row cx-new', onclick: () => create(input.value.trim()) },
-        h('span', { class: 'cx-plus' }, '+'), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
+        h('span', { class: 'cx-plus' }, icon('plus')), h('span', { class: 'cx-title' }, `New: ${input.value.trim()}`)));
     }
     list.replaceChildren(...rows);
     pop.place();
@@ -340,20 +341,20 @@ export async function toggleShare(block) {
 // `remove` and `del` replace the usual take-off and delete (list mode has its own).
 function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [] } = {}) {
   return [
-    open && { label: 'Open', run: open },
+    open && { icon: 'open', label: 'Open', run: open },
     ...extra,
     worlds.length ? '-' : null,
     worlds.length ? { heading: worlds.some((w) => w.planet) ? 'Move back to' : 'Move to a moon' } : null,
     ...worlds.map((w) => ({ label: w.title, icon: w.dot, run: w.move })),
     worlds.length ? '-' : null,
-    { label: worlds.length ? 'Other planets…' : 'Move to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
-    block.sharedAt && { label: 'Stop sharing', run: () => toggleShare(block) },
-    block.file && { label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
-    block.kind === 'link' && { label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
-    block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
+    { icon: 'move', label: worlds.length ? 'Other planets…' : 'Move to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
+    block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
+    block.file && { icon: 'download', label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
+    block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
+    block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
     '-',
-    drawer && { label: `Take off ${drawer.title}`, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },
-    { label: 'Delete', danger: true, run: del || (() => deleteBlock(block)) },
+    drawer && { icon: 'takeoff', label: `Take off ${drawer.title}`, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },
+    { icon: 'trash', label: 'Delete', danger: true, run: del || (() => deleteBlock(block)) },
   ];
 }
 

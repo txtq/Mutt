@@ -25,6 +25,7 @@ import { DocSpelling, autocorrectOn, setAutocorrect } from './docspell.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
 import { DUR, EASE, bus, debounce, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { icon as draw } from './icons.js';
 
 // The editor's look comes with its code (a document can open on a planet that
 // isn't a desk). Whoever loads this file waits for the stylesheet too.
@@ -38,62 +39,8 @@ const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';   // the page's flight to and fr
 const QUIET_AFTER = 7000;      // steady typing for this long, and the bars fade back
 const QUIET_KEYS = 30;
 
-const svg = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
-const ICONS = {
-  back: svg('<path d="M15 5l-7 7 7 7"/>'),
-  side: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/>'),
-  undo: svg('<path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12"/>'),
-  redo: svg('<path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H12"/>'),
-  bold: svg('<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"/>'),
-  italic: svg('<path d="M14 5h-4M14 19h-4M13.5 5l-3 14"/>'),
-  underline: svg('<path d="M7 4v7a5 5 0 0 0 10 0V4M5.5 20h13"/>'),
-  strike: svg('<path d="M4.5 12h15M16 7.5a4 3 0 0 0-4-2.5c-2.6 0-4 1.3-4 3 0 3.5 8 2.5 8 7 0 1.8-1.7 3-4 3a4.4 3.4 0 0 1-4.3-2.5"/>'),
-  color: svg('<path d="M6.5 16L12 4l5.5 12M8.4 12h7.2"/><path class="de-ic-bar" d="M4 20h16"/>'),
-  link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
-  comment: svg('<path d="M5 5h14v10H10l-4 4v-4H5z"/>'),
-  left: svg('<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>'),
-  center: svg('<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>'),
-  right: svg('<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>'),
-  justify: svg('<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>'),
-  bullets: svg('<circle cx="5" cy="7" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="5" cy="17" r="1.2"/><path d="M9 7h11M9 12h11M9 17h11"/>'),
-  numbers: svg('<path d="M4 5.5h1.5V10M4 10h3M4 14.5c0-1 2.8-1 2.8.3 0 1.1-2.8 2-2.8 3.2h3"/><path d="M10 7h10M10 12h10M10 17h10"/>'),
-  check: svg('<rect x="3.5" y="4.5" width="5" height="5" rx="1"/><path d="M4.5 16.5l1.5 1.5 2.5-3"/><path d="M11 7h9M11 16.5h9"/>'),
-  outdent: svg('<path d="M4 5h16M11 10h9M11 14h9M4 19h16M7.5 9.5L4.5 12l3 2.5"/>'),
-  indent: svg('<path d="M4 5h16M11 10h9M11 14h9M4 19h16M4.5 9.5l3 2.5-3 2.5"/>'),
-  spacing: svg('<path d="M11 6h9M11 12h9M11 18h9M5.5 5v14M3.5 7l2-2 2 2M3.5 17l2 2 2-2"/>'),
-  plus: svg('<path d="M12 5v14M5 12h14"/>'),
-  clear: svg('<path d="M6 5h11M11.5 5L8 19M4 15l7 6M11 15l-7 6"/>'),
-  history: svg('<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9"/><path d="M4.5 4.5V9H9M12 8v4.5l3 2"/>'),
-  download: svg('<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>'),
-  more: svg('<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>'),
-  close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
-  up: svg('<path d="M6 15l6-6 6 6"/>'),
-  down: svg('<path d="M6 9l6 6 6-6"/>'),
-  done: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
-  type: svg('<path d="M3.5 18L8.5 6l5 12M5.2 14h6.6"/><path d="M20.5 18v-6.2a2.6 2.6 0 0 0-5.2 0M20.5 15.2a2.6 2.8 0 1 1-5.2 0 2.6 2.8 0 0 1 5.2 0z"/>'),
-  mark: svg('<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12 7l5 5"/><path class="de-ic-mark" d="M3.5 21.5h17"/>'),
-  heading: svg('<path d="M5 5v14M14 5v14M5 12h9M18 10.5l2-1.5v10"/>'),
-  quote: svg('<path d="M5 7v10M9.5 8.5h10M9.5 12h10M9.5 15.5h6"/>'),
-  table: svg('<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 10h17M3.5 14.5h17M9.5 5v14M15 5v14"/>'),
-  picture: svg('<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17l5-4.5 3.5 3 3-2.5 4 3.5"/>'),
-  line: svg('<path d="M4 12h16"/>'),
-  pagebreak: svg('<path d="M6 3.5v5h12v-5M6 20.5v-5h12v5M3.5 12h2M8 12h2.5M13.5 12H16M18.5 12h2"/>'),
-  code: svg('<path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/>'),
-  page: svg('<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/>'),
-  dash: svg('<path d="M3.5 7h3.5M3.5 12h3.5M3.5 17h3.5"/><path d="M10 7h10M10 12h10M10 17h10"/>'),
-  alpha: svg('<g fill="currentColor" stroke="none" font-family="Red Hat Text, sans-serif" font-size="6.6" font-weight="600"><text x="2.6" y="9">a</text><text x="2.6" y="14.3">b</text><text x="2.8" y="19.6">c</text></g><path d="M10 7h10M10 12h10M10 17h10"/>'),
-  roman: svg('<g fill="currentColor" stroke="none" font-family="Georgia, serif" font-size="6.6"><text x="3.6" y="9">i</text><text x="2.6" y="14.3">ii</text><text x="1.6" y="19.6">iii</text></g><path d="M10 7h10M10 12h10M10 17h10"/>'),
-  auto: svg('<circle cx="12" cy="12" r="8.2"/><path d="M8.9 15.6L12 8.2l3.1 7.4M10 13.2h4"/>'),
-  prose: svg('<path d="M5 6.5h14M5 10.5h14M5 14.5h14M5 18.5h8.5"/>'),
-  poem: svg('<path d="M19.5 4C12 5 8 10 7 17.5L5.5 20"/><path d="M8.6 13.6c4.4.2 7.6-2.6 9.2-7.4"/><path d="M11 10.6c2.2-.1 3.9-1 5.3-2.6"/>'),
-  script: svg('<rect x="3.5" y="9.5" width="17" height="10" rx="1.6"/><path d="M3.8 9.4l1.4-4.6 14.6 3.6"/><path d="M8.8 5.7l1.6 3.6M14 7l1.6 2.4"/>'),
-  journal: svg('<path d="M6.5 3.5h11a1 1 0 0 1 1 1v16h-11a2 2 0 0 1-2-2v-14a1 1 0 0 1 1-1z"/><path d="M5.5 17.5a2 2 0 0 1 2-1.5h11"/><path d="M13.5 3.5v6l-1.6-1.2-1.6 1.2v-6"/>'),
-  letter: svg('<rect x="3.5" y="6" width="17" height="12.5" rx="1.6"/><path d="M4.2 7l7.8 6.2L19.8 7"/>'),
-  scene: svg('<path d="M4 7h16M4 12h11M4 17h13"/>'),
-  sign: svg('<path d="M4 17c2.5-6 4.5-9 6-9 2.2 0-1.8 8.5.6 8.5 1.6 0 2.6-4 4-4 1 0 .8 2.5 2 2.5 1 0 1.6-1 2.4-2"/><path d="M4 20.5h16"/>'),
-  date: svg('<rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>'),
-};
-const icon = (name) => h('span', { class: 'de-ic', html: ICONS[name] });
+// An icon from the one set (icons.js), in the span the editor's layout expects. 20 in the toolbar and the bubble.
+const icon = (name, size = 16) => h('span', { class: 'de-ic' }, draw(name, size));
 
 // A menu whose rows can carry an icon, a line saying what they are, and a tick.
 function richMenu(anchor, rows, { label = '', className = '', align = 'start' } = {}) {
@@ -106,7 +53,8 @@ function richMenu(anchor, rows, { label = '', className = '', align = 'start' } 
       onclick: () => { pop.close(); r.run(); },
     }, r.icon ? icon(r.icon) : null,
     h('span', { class: 'de-rich-text' }, h('span', { class: 'de-rich-name' }, r.label), r.note ? h('span', { class: 'de-rich-note' }, r.note) : null),
-    r.hint ? h('span', { class: 'menu-hint' }, r.hint) : null))));
+    r.hint ? h('span', { class: 'menu-hint' }, r.hint) : null,
+    r.on ? draw('check') : null))));
   list.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
   pop = openPopover(anchor, list, { className: `de-menu ${className}`, align });
   return pop;
@@ -121,11 +69,11 @@ const SIZES = [9, 10, 11, 12, 14, 16, 18, 20, 24];
 // The kinds of list, all behind one button.
 const LISTS = {
   ul: { label: 'Bulleted', icon: 'bullets', tag: 'UL', cls: '', hint: '⇧⌘8' },
-  dash: { label: 'Dashes', icon: 'dash', tag: 'UL', cls: 'dash' },
+  dash: { label: 'Dashes', icon: 'dashes', tag: 'UL', cls: 'dash' },
   ol: { label: 'Numbered', icon: 'numbers', tag: 'OL', cls: '', hint: '⇧⌘7' },
-  alpha: { label: 'Lettered', icon: 'alpha', tag: 'OL', cls: 'alpha' },
+  alpha: { label: 'Lettered', icon: 'letters', tag: 'OL', cls: 'alpha' },
   roman: { label: 'Roman numerals', icon: 'roman', tag: 'OL', cls: 'roman' },
-  check: { label: 'Checklist', icon: 'check', tag: 'UL', cls: 'check', hint: '⇧⌘9' },
+  check: { label: 'Checklist', icon: 'checklist', tag: 'UL', cls: 'check', hint: '⇧⌘9' },
 };
 const LIST_CLASSES = ['check', 'dash', 'alpha', 'roman'];
 const listKindOf = (list) => {
@@ -304,7 +252,7 @@ class DocEditor {
 
   build() {
     const btn = (name, label, run, extra = {}) => {
-      const b = h('button', { type: 'button', class: 'btn btn-quiet btn-round de-btn', 'aria-label': label, title: label, ...extra }, icon(name));
+      const b = h('button', { type: 'button', class: 'btn btn-quiet btn-round de-btn', 'aria-label': label, title: label, ...extra }, icon(name, 20));
       b.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
       b.addEventListener('click', (e) => run(e, b));
       return b;
@@ -318,7 +266,7 @@ class DocEditor {
     this.commentsCount = h('span', { class: 'de-count' });
     this.commentsBtn.append(this.commentsCount);
     const back = h('button', { type: 'button', class: 'btn btn-quiet de-back', 'aria-label': this.drawer ? `Back to ${this.drawer.title}` : 'Close the document' },
-      icon('back'), this.drawer ? h('span', { class: 'de-back-name' }, this.drawer.title) : h('span', { class: 'de-back-name' }, 'Close'));
+      icon('back', 20), this.drawer ? h('span', { class: 'de-back-name' }, this.drawer.title) : h('span', { class: 'de-back-name' }, 'Close'));
     back.addEventListener('click', () => this.close());
     this.sideBtn = btn('side', 'Outline', () => this.toggleSide());
     this.historyBtn = btn('history', 'Version history', () => this.togglePanel('history'));
@@ -430,7 +378,7 @@ class DocEditor {
     const b = this.btn;
     const sep = () => h('span', { class: 'de-sep' });
     const pick = (cls, label, run, ...kids) => {
-      const el = h('button', { type: 'button', class: `btn btn-quiet de-pick ${cls}`, title: label, 'aria-label': label, 'aria-haspopup': 'menu' }, ...kids);
+      const el = h('button', { type: 'button', class: `btn btn-quiet de-pick ${cls}`, title: label, 'aria-label': label, 'aria-haspopup': 'menu' }, h('span', { class: 'de-pick-in' }, ...kids), draw('caret'));
       el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') e.preventDefault(); });
       el.addEventListener('click', () => run(el));
       return el;
@@ -449,7 +397,7 @@ class DocEditor {
     };
     // Lists are one button; a poem and a script don't need them.
     this.listBtn = kind === 'poem' || kind === 'script' ? null
-      : pick('de-pick-list', 'Lists', (el) => this.listMenu(el), h('span', { class: 'de-list-ic' }, icon('bullets')));
+      : pick('de-pick-list', 'Lists', (el) => this.listMenu(el), h('span', { class: 'de-list-ic' }, icon('bullets', 20)));
     this.typeBtn = b('type', 'Type, colour and spacing', (e, el) => this.typePanel(el), { 'aria-haspopup': 'dialog' });
     this.contextTools = h('span', { class: 'de-context' });
     const own = this.kindTools(kind);
@@ -510,7 +458,7 @@ class DocEditor {
   paintKindBtn() {
     if (!this.kindBtn) return;
     const auto = this.settings?.layout === 'auto';
-    this.kindBtn.replaceChildren(...[icon(this.kind || 'prose'), h('span', { class: 'de-kind-name' }, KINDS[this.kind]?.label || 'Prose'),
+    this.kindBtn.firstChild.replaceChildren(...[icon(this.kind || 'prose', 20), h('span', { class: 'de-kind-name' }, KINDS[this.kind]?.label || 'Prose'),
       auto ? h('span', { class: 'de-kind-auto' }, 'Auto') : null].filter(Boolean));
     this.kindBtn.title = auto ? `Writing as ${KINDS[this.kind]?.label || 'Prose'} (read from what you write)` : `Writing as ${KINDS[this.kind]?.label || 'Prose'}`;
   }
@@ -519,12 +467,12 @@ class DocEditor {
   syncTools() {
     if (!this.mine || !this.toggles) return;
     const block = this.blockAtCaret();
-    if (this.styleBtn) this.styleBtn.textContent = STYLE_LABELS[this.styleOf(block)] || 'Normal text';
-    if (this.elementBtn) this.elementBtn.textContent = ELEMENTS[elementOf(block)].label;
+    if (this.styleBtn) this.styleBtn.firstChild.textContent = STYLE_LABELS[this.styleOf(block)] || 'Normal text';
+    if (this.elementBtn) this.elementBtn.firstChild.textContent = ELEMENTS[elementOf(block)].label;
     if (this.listBtn) {
       const kind = listKindOf(block?.closest?.('ul, ol'));
       const want = LISTS[kind || 'ul'].icon;
-      if (this.listBtn.dataset.icon !== want) { this.listBtn.dataset.icon = want; this.listBtn.firstChild.replaceChildren(icon(want)); }
+      if (this.listBtn.dataset.icon !== want) { this.listBtn.dataset.icon = want; this.listBtn.querySelector('.de-list-ic').replaceChildren(icon(want, 20)); }
       this.listBtn.classList.toggle('is-on', !!kind);
     }
     this.hintAt(block);
@@ -538,17 +486,17 @@ class DocEditor {
     if (this.contextTools.dataset.key === key) return;
     this.contextTools.dataset.key = key;
     const word = (label, run, title = label) => {
-      const el = h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', title }, label);
+      const el = h('button', { type: 'button', class: 'btn btn-quiet btn-small de-word', title: Array.isArray(title) ? title[1] : title }, label);
       el.addEventListener('pointerdown', (e) => e.preventDefault());
       el.addEventListener('click', run);
       return el;
     };
     if (key === 'table') {
       this.contextTools.replaceChildren(h('span', { class: 'de-sep' }), h('span', { class: 'de-ctx-label' }, 'Table'),
-        word('+ Row', () => this.tableEdit('row-below'), 'Add a row below'),
-        word('+ Column', () => this.tableEdit('col-right'), 'Add a column to the right'),
-        word('− Row', () => this.tableEdit('row-del'), 'Delete this row'),
-        word('− Column', () => this.tableEdit('col-del'), 'Delete this column'),
+        word([draw('plus'), 'Row'], () => this.tableEdit('row-below'), 'Add a row below'),
+        word([draw('plus'), 'Column'], () => this.tableEdit('col-right'), 'Add a column to the right'),
+        word([draw('minus'), 'Row'], () => this.tableEdit('row-del'), 'Delete this row'),
+        word([draw('minus'), 'Column'], () => this.tableEdit('col-del'), 'Delete this column'),
         word('Delete table', () => this.tableEdit('table-del')));
     } else if (key === 'img') {
       this.contextTools.replaceChildren(h('span', { class: 'de-sep' }), h('span', { class: 'de-ctx-label' }, 'Picture'),
@@ -1511,7 +1459,7 @@ class DocEditor {
   styleMenu(anchor) {
     const current = this.styleOf(this.blockAtCaret());
     openMenu(anchor, Object.entries(STYLE_LABELS).map(([k, label]) => ({
-      label, hint: k === current ? '✓' : null, run: () => this.setStyle(k === 'quote' ? 'quote' : k),
+      label, on: k === current, run: () => this.setStyle(k === 'quote' ? 'quote' : k),
     })), { className: 'de-menu de-style-menu' });
   }
 
@@ -1562,7 +1510,7 @@ class DocEditor {
         row('Typeface', h('div', { class: 'de-aa-seg' }, Object.entries(FONT_LABELS).map(([k, label]) =>
           opt(label, now.font === k, () => (some ? this.exec('fontName', k) : this.setSettings({ font: k })), { dataset: { font: k } })))),
         row('Size', h('div', { class: 'stepper' },
-          h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Smaller', title: 'Smaller', onclick: () => { step(-1); draw(); } }, icon('line')),
+          h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Smaller', title: 'Smaller', onclick: () => { step(-1); draw(); } }, icon('minus')),
           h('span', { class: 'stepper-value' }, String(now.size)),
           h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Bigger', title: 'Bigger', onclick: () => { step(1); draw(); } }, icon('plus'))),
           h('div', { class: 'de-aa-seg de-aa-end' },
@@ -1575,7 +1523,7 @@ class DocEditor {
         h('div', { class: 'de-aa-rule' }),
         row('Align', h('div', { class: 'de-aa-seg' },
           ...[['left', 'Left', 'Align left'], ['center', 'Center', 'Centre'], ['right', 'Right', 'Align right'], ['justify', 'Full', 'Justify']]
-            .map(([k, cmd, label]) => ic(k, label, now.align === k, () => this.align(cmd)))),
+            .map(([k, cmd, label]) => ic(k === 'justify' ? k : `align-${k}`, label, now.align === k, () => this.align(cmd)))),
           h('div', { class: 'de-aa-seg de-aa-end' },
             ic('outdent', 'Less indent', false, () => this.indent(-1)), ic('indent', 'More indent', false, () => this.indent(1)))),
         row('Spacing', h('div', { class: 'de-aa-seg' }, [[1, 'Single'], [1.15, '1.15'], [1.5, '1.5'], [2, 'Double']].map(([v, label]) =>
@@ -1592,11 +1540,11 @@ class DocEditor {
   insertMenu(anchor) {
     this.remember();
     openMenu(anchor, [
-      { label: 'Picture…', run: () => this.pickPicture() },
-      { label: 'Table', run: () => this.insertTable() },
-      { label: 'Link…', hint: '⌘K', run: () => this.linkBox(anchor) },
-      { label: 'Line', run: () => this.insertHtml('<hr><p><br></p>') },
-      { label: 'Page break', hint: '⌘↵', run: () => this.pageBreak() },
+      { icon: 'picture', label: 'Picture…', run: () => this.pickPicture() },
+      { icon: 'table', label: 'Table', run: () => this.insertTable() },
+      { icon: 'link', label: 'Link…', hint: '⌘K', run: () => this.linkBox(anchor) },
+      { icon: 'rule', label: 'Line', run: () => this.insertHtml('<hr><p><br></p>') },
+      { icon: 'pagebreak', label: 'Page break', hint: '⌘↵', run: () => this.pageBreak() },
     ], { className: 'de-menu' });
   }
 
@@ -2269,12 +2217,12 @@ class DocEditor {
 
   moreMenu(anchor) {
     openMenu(anchor, [
-      this.mine ? { label: 'Page setup…', run: () => this.pageSetup() } : null,
-      { label: 'Find', hint: '⌘F', run: () => this.openFind(false) },
-      this.mine ? { label: 'Find and replace', hint: '⌘⇧H', run: () => this.openFind(true) } : null,
-      { label: 'Word count', run: () => this.countDetails() },
-      this.mine ? { label: 'Version history', run: () => this.togglePanel('history') } : null,
-      this.mine && !this.spelling?.dead ? { label: autocorrectOn() ? 'Turn off autocorrect' : 'Turn on autocorrect', run: () => { setAutocorrect(!autocorrectOn()); toast(autocorrectOn() ? 'Autocorrect is on' : 'Autocorrect is off'); } } : null,
+      this.mine ? { icon: 'setup', label: 'Page setup…', run: () => this.pageSetup() } : null,
+      { icon: 'search', label: 'Find', hint: '⌘F', run: () => this.openFind(false) },
+      this.mine ? { icon: 'replace', label: 'Find and replace', hint: '⌘⇧H', run: () => this.openFind(true) } : null,
+      { icon: 'count', label: 'Word count', run: () => this.countDetails() },
+      this.mine ? { icon: 'history', label: 'Version history', run: () => this.togglePanel('history') } : null,
+      this.mine && !this.spelling?.dead ? { icon: 'spell', label: autocorrectOn() ? 'Turn off autocorrect' : 'Turn on autocorrect', run: () => { setAutocorrect(!autocorrectOn()); toast(autocorrectOn() ? 'Autocorrect is on' : 'Autocorrect is off'); } } : null,
     ].filter(Boolean), { align: 'end', className: 'de-menu' });
   }
 
@@ -2293,7 +2241,7 @@ class DocEditor {
       this.findIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.findStep(e.shiftKey ? -1 : 1); } });
       this.replaceIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.replaceOne(); } });
       this.findBar.append(
-        h('div', { class: 'de-find-row' }, this.findIn, this.findCount, b('up', 'Previous', () => this.findStep(-1)), b('down', 'Next', () => this.findStep(1)), b('close', 'Close', () => this.closeFind())),
+        h('div', { class: 'de-find-row' }, this.findIn, this.findCount, b('chevron-up', 'Previous', () => this.findStep(-1)), b('chevron-down', 'Next', () => this.findStep(1)), b('close', 'Close', () => this.closeFind())),
         h('div', { class: 'de-find-row de-replace-row' }, this.replaceIn, word('Replace', () => this.replaceOne()), word('Replace all', () => this.replaceAll())));
     }
     const sel = getSelection().toString();
@@ -2385,14 +2333,14 @@ class DocEditor {
         el.addEventListener('click', run);
         return el;
       };
-      const b = (name, label, run) => tap(h('button', { type: 'button', class: 'btn btn-quiet btn-round de-bub', 'aria-label': label, title: label }, icon(name)), run);
+      const b = (name, label, run) => tap(h('button', { type: 'button', class: 'btn btn-quiet btn-round de-bub', 'aria-label': label, title: label }, icon(name, 20)), run);
       this.bubToggles = this.mine ? {
         bold: b('bold', 'Bold', () => { this.exec('bold'); this.selectionBar(); }),
         italic: b('italic', 'Italic', () => { this.exec('italic'); this.selectionBar(); }),
         underline: b('underline', 'Underline', () => { this.exec('underline'); this.selectionBar(); }),
       } : {};
-      this.markBtn = this.mine ? b('mark', 'Highlight', () => { this.exec('hiliteColor', this.marked() ? 'transparent' : MARKS[0]); this.selectionBar(); }) : null;
-      const comment = tap(h('button', { type: 'button', class: 'btn btn-quiet de-bub de-bub-word' }, icon('comment'), 'Comment'), () => this.startComment());
+      this.markBtn = this.mine ? b('highlight', 'Highlight', () => { this.exec('hiliteColor', this.marked() ? 'transparent' : MARKS[0]); this.selectionBar(); }) : null;
+      const comment = tap(h('button', { type: 'button', class: 'btn btn-quiet de-bub de-bub-word' }, icon('comment', 20), 'Comment'), () => this.startComment());
       this.selBar.append(h('div', { class: 'de-bubble bar-glass' }, ...[
         ...Object.values(this.bubToggles),
         this.mine ? b('link', 'Link (⌘K)', () => this.linkBox(this.spotAt(sel.getRangeAt(0).getBoundingClientRect()))) : null,
@@ -2448,11 +2396,11 @@ class DocEditor {
     }
     const lists = this.kind === 'poem' ? [] : [
       { icon: 'bullets', label: 'Bulleted list', words: 'bullets points ul', run: () => this.list('ul') },
-      { icon: 'dash', label: 'Dashed list', words: 'dashes', run: () => this.list('dash') },
+      { icon: 'dashes', label: 'Dashed list', words: 'dashes', run: () => this.list('dash') },
       { icon: 'numbers', label: 'Numbered list', words: 'ol steps 123', run: () => this.list('ol') },
-      { icon: 'alpha', label: 'Lettered list', words: 'abc letters', run: () => this.list('alpha') },
+      { icon: 'letters', label: 'Lettered list', words: 'abc letters', run: () => this.list('alpha') },
       { icon: 'roman', label: 'Roman numerals', words: 'roman iii', run: () => this.list('roman') },
-      { icon: 'check', label: 'Checklist', words: 'todo tasks tick boxes', run: () => this.list('check') },
+      { icon: 'checklist', label: 'Checklist', words: 'todo tasks tick boxes', run: () => this.list('check') },
     ];
     const own = this.kind === 'journal' ? [{ icon: 'date', label: 'New entry', hint: 'Today', words: 'date day today entry', run: () => this.newEntry() }]
       : this.kind === 'letter' ? [{ icon: 'date', label: 'Date', words: 'today', run: () => this.dateLetter() }] : [];
@@ -2465,7 +2413,7 @@ class DocEditor {
       { icon: 'quote', label: 'Quote', words: 'blockquote', run: () => this.setStyle('quote') },
       { icon: 'table', label: 'Table', words: 'grid rows columns', run: () => this.insertTable() },
       { icon: 'picture', label: 'Picture', words: 'image photo', run: () => this.pickPicture() },
-      { icon: 'line', label: 'Line', words: 'rule divider hr separator', run: () => this.insertHtml('<hr><p><br></p>') },
+      { icon: 'rule', label: 'Line', words: 'rule divider hr separator', run: () => this.insertHtml('<hr><p><br></p>') },
       { icon: 'pagebreak', label: 'Page break', words: 'new page', run: () => this.pageBreak() },
       { icon: 'code', label: 'Code', words: 'pre monospace', run: () => this.setStyle('pre') },
     ];
@@ -2715,7 +2663,7 @@ class DocEditor {
         e.stopPropagation();
         if (!(await confirmDialog({ title: 'Delete this comment?', confirm: 'Delete', danger: true }))) return;
         try { ({ comments: this.comments } = await api.del(`/api/docs/${this.id}/comments/${x.id}`)); this.paintMarks(); } catch (err) { toast(err.message); }
-      } }, '×') : null].filter(Boolean));
+      } }, draw('close', 12)) : null].filter(Boolean));
     const reply = h('textarea', { class: 'de-card-in de-reply', rows: '1', placeholder: 'Reply', maxlength: '4000' });
     reply.addEventListener('keydown', async (e) => {
       if (e.key !== 'Enter' || e.shiftKey) return;
@@ -2731,7 +2679,7 @@ class DocEditor {
         canResolve ? h('button', { type: 'button', class: 'de-done', title: c.resolved ? 'Open it again' : 'Mark as done', 'aria-label': c.resolved ? 'Open again' : 'Done', onclick: async (e) => {
           e.stopPropagation();
           try { ({ comments: this.comments } = await api.patch(`/api/docs/${this.id}/comments/${c.id}`, { resolved: !c.resolved })); this.paintMarks(); } catch (err) { toast(err.message); }
-        } }, icon('done')) : null)].filter(Boolean));
+        } }, icon('check')) : null)].filter(Boolean));
     card.addEventListener('click', () => {
       this.active = c.id;
       this.paintMarks();

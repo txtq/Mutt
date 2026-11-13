@@ -1,8 +1,8 @@
 // The shared parts that are built in script (DESIGN.md section 4): the segmented
 // bar and tabs, the stepper, toasts, dialogs, small panels, menus, and the PIN field.
 
-import { glyph } from './planets.js';
 import { DUR, h, reducedMotion } from './util.js';
+import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- segmented bar, tabs
 
@@ -87,8 +87,8 @@ export function segmented(options, active, onPick, { className = '', label, tabs
 // value into the words shown; a button at its limit is switched off.
 export function stepper({ value, min = -Infinity, max = Infinity, step = 1, format = String, label, less = 'Less', more = 'More', onChange } = {}) {
   const out = h('span', { class: 'stepper-value', 'aria-live': 'polite' });
-  const down = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': less, onclick: () => move(-step) }, glyph('minus', 14));
-  const up = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': more, onclick: () => move(step) }, glyph('plus', 14));
+  const down = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': less, onclick: () => move(-step) }, icon('minus'));
+  const up = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': more, onclick: () => move(step) }, icon('plus'));
   const el = h('span', { class: 'stepper', role: 'group', 'aria-label': label }, down, out, up);
   let current = value;
   const set = (v) => {
@@ -303,22 +303,28 @@ export function closeAllPopovers() {
   for (const p of [...openPopovers]) p.close();
 }
 
+// What leads and ends a menu row. `icon` is a name from icons.js (or an element, for a planet's dot).
+// A menu gives every row an icon or none (DESIGN.md "Menu"). `on` (true or false) makes the row one
+// of a set of choices: the chosen one ends in a tick.
+const rowIcon = (item) => (item.icon ? h('span', { class: 'menu-icon' }, typeof item.icon === 'string' ? icon(item.icon) : item.icon) : null);
+const rowEnd = (item) => [item.hint ? h('span', { class: 'menu-hint' }, item.hint) : null, item.on ? h('span', { class: 'menu-tick' }, icon('check')) : null];
+const rowRole = (item) => ('on' in item ? { role: 'menuitemradio', 'aria-checked': String(!!item.on) } : { role: 'menuitem' });
+
 export function openMenu(anchor, items, opts = {}) {
   let pop;
   const list = h('div', { class: 'menu', role: 'menu' },
     items.filter(Boolean).map((item) => item === '-'
       ? h('div', { class: 'menu-sep' })
       : h('button', {
-        type: 'button', role: 'menuitem', class: `menu-item${item.danger ? ' is-danger' : ''}`,
+        type: 'button', ...rowRole(item), class: `menu-item${item.danger ? ' is-danger' : ''}`,
         onclick: () => { pop.close(); item.run(); },
-      }, h('span', null, item.label), item.hint ? h('span', { class: 'menu-hint' }, item.hint) : null)));
+      }, rowIcon(item), h('span', null, item.label), rowEnd(item))));
   pop = openPopover(anchor, list, opts);
   return pop;
 }
 
 // A right-click menu, opened where the pointer is. Items are like openMenu's,
-// plus `{ heading }` for a small section label and `icon` (an element) before
-// the label. It grows out of the pointer, its rows arrive one after another,
+// plus `{ heading }` for a small section label. It grows out of the pointer, its rows arrive one after another,
 // and one highlight glides between them. With `keepFocus` the text being
 // written in keeps the focus (and its caret) while the menu is open, and the
 // keys still work the menu.
@@ -338,13 +344,11 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
       if (item === '-') return h('div', { class: 'menu-sep' });
       if (item.heading) return h('div', { class: 'menu-head ctx-heading', style: { '--i': n++ } }, item.heading);
       const btn = h('button', {
-        type: 'button', role: 'menuitem', tabindex: '-1',
+        type: 'button', ...rowRole(item), tabindex: '-1',
         class: `menu-item ctx-item${item.danger ? ' is-danger' : ''}`,
         style: { '--i': n++ },
         onclick: () => pick(btn, item),
-      }, item.icon ? h('span', { class: 'ctx-icon' }, item.icon) : null,
-      h('span', { class: 'ctx-label' }, item.label),
-      item.hint ? h('span', { class: 'menu-hint' }, item.hint) : null);
+      }, rowIcon(item), h('span', { class: 'ctx-label' }, item.label), rowEnd(item));
       rows.push(btn);
       return btn;
     }));

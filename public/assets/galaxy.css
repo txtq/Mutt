@@ -38,7 +38,7 @@ h1, h2, h3, p { margin: 0; }
 /* ------------------------------------------------------------------ buttons */
 
 
-.pill-dots { padding: 0 10px; letter-spacing: 0.06em; font-size: 9px; }
+.pill-dots { padding: 0 var(--space-8); }
 
 
 /* ------------------------------------------------------------------ top bar */
@@ -548,6 +548,20 @@ body {
 }
 .sheet, .dialog { box-shadow: var(--glass-light), var(--shadow-overlay); }
 
+/* ---- icon: icon(name, size) in js/icons.js is the only way to draw one. 16, or .ic-small 12, or .ic-large 20;
+   the line stays --icon-line on screen at each. It takes the colour of the words beside it. A part marked .b is
+   the body of the thing drawn: it fills with a little light when its button is pointed at or held on. */
+.ic { flex: none; width: var(--icon); height: var(--icon); fill: none; stroke: currentColor; stroke-width: var(--icon-line); stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.ic-small { width: var(--icon-small); height: var(--icon-small); stroke-width: calc(var(--icon-line) * 16 / 12); }
+.ic-large { width: var(--icon-large); height: var(--icon-large); stroke-width: calc(var(--icon-line) * 16 / 20); }
+.ic .d, .ic .t { fill: currentColor; stroke: none; }
+.ic .s { fill: currentColor; }
+.ic .a { stroke: var(--mark-yellow); stroke-width: 2; }
+.ic .b { fill: currentColor; fill-opacity: 0; transition: fill-opacity var(--dur-change); }
+:is(button, a, [role="menuitem"], [role="option"]):is(.is-on, [aria-pressed="true"], [aria-expanded="true"]) .ic .b { fill-opacity: var(--icon-lit); }
+@media (hover: hover) { :is(button, a, [role="menuitem"], [role="option"]):hover .ic .b { fill-opacity: var(--icon-lit); } }
+.ic-inline { display: inline-block; vertical-align: -2px; margin-left: var(--space-4); }
+
 /* ---- button: .btn (plain) + .btn-main | .btn-quiet | .btn-danger, + .btn-small | .btn-large, + .btn-round */
 .btn {
   position: relative;
@@ -686,7 +700,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .tick input { position: absolute; opacity: 0; pointer-events: none; }
 .tick-box { position: relative; flex: none; width: var(--space-16); height: var(--space-16); border: 1px solid var(--line-2); border-radius: var(--r-mark); background: var(--well); box-shadow: var(--well-shadow); transition: border-color var(--dur-change), background-color var(--dur-change); }
 .tick:hover .tick-box { border-color: var(--line-3); }
-.tick-box::after { content: ""; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--white); border-width: 0 1.8px 1.8px 0; transform: rotate(45deg) scale(0); transition: transform var(--dur-change) var(--ease-spring); }
+.tick-box::after { content: ""; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--white); border-width: 0 var(--tick-line) var(--tick-line) 0; transform: rotate(45deg) scale(0); transition: transform var(--dur-change) var(--ease-spring); }
 .tick input:checked + .tick-box, .is-on > .tick-box, [aria-checked="true"] > .tick-box { border-color: color-mix(in srgb, var(--accent), var(--shade) 38%); background: var(--gloss-on), var(--accent); background-origin: border-box; box-shadow: var(--gloss-light); }
 .tick input:checked + .tick-box::after, .is-on > .tick-box::after, [aria-checked="true"] > .tick-box::after { transform: rotate(45deg) scale(1); }
 .tick input:focus-visible + .tick-box { outline: 2px solid var(--blue-ink); outline-offset: 2px; }
@@ -739,6 +753,13 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .menu-item.is-danger { color: var(--danger); }
 .menu-item.is-danger:hover, .menu-item.is-danger:focus-visible { background: color-mix(in srgb, var(--danger) 15%, transparent); }
 .menu-hint { color: var(--ink-3); font: var(--type-fact); }
+.menu-icon { display: flex; align-items: center; justify-content: center; flex: none; width: var(--icon); color: var(--ink-3); }
+.menu-item.is-danger .menu-icon { color: inherit; }
+.menu-icon .planet-dot { margin: 0; transition: transform 0.3s var(--ease-settle); }
+.menu-item:has(> .menu-icon) { justify-content: flex-start; }
+.menu-item:has(> .menu-icon) .menu-hint { margin-left: auto; }
+.menu-tick { display: flex; flex: none; margin-left: auto; color: var(--ink-2); }
+.menu-hint + .menu-tick { margin-left: var(--space-8); }
 .menu-sep { height: 1px; margin: var(--space-4) var(--space-8); background: var(--line); }
 .menu-head { padding: var(--space-8) var(--space-8) var(--space-4); font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 @media (pointer: coarse) { .menu-item { min-height: var(--h-large); padding: 0 var(--space-12); font-size: var(--text-body); } }
@@ -898,12 +919,11 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 
 /* ---- offer: a mode says once, in place, what it noticed (offers.js modeOffer). Box glass; a mode supplies
    only its words and a 40px drawing. */
+.offer-drawing { display: grid; place-items: center; align-self: start; width: var(--h-large); height: var(--h-large); border-radius: 11px; background: var(--well); box-shadow: var(--well-shadow); color: var(--ink-2); }
+.offer-drawing svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: calc(var(--icon-line) * 24 / 28); stroke-linecap: round; stroke-linejoin: round; }
+.offer-drawing .g { fill: currentColor; fill-opacity: 0.16; }
+.offer-drawing .p { stroke: var(--pt, var(--blue-ink)); }
 .lm-offer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-16); margin: 0 0 var(--space-24); padding: var(--space-16) var(--space-24) var(--space-16) var(--space-16); border-radius: var(--r-panel); }
-.lm-offer-icon { display: grid; align-content: center; gap: 5px; width: 40px; height: 40px; padding: 0 9px; border-radius: 11px; background: var(--well); box-shadow: var(--well-shadow); align-self: start; }
-.lm-offer-icon i { position: relative; display: block; height: 2px; margin-left: 7px; border-radius: 2px; background: var(--ink-3); }
-.lm-offer-icon i::before { content: ''; position: absolute; left: -7px; top: -1.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--pt, var(--blue-ink)); }
-.lm-offer-icon i:nth-child(2) { margin-right: var(--space-4); }
-.lm-offer-icon i:nth-child(3) { margin-right: var(--space-8); }
 .lm-offer-title { font: var(--type-lead); font-weight: 700; color: var(--ink); }
 .lm-offer-signs { margin: var(--space-4) 0 0; padding: 0; list-style: none; }
 .lm-offer-signs li { position: relative; padding-left: var(--space-12); font: var(--type-body); color: var(--ink-2); }
@@ -937,8 +957,6 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
 
 /* ================================================================== end of shared parts */
 
-.glyph { flex-shrink: 0; }
-
 /* ------------------------------------------------------------------ status bar */
 
 .sb {
@@ -963,8 +981,8 @@ body.no-chrome .sb { display: none; }
 .sb-left { display: flex; align-items: center; min-width: 0; }
 .sb .logo { font-size: 18px; color: var(--ink); }
 .sb .sb-who { gap: 6px; padding: 0 10px 0 12px; color: var(--ink); }
-.sb-who .glyph { opacity: 0.6; transition: transform 0.35s var(--ease-settle); }
-.sb-who[aria-expanded="true"] .glyph { transform: rotate(180deg); }
+.sb-who .ic { opacity: 0.6; transition: transform 0.35s var(--ease-settle); }
+.sb-who[aria-expanded="true"] .ic { transform: rotate(180deg); }
 .sb-at { color: var(--blue-ink); }
 .sb-who.is-other .sb-at { color: #e9b860; }
 .sb-right { display: flex; align-items: center; justify-content: flex-end; gap: 14px; color: var(--ink); opacity: 0.88; }
@@ -1140,7 +1158,7 @@ body.no-chrome #view { padding: 0; }
   transition: color var(--dur-change), background var(--dur-change);
 }
 .gx-cue:hover { color: var(--ink); background: var(--tint-2); }
-.gx-cue .glyph { animation: nudge 2.4s ease-in-out infinite; }
+.gx-cue .ic { animation: nudge 2.4s ease-in-out infinite; }
 /* out of the way while you add something (it would sit on the add box above a phone's keyboard) */
 .gx.is-adding ~ .gx-cue { visibility: hidden; }
 @keyframes nudge { 50% { transform: translateY(3px); } }
@@ -1934,7 +1952,7 @@ body.no-chrome #view { padding: 0; }
 .uv-world.is-locked .uv-world-map { filter: saturate(0.3) brightness(0.65); }
 .uv-world.is-private .uv-world-map { filter: blur(3.5px) saturate(0.3) brightness(0.7); }
 .uv-world-lock { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(235, 238, 250, 0.75); }
-.uv-world-lock .glyph { width: var(--g); height: var(--g); }
+.uv-world-lock .ic { width: var(--g); height: var(--g); }
 /* their void: a still picture of the one on the page */
 .uvg-core {
   position: absolute;
@@ -2187,6 +2205,8 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 .login-name::placeholder { color: var(--ink-4); }
 .login-name:focus-visible { outline: none; } /* the underline already shows focus */
 .login-go {
+  display: grid;
+  place-items: center;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -2332,7 +2352,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sky-ribbon, .sky-nebula, .gx-cue .glyph { animation: none !important; }
+  .sky-ribbon, .sky-nebula, .gx-cue .ic { animation: none !important; }
 }
 
 /* ================================================================== LIST MODE
@@ -2361,7 +2381,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-item.is-lifted > .lm-row { border-color: var(--fg-edge-hi); background: var(--fg-fill-hover); box-shadow: var(--box-light-on), var(--shadow-raised); }
 
 /* the grip: six faint dots, there when you reach for the row */
-.lm-grip { flex: none; width: 10px; height: var(--h-small); margin-right: calc(var(--space-4) * -1); padding: var(--space-4) 0; border-radius: var(--r-mark); background: radial-gradient(circle, var(--ink-4) 1.1px, transparent 1.5px) center / 5px 5px; background-clip: content-box; opacity: 0; cursor: grab; touch-action: none; transition: opacity var(--dur-change); }
+.lm-grip { flex: none; width: 10px; height: var(--h-small); margin-right: calc(var(--space-4) * -1); padding: var(--space-4) 0; border-radius: var(--r-mark); display: grid; place-items: center; color: var(--ink-4); opacity: 0; cursor: grab; touch-action: none; transition: opacity var(--dur-change); }
 .lm-item:hover .lm-grip, .lm-item:focus-within .lm-grip { opacity: 1; }
 .lm-item.is-lifted .lm-grip { opacity: 1; cursor: grabbing; }
 
@@ -2419,9 +2439,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-new { display: flex; align-items: flex-start; gap: var(--space-12); margin: 0 0 var(--space-8); padding: 11px var(--space-12) 11px 18px; border: 1px solid var(--line-2); border-radius: var(--r-box); background: var(--well); box-shadow: var(--well-shadow); transition: border-color var(--dur-change), box-shadow var(--dur-change); }
 .lm-new:hover { border-color: var(--line-3); }
 .lm-new:focus-within { border-color: color-mix(in srgb, var(--focus) 80%, transparent); box-shadow: var(--well-shadow), 0 0 0 var(--ring) color-mix(in srgb, var(--accent) 32%, transparent); }
-.lm-plus { position: relative; flex: none; width: var(--h-small); height: var(--h-small); color: var(--ink-3); transition: color var(--dur-change); }
-.lm-plus::before, .lm-plus::after { content: ''; position: absolute; top: 50%; left: 50%; width: 12px; height: 1.5px; border-radius: 2px; background: currentColor; transform: translate(-50%, -50%); }
-.lm-plus::after { transform: translate(-50%, -50%) rotate(90deg); }
+.lm-plus { display: grid; place-items: center; flex: none; width: var(--h-small); height: var(--h-small); color: var(--ink-3); transition: color var(--dur-change); }
 .lm-new:focus-within .lm-plus { color: var(--pt, var(--blue-ink)); }
 
 /* ---- list options: a small panel beside the list's •••, or a dialog from the planet's ••• */
@@ -2456,7 +2474,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 }
 @media (pointer: coarse) {
   .lm-box::after { content: ''; position: absolute; inset: -12px -10px; }
-  .lm-grip { width: 16px; background-size: 6px 6px; }
+  .lm-grip { width: var(--space-16); }
 }
 /* ================================================================== end of list mode */
 
@@ -2503,8 +2521,6 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .ctx-item { position: relative; z-index: 1; justify-content: flex-start; }
 .pop-ctx .ctx-item:hover, .pop-ctx .ctx-item:focus-visible, .pop-ctx .ctx-item:active { background: transparent; }
 .ctx-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ctx-icon { display: flex; align-items: center; margin-left: -2px; }
-.ctx-icon .planet-dot { margin: 0; transition: transform 0.3s var(--ease-settle); }
 .ctx-item:hover .planet-dot, .ctx-item:focus .planet-dot { transform: scale(1.18) rotate(-12deg); }
 .ctx-item.is-picked .planet-dot { transform: scale(0.6) translateX(4px); opacity: 0.4; transition-duration: 0.14s; }
 .moon-dot {
@@ -2574,11 +2590,6 @@ html[data-motion="off"] .pop-ctx, html[data-motion="off"] .pop-ctx * { animation
 .rp-now-go { justify-self: start; margin-top: var(--space-8); pointer-events: none; }
 
 /* The offer's icon: three books leaning on a shelf. */
-.rp-offer-icon { position: relative; display: flex; align-items: flex-end; gap: 3px; width: 40px; height: 40px; padding: 0 9px 8px; border-radius: 11px; background: var(--well); box-shadow: var(--well-shadow); align-self: start; }
-.rp-offer-icon i { display: block; width: 5px; height: 19px; border-radius: 1px; background: var(--pt, var(--blue-ink)); }
-.rp-offer-icon i:nth-child(2) { height: 22px; opacity: 0.75; }
-.rp-offer-icon i:nth-child(3) { height: 17px; transform: rotate(14deg); transform-origin: 0 100%; margin-left: 1px; opacity: 0.6; }
-.rp-offer-icon::after { content: ''; position: absolute; left: 7px; right: 7px; bottom: 7px; height: 1px; background: var(--ink-4); }
 
 @media (max-width: 720px) {
   .rp { gap: var(--space-24); }
@@ -2696,7 +2707,6 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .rd-author { font: var(--type-caption); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rd-author:empty { display: none; }
 .rd-ic { display: grid; place-items: center; }
-.rd-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .rd-btn[aria-pressed="true"] { color: var(--ribbon-red); }
 .rd-btn[aria-pressed="true"] svg { fill: currentColor; }
 
@@ -2727,7 +2737,6 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 
 .rd-backto { position: absolute; left: 50%; bottom: calc(48px + env(safe-area-inset-bottom)); z-index: 4; transform: translateX(-50%); display: inline-flex; align-items: center; gap: var(--space-4); height: var(--h-regular); padding: 0 var(--space-12) 0 var(--space-8); border: 1px solid var(--line); border-radius: var(--r-full); background: var(--page-raised); color: var(--ink); font: var(--type-label); cursor: pointer; box-shadow: var(--shadow-float); }
 .rd-backto[hidden] { display: none; }
-.rd-backto svg { width: 18px; height: 18px; }
 
 /* Panels: contents on the left, type on the right. */
 .rd-panel {
@@ -2750,7 +2759,8 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .rd-row { display: flex; align-items: flex-start; gap: var(--space-8); width: 100%; min-height: var(--h-regular); padding: var(--space-8) var(--space-12) var(--space-8) calc(12px + var(--lvl, 0) * 14px); border: 0; border-radius: var(--r-row); background: none; color: var(--ink); font: 400 var(--text-label)/16px var(--sans); text-align: left; cursor: pointer; }
 .rd-row:hover { background: var(--line); }
 .rd-row.is-here { background: var(--line); font-weight: 500; }
-.rd-row .rd-ic svg { width: 16px; height: 16px; margin-top: var(--space-2); color: var(--ribbon-red); fill: currentColor; stroke: none; }
+.rd-row .rd-ic .ic { margin-top: var(--space-2); color: var(--ribbon-red); }
+.rd-row .rd-ic .ic .b { fill-opacity: 1; }
 .rd-row-title { flex: 1; min-width: 0; }
 .rd-row-body { display: grid; gap: 3px; min-width: 0; flex: 1; }
 .rd-row-text { font: 400 var(--text-body)/1.4 var(--rd-font); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -2759,7 +2769,6 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .rd-mark-row { position: relative; display: flex; align-items: flex-start; }
 .rd-row-del { flex: none; margin: var(--space-4) var(--space-2) 0 0; color: var(--ink-3); opacity: 0; transition: opacity var(--dur-change); }
 .rd-mark-row:hover .rd-row-del, .rd-row-del:focus-visible { opacity: 1; }
-.rd-row-del svg { width: 17px; height: 17px; }
 .rd-swatch { flex: none; width: 4px; align-self: stretch; border-radius: 2px; background: var(--mark-yellow); }
 .rd-swatch[data-color="yellow"] { background: var(--mark-yellow); }
 .rd-swatch[data-color="green"] { background: var(--mark-green); }
@@ -2807,10 +2816,8 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .rd-color[data-color="pink"] { --c: var(--mark-pink); }
 .rd-color[data-color="purple"] { --c: var(--mark-purple); }
 .rd-color[data-color="underline"] { --c: transparent; }
-.rd-color svg { width: 15px; height: 15px; }
 .rd-pop-sep { width: 1px; height: 20px; margin: 0 var(--space-4); background: var(--line); }
 .rd-pop-btn { gap: var(--space-4); padding: 0 var(--space-8); }
-.rd-pop-btn svg { width: 16px; height: 16px; }
 .rd-pop-btn.is-danger { color: var(--danger-fill); }
 .rd-note-wrap { flex-basis: 100%; padding: var(--space-4) var(--space-4) var(--space-2); }
 .rd-note-wrap[hidden] { display: none; }
@@ -3030,7 +3037,6 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   pointer-events: none;
 }
 .cell-tag.is-always, .cell:hover .cell-tag { opacity: 1; transform: none; }
-.cell-tag-play { width: 0; height: 0; border-left: 6px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
 
 /* ---- the buttons on a box: small plain buttons on dark see-through glass, because they sit on pictures */
 .cell-actions {
@@ -3370,9 +3376,6 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .cb-empty-title { margin: 0 0 var(--space-4); font: var(--type-lead); color: var(--ink-2); }
 
 /* The offer's little picture: two glass cards with the planet's line. */
-.cb-offer-icon { position: relative; width: 40px; height: 40px; border-radius: 11px; background: var(--well); box-shadow: var(--well-shadow); align-self: start; }
-.cb-offer-icon i { position: absolute; left: 8px; top: 12px; width: 24px; height: 16px; border-radius: var(--r-mark); background: rgba(210, 222, 255, 0.16); border: 1px solid rgba(225, 232, 255, 0.22); border-top: 2px solid color-mix(in srgb, var(--pc, #6c9cff) 78%, #fff); }
-.cb-offer-icon i:first-child { top: 17px; left: 10px; opacity: 0.7; }
 
 /* ---- a card, opened in the page */
 html.cb-locked, html.cb-locked body { overflow: hidden; }
@@ -3560,7 +3563,6 @@ html[data-motion="off"] .cb-steam { display: none; }
 .vw-cm[hidden] { display: none; }
 .vw-cm-head { display: flex; align-items: center; justify-content: space-between; font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .vw-cm-count { display: inline-flex; align-items: center; gap: 5px; font: var(--type-fact); color: var(--ink-3); }
-.cm-glyph { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
 .vw-cm-list { list-style: none; margin: var(--space-12) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-8); }
 .vw-cm-list:empty { display: none; }
 .vw-cm-empty { padding: var(--space-4) 0 var(--space-2); font-size: var(--text-label); color: var(--ink-3); }
@@ -3591,6 +3593,8 @@ html[data-motion="off"] .cb-steam { display: none; }
 }
 .vw-cm-when { margin-left: auto; font: var(--type-fact); color: var(--ink-3); white-space: nowrap; }
 .vw-cm-x {
+  display: inline-grid;
+  place-items: center;
   height: 22px;
   min-width: 22px;
   margin: -2px -5px -2px -2px;
@@ -3674,13 +3678,6 @@ html[data-motion="off"] .cb-steam { display: none; }
    planet is a desk or a document opens. These two can show on any planet. */
 
 /* the drawing in the documents offer */
-.dk-offer-icon {
-  position: relative; width: 34px; height: 42px; align-self: start; border-radius: 2px 3px 3px 2px;
-  background: var(--paper); box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.6);
-}
-.dk-offer-icon i { position: absolute; left: 7px; right: 7px; height: 2px; border-radius: 1px; background: #bdb5a6; }
-.dk-offer-icon i:nth-child(1) { top: 12px; box-shadow: 0 6px 0 #d3ccbe, 0 12px 0 #d3ccbe; }
-.dk-offer-icon i:nth-child(2) { top: 30px; right: 14px; background: #d3ccbe; }
 
 /* "Long for a note." under a note being written */
 .dk-hint[hidden] { display: none; }

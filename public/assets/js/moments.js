@@ -11,6 +11,7 @@
 
 import { api } from './api.js';
 import { EASE, h, reducedMotion } from './util.js';
+import { icon } from './icons.js';
 
 const PAUSE = 700;   // ms of quiet typing before the words are read
 const LEAST = 200;   // shorter than this, nothing is ever asked
@@ -22,7 +23,7 @@ const waved = new Set();
 export function momentLine(area, { acts, drawerId = null, onWave = null }) {
   const say = h('span');
   const btn = h('button', { type: 'button', class: 'btn btn-quiet btn-small dk-hint-btn' });
-  const x = h('button', { type: 'button', class: 'dk-hint-x', 'aria-label': 'Not here' }, '×');
+  const x = h('button', { type: 'button', class: 'dk-hint-x', 'aria-label': 'Not here', title: 'Not here' }, icon('close', 12));
   const el = h('div', { class: 'dk-hint', hidden: true }, say, btn, x);
   let shown = null;
   let timer = 0;

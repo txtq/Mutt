@@ -14,7 +14,7 @@ import { deleteBlock } from './actions.js';
 import { convertible, convertText, fraction, showLine, splitLine, systemOf } from './amounts.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { glyph } from './planets.js';
+import { icon } from './icons.js';
 import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, openContextMenu, openDialog, openMenu, sectionHead, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
@@ -92,7 +92,7 @@ export class RecipeBoxView {
     // Just the cards, sorted into chapters with tabs between them. Other
     // files on the planet stay out of sight here; "Show as files again"
     // brings them back.
-    this.newBtn = editable ? h('button', { type: 'button', class: 'btn cb-new', onclick: () => this.newCard() }, '+ New card') : null;
+    this.newBtn = editable ? h('button', { type: 'button', class: 'btn cb-new', onclick: () => this.newCard() }, icon('plus'), 'New card') : null;
     this.head = sectionHead('Recipes', { tools: [this.newBtn] });
     this.stack = h('div', { class: 'cb-stack', role: 'list', 'aria-label': 'Recipe cards' });
     this.inside = h('div', { class: 'cb-inside' }, this.stack);
@@ -208,7 +208,7 @@ export class RecipeBoxView {
       tab.addEventListener('dblclick', () => this.renameChapter(name));
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        openContextMenu(e, [{ label: 'Rename chapter…', run: () => this.renameChapter(name) }], { title: name, target: el });
+        openContextMenu(e, [{ icon: 'edit', label: 'Rename chapter…', run: () => this.renameChapter(name) }], { title: name, target: el });
       });
     }
     return el;
@@ -238,15 +238,15 @@ export class RecipeBoxView {
 
   context(e, el, r) {
     e.preventDefault();
-    const items = [{ label: 'Open card', run: () => this.open(r.id) },
-      { label: 'Start cooking', run: () => cook(r, this.scaleOf(r), loadSettings().units) }];
+    const items = [{ icon: 'open', label: 'Open card', run: () => this.open(r.id) },
+      { icon: 'pot', label: 'Start cooking', run: () => cook(r, this.scaleOf(r), loadSettings().units) }];
     if (r.mine && this.editable) {
-      items.push('-', { label: 'Edit card', run: () => this.open(r.id, { edit: true }) },
-        { label: 'Move to chapter…', run: () => this.moveMenu(el, r) },
-        { label: 'Open as a file', run: () => nav.openBlock(r.id) },
-        '-', { label: r.kind === 'link' ? 'Delete link…' : 'Delete recipe…', danger: true, run: () => this.remove(r) });
+      items.push('-', { icon: 'edit', label: 'Edit card', run: () => this.open(r.id, { edit: true }) },
+        { icon: 'chapter', label: 'Move to chapter…', run: () => this.moveMenu(el, r) },
+        { icon: 'files', label: 'Open as a file', run: () => nav.openBlock(r.id) },
+        '-', { icon: 'trash', label: r.kind === 'link' ? 'Delete link…' : 'Delete recipe…', danger: true, run: () => this.remove(r) });
     } else {
-      items.push({ label: 'Open as a file', run: () => nav.openBlock(r.id) });
+      items.push({ icon: 'files', label: 'Open as a file', run: () => nav.openBlock(r.id) });
     }
     openContextMenu(e, items, { title: r.title, target: el });
   }
@@ -410,11 +410,11 @@ class CardView {
     this.onClose = onClose;
     this.settings = loadSettings();
 
-    this.prevBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Previous card', title: 'Previous card', onclick: () => this.step(-1) }, arrow(-1));
-    this.nextBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Next card', title: 'Next card', onclick: () => this.step(1) }, arrow(1));
+    this.prevBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Previous card', title: 'Previous card', onclick: () => this.step(-1) }, icon('chevron-left'));
+    this.nextBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Next card', title: 'Next card', onclick: () => this.step(1) }, icon('chevron-right'));
     this.where = h('span', { class: 'cbc-where' });
     this.navEl = h('span', { class: 'cbc-navs' }, this.prevBtn, this.where, this.nextBtn);
-    this.closeBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Put the card back', title: 'Put it back', onclick: () => this.close() }, closeIcon());
+    this.closeBtn = h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'Put the card back', title: 'Put it back', onclick: () => this.close() }, icon('close'));
     this.sheet = h('div', { class: 'cbc-wrap' });
     this.el = h('section', { class: 'cbp', 'aria-label': 'Recipe card' }, this.sheet);
     box.el.insertBefore(this.el, box.boxEl);
@@ -592,14 +592,14 @@ class CardView {
       h('span', { class: 'cbc-chapter' }, r.chapter),
       this.navEl,
       h('span', { class: 'cbc-gap' }),
-      (r.steps.length ? h('button', { type: 'button', class: 'btn btn-main cbc-btn cbc-cook', onclick: () => cook(r, now, units) }, potIcon(), h('span', { class: 'cbc-long' }, 'Start cooking'), h('span', { class: 'cbc-short' }, 'Cook')) : null),
+      (r.steps.length ? h('button', { type: 'button', class: 'btn btn-main cbc-btn cbc-cook', onclick: () => cook(r, now, units) }, icon('pot'), h('span', { class: 'cbc-long' }, 'Start cooking'), h('span', { class: 'cbc-short' }, 'Cook')) : null),
       mine ? h('button', { type: 'button', class: 'btn cbc-btn', onclick: () => this.edit() }, 'Edit') : null,
-      mine ? h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'More', onclick: (e) => this.more(e.currentTarget) }, '•••') : null,
+      mine ? h('button', { type: 'button', class: 'btn btn-round cbc-btn cbc-round', 'aria-label': 'More', title: 'More', onclick: (e) => this.more(e.currentTarget) }, icon('more')) : null,
       this.closeBtn);
 
     // Servings: − 4 + scales every amount. Without a number, a plain ×1.
-    const less = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Fewer', disabled: now <= (r.serves ? 1 : 0.5) }, glyph('minus', 14));
-    const more = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'More', disabled: now >= (r.serves ? 99 : 8) }, glyph('plus', 14));
+    const less = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'Fewer', disabled: now <= (r.serves ? 1 : 0.5) }, icon('minus'));
+    const more = h('button', { type: 'button', class: 'stepper-btn', 'aria-label': 'More', disabled: now >= (r.serves ? 99 : 8) }, icon('plus'));
     const steps = [0.5, 1, 1.5, 2, 3, 4, 6, 8];
     less.addEventListener('click', () => this.setScale(r.serves ? now - 1 : steps[Math.max(0, steps.indexOf(now) - 1)] ?? 1));
     more.addEventListener('click', () => this.setScale(r.serves ? now + 1 : steps[Math.min(steps.length - 1, steps.indexOf(now) + 1)] ?? 1));
@@ -651,7 +651,7 @@ class CardView {
         h('section', { class: 'cbc-col cbc-col-ings' }, h('h3', null, 'Ingredients'), ingredients),
         h('section', { class: 'cbc-col cbc-col-steps' }, h('h3', null, 'Method'), method)),
       r.notes ? h('div', { class: 'cbc-notes' }, h('h3', null, 'Notes'), h('p', null, r.notes)) : null,
-      r.source ? h('p', { class: 'cbc-source' }, 'From ', h('a', { href: r.source, target: '_blank', rel: 'noopener noreferrer' }, r.site || r.source), ' ↗') : null);
+      r.source ? h('p', { class: 'cbc-source' }, 'From ', h('a', { href: r.source, target: '_blank', rel: 'noopener noreferrer' }, r.site || r.source, h('span', { class: 'ic-inline' }, icon('out', 12)))) : null);
     if (mine) this.photoDrops(card, r);
     return card;
   }
@@ -662,7 +662,7 @@ class CardView {
     if (!src) {
       if (!mine) return null;
       return h('button', { type: 'button', class: 'cbc-photo is-empty', onclick: (e) => this.photoMenu(e.currentTarget, r) },
-        cameraIcon(), h('span', null, 'Add a photo of the finished dish'));
+        icon('camera', 20), h('span', null, 'Add a photo of the finished dish'));
     }
     const img = h('img', { src, alt: `${r.title}`, decoding: 'async', draggable: 'false' });
     const el = h('button', { type: 'button', class: 'cbc-photo', 'aria-label': mine ? 'Photo options' : 'Look closer',
@@ -675,11 +675,11 @@ class CardView {
     const has = !!(r.photo || r.cover);
     const pics = this.box.pictures().filter((b) => b.id !== r.photo?.id);
     openMenu(anchor, [
-      has ? { label: 'Look closer', run: () => this.zoom(r) } : null,
-      { label: has ? 'Upload a new photo…' : 'Upload a photo…', run: () => this.pickFile(r) },
-      pics.length ? { label: 'Choose from this planet…', run: () => this.choosePhoto(r, pics) } : null,
+      has ? { icon: 'zoom', label: 'Look closer', run: () => this.zoom(r) } : null,
+      { icon: 'upload', label: has ? 'Upload a new photo…' : 'Upload a photo…', run: () => this.pickFile(r) },
+      pics.length ? { icon: 'picture', label: 'Choose from this planet…', run: () => this.choosePhoto(r, pics) } : null,
       r.photo ? '-' : null,
-      r.photo ? { label: 'Take the photo off', run: () => this.box.save(r.id, { photo: null }) } : null,
+      r.photo ? { icon: 'takeoff', label: 'Take the photo off', run: () => this.box.save(r.id, { photo: null }) } : null,
     ].filter(Boolean), { align: 'end' });
   }
 
@@ -750,10 +750,10 @@ class CardView {
   more(anchor) {
     const r = this.recipe;
     openMenu(anchor, [
-      { label: 'Move to chapter…', run: () => this.box.moveMenu(anchor, r) },
-      { label: 'Open as a file', run: () => { this.close({ instant: true }); nav.openBlock(r.id); } },
+      { icon: 'chapter', label: 'Move to chapter…', run: () => this.box.moveMenu(anchor, r) },
+      { icon: 'files', label: 'Open as a file', run: () => { this.close({ instant: true }); nav.openBlock(r.id); } },
       '-',
-      { label: r.kind === 'link' ? 'Delete link…' : 'Delete recipe…', danger: true, run: () => this.box.remove(r) },
+      { icon: 'trash', label: r.kind === 'link' ? 'Delete link…' : 'Delete recipe…', danger: true, run: () => this.box.remove(r) },
     ], { align: 'end' });
   }
 
@@ -804,7 +804,7 @@ class CardView {
       return row;
     };
     for (const line of r.ingredients.length ? r.ingredients : ['']) ings.append(ingRow(line));
-    const addIng = h('button', { type: 'button', class: 'btn btn-quiet btn-small cbe-add', onclick: () => { const row = ingRow(); ings.append(row); row.querySelector('.cbe-amt').focus(); } }, '+ Add an ingredient');
+    const addIng = h('button', { type: 'button', class: 'btn btn-quiet btn-small cbe-add', onclick: () => { const row = ingRow(); ings.append(row); row.querySelector('.cbe-amt').focus(); } }, icon('plus'), 'Add an ingredient');
 
     // The method: one box per step, numbered.
     const steps = h('ol', { class: 'cbe-rows cbe-steps' });
@@ -829,7 +829,7 @@ class CardView {
       return row;
     };
     for (const s of r.steps.length ? r.steps : ['']) steps.append(stepRow(s));
-    const addStep = h('button', { type: 'button', class: 'btn btn-quiet btn-small cbe-add', onclick: () => { const row = stepRow(); steps.append(row); row.querySelector('textarea').focus(); } }, '+ Add a step');
+    const addStep = h('button', { type: 'button', class: 'btn btn-quiet btn-small cbe-add', onclick: () => { const row = stepRow(); steps.append(row); row.querySelector('textarea').focus(); } }, icon('plus'), 'Add a step');
 
     const notes = h('textarea', { class: 'field cbe-field cbe-notes', rows: 2, placeholder: 'Notes: what you’d change, what it goes with…', 'aria-label': 'Notes', maxlength: 4000 });
     notes.value = r.notes;
@@ -941,7 +941,7 @@ class CardView {
 }
 
 function rowX(run) {
-  return h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round cbe-x', 'aria-label': 'Remove', tabindex: '-1', onclick: run }, '×');
+  return h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round cbe-x', 'aria-label': 'Remove', title: 'Remove', tabindex: '-1', onclick: run }, icon('close'));
 }
 
 function drop(row, list) {
@@ -1008,7 +1008,7 @@ function cook(r, serves, units) {
     if (canTransition()) transition(done, { type: 'room', before: () => [], after: () => [] });
     else done();
   };
-  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbk-close', 'aria-label': 'Stop cooking', onclick: close }, closeIcon());
+  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbk-close', 'aria-label': 'Stop cooking', title: 'Stop cooking', onclick: close }, icon('close', 20));
   const main = h('main', { class: 'cbk-main' }, stepNo, sectionEl, text);
   const el = h('div', { class: 'cbk room', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Cooking ${r.title}` },
     h('header', { class: 'cbk-head' }, h('h2', { class: 'cbk-title' }, r.title), ingToggle, closeBtn),
@@ -1080,15 +1080,6 @@ function cook(r, serves, units) {
 
 // ------------------------------------------------------------ little drawings
 
-const svg = (d, size = 16, extra = '') => {
-  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  s.setAttribute('viewBox', '0 0 24 24');
-  s.setAttribute('width', size);
-  s.setAttribute('height', size);
-  s.setAttribute('aria-hidden', 'true');
-  s.innerHTML = `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${extra}/>`;
-  return s;
-};
 // Steam over a dish: three soft wisps that rise and fade (CSS moves them).
 function steam() {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1100,8 +1091,4 @@ function steam() {
   return s;
 }
 
-const arrow = (dir) => svg(dir < 0 ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7', 22);
-const closeIcon = () => svg('M6 6l12 12M18 6L6 18', 16);
-const potIcon = () => svg('M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM2 10h20M9 6c0-1 1-1.5 1-2.5M14 6c0-1 1-1.5 1-2.5', 16);
-const cameraIcon = () => svg('M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 26);
 

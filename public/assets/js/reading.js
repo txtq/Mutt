@@ -208,8 +208,8 @@ export class ShelfView {
 
   context(e, el, v) {
     e.preventDefault();
-    const read = { label: 'Read', run: () => this.read(v) };
-    const asFile = { label: 'Open as a file', run: () => nav.openBlock(v.id) };
+    const read = { icon: 'book', label: 'Read', run: () => this.read(v) };
+    const asFile = { icon: 'files', label: 'Open as a file', run: () => nav.openBlock(v.id) };
     if (v.block.mine) blockContextMenu(e, el, v.block, { drawer: this.drawer, open: () => this.read(v), extra: [asFile] });
     else openContextMenu(e, [read, asFile], { title: v.title, target: el });
   }

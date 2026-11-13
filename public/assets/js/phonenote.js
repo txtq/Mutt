@@ -2,6 +2,7 @@
 // phones yet. Waved away once, it stays away on that device.
 
 import { h } from './util.js';
+import { icon } from './icons.js';
 
 const KEY = 'mutt:phone-note';
 let shown = false;
@@ -22,7 +23,7 @@ export function phoneNote() {
   };
   const note = h('div', { class: 'tip phone-note', role: 'status' },
     h('p', { class: 'tip-text phone-note-text' }, 'Mutt is still in testing, and it isn’t made for phones yet. It works best on a computer.'),
-    h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small phone-note-x', 'aria-label': 'Dismiss', onclick: close }, '×'));
+    h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small phone-note-x', 'aria-label': 'Dismiss', title: 'Dismiss', onclick: close }, icon('close')));
   // After the page has settled, so it never arrives on top of an entrance.
   setTimeout(() => document.body.append(note), 1200);
 }

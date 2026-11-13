@@ -15,6 +15,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { NoText, outlineOf, pdfToBook } from './pdfbook.js';
 import { segmented, stepper, toast } from './ui.js';
 import { DUR, EASE, debounce, h, paperFaces, plural, reducedMotion } from './util.js';
+import { icon as draw } from './icons.js';
 
 const THEMES = [
   { value: 'night', label: 'Night' },
@@ -47,19 +48,8 @@ function recall(name) {
   try { return localStorage.getItem(name); } catch { return null; }
 }
 
-const svg = (body, extra = '') => `<svg viewBox="0 0 24 24" aria-hidden="true" ${extra}>${body}</svg>`;
-const ICONS = {
-  close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
-  contents: svg('<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'),
-  type: svg('<path d="M3 19l5-13 5 13M4.8 14.5h6.4"/><path d="M14 19l3.5-8.5L21 19M15 16.6h5"/>'),
-  mark: svg('<path d="M7 3.5h10v17l-5-3.6-5 3.6z"/>'),
-  back: svg('<path d="M15 5l-7 7 7 7"/>'),
-  note: svg('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/>'),
-  copy: svg('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
-  trash: svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
-  underline: svg('<path d="M7 4v7a5 5 0 0 0 10 0V4M5 20h14"/>'),
-};
-const icon = (name) => h('span', { class: 'rd-ic', html: ICONS[name] });
+// An icon from the one set (icons.js). 20 in the bar, 16 everywhere else.
+const icon = (name, size = 16) => h('span', { class: 'rd-ic' }, draw(name, size));
 
 // ------------------------------------------------------------ keeping what's safe in a book
 
@@ -216,10 +206,10 @@ class Reader {
   build() {
     this.title = h('p', { class: 'rd-title' }, this.hint.title || '');
     this.author = h('p', { class: 'rd-author' });
-    const btn = (name, label, run, extra = {}) => h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-large rd-btn', 'aria-label': label, title: label, onclick: run, ...extra }, icon(name));
-    this.markBtn = btn('mark', 'Bookmark this page', () => this.toggleBookmark(), { 'aria-pressed': 'false' });
+    const btn = (name, label, run, extra = {}) => h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-large rd-btn', 'aria-label': label, title: label, onclick: run, ...extra }, icon(name, 20));
+    this.markBtn = btn('bookmark', 'Bookmark this page', () => this.toggleBookmark(), { 'aria-pressed': 'false' });
     this.typeBtn = btn('type', 'Text and page', () => this.togglePanel('type'), { 'aria-expanded': 'false' });
-    this.tocBtn = btn('contents', 'Contents, bookmarks and highlights', () => this.togglePanel('toc'), { 'aria-expanded': 'false' });
+    this.tocBtn = btn('bullets', 'Contents, bookmarks and highlights', () => this.togglePanel('toc'), { 'aria-expanded': 'false' });
     this.top = h('header', { class: 'rd-top' },
       btn('close', 'Close the book', () => this.close()),
       this.tocBtn,
@@ -494,7 +484,7 @@ class Reader {
       const del = h('button', { type: 'button', class: 'btn btn-quiet btn-round rd-row-del', 'aria-label': 'Remove', title: 'Remove' }, icon('trash'));
       const row = h('li', { class: 'rd-mark-row' },
         h('button', { type: 'button', class: 'rd-row', dataset: { color: m.color || '' }, onclick: () => { this.closePanel(); this.remember(); this.goToLoc(m.loc); } },
-          kind === 'highlight' ? h('span', { class: 'rd-swatch', dataset: { color: m.color } }) : icon('mark'),
+          kind === 'highlight' ? h('span', { class: 'rd-swatch', dataset: { color: m.color } }) : icon('bookmark'),
           h('span', { class: 'rd-row-body' },
             h('span', { class: 'rd-row-text' }, m.text || where || 'A page'),
             m.note ? h('span', { class: 'rd-row-note' }, m.note) : null,

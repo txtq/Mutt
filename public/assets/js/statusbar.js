@@ -7,12 +7,12 @@
 import { api, session } from './api.js';
 import { LOGOS, glitch, logo } from './logo.js';
 import { nav } from './nav.js';
-import { glyph } from './planets.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
 import { closeTopLayer, confirmDialog, segmented, toast } from './ui.js';
 import { bus, h, plural } from './util.js';
 import { changePin, deleteAccount, signOut } from './account.js';
 import { searchBody } from './search.js';
+import { icon } from './icons.js';
 
 const current = () => ({ ...DEFAULTS, ...session.prefs });
 const save = (patch) => updatePrefs(patch, (err) => err && toast(err.message));
@@ -134,8 +134,8 @@ export function createStatusbar() {
   const mark = logo();
   const whoName = h('span', { class: 'sb-who-name' });
   const who = h('button', { type: 'button', class: 'btn btn-quiet btn-small sb-who', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
-    whoName, glyph('caret', 11));
-  const searchBtn = h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small sb-btn', 'aria-label': 'Search', title: 'Search (/)' }, glyph('search', 14));
+    whoName, icon('caret'));
+  const searchBtn = h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small sb-btn', 'aria-label': 'Search', title: 'Search (/)' }, icon('search'));
   const clock = h('span', { class: 'sb-clock' });
   const bar = h('header', { class: 'sb' },
     h('div', { class: 'sb-left' }, mark),
@@ -144,7 +144,7 @@ export function createStatusbar() {
 
   // Home: a faint back arrow in the corner, back to your own galaxy. On
   // someone else's galaxy it first pulls back into the universe round them.
-  const home = h('button', { type: 'button', class: 'home-back', 'aria-label': 'Back to your galaxy', title: 'Your galaxy', hidden: true }, glyph('back', 20));
+  const home = h('button', { type: 'button', class: 'home-back', 'aria-label': 'Back to your galaxy', title: 'Your galaxy', hidden: true }, icon('back', 20));
   document.body.append(home);
   let current = null;
   home.addEventListener('click', () => {

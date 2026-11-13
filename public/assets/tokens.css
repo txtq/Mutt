@@ -228,6 +228,14 @@
   --z-fx: 150;           /* sparks and rings drawn over everything */
   --z-curtain: 900;      /* the light that takes the screen at sign-in */
 
+  /* ---------------------------------------------------------------- icons (js/icons.js) */
+  --icon: 16px;          /* an icon, nearly everywhere */
+  --icon-small: 12px;    /* inside a chip, a tag or a caption */
+  --icon-large: 20px;    /* the editor's and the reader's bars, the corner back arrow, an empty photo slot */
+  --icon-line: 1.5;      /* its line, the same thickness on screen at all three sizes */
+  --tick-line: 1.5px;    /* the tick inside a tick box: drawn with the box, at the icons' line */
+  --icon-lit: 0.3;       /* how much light fills an icon's body when its button is pointed at or held on */
+
   /* ---------------------------------------------------------------- motion (confirmed at real speed in session 8) */
 
   --dur-quick: 120ms;    /* pressing, pointing */

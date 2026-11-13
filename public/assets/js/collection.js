@@ -196,10 +196,10 @@ export class Collection {
     }
     if (act === 'more' && block.mine === false) {
       openMenu(btn, [
-        { label: 'Open', run: () => nav.openBlock(id) },
-        { label: 'Save…', run: () => openSave(btn, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
+        { icon: 'open', label: 'Open', run: () => nav.openBlock(id) },
+        { icon: 'onto', label: 'Save…', run: () => openSave(btn, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
         '-',
-        { label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) },
+        { icon: 'takeoff', label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) },
       ], { align: 'end' });
       return;
     }
@@ -216,15 +216,15 @@ export class Collection {
     const open = () => nav.openBlock(id);
     if (block.mine === false) {
       openContextMenu(e, [
-        { label: 'Open', run: open },
-        { label: 'Save…', run: () => openSave(cell, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
+        { icon: 'open', label: 'Open', run: open },
+        { icon: 'onto', label: 'Save…', run: () => openSave(cell, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
         this.moderate ? '-' : null,
-        this.moderate ? { label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) } : null,
+        this.moderate ? { icon: 'takeoff', label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) } : null,
       ], { title: block.title || undefined, target: cell });
       return;
     }
     if (this.readOnly) {
-      openContextMenu(e, [{ label: 'Open', run: open }], { target: cell });
+      openContextMenu(e, [{ icon: 'open', label: 'Open', run: open }], { target: cell });
       return;
     }
     const worlds = (this.drawer ? this.targets?.() || [] : []).map((t) => ({

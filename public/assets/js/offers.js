@@ -8,6 +8,7 @@
 // and fades move, so the page isn't laid out again on every frame.
 
 import { DUR, EASE, h, reducedMotion } from './util.js';
+import { drawing } from './icons.js';
 
 const topOf = (el) => el.getBoundingClientRect().top;
 
@@ -22,12 +23,12 @@ function settle(els, tops, duration) {
   });
 }
 
-// kind: an extra class; icon: its class and how many strokes it's drawn with.
-export function modeOffer({ kind = '', icon, strokes = 3, title, signs = [], note = null, accept, busy, decline = 'Not now', onAccept, onDecline }) {
+// kind: an extra class; drawing: the name of its small drawing in icons.js.
+export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [], note = null, accept, busy, decline = 'Not now', onAccept, onDecline }) {
   const yes = h('button', { type: 'button', class: 'btn btn-main' }, accept);
   const no = h('button', { type: 'button', class: 'btn btn-quiet' }, decline);
   const el = h('div', { class: `lm-offer${kind ? ` ${kind}` : ''}`, role: 'region', 'aria-label': title },
-    h('span', { class: icon, 'aria-hidden': 'true' }, Array.from({ length: strokes }, () => h('i'))),
+    drawing(draws),
     h('div', { class: 'lm-offer-text' },
       h('p', { class: 'lm-offer-title' }, title),
       h('ul', { class: 'lm-offer-signs' }, signs.map((s) => h('li', null, s))),

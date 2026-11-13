@@ -41,3 +41,10 @@
 .parts .toast { animation: none; }
 .parts .tooltip, .parts .drop-word { position: relative; left: auto; top: auto; bottom: auto; z-index: auto; transform: none; }
 @media (max-width: 720px) { .parts .sheet { width: 100%; } }
+
+/* the icon sheet */
+.parts-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--space-4); width: 100%; }
+.parts-icon { display: flex; flex-direction: column; align-items: center; gap: var(--space-8); min-width: 0; padding: var(--space-12) var(--space-4) var(--space-8); border-radius: var(--r-row); color: var(--ink); }
+.parts-icon:hover { background: var(--tint); }
+.parts-icon span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--type-fact); color: var(--ink-3); }
+.parts-menus { display: flex; flex-wrap: wrap; gap: var(--space-16); align-items: flex-start; }

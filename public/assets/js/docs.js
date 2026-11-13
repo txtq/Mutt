@@ -12,6 +12,7 @@ import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
 import { openContextMenu, openMenu, sectionHead, toast } from './ui.js';
 import { EASE, bus, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { icon } from './icons.js';
 
 // The desk's look comes with its code. Whoever loads this file waits for the
 // stylesheet too (`load` in modes.js), so the desk never shows undressed.
@@ -70,7 +71,7 @@ export class DeskView {
     });
     this.now = h('section', { class: 'dk-now', hidden: true, 'aria-label': 'Continue writing' });
     this.grid = h('div', { class: 'dk-grid', role: 'list' });
-    this.newBtn = editable ? h('button', { type: 'button', class: 'btn dk-new' }, h('span', { 'aria-hidden': 'true' }, '+'), 'New document') : null;
+    this.newBtn = editable ? h('button', { type: 'button', class: 'btn dk-new' }, icon('plus'), 'New document') : null;
     this.newBtn?.addEventListener('click', () => this.onNew?.());
     this.sortBtn = h('button', { type: 'button', class: 'btn btn-quiet dk-sort', 'aria-haspopup': 'menu' });
     this.sortBtn.addEventListener('click', () => this.sortMenu());
@@ -123,7 +124,7 @@ export class DeskView {
 
   sortMenu() {
     openMenu(this.sortBtn, Object.entries(SORTS).map(([key, { label }]) => ({
-      label, hint: key === this.sort ? '✓' : null, run: () => this.setSort(key),
+      label, on: key === this.sort, run: () => this.setSort(key),
     })), { className: 'dk-sort-menu' });
   }
 
@@ -189,7 +190,7 @@ export class DeskView {
 
   render({ entrance = false, born = null, reorder = false } = {}) {
     const docs = this.sorted();
-    this.sortBtn.replaceChildren(h('span', { class: 'dk-sort-label' }, 'Sort'), SORTS[this.sort].label);
+    this.sortBtn.replaceChildren(h('span', { class: 'dk-sort-label' }, 'Sort'), SORTS[this.sort].label, icon('caret'));
     this.sortBtn.hidden = docs.length < 2;
     // Where each page was, so a new order glides into place.
     const before = reorder && moving()
@@ -252,7 +253,7 @@ export class DeskView {
     e.preventDefault();
     const open = () => this.onOpen(b.id);
     if (b.mine !== false) blockContextMenu(e, el, b, { drawer: this.drawer, open });
-    else openContextMenu(e, [{ label: 'Open', run: open }], { title: titleOf(b), target: el });
+    else openContextMenu(e, [{ icon: 'open', label: 'Open', run: open }], { title: titleOf(b), target: el });
   }
 
   dropTarget() { return this.collection.dropTarget(); }

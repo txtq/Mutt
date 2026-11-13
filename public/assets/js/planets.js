@@ -6,6 +6,7 @@
 import { nav } from './nav.js';
 import { canPaint, forget, paint, together } from './planetgl.js';
 import { BLUE, h, onMotionChange, plural, reducedMotion, seeded } from './util.js';
+import { icon } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -21,51 +22,13 @@ export function planetSize(count, scale = 1) {
   return Math.round(Math.min(280, 112 + Math.sqrt(count || 0) * 13) * scale);
 }
 
+// How a planet is shared: its words and its icon (js/icons.js). A planet anyone can add to shows a plus.
 export const VISIBILITY = {
-  private: { label: 'Private', hint: 'Only you can see inside.' },
-  pin: { label: 'Code', hint: 'Anyone you give this planet’s code to can look inside.' },
-  people: { label: 'People', hint: 'Only the people you pick.' },
-  public: { label: 'Public', hint: 'Everyone on Mutt can look inside.' },
+  private: { label: 'Private', icon: 'lock', hint: 'Only you can see inside.' },
+  pin: { label: 'Code', icon: 'key', hint: 'Anyone you give this planet’s code to can look inside.' },
+  people: { label: 'People', icon: 'people', hint: 'Only the people you pick.' },
+  public: { label: 'Public', icon: 'globe', hint: 'Everyone on Mutt can look inside.' },
 };
-
-// Tiny line icons, drawn the same everywhere.
-export function glyph(name, size = 12) {
-  const paths = {
-    private: 'M4 7V5.5a4 4 0 0 1 8 0V7M3 7h10v7H3z',
-    pin: 'M10.5 2.5a3 3 0 1 1-2.6 4.5L3 12v2h2v-1.5h1.5V11H8l.9-.9',
-    people: 'M5.5 7.5a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4zM1.5 13.5c.4-2.3 2-3.6 4-3.6s3.6 1.3 4 3.6M11 7.3a1.9 1.9 0 1 0 0-3.8M12 9.9c1.4.3 2.3 1.5 2.6 3.4',
-    public: 'M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13zM1.5 8h13M8 1.5c-2 2-2.6 4.2-2.6 6.5S6 12.5 8 14.5M8 1.5c2 2 2.6 4.2 2.6 6.5S10 12.5 8 14.5',
-    community: 'M8 3v10M3 8h10',
-    plus: 'M8 3v10M3 8h10',
-    minus: 'M3 8h10',
-    lock: 'M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7M3.5 7h9v7h-9z',
-    search: 'M7 12.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM11 11l3.5 3.5',
-    star: 'M8 1.5c.5 3.6 1.9 5 6.5 6.5-4.6 1.5-6 2.9-6.5 6.5C7.5 10.9 6.1 9.5 1.5 8 6.1 6.5 7.5 5.1 8 1.5z',
-    chevron: 'M6 3.5 10.5 8 6 12.5',
-    caret: 'M4.5 6.5 8 10l3.5-3.5',
-    back: 'M13 8H3M7 4 3 8l4 4',
-    up: 'M8 13V3M4 7l4-4 4 4',
-    down: 'M8 3v10M4 9l4 4 4-4',
-    upload: 'M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 10.5v3h11v-3',
-    sort: 'M3 4.5h10M3 8h7M3 11.5h4',
-    planet: 'M8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM1.5 10.5c1.5.9 4.5.6 7.6-.6s5.5-3 5.4-4.7',
-  };
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', size);
-  svg.setAttribute('height', size);
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('class', `glyph glyph-${name}`);
-  const path = document.createElementNS(SVG_NS, 'path');
-  path.setAttribute('d', paths[name] || paths.star);
-  path.setAttribute('fill', name === 'star' ? 'currentColor' : 'none');
-  path.setAttribute('stroke', 'currentColor');
-  path.setAttribute('stroke-width', name === 'star' ? '0.6' : '1.4');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
-  svg.append(path);
-  return svg;
-}
 
 const excerpt = (text, n) => {
   const t = (text || '').trim().replace(/\s+/g, ' ');
@@ -772,7 +735,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const ball = h('span', { class: 'planet-ball' },
     canvas,
     h('span', { class: 'planet-shade' }),
-    h('span', { class: 'planet-lock' }, glyph('lock', 18)));
+    h('span', { class: 'planet-lock' }, icon('lock', 20)));
   const ringBack = h('span', { class: 'planet-ring planet-ring-back' });
   const ringFront = h('span', { class: 'planet-ring planet-ring-front' });
   const bubble = h('span', { class: 'planet-bubble', 'aria-hidden': 'true' });
@@ -850,8 +813,8 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
       return;
     }
     const vis = next.community ? 'community' : next.visibility;
-    if (next.mine !== false && vis && vis !== 'pin') bits.push(glyph(vis, 10));
-    if (next.locked) bits.push(glyph('lock', 10));
+    if (next.mine !== false && vis && vis !== 'pin') bits.push(icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12));
+    if (next.locked) bits.push(icon('lock', 12));
     bits.push(h('span', null, next.count ? plural(next.count, 'file') : 'empty'));
     meta.replaceChildren(...bits);
     el.setAttribute('aria-label', `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}`);
@@ -1080,7 +1043,7 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
     const look = moonLookOf(m);
     el.append(h('span', { class: 'uv-moon', style: { '--mc': MOON_PALETTES[look][1], '--side': i % 2 ? -1 : 1, '--lv': i >> 1 } }));
   });
-  if (world.locked && !world.private) el.append(h('span', { class: 'uv-world-lock', style: { '--g': `${Math.round(size * 0.3)}px` } }, glyph('lock', Math.max(6, Math.round(size * 0.3)))));
+  if (world.locked && !world.private) el.append(h('span', { class: 'uv-world-lock', style: { '--g': `${Math.round(size * 0.3)}px` } }, icon('lock', Math.max(6, Math.round(size * 0.3)))));
   if (!canPaint()) return el;
   // The same draws from the planet's id as planetEl() and makeGlobe(), so
   // it shows the same face, tilt and weather.

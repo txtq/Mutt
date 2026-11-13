@@ -9,9 +9,10 @@ import { MENU_ORDER, MODES, OFFER_ORDER, allowed as modeAllowed, codeOf, loadMod
 import { momentLine } from '../moments.js';
 import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
-import { LOOKS, MOON_LOOKS, VISIBILITY, glyph, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
+import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { DUR, EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
+import { icon } from '../icons.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
 
@@ -62,7 +63,7 @@ function peoplePicker(names, onChange) {
     chips.querySelectorAll('.chip').forEach((c) => c.remove());
     if (input.parentNode !== chips) chips.append(input);
     input.before(...list.map((name) => h('span', { class: 'chip' }, `@${name}`,
-      h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove @${name}`, onclick: () => { save(list.filter((n) => n !== name)); input.focus({ preventScroll: true }); } }, '×'))));
+      h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove @${name}`, onclick: () => { save(list.filter((n) => n !== name)); input.focus({ preventScroll: true }); } }, icon('close', 12)))));
   };
 
   const renderList = () => {
@@ -215,7 +216,7 @@ function lockedPlanet(id, data) {
       h('div', { class: 'liv-info' },
         h('p', { class: 'liv-owner' }, `@${data.owner}’s planet`),
         h('h1', { class: 'liv-title-static' }, drawer.title),
-        h('p', { class: 'liv-meta' }, glyph('lock', 11), h('span', null, `Locked · ${plural(drawer.count, 'file')}`)),
+        h('p', { class: 'liv-meta' }, icon('lock', 12), h('span', null, `Locked · ${plural(drawer.count, 'file')}`)),
         h('div', { class: 'liv-unlock' }, drawer.hasCode
           ? [h('p', { class: 'liv-hint' }, `Enter the code @${data.owner} gave you for this planet.`), field.el, msg]
           : h('p', { class: 'liv-hint' }, `@${data.owner} hasn’t given this planet a code yet.`)))));
@@ -315,7 +316,7 @@ export const planetView = {
       // (replaceChildren would write a left-out piece as the word "null")
       meta.replaceChildren(...[
         h('span', null, [plural(count, 'file'), moons, timeAgo(drawer.updatedAt)].filter(Boolean).join(' · ')),
-        mine && vis ? h('span', { class: 'liv-vis' }, glyph(vis, 11), drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility].label) : null,
+        mine && vis ? h('span', { class: 'liv-vis' }, icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12), drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility].label) : null,
       ].filter(Boolean));
     };
     setMeta(drawer.count);
@@ -525,7 +526,7 @@ export const planetView = {
         openBox, h('span', { class: 'switch-track' }, h('span', { class: 'switch-knob' })), h('span', null, 'Others can add files'));
       const codeText = h('span', { class: 'liv-code-text' });
       const codeBtn = h('button', { type: 'button', class: 'btn btn-small liv-code-btn' });
-      const codeRow = h('div', { class: 'liv-code' }, glyph('pin', 12), codeText, codeBtn);
+      const codeRow = h('div', { class: 'liv-code' }, icon('key'), codeText, codeBtn);
       const chooseCode = async () => {
         sharePop?.close();
         const next = await pickCode(drawer);
@@ -598,7 +599,7 @@ export const planetView = {
         h('p', { class: 'liv-label' }, 'Who can see it'),
         seg.el, hint, codeRow, people, openRow);
     }
-    const shareBtn = mine ? h('button', { type: 'button', class: 'btn liv-share-btn', 'aria-haspopup': 'dialog' }, glyph('people', 13), h('span', null, 'Share')) : null;
+    const shareBtn = mine ? h('button', { type: 'button', class: 'btn liv-share-btn', 'aria-haspopup': 'dialog' }, icon('people'), h('span', null, 'Share')) : null;
     // A new planet's first visit: a quiet note by Share saying who can see it
     // now and that it can be changed. Put away for good once read or used.
     let shareTip = null;
@@ -644,27 +645,27 @@ export const planetView = {
       sharePop = openPopover(shareBtn, sharing, { align: 'end', className: 'pop-panel pop-share', width: 340, onClose: () => { sharePop = null; } });
     });
 
-    const moreBtn = h('button', { type: 'button', class: 'btn btn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options' }, '•••');
+    const moreBtn = h('button', { type: 'button', class: 'btn btn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options', title: isMoon ? 'Moon options' : 'Planet options' }, icon('more'));
     // A mode shows up here only once the planet (or moon) has earned it, and
     // stays here after its offer is waved away or it's turned off.
     const modeItems = () => {
       const items = active
         ? MODES[active.key].menu(page)
-        : MENU_ORDER.filter((key) => fits[key]).map((key) => ({ label: MODES[key].label, run: () => turnOn(key) }));
+        : MENU_ORDER.filter((key) => fits[key]).map((key) => ({ icon: MODES[key].icon, label: MODES[key].label, run: () => turnOn(key) }));
       return items.length ? [...items, '-'] : [];
     };
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [
       ...modeItems(),
-      { label: 'Moon type…', run: pickMoonLook },
+      { icon: 'moon', label: 'Moon type…', run: pickMoonLook },
       '-',
-      { label: 'Delete moon…', danger: true, run: remove },
+      { icon: 'trash', label: 'Delete moon…', danger: true, run: remove },
     ].filter(Boolean) : [
       ...modeItems(),
-      { label: 'Planet type…', run: pickLook },
-      { label: 'Planet colour…', run: pickColor },
-      (drawer.moons || []).length < 4 ? { label: 'Add a moon…', run: addMoon } : null,
+      { icon: 'planet', label: 'Planet type…', run: pickLook },
+      { icon: 'colour', label: 'Planet colour…', run: pickColor },
+      (drawer.moons || []).length < 4 ? { icon: 'moon', label: 'Add a moon…', run: addMoon } : null,
       '-',
-      { label: 'Delete planet…', danger: true, run: remove },
+      { icon: 'trash', label: 'Delete planet…', danger: true, run: remove },
     ].filter(Boolean), { align: 'end' }));
 
     const community = !!drawer.community;
@@ -944,6 +945,7 @@ export const planetView = {
       try {
         offer = modeOffer({
           ...MODES[key].offer(signs[key]),
+          drawing: MODES[key].drawing,
           signs: signs[key].signs,
           onAccept: () => turnOn(key),
           onDecline: () => { offer = null; saveMode(key, { dismissed: true }); setTimeout(showShareTip, 500); },
@@ -958,7 +960,7 @@ export const planetView = {
       try {
         offer = modeOffer({
           kind: 'lm-offer-back',
-          icon: 'lm-offer-icon',
+          drawing: MODES[key].drawing,
           title: `Most of this ${word} isn’t ${MODES[key].name} any more`,
           signs: [],
           note: `It can go back to showing everything as plain files, or stay ${MODES[key].name}. Nothing on it changes either way.`,

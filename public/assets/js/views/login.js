@@ -15,6 +15,7 @@ import { setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
 import { DUR, EASE, h, reducedMotion, touchScreen, wait } from '../util.js';
 import { voidArt } from '../voidart.js';
+import { icon } from '../icons.js';
 
 const NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9]$/;
 const BEEN = 'mutt.been-here';
@@ -290,7 +291,7 @@ export const loginView = {
       class: 'login-name', type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false',
       maxlength: '24', placeholder: 'your name', 'aria-label': 'Username',
     });
-    const goBtn = h('button', { type: 'submit', class: 'login-go', 'aria-label': 'Continue' }, '→');
+    const goBtn = h('button', { type: 'submit', class: 'login-go', 'aria-label': 'Continue', title: 'Continue' }, icon('forward', 20));
     const pin = pinField({ autocomplete: 'current-password', label: 'Code', either: true, onComplete: (digits) => submitPin(digits) });
     const prompt = h('h2', { class: 'login-prompt', 'aria-live': 'polite' });
     const pinLabel = h('p', { class: 'login-label' });

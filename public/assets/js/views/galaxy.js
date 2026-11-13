@@ -10,7 +10,7 @@ import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { fileFace, glyph, holdPlanets, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
+import { fileFace, holdPlanets, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
 import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
@@ -19,6 +19,7 @@ import { addFiles, withinLimit } from '../uploads.js';
 import { DUR, EASE, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
 import { paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
+import { icon } from '../icons.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
@@ -624,7 +625,7 @@ function miniGalaxy(g, plan, here) {
     return dot;
   });
   const meta = [h('span', null, plural(g.planets, 'planet'))];
-  if (g.locked) meta.push(h('span', { class: 'uvg-locks' }, glyph('lock', 10), `${g.locked} locked`));
+  if (g.locked) meta.push(h('span', { class: 'uvg-locks' }, icon('lock', 12), `${g.locked} locked`));
   else if (g.open) meta.push(h('span', null, `· ${plural(g.files, 'file')}`));
   else if (g.private) meta.push(h('span', null, '· private'));
   const sys = h('span', { class: 'uvg-sys' }, h('span', { class: 'uvg-center' },
@@ -829,7 +830,7 @@ class Galaxy {
     this.webLayer = h('div', { class: 'uv-web-layer' }, this.web);
     this.near = [];
     this.runway = h('div', { class: 'uv-runway' }, this.uvStage);
-    this.cue = h('button', { type: 'button', class: 'gx-cue', onclick: () => this.goOut() }, h('span', null, 'Universe'), glyph('down', 12));
+    this.cue = h('button', { type: 'button', class: 'gx-cue', onclick: () => this.goOut() }, h('span', null, 'Universe'), icon('down', 12));
     this.el = h('div', { class: 'world' }, this.webLayer, this.stage, this.runway, this.cue);
 
     together(() => { for (const p of data.planets) this.addPlanet(p); });

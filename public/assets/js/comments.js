@@ -4,9 +4,9 @@
 // out of the way until someone has commented.
 
 import { api } from './api.js';
-import { commentGlyph } from './cells.js';
 import { toast } from './ui.js';
 import { autosize, fullDate, h, nameColor, timeAgo, touchScreen } from './util.js';
+import { icon } from './icons.js';
 
 const LIMIT = 2000;
 
@@ -78,17 +78,17 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
 
   // The × asks once in place ("Remove?") before it removes anything.
   function removeButton(c, row) {
-    const btn = h('button', { type: 'button', class: 'vw-cm-x', title: c.mine ? 'Take back' : 'Remove comment', 'aria-label': c.mine ? 'Take back your comment' : `Remove @${c.by}'s comment` }, '×');
+    const btn = h('button', { type: 'button', class: 'vw-cm-x', title: c.mine ? 'Take back' : 'Remove comment', 'aria-label': c.mine ? 'Take back your comment' : `Remove @${c.by}'s comment` }, icon('close', 12));
     let armed = 0;
     btn.addEventListener('click', () => {
       if (armed) { clearTimeout(armed); remove(c, row); return; }
       btn.classList.add('is-armed');
       btn.textContent = 'Remove?';
-      armed = setTimeout(() => { armed = 0; btn.classList.remove('is-armed'); btn.textContent = '×'; }, 3000);
+      armed = setTimeout(() => { armed = 0; btn.classList.remove('is-armed'); btn.replaceChildren(icon('close', 12)); }, 3000);
     });
     btn.addEventListener('blur', () => {
       if (!armed) return;
-      clearTimeout(armed); armed = 0; btn.classList.remove('is-armed'); btn.textContent = '×';
+      clearTimeout(armed); armed = 0; btn.classList.remove('is-armed'); btn.replaceChildren(icon('close', 12));
     });
     return btn;
   }
@@ -109,7 +109,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
   function show(next, { arrived = null } = {}) {
     comments = next;
     const n = comments.length;
-    count.replaceChildren(...(n ? [commentGlyph(), String(n)] : []));
+    count.replaceChildren(...(n ? [icon('comment', 12), String(n)] : []));
     list.replaceChildren(...comments.map(row));
     if (!n && !owner) list.append(h('li', { class: 'vw-cm-empty' }, 'No comments yet.'));
     // Your own file shows the section only once someone has said something.

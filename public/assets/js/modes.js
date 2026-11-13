@@ -28,7 +28,7 @@ import { api } from './api.js';
 import { plural, styles } from './util.js';
 
 const notTmp = (b) => !String(b.id).startsWith('tmp-');
-const showAsFiles = (page, key) => ({ label: 'Show as files again', run: () => page.turnOff(key) });
+const showAsFiles = (page, key) => ({ icon: 'files', label: 'Show as files again', run: () => page.turnOff(key) });
 
 // From the list's own ⋯ button (anchor), or the planet's ••• menu.
 function listOptions(m, page, anchor) {
@@ -47,6 +47,8 @@ function listOptions(m, page, anchor) {
 export const MODES = {
   list: {
     label: 'Make it a list',
+    icon: 'checklist',
+    drawing: 'list',
     name: 'a list',
     moons: true,
     ownEntrance: true,
@@ -66,7 +68,6 @@ export const MODES = {
     },
     blocks: (v) => v.blocks.filter(notTmp),
     offer: (signs) => ({
-      icon: 'lm-offer-icon',
       title: 'This planet looks like a list',
       note: !signs.split?.length ? null : signs.split.length === 1
         ? 'The note written as a list will become one item per line.'
@@ -74,12 +75,14 @@ export const MODES = {
       accept: 'Make it a list',
       busy: 'Making it a list…',
     }),
-    menu: (page) => [{ label: 'List options…', run: () => listOptions(codeOf('list'), page) }],
+    menu: (page) => [{ icon: 'setup', label: 'List options…', run: () => listOptions(codeOf('list'), page) }],
     leave: (page) => page.state.listPanel?.close(),
   },
 
   reading: {
     label: 'Make it a reading planet',
+    icon: 'book',
+    drawing: 'shelf',
     name: 'a bookshelf',
     moons: false,
     load: () => import('./reading.js'),
@@ -94,7 +97,6 @@ export const MODES = {
     blocks: (v) => v.blocks,
     offer: (signs) => ({
       kind: 'rp-offer',
-      icon: 'rp-offer-icon',
       title: 'This planet looks like a bookshelf',
       note: signs.pdfs
         ? 'Books stand on a shelf by their cover, and open in a reader that keeps your place, highlights and notes. PDFs can be turned into reading format when you open them.'
@@ -107,6 +109,8 @@ export const MODES = {
 
   cookbook: {
     label: 'Make it a cookbook',
+    icon: 'pot',
+    drawing: 'cards',
     name: 'a cookbook',
     moons: false,
     load: () => import('./cookbook.js'),
@@ -126,8 +130,6 @@ export const MODES = {
     blocks: (v) => v.list(),
     offer: () => ({
       kind: 'cb-offer',
-      icon: 'cb-offer-icon',
-      strokes: 2,
       title: 'This planet looks like a cookbook',
       note: 'Recipes become index cards in a recipe box, sorted into chapters. Each card has the amounts (scaled for however many you’re cooking for, in metric or US), the method, your notes and a photo of the finished dish, and a cooking mode that goes one step at a time.',
       accept: 'Make it a cookbook',
@@ -138,6 +140,8 @@ export const MODES = {
 
   documents: {
     label: 'Open in Mutt Documents',
+    icon: 'page',
+    drawing: 'desk',
     name: 'a desk of writing',
     moons: true,
     pageClass: 'is-desk',
@@ -156,14 +160,12 @@ export const MODES = {
     blocks: (v) => v.list(),
     offer: () => ({
       kind: 'dk-offer',
-      icon: 'dk-offer-icon',
-      strokes: 2,
       title: 'This planet looks like writing',
       note: 'Its notes become documents on paper pages, with headings, page setup, comments, versions, and downloads as PDF or Word. Poems are set as poems.',
       accept: 'Open it in Mutt Documents',
       busy: 'Opening…',
     }),
-    menu: (page) => [{ label: 'New document', run: () => page.docs.create() }, showAsFiles(page, 'documents')],
+    menu: (page) => [{ icon: 'plus', label: 'New document', run: () => page.docs.create() }, showAsFiles(page, 'documents')],
   },
 
 };

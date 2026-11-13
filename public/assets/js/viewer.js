@@ -12,6 +12,7 @@ import { planetDot } from './planets.js';
 import { transition } from './transitions.js';
 import { enterRoom, leaveRoom, toast } from './ui.js';
 import { EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, styles, touchScreen, wait } from './util.js';
+import { icon } from './icons.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
 export function configureViewer(next) {
@@ -142,8 +143,8 @@ async function loadConnections() {
 
 function mount() {
   const counter = h('span', { class: 'vw-count' });
-  const prev = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Previous', onclick: () => step(-1) }, '←');
-  const next = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Next', onclick: () => step(1) }, '→');
+  const prev = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Previous', title: 'Previous', onclick: () => step(-1) }, icon('chevron-left'));
+  const next = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Next', title: 'Next', onclick: () => step(1) }, icon('chevron-right'));
   const close = h('button', { type: 'button', class: 'btn btn-quiet vw-btn vw-close', 'aria-label': 'Close', onclick: () => hooks.close() }, 'Close');
   state.stage = h('div', { class: 'vw-stage' });
   state.side = h('aside', { class: 'vw-side' });
@@ -266,7 +267,7 @@ function linkBar(block) {
   return h('a', { class: 'vw-link-bar', href: block.content, target: '_blank', rel: 'noopener noreferrer', title: block.content },
     h('span', { class: 'vw-link-host' }, host),
     h('span', { class: 'vw-link-path' }, path),
-    h('span', { class: 'vw-link-go', 'aria-hidden': 'true' }, '↗'));
+    h('span', { class: 'vw-link-go', 'aria-hidden': 'true' }, icon('out')));
 }
 
 function linkStage(block) {
@@ -357,8 +358,8 @@ const PDF_ZOOMS = [0.6, 0.8, 1, 1.3, 1.7];
 function pdfStage(block) {
   const pages = h('div', { class: 'vw-pdf-pages' });
   const count = h('span', { class: 'vw-pdf-count' }, block.meta?.pages ? plural(block.meta.pages, 'page') : '');
-  const zoomOut = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom out' }, '−');
-  const zoomIn = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom in' }, '+');
+  const zoomOut = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom out', title: 'Zoom out' }, icon('minus'));
+  const zoomIn = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom in', title: 'Zoom in' }, icon('plus'));
   const wrap = h('div', { class: 'vw-media vw-pdf' },
     h('div', { class: 'vw-pdf-bar' }, count, h('span', { class: 'vw-pdf-zoom' }, zoomOut, zoomIn)),
     pages);
@@ -457,7 +458,7 @@ function pdfStage(block) {
       wrap.replaceChildren(h('div', { class: 'vw-card fglass' },
         h('div', { class: 'vw-card-ext' }, 'PDF'),
         h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
-        h('a', { class: 'btn btn-main', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗')));
+        h('a', { class: 'btn btn-main', href: block.file, target: '_blank', rel: 'noopener' }, 'Open', icon('out'))));
     }
   })();
   return wrap;
@@ -510,7 +511,7 @@ function metaRows(block) {
 }
 
 function saveButton(block) {
-  const btn = h('button', { type: 'button', class: 'btn btn-main btn-save' }, block.saved ? 'Saved ✓' : 'Save →');
+  const btn = h('button', { type: 'button', class: 'btn btn-main btn-save' }, icon(block.saved ? 'check' : 'onto'), block.saved ? 'Saved' : 'Save');
   btn.addEventListener('click', () => openSave(btn, state.block, {
     align: 'end',
     onSaved: () => {
@@ -549,9 +550,9 @@ function renderSide() {
   const { block, connections, drawer } = state;
   const actions = h('div', { class: 'vw-actions' },
     block.file ? h('a', { class: 'btn', href: `${block.file}?dl=1` }, 'Download') : null,
-    block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Original ↗') : null,
-    block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Open ↗') : null,
-    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit ↗') : null,
+    block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Original', icon('out')) : null,
+    block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Open', icon('out')) : null,
+    block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit', icon('out')) : null,
     // Writing longer than a sentence or two can be opened as a document.
     block.kind === 'text' && (block.content.trim().length >= 280 || (block.content.match(/[.!?](\s|$)/g) || []).length >= 3)
       ? h('button', { type: 'button', class: 'btn', onclick: () => openDocEditor(block.id) }, 'Open as a document') : null);
@@ -579,7 +580,7 @@ function renderSide() {
     return;
   }
 
-  const connectBtn = h('button', { type: 'button', class: 'btn btn-small' }, 'Planets →');
+  const connectBtn = h('button', { type: 'button', class: 'btn btn-small', 'aria-haspopup': 'dialog' }, 'Planets', icon('caret'));
   connectBtn.addEventListener('click', () => openConnect(connectBtn, state.block, { align: 'end' }));
 
   const list = connections == null
@@ -591,7 +592,7 @@ function renderSide() {
         h('button', {
           type: 'button', class: 'btn btn-quiet btn-small btn-round vw-conn-x', 'aria-label': `Take off ${d.title}`, title: `Take off ${d.title}`,
           onclick: () => removeFromDrawer(state.block, d.id, d.title),
-        }, '×'))))
+        }, icon('close')))))
       : null;
 
   fill(state.side,

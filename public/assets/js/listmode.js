@@ -12,6 +12,7 @@ import { nav } from './nav.js';
 import { openContextMenu, openDialog, openPopover, sectionHead, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
 import { DUR, EASE, autosize, bus, h, plural, reducedMotion } from './util.js';
+import { icon } from './icons.js';
 
 export const LIST_TYPES = [
   { value: 'check', label: 'Checklist' },
@@ -116,7 +117,7 @@ export class ListView {
     this.bar = h('span', { class: 'lm-bar', 'aria-hidden': 'true' }, this.fill);
     this.clearBtn = editable ? h('button', { type: 'button', class: 'btn btn-quiet btn-small lm-clear', onclick: () => this.clearTicked() }, 'Clear ticked') : null;
     this.optsBtn = editable && onOptions
-      ? h('button', { type: 'button', class: 'btn btn-small btn-round lm-opts', 'aria-label': 'List options', title: 'List options', 'aria-haspopup': 'dialog' }, '•••')
+      ? h('button', { type: 'button', class: 'btn btn-small btn-round lm-opts', 'aria-label': 'List options', title: 'List options', 'aria-haspopup': 'dialog' }, icon('more'))
       : null;
     this.optsBtn?.addEventListener('click', () => onOptions(this.optsBtn));
     // The one heading every mode has: how many, how many ticked, and the list's own buttons.
@@ -128,7 +129,7 @@ export class ListView {
     if (editable) {
       this.input = h('textarea', { class: 'lm-input', rows: 1, placeholder: 'Add an item', 'aria-label': 'Add an item', enterkeyhint: 'enter' });
       this.left = h('span', { class: 'lm-left', 'aria-live': 'polite' });
-      this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }), this.input, this.left);
+      this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }, icon('plus')), this.input, this.left);
       this.wireAdder();
     }
     this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.ol);
@@ -243,10 +244,10 @@ export class ListView {
   row(block) {
     const li = h('li', { class: 'lm-item', 'data-id': block.id });
     li.classList.toggle('is-done', !!block.checked && this.ticking());
-    const grip = this.editable ? h('span', { class: 'lm-grip', 'aria-hidden': 'true', title: 'Drag to move' }) : null;
+    const grip = this.editable ? h('span', { class: 'lm-grip', 'aria-hidden': 'true', title: 'Drag to move' }, icon('grip')) : null;
     grip?.addEventListener('pointerdown', (e) => this.drag(e, li));
     const remove = this.editable && block.mine !== false
-      ? h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove', title: 'Remove', onclick: () => this.remove(block.id) }, '×')
+      ? h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove', title: 'Remove', onclick: () => this.remove(block.id) }, icon('close'))
       : null;
     li.append(h('div', { class: 'lm-row fglass' }, grip, this.markEl(block), this.bodyEl(block), remove));
     return li;
@@ -660,15 +661,15 @@ export class ListView {
     const open = () => nav.openBlock(id);
     if (!this.editable || block.mine === false) {
       openContextMenu(e, [
-        { label: 'Open', run: open },
-        block.kind === 'text' && { label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
+        { icon: 'open', label: 'Open', run: open },
+        block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
       ], { target: li });
       return;
     }
     const text = li.querySelector('textarea.lm-text');
     const extra = [
-      this.ticking() && { label: block.checked ? 'Untick' : 'Tick off', run: () => this.toggle(id) },
-      text && { label: 'Edit', run: () => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); } },
+      this.ticking() && { icon: block.checked ? 'untick' : 'tick', label: block.checked ? 'Untick' : 'Tick off', run: () => this.toggle(id) },
+      text && { icon: 'edit', label: 'Edit', run: () => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); } },
     ].filter(Boolean);
     const worlds = (this.targets?.() || []).map((t) => ({ title: t.title, dot: t.dot, planet: t.planet, move: () => this.moveTo(t, id) }));
     const only = this.leaving(block).only;

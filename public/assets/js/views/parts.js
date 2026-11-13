@@ -10,9 +10,9 @@
 
 import { renderCell } from '../cells.js';
 import { entryCell } from '../entry.js';
-import { glyph } from '../planets.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, stepper, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
+import { ICON_NAMES, icon } from '../icons.js';
 
 const held = (el, ...states) => { el.classList.add(...states.map((s) => `is-${s}`)); el.tabIndex = -1; return el; };
 const off = (el) => { el.disabled = true; return el; };
@@ -56,22 +56,22 @@ function buttons() {
       h('span', null, off(btn(words, cls))),
       h('span', null, busy ? btn(busy, `${cls} is-busy`) : null),
     ]));
-  const round = (kind, label, icon, extra = '') => h('button', { type: 'button', class: `btn btn-round ${kind} ${extra}`, 'aria-label': label, title: label }, glyph(icon, 14));
+  const round = (kind, label, name, extra = '') => h('button', { type: 'button', class: `btn btn-round ${kind} ${extra}`, 'aria-label': label, title: label }, icon(name));
   return section('Button', 'Four kinds, three sizes, one shape. One main button per view; quiet for turning something down; danger only to confirm in a dialog.',
     h('div', { class: 'parts-scroll' }, grid),
     row('Small 24 · regular 32 · large 40', btn('Add', 'btn-main btn-small'), btn('Make it a list', 'btn-main'), btn('Sign in', 'btn-main btn-large'),
       btn('Retry', 'btn-small'), btn('Share'), btn('Sign out', 'btn-large'), btn('Upload', 'btn-quiet btn-small'), btn('Not now', 'btn-quiet')),
     row('Round: an icon alone', round('', 'Share', 'people'), round('btn-quiet', 'Search (/)', 'search'), round('btn-quiet', 'Search (/)', 'search', 'btn-small'),
-      held(round('btn-quiet', 'Held on, like Bold in a toolbar', 'star'), 'on')),
+      held(round('btn-quiet', 'Held on, like a set bookmark', 'bookmark'), 'on')),
     h('div', { class: 'parts-own fglass', style: { '--pc': PALETTE[5], '--pa': 'color-mix(in oklab, var(--pc), var(--shade) 34%)' } },
-      row('On a planet’s own things', btn([glyph('people', 13), h('span', null, 'Share')]), btn('Make it a list', 'btn-main'), btn('Not now', 'btn-quiet'), btn('Add', 'btn-main btn-small'))),
+      row('On a planet’s own things', btn([icon('people'), h('span', null, 'Share')]), btn('Make it a list', 'btn-main'), btn('Not now', 'btn-quiet'), btn('Add', 'btn-main btn-small'))),
     note('Inside a planet’s own page content the main button takes the planet’s deep colour and a plain button’s edge a third of it. Nothing on bar glass does.'));
 }
 
 function textBoxes() {
   const field = (extra = {}) => h('input', { class: 'field', type: 'text', placeholder: 'Someone’s username', 'aria-label': 'Sample text box', ...extra });
-  const search = h('label', { class: 'field field-search' }, glyph('search', 14),
-    h('span', { class: 'chip' }, h('i', { class: 'chip-dot', style: { '--c': PALETTE[2] } }), 'Postcards', h('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remove Postcards' }, '×')),
+  const search = h('label', { class: 'field field-search' }, icon('search'),
+    h('span', { class: 'chip' }, h('i', { class: 'chip-dot', style: { '--c': PALETTE[2] } }), 'Postcards', h('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remove Postcards' }, icon('close', 12))),
     h('input', { class: 'search-input', type: 'search', placeholder: 'Search your planets, stars and people', 'aria-label': 'Sample search' }));
   const bare = (words, extra = {}) => h('input', { class: 'field-bare', type: 'text', value: words, placeholder: 'Add a note', 'aria-label': 'Sample bare text box', ...extra });
   return section('Text box', 'Boxed is a sunken well, 32 high. Search is 40 high with round ends. Bare is for a planet’s or file’s own name and note: no box until you point or type.',
@@ -100,7 +100,7 @@ function switches() {
   const serves = stepper({ value: 4, min: 1, max: 12, format: (n) => `Serves ${n}`, label: 'Sample servings', less: 'Fewer', more: 'More' });
   const size = stepper({ value: 17, min: 12, max: 28, label: 'Sample text size', less: 'Smaller', more: 'Bigger' });
   const chip = (words, c) => h('span', { class: 'chip' }, c ? h('i', { class: 'chip-dot', style: { '--c': c } }) : null, words,
-    h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove ${words}` }, '×'));
+    h('button', { type: 'button', class: 'chip-x', 'aria-label': `Remove ${words}` }, icon('close', 12)));
   return [
     section('Switch', 'For something that happens now. 40 × 24, the pearl travels 16.',
       row(null, sw('On', { on: true }), sw('Off'), sw('Keyboard', { on: true, focus: true }), sw('Switched off', { on: true, disabled: true }))),
@@ -127,8 +127,8 @@ function menus() {
   const panelBody = () => h('div', { class: 'parts-stack' }, h('div', { class: 'liv-label' }, 'Who can see it'), who.el,
     h('input', { class: 'field', type: 'text', placeholder: 'Someone’s username', 'aria-label': 'Sample username' }));
   const live = [
-    { label: 'Rename', run: () => toast('Rename') }, { label: 'Add a moon…', hint: '2 of 4', run: () => toast('Add a moon') }, '-',
-    { label: 'Delete planet…', danger: true, run: () => toast('Nothing was deleted') }];
+    { icon: 'edit', label: 'Rename', run: () => toast('Rename') }, { icon: 'moon', label: 'Add a moon…', hint: '2 of 4', run: () => toast('Add a moon') }, '-',
+    { icon: 'trash', label: 'Delete planet…', danger: true, run: () => toast('Nothing was deleted') }];
   const area = h('div', { class: 'parts-ctx fglass', tabindex: '0' }, 'Right-click here');
   area.addEventListener('contextmenu', (e) => openContextMenu(e, [{ heading: 'Move to' }, ...live], { title: 'pier-at-dusk.jpg', target: area }));
   return section('Menu and small panel', 'One menu for the ••• button and right-click. Rows 32 high; the red row is last, under a line. A small panel is a menu that holds controls.',
@@ -220,10 +220,10 @@ function modeParts() {
   const item = (words, { done = false, state = '' } = {}) => {
     const li = h('li', { class: `lm-item${done ? ' is-done' : ''}` },
       h('div', { class: 'lm-row fglass' },
-        h('span', { class: 'lm-grip', 'aria-hidden': 'true' }),
+        h('span', { class: 'lm-grip', 'aria-hidden': 'true' }, icon('grip')),
         h('button', { type: 'button', class: 'lm-mark lm-box', role: 'checkbox', 'aria-checked': String(done), 'aria-label': `Tick off ${words}` }, h('span', { class: 'tick-box' })),
         h('div', { class: 'lm-text is-static' }, words),
-        h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove' }, '×')));
+        h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove' }, icon('close'))));
     return state ? held(li, state) : li;
   };
   return [
@@ -246,11 +246,38 @@ function modeParts() {
   ];
 }
 
+// Every icon in the set, read from icons.js itself, so the sheet can't fall behind the file.
+function icons() {
+  const cell = (name) => h('button', { type: 'button', class: 'parts-icon', title: name }, icon(name), h('span', null, name));
+  const round = (name, label, extra = '') => h('button', { type: 'button', class: `btn btn-quiet btn-round ${extra}`.trim(), 'aria-label': label, title: label }, icon(name, extra.includes('btn-large') ? 20 : 16));
+  const item = (name, words, { danger = false, hint = null, state = '' } = {}) => {
+    const el = h('button', { type: 'button', role: 'menuitem', class: `menu-item${danger ? ' is-danger' : ''}` },
+      h('span', { class: 'menu-icon' }, icon(name)), h('span', null, words), hint ? h('span', { class: 'menu-hint' }, hint) : null);
+    return state ? held(el, state) : el;
+  };
+  const pick = (words, on) => h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': String(on), class: 'menu-item' },
+    h('span', null, words), on ? h('span', { class: 'menu-tick' }, icon('check')) : null);
+  return section('Icons', `One set of ${ICON_NAMES.length}, drawn in js/icons.js on a 16 grid with a 1.5 line and round ends. An icon takes the colour of the words beside it. Point at one: its body fills with a little light, as it does on a button that is pointed at or held on.`,
+    h('div', { class: 'parts-icons' }, ICON_NAMES.map(cell)),
+    row('Three sizes, one line: 12 in a chip or a tag · 16 · 20 in the editor’s and reader’s bars', icon('comment', 12), icon('comment'), icon('comment', 20),
+      h('span', { class: 'parts-sep' }), icon('close', 12), icon('close'), icon('close', 20)),
+    row('Resting · pointed at · held on', round('bookmark', 'Bookmark'), held(round('bookmark', 'Bookmark'), 'hover'), held(round('bookmark', 'Bookmark'), 'on'),
+      h('span', { class: 'parts-sep' }), btn([icon('plus'), 'New card']), btn(['Original', icon('out')], 'btn-quiet'), btn(['Planets', icon('caret')], 'btn-small')),
+    row('A tail to leave, a chevron to step', round('back', 'Back to your galaxy'), h('span', { class: 'parts-sep' }), round('chevron-left', 'Previous'), round('chevron-right', 'Next')),
+    h('div', { class: 'parts-menus' },
+      h('div', { class: 'pop' }, h('div', { class: 'menu' },
+        item('open', 'Open'), item('move', 'Other planets…', { state: 'hover' }), item('download', 'Download'), item('link', 'Copy link', { hint: '⌘C' }),
+        h('div', { class: 'menu-sep' }), item('trash', 'Delete', { danger: true }))),
+      h('div', { class: 'pop' }, h('div', { class: 'menu' },
+        h('div', { class: 'menu-head' }, 'Sort'), pick('Last edited', true), pick('Newest', false), pick('Name', false)))),
+    note('A menu of things to do gives every row an icon; a menu that picks one of a list gives none, and the chosen row ends in a tick. A menu never mixes the two.'));
+}
+
 export function partsView() {
   const el = h('div', { class: 'parts' },
     h('header', { class: 'parts-head' }, h('h1', { class: 'parts-title' }, 'Parts'),
       note('Every shared part in every state, as DESIGN.md section 4 gives them. This page is linked from nowhere. A new part is drawn here first.')),
-    buttons(), textBoxes(), ...switches(), menus(), ...overlays(), ...fileBoxes(), ...modeParts());
+    buttons(), textBoxes(), ...switches(), menus(), icons(), ...overlays(), ...fileBoxes(), ...modeParts());
   return {
     el,
     title: 'Parts',

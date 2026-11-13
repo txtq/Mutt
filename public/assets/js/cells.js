@@ -14,6 +14,7 @@ import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
 import { tintFor } from './theme.js';
 import { fmtBytes, fmtDate, fmtDuration, h, seeded } from './util.js';
+import { icon } from './icons.js';
 
 const BOX = 4 / 5;   // the frame's own shape (.cell-box in galaxy.css)
 
@@ -127,7 +128,7 @@ export function blockFace(block) {
 function tagFor(block) {
   if (!imageSrc(block) && block.kind !== 'video') return null;
   if (block.kind === 'video' || block.kind === 'audio') {
-    return h('span', { class: 'cell-tag is-always' }, h('i', { class: 'cell-tag-play' }), block.duration ? fmtDuration(block.duration) : KIND_ONE[block.kind]);
+    return h('span', { class: 'cell-tag is-always' }, icon('play', 12), block.duration ? fmtDuration(block.duration) : KIND_ONE[block.kind]);
   }
   if (isBook(block)) return h('span', { class: 'cell-tag' }, 'Book');
   if (isPage(block)) return h('span', { class: 'cell-tag' }, [extLabel(block), block.meta?.pages ? `${block.meta.pages} pp` : null].filter(Boolean).join(' · '));
@@ -161,12 +162,12 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
   if (block.mine === false) {
     // Someone else's file: the one thing to do is keep a copy.
     box.append(h('div', { class: 'cell-actions' },
-      h('button', { type: 'button', class: `btn btn-small pill${block.saved ? ' btn-main' : ''}`, dataset: { act: 'save' } }, block.saved ? 'Saved ✓' : 'Save'),
-      moderate ? h('button', { type: 'button', class: 'btn btn-small pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••') : null));
+      h('button', { type: 'button', class: `btn btn-small pill${block.saved ? ' btn-main' : ''}`, dataset: { act: 'save' } }, icon(block.saved ? 'check' : 'onto'), block.saved ? 'Saved' : 'Save'),
+      moderate ? h('button', { type: 'button', class: 'btn btn-small pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More', title: 'More' }, icon('more')) : null));
   } else if (actions) {
     box.append(h('div', { class: 'cell-actions' },
       h('button', { type: 'button', class: 'btn btn-small pill', dataset: { act: 'connect' } }, 'Planets'),
-      h('button', { type: 'button', class: 'btn btn-small pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More' }, '•••')));
+      h('button', { type: 'button', class: 'btn btn-small pill pill-dots', dataset: { act: 'more' }, 'aria-label': 'More', title: 'More' }, icon('more'))));
   }
   const fact = factOf(block);
   const cell = h('article', {
@@ -178,7 +179,7 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
     block.owner ? h('span', { class: 'cell-owner' }, ` @${block.owner}`) : null),
   block.commentCount ? h('span', {
     class: 'cell-comments', title: `${block.commentCount} comment${block.commentCount === 1 ? '' : 's'}`,
-  }, commentGlyph(), String(block.commentCount)) : null,
+  }, icon('comment', 12), String(block.commentCount)) : null,
   fact ? h('span', { class: 'cell-fact' }, fact) : null));
   if (block.kind === 'video' && block.file) attachHoverPlay(cell, block);
   return cell;
@@ -248,16 +249,4 @@ export function updatePending(cell, item) {
       h('button', { type: 'button', class: 'btn btn-small', dataset: { act: 'retry' } }, 'Retry'));
     cell.querySelector('.cell-fact')?.remove();
   }
-}
-
-// A little speech bubble, drawn as a line like the other marks.
-export function commentGlyph() {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.classList.add('cm-glyph');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', 'M3.5 3h9A1.5 1.5 0 0 1 14 4.5v5a1.5 1.5 0 0 1-1.5 1.5H8l-3 2.5V11H3.5A1.5 1.5 0 0 1 2 9.5v-5A1.5 1.5 0 0 1 3.5 3z');
-  svg.append(path);
-  return svg;
 }

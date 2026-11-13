@@ -164,46 +164,7 @@ body.no-chrome #view { max-width: none; }
   padding: 40px 0 30px;
 }
 
-/* ------------------------------------------------------------------ grid */
-
-.grid {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  column-gap: var(--gap-x);
-  row-gap: var(--gap-y);
-}
-.grid-empty {
-  grid-column: span 2;
-  align-self: center;
-  font-size: var(--text-body);
-  line-height: 1.6;
-  max-width: 40ch;
-}
-.grid-empty p + p { margin-top: 6px; }
-.grid > .grid-empty:only-child { grid-column: 1 / -1; padding: 40px 0; }
-
-.cell { position: relative; min-width: 0; outline: none; }
-.cell-box { position: relative; aspect-ratio: 1 / 1; }
-.cell-fill {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cell-cap {
-  height: 18px;
-  margin-top: var(--space-12);
-  text-align: center;
-  font-size: calc(12.5px * var(--t));
-  line-height: 18px;
-  transition: color 0.3s, opacity 0.3s;
-}
-.cell-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cell:hover .cell-cap, .cell:focus-visible .cell-cap { color: var(--ink); }
-.cell[data-id] { cursor: pointer; }
-.cell:focus-visible .cell-box { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* ------------------------------------------------------------------ entrances */
 
 /* Entrances fill `backwards`, never `both`: a held end state leaves a
    blur(0)/translate(0) on the element for good, and that stops the glass
@@ -212,190 +173,6 @@ body.no-chrome #view { max-width: none; }
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px); filter: blur(8px); }
 }
-
-/* Faces: what a block looks like inside its square */
-.face { max-width: 100%; max-height: 100%; }
-.face-img {
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  border-radius: var(--r-box);
-  opacity: 0;
-  transition: opacity 0.6s var(--ease-settle), transform 0.9s var(--ease-settle);
-}
-.face-img.is-loaded, video.face-img { opacity: 1; }
-.cell[data-kind="pdf"] .face-img, .cell[data-kind="doc"] .face-img { outline: 1px solid var(--line); outline-offset: -1px; }
-.cell[data-id]:hover .face-img { transform: scale(1.015); }
-
-.face-text, .face-file, .face-link {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: var(--r-box);
-  transition: border-color 0.35s var(--ease-settle), background 0.35s;
-}
-.face-text { padding: 16px 18px; }
-.face-text-body { font-size: calc(var(--text-label) * var(--t)); line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
-
-.face-file { display: flex; flex-direction: column; justify-content: space-between; padding: 16px 18px; }
-.face-ext { font: 500 30px/1 var(--mono); letter-spacing: -0.04em; }
-.face-excerpt {
-  margin: 0;
-  flex: 1;
-  overflow: hidden;
-  font: 400 var(--text-small)/1.6 var(--mono);
-  color: var(--ink-2);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  -webkit-mask-image: linear-gradient(#000 55%, transparent);
-  mask-image: linear-gradient(#000 55%, transparent);
-}
-.face-foot { min-width: 0; }
-.face-name { font-size: 12.5px; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.face-sub { margin-top: var(--space-4); font: 400 var(--text-fact)/1.3 var(--mono); color: var(--ink-3); }
-
-.face-link { display: flex; flex-direction: column; justify-content: flex-end; padding: 16px 18px; }
-.cell[data-kind="link"] .face-img { box-shadow: 0 0 0 1px var(--line); }
-.face-link-desc { margin-top: var(--space-8); font-size: 12.5px; line-height: 1.45; color: var(--ink-3); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.face-link-title { font-size: 15px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
-
-.cell-badge {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  max-width: calc(100% - 16px);
-  padding: 3px 7px;
-  border-radius: 6px;
-  font: 500 var(--text-small)/1.2 var(--mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(-3px);
-  transition: opacity 0.35s var(--ease-settle), transform 0.45s var(--ease-settle);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
-}
-.cell:hover .cell-badge { opacity: 1; transform: none; }
-
-.cell-actions {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 10px;
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.3s var(--ease-settle), transform var(--dur-arrive) var(--ease-settle);
-  pointer-events: none;
-}
-.cell:hover .cell-actions, .cell:focus-within .cell-actions { opacity: 1; transform: none; pointer-events: auto; }
-@media (hover: none) { .cell-actions { display: none; } }
-
-.cell-hover-video {
-  position: absolute;
-  object-fit: contain;
-  opacity: 0;
-  transition: opacity 0.4s var(--ease-settle);
-  pointer-events: none;
-}
-.cell-hover-video.is-playing { opacity: 1; }
-
-/* Uploading */
-.cell.is-pending .cell-fill { opacity: 0.55; transition: opacity 0.4s; }
-.cell-progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -8px;
-  height: 2px;
-  background: var(--ink);
-  transform-origin: left;
-  transform: scaleX(var(--p, 0));
-  transition: transform 0.3s var(--ease-settle);
-}
-.cell.is-failed .cell-progress { background: var(--danger); }
-.cell-error { color: var(--danger); }
-.is-shimmer { overflow: hidden; }
-.is-shimmer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  /* the band slides across rather than repainting each frame; same pass and pause as before */
-  animation: shimmer 1.6s linear infinite;
-}
-@keyframes shimmer { from { transform: translateX(-112.5%); } to { transform: translateX(262.5%); } }
-
-/* Dragging to reorder */
-.cell.is-placeholder .cell-box { background: var(--tint); border-radius: 2px; }
-.cell.is-placeholder .cell-fill, .cell.is-placeholder .cell-cap { opacity: 0; }
-.cell-ghost {
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: var(--z-sheet);
-  margin: 0;
-  pointer-events: none;
-  transform-origin: 0 0;
-}
-.cell-ghost .cell-box { filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.14)); }
-.cell-ghost .cell-actions, .cell-ghost .cell-badge { display: none; }
-
-/* ------------------------------------------------------------------ the entry box */
-
-.entry {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--r-box);
-  transition: border-color 0.35s var(--ease-settle), background 0.35s var(--ease-settle);
-}
-.entry:hover { border-color: var(--ink-4); }
-.entry textarea {
-  flex: 1;
-  width: 100%;
-  resize: none;
-  border: 0;
-  outline: none;
-  padding: 16px 18px;
-  background: transparent;
-  font-size: calc(13.5px * var(--t));
-  line-height: 1.55;
-}
-.entry textarea::placeholder { color: var(--ink-3); transition: opacity 0.3s, transform 0.4s var(--ease-settle); }
-.entry textarea:focus::placeholder { opacity: 0.55; }
-.entry-foot {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-  min-height: 46px;
-  padding: 8px 10px 10px 18px;
-  font-size: 12.5px;
-  color: var(--ink-3);
-}
-.entry .entry-files { margin-left: -10px; transition: opacity 0.3s, transform 0.45s var(--ease-settle); }
-.entry.has-text .entry-files { opacity: 0; transform: translateY(-4px); pointer-events: none; }
-.entry .entry-add { margin-left: auto; opacity: 0; transform: translateY(4px) scale(0.96); pointer-events: none; transition: opacity 0.3s, transform 0.45s var(--ease-settle); }
-.entry.has-text .entry-add { opacity: 1; transform: none; pointer-events: auto; }
-.entry-drop {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: var(--text-label);
-  font-weight: 500;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s var(--ease-settle);
-}
-.entry.is-over { border-style: dashed; border-color: var(--accent); }
-.entry.is-over .entry-drop { opacity: 1; }
 
 /* ------------------------------------------------------------------ markdown */
 
@@ -641,7 +418,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   transition: background 0.15s;
 }
 .cx-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cx-count { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-4); }
+.cx-count { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-3); }
 .cx-plus { display: grid; place-items: center; width: 18px; height: 18px; color: var(--ink-3); }
 .cx-new { color: var(--ink-2); }
 .cx-note { padding: 10px 8px; color: var(--ink-3); font-size: var(--text-label); }
@@ -799,7 +576,6 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in var(--dur-a
 
 /* ------------------------------------------------------------------ community */
 
-.cell-owner { font-family: var(--mono); font-size: 0.9em; color: var(--ink-4); }
 .cell-shared {
   position: absolute;
   top: 8px;
@@ -829,7 +605,7 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in var(--dur-a
   text-align: left;
 }
 .logo-pick:hover { border-color: var(--ink-4); }
-.cx-owner { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-4); }
+.cx-owner { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ viewer: someone else's file */
 
@@ -842,7 +618,7 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in var(--dur-a
 
 html[data-motion="calm"] .reveal { animation-name: rise-calm; animation-duration: 0.45s; animation-delay: 0s; }
 @keyframes rise-calm { from { opacity: 0; } }
-html[data-motion="calm"] .cell[data-id]:hover .face-img { transform: none; }
+html[data-motion="calm"] .cell[data-id]:hover :is(.face-img, .face-shape) { transform: none; }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after {
   animation-duration: 0.01ms !important;
   animation-delay: 0ms !important;
@@ -852,7 +628,7 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
 /* ------------------------------------------------------------------ smaller screens */
 
 @media (max-width: 1100px) {
-  :root { --gutter: 28px; --gap-x: 20px; --gap-y: 34px; }
+  :root { --gutter: 28px; }
   .viewer { grid-template-columns: minmax(0, 1fr) 320px; }
 }
 
@@ -869,7 +645,7 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
 }
 
 @media (max-width: 720px) {
-  :root { --cols: 2; --gutter: 16px; --gap-x: 12px; --gap-y: 26px; }
+  :root { --cols: 2; --gutter: 16px; }
   .logo { font-size: 24px; }
   .logo-big { font-size: 58px; }
   .set-row { grid-template-columns: 1fr; gap: 10px; }
@@ -877,12 +653,6 @@ html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="
   .search:focus { width: 150px; }
   .page-title { font-size: 25px; }
   .head { grid-template-columns: auto minmax(0, 1fr); gap: 14px; padding: 26px 0 22px; }
-  .face-text, .face-file, .face-link { padding: var(--space-12); }
-  .face-ext { font-size: 22px; }
-  .cell-cap { font-size: var(--text-caption); margin-top: var(--space-8); }
-  .entry textarea { padding: var(--space-12); font-size: var(--text-label); }
-  .entry-foot { padding: 6px 8px 8px 12px; min-height: 40px; }
-  .grid-empty { grid-column: 1 / -1; }
   .pin-cell { width: 54px; height: 62px; }
 }
 
@@ -974,7 +744,7 @@ body {
 
 /* ---- bar glass: Mutt's own. A new thing on bar glass joins this list.
    No `position` here: .pop must stay fixed, and each part places itself. */
-.sheet, .dialog, .pop, .toast, .tip, .tooltip, .de-bubble, .de-slash {
+.sheet, .dialog, .pop, .toast, .tip, .tooltip, .fx-chip, .de-bubble, .de-slash {
   background: var(--glass-fill);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-light), var(--shadow-float);
@@ -1076,6 +846,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .field-bare { display: block; width: 100%; padding: var(--space-2) var(--space-8); border: 0; border-radius: var(--r-row); outline: none; background: transparent; color: var(--ink); font: var(--type-body); transition: background var(--dur-change); }
 .field-bare:hover { background: var(--tint); }
 .field-bare:focus { background: var(--well); box-shadow: var(--well-shadow); }
+.field-bare:read-only { background: transparent; box-shadow: none; cursor: default; }   /* someone else's: words, not a box */
 @media (pointer: coarse) {
   /* A phone zooms the page in on any field whose text is under 16px, so none is smaller. */
   .field { height: var(--h-large); font-size: var(--text-lead); }
@@ -1329,23 +1100,16 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .drop-ring { position: absolute; left: 50%; top: 50%; width: 132%; aspect-ratio: 1; border: 1.5px solid var(--blue-ink); border-radius: var(--r-full); box-shadow: 0 0 0 var(--ring) color-mix(in srgb, var(--blue) 28%, transparent), 0 0 28px color-mix(in srgb, var(--blue-ink) 45%, transparent); transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; transition: opacity var(--dur-change), transform var(--dur-arrive) var(--ease-settle); }
 .drop-ring.is-on { opacity: 1; transform: translate(-50%, -50%); }
 
+/* ---- section heading: the name of a group of files and one fact, straight on the sky. One for every mode.
+   sectionHead() in ui.js (.sec-head > .sec-name, .sec-fact [, .sec-tools]). A page with one group has none. */
+.sec-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); min-height: var(--h-regular); margin: 0 0 var(--space-12); text-shadow: var(--sky-shadow); }
+.sec-head[hidden] { display: none; }
+.sec-name { margin: 0; font: var(--type-label); color: var(--ink-2); }
+.sec-fact { font: var(--type-fact); color: var(--ink-3); }
+.sec-fact:empty { display: none; }
+.sec-tools { display: flex; align-items: center; gap: var(--space-8); margin-left: auto; text-shadow: none; }
+
 /* ================================================================== end of shared parts */
-
-/* ------------------------------------------------------------------ kept until session 4 */
-
-/* The planet header's old glass (and the chip that flies to a planet). Session 4 puts the header on box glass. */
-.liv-head, .fx-chip {
-  background: var(--head-fill);
-  border: 1px solid var(--head-edge);
-  box-shadow: var(--head-shadow);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  color: var(--ink);
-}
-
-/* the buttons on a file box: small plain buttons with a solid back, because they sit on pictures (session 4 rebuilds the box) */
-.pill { background: var(--gloss-clear), var(--bg); background-origin: border-box; }
-.pill.btn-main { background: var(--gloss-on), var(--accent); background-origin: border-box; }
 
 .glyph { flex-shrink: 0; }
 
@@ -2437,13 +2201,6 @@ body[data-page="planet"] :is(#view, .viewer, .de, .cbk, .cb-zoom, .cell-ghost), 
   --line-2: color-mix(in srgb, var(--pt) 25%, transparent);
   --tint: color-mix(in srgb, var(--pt) 9%, transparent);
   --tint-2: color-mix(in srgb, var(--pt) 16%, transparent);
-  --head-fill: linear-gradient(180deg,
-    color-mix(in srgb, color-mix(in oklab, var(--pc, var(--blue)) 30%, rgb(40, 50, 90)) 76%, transparent),
-    color-mix(in srgb, color-mix(in oklab, var(--pc, var(--blue)) 18%, rgb(17, 23, 50)) 84%, transparent));
-  --head-edge: color-mix(in srgb, var(--pt) 22%, transparent);
-  --card-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025) 50%),
-    color-mix(in srgb, color-mix(in oklab, var(--pc, var(--blue)) 24%, rgb(22, 29, 62)) 66%, transparent);
-  --card-edge: color-mix(in srgb, var(--pt) 19%, transparent);
 }
 body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(--blue)), #fff 45%); }
 body[data-page="planet"] .viewer {
@@ -2452,48 +2209,38 @@ body[data-page="planet"] .viewer {
     color-mix(in oklab, var(--pc, var(--blue)) 7%, color-mix(in srgb, var(--sky-top) 92%, transparent));
 }
 
+/* The page is one column: the header and everything under it share the same
+   left and right edges, and the back arrow sits in the margin beside them. */
 .liv { position: relative; }
+@media (min-width: 721px) { .liv { padding: 0 var(--space-48); } }
+
+/* The header sits straight on the sky, with no box: the world itself, its
+   name beside it, and what it holds. The files below are the only glass. */
 .liv-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 22px;
+  gap: var(--space-24);
   align-items: center;
-  margin: 0 0 30px 56px;
-  padding: 16px 20px 16px 18px;
-  border-radius: 18px;
-  background:
-    radial-gradient(70% 160% at 0% 50%, color-mix(in srgb, var(--pc, #3b7bff) 16%, transparent), transparent 60%),
-    var(--head-fill);
+  margin: 0 0 var(--space-32);
+  padding: var(--space-8) 0 0;
+  color: var(--ink);
+  text-shadow: var(--sky-shadow);
   animation: liv-in 0.6s var(--ease-settle) backwards;
 }
 @keyframes liv-in { from { opacity: 0; transform: translateY(10px); } }
 .liv-world { display: grid; place-items: center; }
 .liv-world .planet.is-editable { cursor: pointer; }
 .liv-info { min-width: 0; }
-.liv-owner { margin-bottom: var(--space-4); font-size: 12.5px; color: var(--ink-3); }
-.liv-owner a { color: var(--accent); font-weight: 500; }
-.liv-owner a { color: var(--blue-ink); }
-.liv-title, .liv-desc {
-  display: block;
-  width: 100%;
-  margin-left: -6px;
-  padding: 1px 6px;
-  border: 0;
-  border-radius: var(--r-row);
-  outline: none;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
-  transition: background var(--dur-change);
-}
-.liv-title, .liv-title-static { font-size: calc(24px * var(--t)); font-weight: 700; line-height: 1.2; }
-.liv-desc { margin-top: var(--space-2); font-size: var(--text-body); line-height: 1.5; color: var(--ink-2); max-width: 70ch; }
-.liv-title:not(.is-static):hover, .liv-desc:not(.is-static):hover { background: var(--tint); }
-.liv-title:not(.is-static):focus, .liv-desc:not(.is-static):focus { background: var(--well); box-shadow: var(--well-shadow); }
-.liv-desc::placeholder { color: var(--ink-4); }
-.liv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-12); margin-top: 6px; font: 400 11.5px/1.3 var(--mono); color: var(--ink-3); }
+.liv-owner { margin-bottom: var(--space-4); font: var(--type-caption); color: var(--ink-3); }
+.liv-owner a { color: var(--blue-ink); font-weight: 500; }
+/* the name and the note are bare text boxes (.field-bare) in their own type */
+.liv-title, .liv-desc { margin-left: calc(var(--space-8) * -1); resize: none; overflow: hidden; text-shadow: var(--sky-shadow); }
+.liv-title:focus:not(:read-only), .liv-desc:focus:not(:read-only) { text-shadow: none; }
+.liv-title, .liv-title-static { font: var(--type-page); font-size: calc(var(--text-page) * var(--t)); letter-spacing: -0.01em; color: var(--ink); }
+.liv-desc { max-width: 70ch; color: var(--ink-2); }
+.liv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); font: var(--type-fact); color: var(--ink-3); }
 .liv-vis { display: inline-flex; align-items: center; gap: 5px; }
-.liv-tools { display: flex; gap: var(--space-8); align-self: start; }
+.liv-tools { display: flex; gap: var(--space-8); align-self: center; text-shadow: none; }
 .liv-label { margin-bottom: 9px; font: 500 var(--text-small)/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .liv-share-hint { margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
 .liv-people { margin-top: 10px; }
@@ -2505,9 +2252,7 @@ body[data-page="planet"] .viewer {
 .pp-row:hover, .pp-row.is-active { background: var(--tint); color: var(--ink); }
 .pp-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent); }
 .pp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pp-tick { flex: none; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-4); transition: background 0.15s, box-shadow 0.15s; }
 .pp-row.is-on { color: var(--ink); }
-.pp-row.is-on .pp-tick { box-shadow: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 5.2 4.1 7.2 8 2.9' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px no-repeat, var(--gloss-on), var(--accent); }
 .pp-note { margin-top: 7px; font-size: var(--text-caption); color: var(--ink-3); }
 .pp-note[hidden] { display: none; }
 @media (pointer: coarse) { .pp-row { min-height: 42px; } }
@@ -2525,25 +2270,6 @@ body[data-page="planet"] .viewer {
 
 .chips { padding: var(--space-4) 6px; }
 .chip-input { flex: 1; min-width: 110px; height: 26px; padding: 0 6px; border: 0; outline: none; background: transparent; font-size: var(--text-label); }
-
-/* files on a planet: cards of frosted glass */
-.face-text, .face-file, .face-link, .entry {
-  border: 1px solid var(--card-edge);
-  background: var(--card-fill);
-  box-shadow: var(--card-shadow);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-.cell[data-id]:hover .face-text, .cell[data-id]:hover .face-file, .cell[data-id]:hover .face-link { border-color: var(--line-2); }
-.face-img { box-shadow: 0 0 0 1px var(--card-edge), 0 14px 28px -16px rgba(0, 0, 30, 0.7); }
-.face-ext { color: var(--ink); }
-.cell-cap { color: var(--ink-3); }
-.cell:hover .cell-cap { color: var(--ink); }
-.cell-badge { background: var(--head-fill); color: var(--ink-2); }
-.entry:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
-.entry-drop { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.grid-empty { color: var(--ink-3); }
-.is-shimmer::before { background: linear-gradient(100deg, transparent, var(--tint-2) 50%, transparent); }
 
 /* ------------------------------------------------------------------ viewer, dialogs, menus, toasts */
 
@@ -2809,8 +2535,8 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   body.has-home .sb-left { padding-left: 36px; } /* the logo moves over, and the name stays in the middle */
   .planet-name { font-size: var(--text-caption); }
   .planet-label { width: max(104px, calc(var(--s) + 16px)); top: calc(100% + 8px); }
-  .liv-head { grid-template-columns: auto minmax(0, 1fr); gap: 14px; margin-left: 0; padding: 12px 14px; }
-  .liv-tools { grid-column: 1 / -1; justify-content: flex-end; }
+  .liv-head { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-12); margin-bottom: var(--space-24); }
+  .liv-tools { grid-column: 2; }
   /* a locked planet stacks, so all four code boxes fit */
   .liv-locked .liv-head { grid-template-columns: minmax(0, 1fr); }
   .liv-title, .liv-title-static { font-size: var(--text-title); }
@@ -2853,12 +2579,9 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   --lm-row-hover: rgba(205, 218, 255, 0.085);
   --lm-row-lit: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 1px 0 rgba(0, 0, 20, 0.28);
   position: relative;
-  margin: 0 0 40px 56px;
+  margin: 0 0 40px;
   padding: 0 0 14px;
-  border: 1px solid var(--head-edge);
   border-radius: 18px;
-  background: var(--head-fill);
-  box-shadow: var(--head-shadow);
   backdrop-filter: blur(20px) saturate(1.3);
   -webkit-backdrop-filter: blur(20px) saturate(1.3);
 }
@@ -2900,7 +2623,6 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-item.is-lifted { z-index: 3; }
 .lm-item.is-lifted .lm-row {
   background: rgba(205, 218, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px var(--head-edge), 0 20px 40px -16px rgba(0, 0, 20, 0.85);
 }
 
 /* the grip: six faint dots, there when you reach for the row */
@@ -2982,7 +2704,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 
 /* other files on the list: their picture and name */
 .lm-file { display: flex; align-items: center; flex: 1; min-width: 0; gap: var(--space-12); margin: -6px 0; text-align: left; }
-.lm-thumb { flex: none; width: 36px; height: 36px; border-radius: var(--r-row); object-fit: cover; box-shadow: 0 0 0 1px var(--card-edge); }
+.lm-thumb { flex: none; width: 36px; height: 36px; border-radius: var(--r-row); object-fit: cover; box-shadow: 0 0 0 1px var(--box-edge); }
 .lm-kind { display: grid; place-items: center; background: rgba(0, 0, 20, 0.25); font-size: 10px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-3); }
 .lm-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; color: var(--ink); transition: color 0.35s; }
 .lm-file-sub { flex: none; font-size: var(--text-label); color: var(--ink-3); }
@@ -3024,12 +2746,9 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-16);
-  margin: 0 0 22px 56px;
+  margin: 0 0 22px;
   padding: 16px 18px;
-  border: 1px solid var(--head-edge);
   border-radius: 18px;
-  background: var(--head-fill);
-  box-shadow: var(--head-shadow);
   backdrop-filter: blur(20px) saturate(1.3);
   -webkit-backdrop-filter: blur(20px) saturate(1.3);
 }
@@ -3083,7 +2802,6 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   .lm-clear { height: 40px; }
 }
 @media (max-width: 720px) {
-  .lm, .lm-offer { margin-left: 0; }
   .lm-head { padding-left: var(--space-16); }
   .lm-offer { grid-template-columns: auto minmax(0, 1fr); gap: 12px 14px; padding: 14px; }
   .lm-offer-btns { grid-column: 1 / -1; justify-content: flex-end; }
@@ -3157,10 +2875,8 @@ html[data-motion="off"] .pop-ctx, html[data-motion="off"] .pop-ctx * { animation
 
 /* ---------------------------------------------------------------- reading mode: the shelf */
 
-.rp { --rp-ink-cover: #f4efe4; margin: 0 0 40px 56px; display: grid; gap: 34px; }
-.rp-head { display: flex; align-items: baseline; gap: var(--space-8); margin: 0 0 14px; font-size: 15px; font-weight: 600; color: var(--ink-2); }
-.rp-count { font-size: var(--text-label); font-weight: 500; color: var(--ink-4); }
-.rp-others[hidden], .rp-others-head[hidden] { display: none; }
+.rp { --rp-ink-cover: #f4efe4; margin: 0 0 40px; display: grid; gap: 34px; }
+.rp-others[hidden] { display: none; }
 
 .rp-shelf {
   display: grid;
@@ -3236,7 +2952,7 @@ html[data-motion="off"] .pop-ctx, html[data-motion="off"] .pop-ctx * { animation
 .rp-offer-icon::after { content: ''; position: absolute; left: 7px; right: 7px; bottom: 7px; height: 1px; background: var(--ink-4); }
 
 @media (max-width: 720px) {
-  .rp { margin-left: 0; gap: 26px; }
+  .rp { gap: 26px; }
   .rp-shelf { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); column-gap: var(--space-16); row-gap: 22px; }
   .rp-now-card { grid-template-columns: 84px minmax(0, 1fr); gap: var(--space-16); padding: 14px; }
   .rp-now-title { font-size: 18px; }
@@ -3526,42 +3242,35 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 }
 .rd:not(.is-ready) .rd-foot { visibility: hidden; }
 
-/* ---------------------------------------------------------------- frosted glass: the house style for boxes
-   Every box that holds the owner's things or a feature (file boxes, the add
-   box, lists, the list offer, and anything added later: give it `.fglass`)
-   is a block of frosted glass: one flat, light, see-through fill (never a
-   gradient) under a deep frost that lifts the sky behind it, a lip of light
-   on the top edge, and the planet's colour only in the edge glow. Headers
-   (the planet's own header, menus, sheets) may look different.
-   On a planet page --pc is the planet's colour; elsewhere it's the accent. */
-:is(.face-text, .face-file, .face-link, .entry, .lm, .lm-offer, .fglass) {
+/* ---------------------------------------------------------------- box glass: the house style for boxes
+   Every box that holds the owner's things or a feature (the glass faces of
+   file boxes, lists, offers, and anything added later: give it `.fglass`) is
+   a block of frosted glass: one flat, see-through fill (never a gradient)
+   under a deep frost that softens the sky behind it and deepens it a touch,
+   a lip of light on the top edge, and the planet's colour only as a faint
+   tint in the edge. Nothing glows at rest: the glow belongs to the one box
+   being pointed at or typed in. DESIGN.md section 3 has the recipe.
+   On a planet page --pc is the planet's colour; elsewhere it's Mutt's. */
+:is(.face-text, .face-file, .face-link, .lm, .lm-offer, .fglass) {
   /* The colours are worked out on the box itself, so they take the planet's
      colour (--pc) from the page it sits on. */
-  --fg-tone: color-mix(in oklab, var(--pc, #6c9cff), #e4e8f2 34%);
-  --fg-edge: color-mix(in srgb, var(--fg-tone) 36%, rgba(225, 232, 255, 0.1));
-  --fg-edge-hi: color-mix(in srgb, var(--fg-tone) 48%, rgba(225, 232, 255, 0.22));
-  --fg-glow: color-mix(in srgb, var(--fg-tone) 26%, transparent);
+  --fg-tone: color-mix(in oklab, var(--pc, #6c9cff), var(--pale) 34%);
+  --fg-edge: color-mix(in srgb, var(--fg-tone) 22%, var(--box-edge));
+  --fg-edge-hi: color-mix(in srgb, var(--fg-tone) 56%, var(--box-edge-on));
+  --fg-glow: color-mix(in srgb, var(--fg-tone) 30%, transparent);
   border: 1px solid var(--fg-edge);
   background: var(--fg-fill);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 0 0.5px color-mix(in srgb, var(--fg-tone) 18%, transparent),
-    0 0 24px -5px var(--fg-glow),
-    0 18px 36px -24px rgba(0, 0, 18, 0.7);
+  box-shadow: var(--box-light), var(--shadow-rest);
   backdrop-filter: var(--fg-frost);
   -webkit-backdrop-filter: var(--fg-frost);
-  transition: border-color 0.45s var(--ease-settle), box-shadow 0.6s var(--ease-settle), background 0.45s var(--ease-settle);
+  transition: border-color var(--dur-move) var(--ease-settle), background var(--dur-move) var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
 }
 .cell[data-id]:hover :is(.face-text, .face-file, .face-link),
-:is(.entry, .lm, .fglass):focus-within,
+:is(.lm, .fglass):focus-within,
 .fglass:is(a, button):hover {
   border-color: var(--fg-edge-hi);
   background: var(--fg-fill-hover);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 0 0 0.5px color-mix(in srgb, var(--fg-tone) 30%, transparent),
-    0 0 30px -4px color-mix(in srgb, var(--fg-tone) 32%, transparent),
-    0 22px 40px -24px rgba(0, 0, 18, 0.8);
+  box-shadow: var(--box-light-on), 0 0 30px -4px var(--fg-glow), var(--shadow-raised);
 }
 /* Rows inside a glass list are faint washes on the same glass, no fills of their own. */
 .lm {
@@ -3573,38 +3282,279 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .lm-item.is-lifted .lm-row { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px var(--fg-edge-hi), 0 20px 40px -16px rgba(0, 0, 20, 0.7); }
 .lm-new { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg-edge) 70%, transparent); }
 
-/* The text fades out at the foot through a mask, so the glass stays clear
-   (a painted fade would show as a dark band on see-through glass). */
+/* ================================================================== THE FILE BOX
+   One frame for every kind of file (DESIGN.md section 4, "File box"): a box
+   four wide to five tall and, under it, one line: its name, and one fact.
+   cells.js builds it (renderCell); a planet's page and search show it. A box
+   shows what is in the file and the caption says what it is called, so
+   nothing is said twice. It sits here, after box glass, because its glass
+   faces are built on that rule. Nothing about it is styled anywhere else. */
+
+.grid { position: relative; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--space-24); }
+.grid-empty { grid-column: span 2; align-self: center; max-width: 40ch; font: var(--type-body); color: var(--ink-3); text-shadow: var(--sky-shadow); }
+.grid-empty p + p { margin-top: var(--space-8); }
+.grid > .grid-empty:only-child { grid-column: 1 / -1; padding: var(--space-48) 0; }
+
+.cell { position: relative; min-width: 0; outline: none; }
+.cell[data-id] { cursor: pointer; }
+.cell-box { position: relative; aspect-ratio: 4 / 5; }   /* the same 4 / 5 is BOX in cells.js */
+.cell-fill { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.cell:focus-visible .cell-box { outline: 2px solid var(--blue-ink); outline-offset: var(--space-2); border-radius: var(--r-box); }
+
+/* ---- the caption: the name on the left, one fact on the right */
+.cell-cap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 16px;
+  margin-top: var(--space-12);
+  padding: 0 var(--space-2);
+  font: var(--type-caption);
+  font-size: calc(var(--text-caption) * var(--t));
+  color: var(--ink-2);
+  text-shadow: var(--sky-shadow);
+  transition: color var(--dur-change);
+}
+.cell-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-fact, .cell-comments { flex: none; font: var(--type-fact); color: var(--ink-3); }
+.cell-comments { display: inline-flex; align-items: center; gap: var(--space-4); }
+.cell-owner { font-family: var(--mono); font-size: 0.9em; color: var(--ink-3); }
+.cell:hover .cell-cap, .cell:focus-visible .cell-cap { color: var(--ink); }
+
+/* ---- faces: what a file looks like inside its box */
+.face { max-width: 100%; max-height: 100%; }
+
+/* Things with a shape of their own (a picture, a video, a page, a cover) keep
+   it, in the middle of the box. .face-shape is the picture's own size, so a
+   tag can sit on the picture; a picture whose size isn't known yet is a bare
+   .face-img and sizes itself. */
+.face-img {
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--r-box);
+  box-shadow: 0 0 0 1px var(--box-edge), var(--shadow-rest);
+  opacity: 0;
+  transition: opacity 0.6s var(--ease-settle), transform 0.9s var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
+}
+.face-img.is-loaded, video.face-img { opacity: 1; }
+.face-shape {
+  position: relative;
+  flex: none;
+  aspect-ratio: var(--ar);
+  border-radius: var(--r-box);
+  box-shadow: 0 0 0 1px var(--box-edge), var(--shadow-rest);
+  transition: transform 0.9s var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
+}
+.face-shape.is-wide { width: 100%; }
+.face-shape.is-tall { height: 100%; }
+.face-shape > .face-img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; box-shadow: none; }
+.cell[data-id]:hover .face-shape, .cell[data-id]:hover .cell-fill > .face-img { transform: scale(1.015); box-shadow: 0 0 0 1px var(--pic-edge-on), var(--shadow-raised); }
+/* a page is paper and a book is its cover: square corners, paper's shadow, a little air round them */
+.cell-fill > :is(.is-page, .is-book) { max-width: 94%; max-height: 94%; border-radius: var(--r-mark); box-shadow: var(--paper-shadow); }
+.cell-fill > .face-shape:is(.is-page, .is-book).is-wide { width: 94%; }
+.cell-fill > .face-shape:is(.is-page, .is-book).is-tall { height: 94%; }
+.cell-fill > .face-shape.is-book { border-radius: var(--space-2) var(--r-mark) var(--r-mark) var(--space-2); }
+.cell[data-id]:hover .cell-fill > :is(.is-page, .is-book) { box-shadow: var(--paper-shadow); }
+.face-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 7%; border-radius: var(--space-2) 0 0 var(--space-2); background: var(--spine); pointer-events: none; }
+
+/* glass faces: a note, a link, and files with nothing to show but themselves */
+.face-text, .face-file, .face-link { position: absolute; inset: 0; overflow: hidden; padding: var(--space-16); border-radius: var(--r-box); }
+/* A note's words fade out at the foot through a mask, so the glass stays
+   clear (a painted fade would show as a dark band on see-through glass). */
 .face-text-body {
   height: 100%;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(#000 calc(100% - 46px), transparent);
-  mask-image: linear-gradient(#000 calc(100% - 46px), transparent);
+  font: var(--type-body);
+  font-size: calc(var(--text-body) * var(--t));
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 40px), transparent);
 }
 
-/* Entrance: the cell slides up, the glass fades in, the words come into
+/* a link: its title and what the page says, set to the foot; its picture, if it has one, across the top */
+.face-link { display: flex; flex-direction: column; justify-content: flex-end; }
+.face-link-pic { flex: 1; min-height: 0; margin: calc(var(--space-16) * -1) calc(var(--space-16) * -1) var(--space-12); border-bottom: 1px solid var(--line); overflow: hidden; }
+.face-link-pic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity 0.6s var(--ease-settle); }
+.face-link-pic img.is-loaded { opacity: 1; }
+.face-link-title { font: 500 var(--text-lead)/22px var(--sans); color: var(--ink); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.face-link-desc { margin-top: var(--space-4); font: var(--type-caption); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.face-link-pic ~ .face-link-title { -webkit-line-clamp: 2; }
+.face-link-pic ~ .face-link-desc { -webkit-line-clamp: 1; }
+
+/* a file: one bold word at the foot and, above it, its sign: a song's level bars, the first lines of code or text */
+.face-file { display: flex; flex-direction: column; justify-content: flex-end; color: var(--ink); }
+.face-kind { font: var(--type-title); color: var(--ink); }
+.face-sub { font: var(--type-fact); color: var(--ink-3); }
+.face-levels { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-12); }
+.face-levels i { flex: none; width: 1px; height: calc(var(--h) * 0.6%); background: var(--ink-4); transition: background var(--dur-move); }
+.cell[data-id]:hover .face-levels i { background: color-mix(in srgb, var(--fg-tone) 70%, var(--ink-3)); }
+.face-excerpt {
+  flex: 1;
+  min-height: 0;
+  margin: 0 0 var(--space-12);
+  overflow: hidden;
+  font: 400 var(--text-small)/1.6 var(--mono);
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
+}
+.face-excerpt.is-code { white-space: pre; }
+.face-ln { display: inline-block; width: 2ch; margin-right: var(--space-8); text-align: right; color: var(--ink-4); user-select: none; }
+
+/* ---- the tag: a fact that sits on a picture (a video's length, always; what a page or cover is, when pointed at) */
+.cell-tag {
+  position: absolute;
+  left: var(--space-8);
+  top: var(--space-8);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: calc(100% - var(--space-16));
+  height: 20px;
+  padding: 0 var(--space-8);
+  border-radius: var(--r-mark);
+  background: var(--bar-fill);
+  color: var(--ink);
+  font: var(--type-fact);
+  white-space: nowrap;
+  overflow: hidden;
+  backdrop-filter: var(--tag-frost);
+  -webkit-backdrop-filter: var(--tag-frost);
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 0.35s var(--ease-settle), transform 0.45s var(--ease-settle);
+  pointer-events: none;
+}
+.cell-tag.is-always, .cell:hover .cell-tag { opacity: 1; transform: none; }
+.cell-tag-play { width: 0; height: 0; border-left: 6px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+
+/* ---- the buttons on a box: small plain buttons on dark see-through glass, because they sit on pictures */
+.cell-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--space-12);
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: var(--space-8);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s var(--ease-settle), transform var(--dur-arrive) var(--ease-settle);
+  pointer-events: none;
+}
+.cell:hover .cell-actions, .cell:focus-within .cell-actions { opacity: 1; transform: none; pointer-events: auto; }
+@media (hover: none) { .cell-actions { display: none; } }
+.pill { background: var(--gloss-clear), var(--bar-fill); background-origin: border-box; backdrop-filter: var(--tag-frost); -webkit-backdrop-filter: var(--tag-frost); }
+.pill.btn-main { background: var(--gloss-on), var(--accent); background-origin: border-box; }
+
+.cell-hover-video { position: absolute; object-fit: contain; border-radius: var(--r-box); opacity: 0; transition: opacity 0.4s var(--ease-settle); pointer-events: none; }
+.cell-hover-video.is-playing { opacity: 1; }
+
+/* ---- a file still on its way up */
+.cell.is-pending .cell-fill { opacity: 0.55; transition: opacity 0.4s; }
+.cell-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--space-8) * -1);
+  height: 2px;
+  background: var(--ink);
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+  transition: transform 0.3s var(--ease-settle);
+}
+.cell.is-failed .cell-progress { background: var(--danger); }
+.cell-error { color: var(--danger); }
+.is-shimmer { overflow: hidden; }
+.is-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent, var(--tint-2) 50%, transparent);
+  /* the band slides across rather than repainting each frame */
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer { from { transform: translateX(-112.5%); } to { transform: translateX(262.5%); } }
+
+/* ---- dragging a box to another place */
+.cell.is-placeholder .cell-box { background: var(--tint); border-radius: var(--r-box); }
+.cell.is-placeholder .cell-fill, .cell.is-placeholder .cell-cap { opacity: 0; }
+.cell-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-sheet); margin: 0; pointer-events: none; transform-origin: 0 0; }
+.cell-ghost .cell-box { filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.14)); }
+.cell-ghost .cell-actions, .cell-ghost .cell-tag:not(.is-always) { display: none; }
+
+/* ---- the add box: the first box on a planet. A sunken slot, like every
+   place you type in Mutt: it is an empty place, not a file. Its edge lights
+   in the planet's colour while you type in it or drag files over it. */
+.entry {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-box);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
+  transition: border-color var(--dur-change), box-shadow var(--dur-change);
+}
+.entry:hover { border-color: var(--line-3); }
+.entry:focus-within, .entry.is-over {
+  border-color: color-mix(in srgb, var(--focus) 80%, transparent);
+  box-shadow: var(--well-shadow), 0 0 0 var(--ring) color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.entry textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: var(--space-16) var(--space-16) 0;
+  background: transparent;
+  color: var(--ink);
+  font: var(--type-body);
+  font-size: calc(var(--text-body) * var(--t));
+}
+.entry textarea::placeholder { color: var(--ink-3); transition: opacity 0.3s; }
+.entry textarea:focus::placeholder { opacity: 0.55; }
+.entry-foot { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: 44px; padding: var(--space-8); }
+.entry .entry-files { transition: opacity 0.3s, transform 0.45s var(--ease-settle); }
+.entry.has-text .entry-files { opacity: 0; transform: translateY(-4px); pointer-events: none; }
+.entry .entry-add { margin-left: auto; opacity: 0; transform: translateY(4px) scale(0.96); pointer-events: none; transition: opacity 0.3s, transform 0.45s var(--ease-settle); }
+.entry.has-text .entry-add { opacity: 1; transform: none; pointer-events: auto; }
+@media (pointer: coarse) {
+  /* a phone zooms the page in on any field whose text is under 16px */
+  .entry textarea { font-size: var(--text-lead); }
+}
+
+/* ---- arriving: the box slides up, its glass fades in, its words come into
    focus. Fades and blurs sit on the parts, never on the cell: either one on
    the cell would stop the glass inside it from frosting until the end, and
    the frost would snap on. */
 .cell.reveal { animation-name: cell-slide; }
 @keyframes cell-slide { from { transform: translateY(16px); } }
-.cell.reveal :is(.face-text, .face-file, .face-link, .entry, .face-img, .cell-cap),
+.cell.reveal :is(.face-text, .face-file, .face-link, .entry, .face-shape, .cell-fill > .face-img, .cell-cap),
 .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * {
   animation: part-fade 0.65s var(--ease-settle) backwards;
   animation-delay: calc(min(var(--i, 0), 14) * 30ms);
 }
 .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-focus; animation-duration: 0.85s; }
-.cell.reveal :is(.face-img, .cell-cap) { animation-name: part-fade, part-focus; animation-duration: 0.65s, 0.85s; }
+.cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap) { animation-name: part-fade, part-focus; animation-duration: 0.65s, 0.85s; }
 @keyframes part-fade { from { opacity: 0; } }
 @keyframes part-focus { from { filter: blur(8px); } }
 html[data-motion="calm"] .cell.reveal { animation-name: none; }
-html[data-motion="calm"] .cell.reveal :is(.face-img, .cell-cap),
+html[data-motion="calm"] .cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap),
 html[data-motion="calm"] .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-fade; animation-duration: 0.45s; animation-delay: 0s; }
 
-/* Idle: each box bobs on its own slow beat (the box), and leans with the
-   pointer (the fill inside it), so the two never fight over one transform. */
-/* The lean is set on each box by drift.js. Registered so it stays on the box:
-   nothing inside the box has to be worked out again as the pointer moves. */
+/* ---- at rest a box only floats, each on its own slow beat (the box). The
+   box being pointed at leans toward the pointer (the fill inside it), so the
+   two never fight over one transform. drift.js sets the lean on that one
+   box; --mx / --my are registered so they stay on it. */
 @property --mx { syntax: '<number>'; inherits: false; initial-value: 0; }
 @property --my { syntax: '<number>'; inherits: false; initial-value: 0; }
 body[data-page="planet"] .grid > .cell .cell-box {
@@ -3612,13 +3562,13 @@ body[data-page="planet"] .grid > .cell .cell-box {
 }
 body[data-page="planet"] .grid > .cell:nth-child(3n + 1) { --float: 8.2s; --float-at: -3.1s; }
 body[data-page="planet"] .grid > .cell:nth-child(3n + 2) { --float: 10.4s; --float-at: -7.6s; }
-body[data-page="planet"] .grid > .cell:nth-child(4n + 3) { --float-at: -5.3s; --depth: 1.35; }
-body[data-page="planet"] .grid > .cell:nth-child(5n) { --float: 11.6s; --depth: 0.7; }
+body[data-page="planet"] .grid > .cell:nth-child(4n + 3) { --float-at: -5.3s; }
+body[data-page="planet"] .grid > .cell:nth-child(5n) { --float: 11.6s; }
 @keyframes cell-float { from { translate: 0 -2.5px; } to { translate: 0 2.5px; } }
 body[data-page="planet"] .grid > .cell .cell-fill {
   transform:
     perspective(1000px)
-    translate3d(calc(var(--mx, 0) * var(--depth, 1) * 5px), calc(var(--my, 0) * var(--depth, 1) * 4px), 0)
+    translate3d(calc(var(--mx, 0) * 5px), calc(var(--my, 0) * 4px), 0)
     rotateX(calc(var(--my, 0) * -2.4deg))
     rotateY(calc(var(--mx, 0) * 3deg));
 }
@@ -3629,14 +3579,26 @@ html:is([data-motion="calm"], [data-motion="off"]) body[data-page="planet"] .gri
   body[data-page="planet"] .grid > .cell :is(.cell-box, .cell-fill) { animation: none !important; transform: none; }
 }
 
+/* ---- on a phone: two boxes to a row, a little less room inside each */
+@media (max-width: 720px) {
+  .grid { gap: var(--space-16) var(--space-12); }
+  .grid-empty { grid-column: 1 / -1; }
+  .face-text, .face-file, .face-link { padding: var(--space-12); }
+  .face-text-body { font-size: calc(var(--text-label) * var(--t)); line-height: 20px; }
+  .face-link-pic { margin: calc(var(--space-12) * -1) calc(var(--space-12) * -1) var(--space-8); }
+  .face-link-title { font-size: var(--text-body); line-height: 20px; }
+  .cell-cap { margin-top: var(--space-8); }
+  .entry textarea { padding: var(--space-12) var(--space-12) 0; }
+  .entry-foot { min-height: 40px; padding: var(--space-4); }
+}
+/* ================================================================== end of the file box */
 
 /* ---------------------------------------------------------------- cookbook: recipe cards
    Just the cards, in the house glass, sorted into chapters with glass tabs
    between them; each card has a thin line of the planet's colour on top. A
    card opens in the page above them, the width of the planet's header. */
-.cb { position: relative; margin: 0 0 40px 56px; }
+.cb { position: relative; margin: 0 0 40px; }
 .cb-box { position: relative; display: flex; flex-direction: column; }
-.cb-bar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
 .cb-inside { position: relative; }
 
 /* The cards: house glass, standing in rows, each showing its face. */
@@ -3916,7 +3878,6 @@ html.cb-locked, html.cb-locked body { overflow: hidden; }
 .cbk-awake { position: absolute; left: 0; right: 0; bottom: max(4px, env(safe-area-inset-bottom)); margin: 0; text-align: center; font-size: 11.5px; color: var(--ink-4); pointer-events: none; }
 
 @media (max-width: 720px) {
-  .cb { margin-left: 0; }
   .cb-top-btn { min-height: 112px; padding: 15px 14px 30px; gap: var(--space-12); }
   .cb-top-title { font-size: 16.5px; }
   .cb-top-ings { font-size: var(--text-label); }
@@ -4042,10 +4003,6 @@ html[data-motion="off"] .cb-steam { display: none; }
 @media (max-width: 720px) { .vw-cm-input { font-size: var(--text-lead); } }
 
 /* The count under a file's tile. */
-.cell-cap:has(.cell-comments) { display: flex; justify-content: center; align-items: center; gap: var(--space-8); }
-.cell-cap:has(.cell-comments) .cell-title { min-width: 0; }
-.cell-comments { display: inline-flex; align-items: center; gap: 3px; flex: none; font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-4); }
-.cell:hover .cell-comments { color: var(--ink-3); }
 .vw-cm-list.is-settled .vw-cm-item:not(.is-new), .vw-cm-list.is-settled .vw-cm-item:not(.is-new) > * { animation: none; }
 
 /* ---------------------------------------------------------------- spelling in text boxes

@@ -17,12 +17,12 @@
   /* ---------------------------------------------------------------- colour */
 
   /* words */
-  --ink: #eef2fb;        /* titles, the owner's words           WANTS #f2f5fc (session 4) */
-  --ink-2: #bcc6de;      /* body, labels, captions              WANTS #cbd3e8 (session 4) */
-  --ink-3: #8592b0;      /* facts, hints, placeholders          WANTS #a4b0cd (session 4) */
-  --ink-4: #56627f;      /* marks only, never words             WANTS #7f8cab (session 4) */
-  --sky-shadow: 0 1px 2px rgba(0, 0, 16, 0.85), 0 0 10px rgba(0, 0, 24, 0.5);
-                         /* under words set straight on the sky WANTS 0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5) (session 4) */
+  --ink: #f2f5fc;        /* titles, the owner's words */
+  --ink-2: #cbd3e8;      /* body, labels, captions */
+  --ink-3: #a4b0cd;      /* facts, hints, placeholders, small labels */
+  --ink-4: #7f8cab;      /* marks only (dots, grips, empty rings, level bars), never words */
+  --sky-shadow: 0 1px 2px rgba(0, 0, 18, 0.8), 0 0 10px rgba(0, 0, 18, 0.5);
+                         /* under every word set straight on the sky (not on glass) */
 
   /* Mutt blue and the signals */
   --blue: #3f7cf0;       /* fills: main button, switch on, chosen segment, progress */
@@ -79,12 +79,26 @@
   --glass-light: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --bar-fill: rgba(6, 10, 30, 0.58);
 
+  /* box glass: the owner's things on a planet. Use the .fglass class; these are its parts. */
+  --fg-fill: rgba(190, 202, 240, 0.09);                     /* flat, never a gradient */
+  --fg-fill-hover: rgba(200, 210, 245, 0.13);               /* pointed at or typed in */
+  --fg-frost: blur(28px) saturate(1.15) brightness(0.9);
+  --pale: #e4e8f2;                                          /* a planet's colour is mixed 34% toward this for a box's edge and glow */
+  --box-edge: rgba(225, 232, 255, 0.18);                    /* a box's edge at rest (the planet's paled colour is mixed 22% into it); a picture's edge */
+  --box-edge-on: rgba(225, 232, 255, 0.24);                 /* the same, pointed at (56% of the planet's paled colour) */
+  --pic-edge-on: rgba(225, 232, 255, 0.4);                  /* a picture's edge, pointed at */
+  --box-light: inset 0 1px 0 rgba(255, 255, 255, 0.14);     /* the light on a box's top edge */
+  --box-light-on: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --tag-frost: blur(12px) brightness(0.7);                  /* behind the tag and the buttons that sit on a file box (their fill is --bar-fill) */
+
   /* paper */
   --paper: linear-gradient(180deg, #fcfbf7, #f2f0e9);   /* WANTS #f8f5ee, flat (session 5) */
   --paper-edge: #e9e4d8;
   --paper-ink: #262a34;                                  /* WANTS #1d1b18 (session 5) */
   --paper-ink-2: #5c5852;
   --paper-ink-3: #8f897f;
+  --paper-shadow: 0 0 0 1px rgba(0, 0, 18, 0.2), var(--shadow-raised);   /* under paper: a page or a cover in a file box */
+  --spine: linear-gradient(90deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.12) 70%, rgba(255, 255, 255, 0.14) 86%, rgba(0, 0, 0, 0.1));   /* the shaded spine on a book's cover */
 
   /* the sky (Vita). The other three skies are below. */
   --sky-top: #020721;
@@ -147,6 +161,12 @@
   --r-panel: 20px;       /* sheets, dialogs, a planet's header */
   --r-full: 999px;       /* buttons, switches, segmented bars, toasts */
 
+  /* the page: how wide it may grow, the space at its sides, and how many file boxes sit in a row.
+     Narrower screens change the last two in galaxy.css (28 under 1100 wide; 16 and two boxes under 720). */
+  --max: 1360px;
+  --gutter: 40px;
+  --cols: 4;
+
   /* ---------------------------------------------------------------- depth */
 
   --shadow-rest: 0 12px 28px -20px rgba(0, 0, 18, 0.7);      /* file boxes at rest */
@@ -182,17 +202,6 @@
      Not in DESIGN.md. Each is still used, and goes (or is adopted there) in the
      session named. Don't use these in new work. */
 
-  /* box glass and bar glass. DESIGN.md gives their recipes (section 3); new work uses
-     the .fglass class or the shared parts, never these names. */
-  --fg-fill: rgba(180, 192, 232, 0.085);                    /* WANTS rgba(190,202,240,.09) (session 4) */
-  --fg-fill-hover: rgba(190, 202, 240, 0.12);               /* WANTS rgba(200,210,245,.13) (session 4) */
-  --fg-frost: blur(20px) saturate(0.95) brightness(1.08);   /* WANTS blur(28px) saturate(1.15) brightness(0.9) (session 4) */
-  --head-fill: linear-gradient(180deg, rgba(38, 54, 104, 0.74), rgba(15, 22, 54, 0.84));   /* the planet header's old glass, and the badge on a tile (session 4 puts both on box glass) */
-  --head-edge: rgba(205, 218, 255, 0.16);
-  --head-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 18px 44px -18px rgba(0, 0, 18, 0.75);
-  --card-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 50%), rgba(14, 22, 60, 0.66);   /* goes with the one file box (session 4) */
-  --card-edge: rgba(200, 215, 255, 0.14);
-  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 30px -18px rgba(0, 0, 20, 0.9);
   --bg: #0a1130;         /* a solid stand-in for the sky behind a few old parts (sessions 3 to 5) */
 
   /* documents' own names (session 5 moves documents onto --serif, --sans, --mono and the paper names) */
@@ -218,12 +227,6 @@
   --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
 
-  /* the old page grid (session 4 rebuilds the planet page); narrower screens change them in galaxy.css */
-  --cols: 4;
-  --gutter: 40px;
-  --gap-x: 28px;
-  --gap-y: 40px;
-  --max: 1360px;
 }
 
 /* The other three skies. A sky is only its four colours (and, until session 7,

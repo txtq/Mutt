@@ -1,74 +1,84 @@
-// The files on a planet hang in front of it like panes of glass: they lean a
-// little toward the pointer, nearer ones more than farther ones (--depth in
-// galaxy.css). This follows the pointer with an eased chase, timed by the
-// clock so it feels the same at any frame rate, and sleeps once it settles.
-// Only for a mouse or trackpad, and off when motion is turned down.
+// Calm at rest (DESIGN.md, principle 8): the files on a planet only float.
+// The one box being pointed at leans a little toward the pointer, like a pane
+// of glass tipped by a fingertip, and settles back when the pointer leaves.
+// No other box moves. The lean follows the pointer with an eased chase, timed
+// by the clock so it feels the same at any frame rate, and sleeps once every
+// box has settled. Only for a mouse or trackpad, and off when motion is
+// turned down.
 //
-// The lean (--mx/--my, -1…1) is written on each box that's on screen, not on
-// the page around them: a value set on the page would make the browser work
-// out every element inside it again on every frame, boxes far down the page
-// included. (The two are registered in galaxy.css so they stop at the box.)
+// The lean (--mx/--my, -1…1, measured across the box) is written on that box
+// alone, never on the page around it. (The two are registered in galaxy.css
+// so they stop at the box.)
 
 import { reducedMotion } from './util.js';
 
 const FOLLOW_MS = 260; // how long the lean takes to catch most of the way up
-const BOX = '.cell-fill, .dk-paper';   // file boxes, and the pages on a documents desk
+const BOX = '.cell-fill, .dk-paper';   // what leans: a file box's face, a page on a documents desk
+const HOLDER = '.cell, .dk-grid [data-id]';   // pointing anywhere on these leans the box inside
 
 export function drift(el) {
   const fine = matchMedia('(hover: hover) and (pointer: fine)');
-  let tx = 0, ty = 0, x = 0, y = 0, raf = 0, last = 0;
+  // Every box that is leaning or still settling back: box -> where it is and where it's headed.
+  const moving = new Map();
+  let over = null;
+  let raf = 0;
+  let last = 0;
 
-  // The boxes on screen (or about to be).
-  const shown = new Set();
-  const lean = (box) => {
-    box.style.setProperty('--mx', x.toFixed(4));
-    box.style.setProperty('--my', y.toFixed(4));
-  };
-  const seen = new IntersectionObserver((entries) => {
-    for (const e of entries) {
-      if (e.isIntersecting) { shown.add(e.target); lean(e.target); }
-      else {
-        shown.delete(e.target);
-        if (!e.target.isConnected) seen.unobserve(e.target);
-      }
-    }
-  }, { rootMargin: '160px' });
-  // Boxes come and go as files are added, moved and taken off.
-  const watch = () => { for (const box of el.querySelectorAll(BOX)) seen.observe(box); };
-  const grown = new MutationObserver(watch);
-  grown.observe(el, { childList: true, subtree: true });
-  watch();
-
-  const write = () => {
-    for (const box of shown) {
-      if (box.isConnected) lean(box);
-      else shown.delete(box);
-    }
+  const write = (box, s) => {
+    box.style.setProperty('--mx', s.x.toFixed(4));
+    box.style.setProperty('--my', s.y.toFixed(4));
   };
   const step = (now) => {
     const dt = Math.min(64, now - (last || now));
     last = now;
     const k = 1 - Math.exp(-dt / (FOLLOW_MS / 3));
-    x += (tx - x) * k;
-    y += (ty - y) * k;
-    if (Math.abs(tx - x) < 0.0015 && Math.abs(ty - y) < 0.0015) {
-      x = tx; y = ty; raf = 0; last = 0;
-    } else {
-      raf = requestAnimationFrame(step);
+    for (const [box, s] of moving) {
+      if (!box.isConnected) { moving.delete(box); continue; }
+      s.x += (s.tx - s.x) * k;
+      s.y += (s.ty - s.y) * k;
+      const settled = Math.abs(s.tx - s.x) < 0.0015 && Math.abs(s.ty - s.y) < 0.0015;
+      if (settled) { s.x = s.tx; s.y = s.ty; }
+      write(box, s);
+      // back at rest: leave nothing behind on the box
+      if (settled && !s.tx && !s.ty && box !== over) {
+        box.style.removeProperty('--mx');
+        box.style.removeProperty('--my');
+        moving.delete(box);
+      }
     }
-    write();
+    const busy = [...moving.values()].some((s) => s.x !== s.tx || s.y !== s.ty);
+    if (busy) raf = requestAnimationFrame(step);
+    else { raf = 0; last = 0; }
   };
-  const aim = (nx, ny) => {
-    tx = nx; ty = ny;
+  const aim = (box, tx, ty) => {
+    let s = moving.get(box);
+    if (!s) moving.set(box, s = { x: 0, y: 0, tx: 0, ty: 0 });
+    s.tx = tx; s.ty = ty;
     if (!raf) raf = requestAnimationFrame(step);
   };
+  const rest = () => {
+    if (over) aim(over, 0, 0);
+    over = null;
+  };
+  const boxAt = (target) => {
+    if (!(target instanceof Element) || !el.contains(target)) return null;
+    const direct = target.closest(BOX);
+    if (direct) return direct;
+    return target.closest(HOLDER)?.querySelector(BOX) || null;
+  };
   const move = (e) => {
-    if (!fine.matches || e.pointerType === 'touch' || reducedMotion()) return;
+    if (!fine.matches || e.pointerType === 'touch' || reducedMotion()) { rest(); return; }
     // Pressed (dragging a file, selecting text): hold still.
     if (e.buttons) return;
-    aim((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1);
+    const box = boxAt(e.target);
+    if (box !== over) rest();
+    if (!box) return;
+    over = box;
+    const r = box.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const clamp = (v) => Math.max(-1, Math.min(1, v));
+    aim(box, clamp(((e.clientX - r.left) / r.width) * 2 - 1), clamp(((e.clientY - r.top) / r.height) * 2 - 1));
   };
-  const rest = () => aim(0, 0);
   const root = document.documentElement;
 
   addEventListener('pointermove', move, { passive: true });
@@ -76,9 +86,9 @@ export function drift(el) {
   addEventListener('blur', rest);
   return () => {
     cancelAnimationFrame(raf);
-    seen.disconnect();
-    grown.disconnect();
-    shown.clear();
+    for (const box of moving.keys()) { box.style.removeProperty('--mx'); box.style.removeProperty('--my'); }
+    moving.clear();
+    over = null;
     removeEventListener('pointermove', move);
     root.removeEventListener('pointerleave', rest);
     removeEventListener('blur', rest);

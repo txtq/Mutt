@@ -5,17 +5,17 @@ The one standard for how Mutt looks and moves. Read it before touching anything 
 - **A value, part or rule that isn't in this file doesn't exist.** Don't invent one inside a feature. If a feature needs something new, add it here first (show the user), then build it.
 - **Every session that settles something visible updates this file before it ends**, so the file is never behind the app.
 - It is written as instructions. Where it says "is", build it that way.
-- Decided with the user on 2026-11-11 (design session 1 of 8). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
+- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3 and 4 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
 
 ## Where the app stands against this file
 
-The app does not match this file yet. Sessions 3 to 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
+The app does not match this file yet. Sessions 5 to 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
 
 | Area | In the app today | Lands in |
 | --- | --- | --- |
 | Named values (section 2) | **Done (session 2).** Every name below is in `public/assets/tokens.css`, the one place raw values are written. `mutt.css` is gone (folded into `galaxy.css`). `tests/run.sh drift` fails if a hand-typed value is added. | Session 2 ✓ |
 | Shared parts (section 4) | **Done (session 3).** One button, text box, switch, segmented bar, tabs, tick box, chip, stepper, menu, small panel, sheet, dialog, toast, tip, tooltip and drop hint, in one marked section of `galaxy.css`, each drawn in every state at `/parts`. What the modes still draw themselves is listed under "What session 3 left for later". | Session 3 ✓ |
-| Planet page, file boxes, planet colour rule | The planet's colour now reaches only its own page content (session 3), so account, search, menus, dialogs and toasts are Mutt blue everywhere. Still to do: glow on every box at rest, the header on its old glass, readable greys | Session 4 |
+| Planet page, file boxes, planet colour rule | **Done (session 4).** One frame for every kind of file (`cells.js`, the section of `galaxy.css` headed THE FILE BOX), the header on the sky, one section heading for every mode, the readable greys, box glass to its recipe, nothing glowing at rest and only the pointed-at box leaning. What the modes still draw themselves is under "What sessions 2 to 4 left for later". | Session 4 ✓ |
 | Modes on the shared look | Private palettes `--lm-*`, `--de-*`, `--rd-*`, `--vf-*` | Session 5 |
 | Icons | Four sets and about 35 keyboard characters | Session 6 |
 | The sky, planets, logo | Old gradient sky; five logo styles in Settings | Session 7 |
@@ -27,22 +27,18 @@ Session 2 changed nothing a person can see. So where this file asks for a differ
 
 | Name | Holds today | This file asks for | Switched in |
 | --- | --- | --- | --- |
-| `--ink` `--ink-2` `--ink-3` `--ink-4` | `#eef2fb` `#bcc6de` `#8592b0` `#56627f` | `#f2f5fc` `#cbd3e8` `#a4b0cd` `#7f8cab` | Session 4 |
-| `--sky-shadow` | `0 1px 2px rgba(0,0,16,.85), 0 0 10px rgba(0,0,24,.5)` | `0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5)` | Session 4 |
-| The planet header and the file boxes | their old glass, kept under `--head-fill`, `--head-edge`, `--head-shadow` and `--card-*`, re-tinted by the planet's page | box glass (section 3), and those names go | Session 4 |
 | `--paper` `--paper-ink` | a cream gradient; `#262a34` | `#f8f5ee` flat; `#1d1b18` | Session 5 |
-| Box glass (`--fg-fill`, `--fg-fill-hover`, `--fg-frost`, and the edge, glow and shadow in the `.fglass` rule) | fill `.085`, frost `blur(20px) saturate(0.95) brightness(1.08)`, a glow at rest | the recipe in section 3 | Session 4 |
 | The sky | the old gradient, clouds and ribbons (`--neb-*`, `--ribbon*`) | the sky in section 3 | Session 7 |
 
-Names kept from before that are not in this file (`--head-*`, `--card-*`, `--bg`, `--ease-in`, `--ease-io`, the old page grid, documents' `--de-*`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
+Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-io`, documents' `--de-*`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
 
-### What sessions 2 and 3 left for later, on purpose
+### What sessions 2 to 4 left for later, on purpose
 
-- **Values off the scales stay hand-typed** until their part is rebuilt: 12.5 and 11.5 text, 14 and 10 corners, 0.3 and 0.25 second motion, 6, 10 and 14 spacing. They are what `tests/run.sh drift` counts. In the stylesheets, after session 2 and after session 3: colours 501 → 448, text sizes 204 → 176, corners 168 → 141, shadows 97 → 94, speeds 279 → 254.
-- **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet. The shared parts' rules have left it; the rest moves when sessions 4 and 5 rebuild each part. Nothing new goes in that section.
+- **Values off the scales stay hand-typed** until their part is rebuilt: 12.5 and 11.5 text, 14 and 10 corners, 0.3 and 0.25 second motion, 6, 10 and 14 spacing. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3 and 4: colours 501 → 448 → 432, text sizes 204 → 176 → 163, corners 168 → 141 → 137, shadows 97 → 94 → 93, speeds 279 → 254 → 243.
+- **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet. The shared parts' rules and the file box's have left it; the rest moves when session 5 rebuilds each part. Nothing new goes in that section.
 - **Three rooms sit on numbers of their own** (see Depth).
 - **Session 3 left these half-way.** Each is on the shared parts as far as it could go without redrawing a mode's own panel:
-  - *For session 4 (planet page and file boxes):* the planet header and the flying chip keep their old glass (`--head-*`); the badge on a tile and list mode's box and offer read it too. The buttons on a file box (`.pill`) are shared small buttons with a solid back (`--bg`) because they sit on pictures. A planet's and a file's name and note (`.liv-title`, `.liv-desc`, `.vw-title`, `.vw-desc`) and a list's rows (`.lm-input`) are not on `.field-bare` yet. The add box's own "Drop" veil (`.entry-drop`) and the people list's round ticks (`.pp-tick`) are as they were. Small words in `--ink-4` inside menus (`.cx-count`, `.cx-owner`) wait for the greys.
+  - *Left by session 4, for session 5:* list mode keeps its own count line inside its box (`4 items`) and its own rows; the cookbook's cards, the shelf's covers and the desk's pages are their own drawings, and the small words under them (`.rp-state`, a page's `259 words`) are still the old sizes and the faintest grey; on a desk the planet's name and note are set in the documents' serif (`.liv.is-desk`); the file view opened from a box is unchanged. The lengths typed by hand in the file box (a picture's 0.6 s fade and 0.9 s lift, the tag's 0.35 s) are the app's old ones, for session 8. Mutt keeps no icon for a link's site, so a link's caption is the site's name alone.
   - *For session 5 (the modes):* the reader keeps its own panels, its selection menu and its row choices for typeface, spacing, pages and edges (`.rd-panel`, `.rd-pop`, `.rd-pop-btn`, `.rd-choice`), reading the reader's four page colours; its buttons, tabs and text-size stepper are shared, through the colour names mapped on `.rd`. The editor keeps its Aa panel's groups of toggles (`.de-aa-seg`, `.de-aa-opt`), its swatches, the selection bubble's buttons (`.de-bub`), the slash menu's rows (`.de-slash-item`) and its word-buttons (`.de-word`); its toolbar buttons stay 32 on touch screens. The cookbook's editor fields are shared text boxes on the card's own type and padding (`.cbe-field`); cooking's big buttons and ingredient ticks (`.cbk-*`) are its own sizes. The file view's buttons are shared; its panel and note box are not. Search's row of filters (`.search-opt`) are shared small quiet buttons; its colour dots and the planet picker's rows (`.cx-row`) are their own.
   - *For session 6 (icons):* menu rows have no icons yet; round buttons still hold `•••`, `×`, `←` and `→` as characters.
   - *For session 8 (motion):* the lengths typed by hand in the shared parts (a menu's 0.42 s, a sheet's 0.45 s, a dialog's and a toast's 0.6 s, the bead's 0.45 s) are the app's old ones, kept so nothing moves differently yet.
@@ -72,7 +68,7 @@ Every name in this section is written once, in `public/assets/tokens.css`, which
 | `--ink` | `#f2f5fc` | Titles and the owner's own words. |
 | `--ink-2` | `#cbd3e8` | Body, labels on controls, captions. |
 | `--ink-3` | `#a4b0cd` | Facts (dates, counts, sizes), hints, placeholders, small labels. |
-| `--ink-4` | `#7f8cab` | Marks only: dots, grips, empty tick rings, switched-off things. **Never words.** |
+| `--ink-4` | `#7f8cab` | Marks only: dots, grips, empty tick rings, a song's level bars, line numbers, switched-off things. **Never words.** |
 | `--sky-shadow` | `0 1px 2px rgba(0,0,18,.8), 0 0 10px rgba(0,0,18,.5)` | Text shadow on every word that sits straight on the sky (not on glass). No grey can stay readable on the brightest sky without it. |
 | `--blue` | `#3f7cf0` | Mutt blue, for fills: main button, switch on, chosen segment, progress. |
 | `--blue-ink` | `#8cc0ff` | Blue words, links, `@name`, the keyboard outline, a toast's action. |
@@ -94,7 +90,10 @@ Every name in this section is written once, in `public/assets/tokens.css`, which
 | shadow colour | `rgb(0,0,18)` | The only shadow colour. |
 | `--pc` | the planet's colour | Set by the router on a planet's page. Elsewhere `#6c9cff`. |
 | `--pa` | the planet's deep colour | From `planetTone` in `planets.js`: same hue, dark enough for white words. Fills the planet's own main button. |
-| `--accent` | `var(--blue)`; inside a planet's own things `var(--pa)` | What a pressed thing is filled with. Never set it on a whole page (today a planet's page still does; session 4). |
+| `--accent` | `var(--blue)`; inside a planet's own things `var(--pa)` | What a pressed thing is filled with. Never set it on a whole page: a planet's colour is set on its own page content (`#view`), so nothing on bar glass sees it. |
+| `--pale` | `#e4e8f2` | What a planet's colour is mixed 34% toward to make a box's edge and glow (`--fg-tone` on the box). |
+| `--box-edge` `--box-edge-on` | `rgba(225,232,255,.18)` `.24` | A box's edge at rest and pointed at, before the planet's tint is mixed in. `--box-edge` is also a picture's edge. |
+| `--pic-edge-on` | `rgba(225,232,255,.4)` | A picture's edge, pointed at. |
 
 Signals mean something or they aren't used. No other colour may be typed anywhere; a picture's own colours are the exception.
 
@@ -122,6 +121,7 @@ The user kept the spaced capitals for small labels on purpose; don't turn them i
 
 - **Space** (`--space-2` … `--space-48`): 2, 4, 8, 12, 16, 24, 32, 48. 4 inside a control, 8 between related things, 16 inside a box, 24 between boxes, 48 between parts of a page.
 - **Control heights** (`--h-small` 24, `--h-regular` 32, `--h-large` 40): small on tiles and in rows; regular everywhere; large for the one main action. On touch screens regular controls become 40 high; a small control keeps its 24 look and gets an unseen 40-high area to tap (decided in session 3: a 40-high button on a file box is a third of the box). The top bar is 36 (`--bar`; 44 on a phone). Inside a well that holds choices (segmented bar, stepper) the padding is `--inset` 3 and a choice or round button is `--h-inner` 26. The ring round a text box being typed in, and round a place files can be dropped, is `--ring` 3 wide.
+- **The page** (`--max` 1360, `--gutter` 40, `--cols` 4): how wide a page may grow, the space at its sides (28 under 1100 wide, 16 under 720), and how many file boxes sit in a row (2 under 720). A planet's page adds `--space-48` at each side above 720 wide, so its one column clears the back arrow in the corner.
 - **Corners** (`--r-mark` 4, `--r-row` 8, `--r-box` 12, `--r-panel` 20, `--r-full` 999px): 4 tick boxes, tags, paper; 8 rows and text boxes; 12 file boxes and menus; 20 sheets, dialogs, a planet's header; full for buttons, switches, segmented bars, toasts. A thing inside a rounded thing has the outer corner minus the padding (menu 12, padding 4, rows 8).
 
 ### Depth
@@ -189,17 +189,18 @@ Glass on glass can't frost and goes muddy: never put box glass inside a sheet or
 
 ### Box glass
 
-Use the `.fglass` class (don't write a fill). Its recipe:
+Use the `.fglass` class (don't write a fill). Its recipe, each value a name in `tokens.css`:
 
-- Fill: `rgba(190,202,240,.09)`, flat. Never a gradient. Pointed at or typed in: `rgba(200,210,245,.13)`.
-- Frost: `blur(28px) saturate(1.15) brightness(0.9)`. It softens the sky and deepens it a touch, so words hold anywhere on the page.
-- Edge: 1px. With `tone = color-mix(in oklab, var(--pc), #e4e8f2 34%)`, at rest `color-mix(in srgb, tone 22%, rgba(225,232,255,.18))`; pointed at `color-mix(in srgb, tone 56%, rgba(225,232,255,.24))`.
-- Light: `inset 0 1px 0 rgba(255,255,255,.14)` on the top edge (`.18` pointed at).
-- Glow: **none at rest.** Pointed at or typed in: `0 0 30px -4px color-mix(in srgb, tone 30%, transparent)`.
+- Fill `--fg-fill`: `rgba(190,202,240,.09)`, flat. Never a gradient. Pointed at or typed in, `--fg-fill-hover`: `rgba(200,210,245,.13)`.
+- Frost `--fg-frost`: `blur(28px) saturate(1.15) brightness(0.9)`. It softens the sky and deepens it a touch, so words hold anywhere on the page.
+- Edge: 1px. With `--fg-tone = color-mix(in oklab, var(--pc), var(--pale) 34%)`, at rest `color-mix(in srgb, var(--fg-tone) 22%, var(--box-edge))`; pointed at `color-mix(in srgb, var(--fg-tone) 56%, var(--box-edge-on))`.
+- Light `--box-light`: `inset 0 1px 0 rgba(255,255,255,.14)` on the top edge (`--box-light-on`, `.18`, pointed at).
+- Glow: **none at rest.** Pointed at or typed in: `0 0 30px -4px color-mix(in srgb, var(--fg-tone) 30%, transparent)`.
 - Shadow: `--shadow-rest`; `--shadow-raised` pointed at.
 - Changes take `--dur-move` (edge, fill) and `--dur-arrive` (glow, shadow) on `--ease-settle`.
 - The colours are worked out on the box itself, so it takes `--pc` from the page it sits on.
 - Fades and blurs on entrance go on the box's parts, never on a parent of the glass: either one on a parent stops the frost.
+- Glass that sits on a picture (the tag and the two buttons on a file box) is not box glass: it is `--bar-fill` under `--tag-frost` `blur(12px) brightness(0.7)`.
 
 ### Bar glass
 
@@ -228,7 +229,7 @@ One light, from above, laid over whatever colour the control is. A pressed thing
 
 ### Paper
 
-One cream, flat: `--paper` `#f8f5ee`, edge `--paper-edge` `#e9e4d8`, words `--paper-ink` `#1d1b18`, `--paper-ink-2` `#5c5852`, `--paper-ink-3` `#8f897f`. Corners 4, so it never reads as glass. Shadow `0 0 0 1px rgba(0,0,18,.2), var(--shadow-raised)`. Type on paper is `--serif`: titles 600, text 400, at the reader's or document's own size (17/26 on the board).
+One cream, flat: `--paper` `#f8f5ee`, edge `--paper-edge` `#e9e4d8`, words `--paper-ink` `#1d1b18`, `--paper-ink-2` `#5c5852`, `--paper-ink-3` `#8f897f`. Corners 4, so it never reads as glass. Shadow `--paper-shadow`: `0 0 0 1px rgba(0,0,18,.2), var(--shadow-raised)`. A book's cover carries `--spine`, a shaded band 7% wide down its left edge. Type on paper is `--serif`: titles 600, text 400, at the reader's or document's own size (17/26 on the board).
 
 ### Print: the void
 
@@ -314,25 +315,42 @@ One menu for the ••• button, right-click, the editor and the reader. Bar g
 
 ### File box
 
-One frame for every kind of file: a square box with corners 12, and under it, 12 below, a one-line caption (Caption, `--ink-2`, centred, `--sky-shadow`, cut with "…"; `--ink` when the box is pointed at).
+One frame for every kind of file, wherever files are shown (a planet's page, search). Built by `renderCell` in `cells.js`; styled only in the section of `galaxy.css` headed THE FILE BOX. Drawn in every kind at `/parts`.
 
-- **Note**: box glass, padding 16, the words in Body `--ink`, fading out over the last 40px through a mask (never a painted fade: it shows as a dark band on glass).
-- **Picture**: no glass, the picture itself with corners 12, a 1px edge of `rgba(225,232,255,.18)` and `--shadow-rest`. Pointed at: 1.5% larger, edge `rgba(225,232,255,.4)`, `--shadow-raised`.
-- **Link**: box glass, padding 16, set to the bottom: a site line at the top (a 16px site icon with corners 4, then the address as a Fact), the title in Lead (16/22, three lines), a two-line description in Caption `--ink-2`.
-- **Book, paper page, recipe card, list row, other files**: the same frame with their own face. Not drawn yet; session 4 draws them on the sample page before building.
-- **At rest** a box floats: 2.5px up and down, 8 to 12 seconds, each on its own beat. Nothing else.
-- **Pointed at or typed in**: the edge, glow and fill of box glass, plus a lean toward the pointer (up to 3° and 2.4°) over `--dur-arrive` on `--ease-settle`.
-- **The add box** is a box-glass square with 16 padding: the placeholder "Type, paste or drop" (`--ink-3`), "Upload" as a small quiet button at the foot, and a small main button "Add" in the planet's colour once there are words.
+- **The frame**: a box four wide to five tall (`.cell-box`), corners 12, and 12 under it one line, the caption. Four boxes to a row, 24 apart each way; on a phone two to a row, 12 apart across and 16 down.
+- **The rule**: the box shows what is in the file and the caption says what it is called. Nothing is said twice: a name is never repeated inside its box, and a fact is never in both places.
+- **The caption** (`.cell-cap`): the name on the left in Caption `--ink-2` (`--ink` when the box is pointed at), cut with "…", and one fact on the right in Fact `--ink-3`; both carry `--sky-shadow`. The name is the file's own name; a link's title is in its box, so a link's caption is its site. The fact is the date for a note or a link, pages for a page or a book that knows them, and otherwise the size. Someone else's file adds `@name` after the name; a file with comments shows their count before the fact.
+- **A face is one of three things.** To add a kind of file, decide which and build it from that:
+  1. *It has a shape of its own* (a picture, a video, a page, a cover): it keeps that shape, in the middle of the box, never cropped (`shaped()` in `cells.js`). Corners 12, a 1px edge of `--box-edge`, `--shadow-rest`. Pointed at: 1.5% larger, edge `--pic-edge-on`, `--shadow-raised`.
+     - *A page* (a PDF or a document with a first page): paper. Corners 4, `--paper-shadow`, at most 94% of the box so it reads as a sheet lying in it.
+     - *A book* (an EPUB with a cover): its cover, the same way, with the left corners 2 and the `--spine` band.
+  2. *It is words* (a note, a link): box glass (`.fglass`'s recipe) filling the box, padding 16 (12 on a phone).
+     - *A note*: its words from the top in Body `--ink` (13/20 on a phone), fading out over the last 40px through a mask (never a painted fade: it shows as a dark band on glass).
+     - *A link*: set to the foot: the title in Lead (16/22, four lines) and what the page says in Caption `--ink-2` (three lines). If the link has a picture it runs across the top of the box, edge to edge, above a 1px `--line`, and the title keeps two lines and the description one.
+  3. *It is neither* (a song, a zip, code, anything else): box glass, set to the foot: one bold word in Title (what kind of file it is: `ZIP`; for a song, how long it is: `3:42`) and under it, only if the bold word wasn't the kind, the kind as a Fact. Above the word, its sign if it has one:
+     - *A song*: 40 level bars, 1px wide in `--ink-4`, their heights made from the file's id so they never change; they take the planet's tint when the box is pointed at.
+     - *Code or text with words to show*: its first lines in mono 10.5/1.6 `--ink-2`, fading out; code is numbered in `--ink-4`. Then only the kind as a Fact (no bold word).
+     - *Any other file*: nothing above the word. Don't invent a picture for a kind; a new sign is drawn on `/parts` and shown to the user first.
+- **The tag** (`.cell-tag`): a fact that sits on a picture, 8 in from its top-left corner: 20 high, corners 4, padding 0 8, Fact in `--ink`, on `--bar-fill` under `--tag-frost`. A video's (or a song with a cover's) length always shows, after a small play triangle. What a page or a cover is (`PDF · 12 pp`, `Book`) shows only when the box is pointed at.
+- **The buttons on a box** (`.cell-actions`): two small plain buttons (`.btn.btn-small.pill`), 12 above the foot of the box, on the same dark see-through glass as the tag. They appear when the box is pointed at or focused, and never on touch screens (right-click and a long press open the same menu).
+- **At rest** a box floats: 2.5px up and down, 8 to 12 seconds, each on its own beat. Nothing else: no glow, no lean.
+- **Pointed at or typed in**: the edge, glow and fill of box glass, plus a lean toward the pointer (up to 3° and 2.4°). Only that one box leans; it settles back when the pointer leaves (`drift.js`, which writes the lean on that box alone).
+- **Arriving**: the box slides up 16px while its parts fade in and come into focus, 30 ms apart.
+- **Being added**: the box at 55% with a 2px line under it filling left to right; red when it fails, with the reason and "Retry" as the caption.
+- **The add box** (`.entry`, `entry.js`) is the first box on a planet you can add to. It is a sunken slot, not a file: a well with corners 12 and a 1px `--line-2` edge (`--line-3` pointed at), the placeholder "Type, paste or drop" in `--ink-3`, "Upload" as a small quiet button at the foot, and a small main button "Add" in the planet's colour once there are words. While you type in it, or drag files over it, its edge is the planet's paled colour and it has the 3px ring of a text box being typed in.
 
 ### Planet header, section heading, small text
 
-- **Planet header**: box glass, corners 20, padding 16/20, with a wash of the planet's colour from the globe's side (`radial-gradient(70% 160% at 0% 50%, color-mix(in srgb, var(--pc) 14%, transparent), transparent 60%)`). The globe, then the name in Page (a bare text box), the note (bare, Body), and a Fact line. Its buttons are plain.
-- **Section heading**: one for every mode. The name in Label `--ink-2` and a Fact beside it (`Files 12`, `Documents 4 · 518 words`), 8 apart on one baseline, straight on the sky with `--sky-shadow`.
+- **Planet header** (`.liv-head`): no box. It sits straight on the sky, and the files below are the only glass on the page. The world (124 across; 84 on a phone), with its moons beside it, then the name in Page, the note in Body `--ink-2`, and a Fact line; every word carries `--sky-shadow`. The name and the note are bare text boxes (`.field-bare`); on someone else's planet they are read-only and are plain words. Its buttons (Share, •••) are plain, level with the middle of the world, at the far end; on a phone they sit under the Fact line. 24 between the world, the words and the buttons; 32 under the header.
+- **One column**: the header and everything under it share the same left and right edges, 48 in from the page's own gutter above 720 wide, so the back arrow sits in the margin beside them. Nothing on a planet's page is inset on its own.
+- **Section heading** (`.sec-head`, built by `sectionHead()` in `ui.js`): one for every mode. The name in Label `--ink-2` and one Fact beside it (`Books 2`, `Documents 4 · 518 words`), 8 apart, straight on the sky with `--sky-shadow`, in a row 32 high with 12 under it; the group's own buttons (Sort, New document) at the far end. **Only where a page has more than one group, or the group has its own buttons**: a plain planet has no heading, because its header already says how many files it holds.
 - **Small text**: one Caption and one Fact. Anything you could count or date is a Fact (mono); everything else small is a Caption.
 
 ### Offer, tip, and parts not drawn yet
 
-An offer (a mode's "This planet looks like …") is box glass: Title, one or two sentences of Body, a main button in the planet's colour whose words match the menu's, and a quiet "Not now". It is the one box in `offers.js`; a mode only supplies words and a 40px drawing. ### The parts as built, and the sample page
+An offer (a mode's "This planet looks like …") is box glass: Title, one or two sentences of Body, a main button in the planet's colour whose words match the menu's, and a quiet "Not now". It is the one box in `offers.js`; a mode only supplies words and a 40px drawing.
+
+### The parts as built, and the sample page
 
 Every part above is one set of classes in the section of `galaxy.css` headed **SHARED PARTS**, written only with names from `tokens.css`. A feature's own styles hold layout and these class names; they never restyle a part.
 
@@ -354,6 +372,10 @@ Every part above is one set of classes in the section of `galaxy.css` headed **S
 | Tip | `.tip` > `.tip-title`, `.tip-text`, `.tip-btns` | markup |
 | Tooltip | `.tooltip` > `.tooltip-text`, `.tooltip-key` | `tooltip.js`, for anything with a `title` or `data-tip` |
 | Drop hint | `.drop-word`, `.is-drop` on what takes the files, `.drop-ring` round the void | `main.js` |
+| Section heading | `.sec-head` > `.sec-name`, `.sec-fact`, `.sec-tools` | `sectionHead()` in `ui.js` |
+| File box | `.cell` > `.cell-box` > `.cell-fill` > a face (`.face-shape` > `.face-img`, or `.face-text`, `.face-link`, `.face-file`), `.cell-tag`, `.cell-actions`; then `.cell-cap` > `.cell-title`, `.cell-fact`. In its own section of `galaxy.css`, THE FILE BOX | `renderCell()` in `cells.js` |
+| Add box | `.cell.cell-entry` > `.entry` | `entryCell()` in `entry.js` |
+| Planet header | `.liv-head` > `.liv-world`, `.liv-info` (`.liv-title`, `.liv-desc`, `.liv-meta`), `.liv-tools`. With the planet's page in `galaxy.css` | `views/planet.js` |
 
 Bar glass is the one rule at the top of that section; a new thing on bar glass joins its list. That rule also sets `--accent` and the five `--mutt-*` values back, which is what keeps Mutt's own things blue on a planet's page.
 
@@ -391,6 +413,7 @@ Checklist before calling it done:
 - [ ] Only parts from section 4; anything new was added here first.
 - [ ] Planet colour only on box-glass things on that planet's page; nothing on bar glass took it.
 - [ ] Nothing new glows, leans or moves at rest.
+- [ ] A file is shown in the file box (`renderCell`), a group of files under a section heading (`sectionHead`); nothing on a planet's page is inset on its own.
 - [ ] Opens and closes on the shared lengths and curves; no fade or blur on a parent of glass.
 - [ ] Keyboard outline visible everywhere; nothing hover-only; 40-high controls on touch.
 - [ ] No sideways scroll at 375 wide; no console errors; Motion: Still shows everything.
@@ -428,4 +451,14 @@ Decided by the user, 2026-11-12 (design session 3; the page with the alternative
 - Words that delete are quiet and grey outside a dialog.
 - Bar glass dims what is behind it.
 
-Still open, with the session that settles it: the seven faces of a file box and the planet header's final shape (4); the three rooms on their own layer numbers (5); the icon sheet (6); sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).
+Decided by the user, 2026-11-12 (design session 4; the page with the alternatives is `/Users/edan/Mutt-notes/design/session4/planet-page-2026-11-12.html`):
+
+- The planet's header sits on the sky with no box (a glass panel and a large centred world were offered).
+- A picture keeps its own shape in its frame (cropping to fill, and a glass mount, were offered).
+- The frame is a little taller than wide, four to five (my pick of a square was turned down).
+- Files that aren't pictures, notes or links each get a small sign of their own (all alike was offered).
+- The caption is the name and one fact (my pick of the name alone, centred, was turned down).
+- The add box is a sunken slot, not glass like a file.
+- A section heading shows only where a page has more than one group.
+
+Still open, with the session that settles it: the three rooms on their own layer numbers (5); the icon sheet (6); sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).

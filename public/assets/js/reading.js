@@ -10,7 +10,7 @@ import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
 import { openReader } from './reader.js';
-import { openContextMenu } from './ui.js';
+import { openContextMenu, sectionHead } from './ui.js';
 import { contextKey } from './uploads.js';
 import { EASE, bus, h, reducedMotion, seeded, timeAgo } from './util.js';
 
@@ -51,12 +51,13 @@ export class ShelfView {
     });
     this.now = h('section', { class: 'rp-now', hidden: true, 'aria-label': 'Continue reading' });
     this.shelf = h('div', { class: 'rp-shelf', role: 'list' });
-    this.count = h('span', { class: 'rp-count' });
-    this.othersHead = h('h3', { class: 'rp-head rp-others-head' }, 'Other files');
+    this.head = sectionHead('Books');
+    this.count = this.head.fact;
+    this.othersHead = sectionHead('Other files').el;
     this.el = h('div', { class: 'rp' },
       this.now,
       h('div', { class: 'rp-shelf-wrap' },
-        h('h3', { class: 'rp-head' }, 'Books', this.count),
+        this.head.el,
         this.shelf),
       h('div', { class: 'rp-others' }, this.othersHead, this.collection.el));
     this.render({ entrance: true });

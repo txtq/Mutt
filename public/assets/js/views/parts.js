@@ -8,8 +8,10 @@
 // gives a sample the real rule for that state, copied from the stylesheets
 // when the page opens (mirrorStates), so the samples can't drift from the app.
 
+import { renderCell } from '../cells.js';
+import { entryCell } from '../entry.js';
 import { glyph } from '../planets.js';
-import { confirmDialog, openContextMenu, openMenu, openPopover, segmented, stepper, toast } from '../ui.js';
+import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, stepper, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
 
 const held = (el, ...states) => { el.classList.add(...states.map((s) => `is-${s}`)); el.tabIndex = -1; return el; };
@@ -171,11 +173,50 @@ function overlays() {
   ];
 }
 
+// The file box: one frame for every kind of file, built by renderCell from
+// made-up files. A new kind of file is added to FILES here first.
+const drawn = (w, hgt, a, b) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${hgt}">`
+  + `<defs><linearGradient id="g" x2="0" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>`)}`;
+const LASTS = { video: 42, song: 222 };   // seconds
+const FILES = [
+  ['A picture, wide', { kind: 'image', title: 'pier-at-dusk', thumb: drawn(600, 400, PALETTE[4], PALETTE[0]), width: 600, height: 400, size: 2202009 }],
+  ['A picture, upright', { kind: 'image', title: 'lighthouse, early', thumb: drawn(450, 600, PALETTE[6], PALETTE[3]), width: 450, height: 600, size: 1887436 }],
+  ['A video: its length always shows', { kind: 'video', title: 'ferry-in-fog', thumb: drawn(640, 360, PALETTE[6], PALETTE[1]), width: 640, height: 360, duration: LASTS.video, size: 18874368 }],
+  ['A page: paper, upright', { kind: 'pdf', ext: 'pdf', title: 'Tide tables 2026', thumb: drawn(480, 620, 'white', 'white'), width: 480, height: 620, meta: { pages: 12 }, size: 1468006 }],
+  ['A book: its cover, with a spine', { kind: 'doc', ext: 'epub', title: 'The Harbour Light', thumb: drawn(400, 600, PALETTE[1], PALETTE[4]), width: 400, height: 600, size: 842310 }],
+  ['A note', { kind: 'text', content: 'Things to bring back\n\n- sea glass from the north beach\n- the blue enamel mug\n- a tide table for next year', createdAt: Date.UTC(2026, 10, 3) }],
+  ['A link', { kind: 'link', title: 'Tide times and heights for the next seven days', content: 'https://tides.example.org', createdAt: Date.UTC(2026, 10, 2),
+    meta: { domain: 'tides.example.org', description: 'High and low water for every port on the coast, updated each morning.' } }],
+  ['A link with a picture', { kind: 'link', title: 'Winter ferry timetable', content: 'https://ferries.example.org', thumb: drawn(640, 400, PALETTE[3], PALETTE[5]), createdAt: Date.UTC(2026, 9, 30),
+    meta: { domain: 'ferries.example.org', description: 'Sailings from 1 November to 31 March.' } }],
+  ['A song: level bars and its length', { kind: 'audio', ext: 'm4a', title: 'low-tide-demo', duration: LASTS.song, size: 4299161 }],
+  ['Any other file', { kind: 'archive', ext: 'zip', title: 'site-backup', size: 50331648 }],
+  ['Code: its first lines, numbered', { kind: 'code', ext: 'py', title: 'tides', size: 2048, meta: { excerpt: 'import math\n\ndef height(t, high, low):\n    mid = (high + low) / 2\n    swing = (high - low) / 2\n    return mid + swing * math.cos(t)\n' } }],
+];
+
+function fileBoxes() {
+  const sample = ([says, block], i, state) => {
+    const cell = renderCell({ id: `sample-${i}`, mine: true, ...block });
+    return h('div', { class: 'parts-file' }, state ? held(cell, state) : cell, h('span', { class: 'parts-label' }, state ? `${says}, pointed at` : says));
+  };
+  const add = entryCell();
+  const heads = [sectionHead('Books', { fact: '2' }), sectionHead('Documents', { fact: '2 · 518 words', tools: [btn('Last edited', 'btn-quiet'), btn('New document')] }), sectionHead('Other files')];
+  return [
+    section('File box', 'One frame for every kind of file: a box four wide to five tall and, under it, its name and one fact. The box shows what is in the file; the caption says what it is called. At rest a box only floats; pointed at, its edge takes the planet’s colour, it glows and it leans.',
+      h('div', { class: 'parts-own parts-files' }, FILES.map((f, i) => sample(f, i)),
+        sample(FILES[0], 'a', 'hover'), sample(FILES[5], 'b', 'hover'), sample(FILES[8], 'c', 'hover'))),
+    section('Add box', 'The first box on a planet: a sunken slot, not a file. Its edge lights in the planet’s colour while you type in it or drag files over it.',
+      h('div', { class: 'parts-own parts-files' }, h('div', { class: 'parts-file' }, add, h('span', { class: 'parts-label' }, 'Resting (type in it)')))),
+    section('Section heading', 'The name of a group of files and one fact, straight on the sky, with the group’s own buttons at the far end. One for every mode; a page with a single group has none.',
+      h('div', { class: 'parts-own parts-heads' }, heads.map((x) => x.el))),
+  ];
+}
+
 export function partsView() {
   const el = h('div', { class: 'parts' },
     h('header', { class: 'parts-head' }, h('h1', { class: 'parts-title' }, 'Parts'),
       note('Every shared part in every state, as DESIGN.md section 4 gives them. This page is linked from nowhere. A new part is drawn here first.')),
-    buttons(), textBoxes(), ...switches(), menus(), ...overlays());
+    buttons(), textBoxes(), ...switches(), menus(), ...overlays(), ...fileBoxes());
   return {
     el,
     title: 'Parts',

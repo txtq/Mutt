@@ -9,6 +9,17 @@ import { h, reducedMotion } from './util.js';
 // A segmented bar picks one value of a setting. With `tabs: true` the same
 // thing is drawn as tabs (words with a sliding light), for switching what a
 // panel shows.
+// The heading over a group of files: its name and one fact (DESIGN.md section 4,
+// "Section heading"). `tools` are the group's own buttons, at the far end.
+// Set the fact with `head.fact.textContent = '4 · 518 words'`.
+export function sectionHead(name, { fact = '', tools = [] } = {}) {
+  const factEl = h('span', { class: 'sec-fact' }, fact);
+  const kept = tools.filter(Boolean);
+  const el = h('div', { class: 'sec-head' }, h('h3', { class: 'sec-name' }, name), factEl,
+    kept.length ? h('div', { class: 'sec-tools' }, kept) : null);
+  return { el, fact: factEl };
+}
+
 export function segmented(options, active, onPick, { className = '', label, tabs = false } = {}) {
   const part = tabs ? { box: 'tabs', ind: 'tabs-ind', btn: 'tab' } : { box: 'seg', ind: 'seg-ind', btn: 'seg-btn' };
   const ind = h('span', { class: part.ind, 'aria-hidden': 'true' });

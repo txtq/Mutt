@@ -1,4 +1,6 @@
 // The first box on a planet's grid: type, paste a link, or drop/choose files.
+// A sunken slot (DESIGN.md "File box": the add box); while files are dragged
+// over it, it is .is-over and its edge lights like any text box being typed in.
 
 import { h } from './util.js';
 
@@ -11,7 +13,6 @@ export function entryCell({ onText, onFiles } = {}) {
     h('div', { class: 'entry-foot' },
       h('button', { type: 'button', class: 'entry-files btn btn-quiet btn-small', onclick: () => picker.click() }, 'Upload'),
       add),
-    h('div', { class: 'entry-drop' }, h('span', null, 'Drop')),
     picker);
   const cell = h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, box)));
 

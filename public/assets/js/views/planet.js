@@ -80,7 +80,7 @@ function peoplePicker(names, onChange) {
         id: `${results.id}-${i}`, 'aria-selected': String(on), tabindex: '-1',
         onpointerdown: (e) => e.preventDefault(),
         onclick: () => { active = i; toggle(name); input.focus({ preventScroll: true }); },
-      }, h('span', { class: 'pp-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'pp-tick', 'aria-hidden': 'true' }));
+      }, h('span', { class: 'pp-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'pp-name' }, `@${name}`), h('span', { class: 'tick-box', 'aria-hidden': 'true' }));
       return row;
     }));
     if (active >= 0 && shown.length) input.setAttribute('aria-activedescendant', `${results.id}-${active}`);
@@ -263,7 +263,7 @@ export const planetView = {
     const parent = drawer.parent || null;
     const word = isMoon ? 'moon' : 'planet';
 
-    const worldSize = innerWidth < 640 ? 76 : 104;
+    const worldSize = innerWidth < 640 ? 84 : 124;
     const world = planetEl(drawer, { size: worldSize, href: null, label: false });
     world.body.dataset.vt = isMoon ? `moon-${id}` : `planet-${id}`;
     world.classList.add('planet-big');
@@ -306,8 +306,8 @@ export const planetView = {
       worldBox.classList.add('has-parent');
     }
 
-    const title = h('textarea', { class: 'liv-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Planet name', spellcheck: 'false' });
-    const desc = h('textarea', { class: 'liv-desc', rows: 1, maxlength: '2000', value: drawer.description, placeholder: 'Add a note', 'aria-label': 'Note' });
+    const title = h('textarea', { class: 'field-bare liv-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Planet name', spellcheck: 'false' });
+    const desc = h('textarea', { class: 'field-bare liv-desc', rows: 1, maxlength: '2000', value: drawer.description, placeholder: 'Add a note', 'aria-label': 'Note' });
     const meta = h('p', { class: 'liv-meta' });
     const setMeta = (count) => {
       const vis = drawer.community ? 'community' : drawer.visibility;

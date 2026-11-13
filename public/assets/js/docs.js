@@ -10,7 +10,7 @@
 import { blockContextMenu } from './actions.js';
 import { api } from './api.js';
 import { cleanHtml, escapeHtml, fromMarkdown } from './docformat.js';
-import { openContextMenu, openMenu, toast } from './ui.js';
+import { openContextMenu, openMenu, sectionHead, toast } from './ui.js';
 import { EASE, bus, h, plural, reducedMotion, styles, timeAgo } from './util.js';
 
 // The desk's look comes with its code. Whoever loads this file waits for the
@@ -69,18 +69,18 @@ export class DeskView {
     });
     this.now = h('section', { class: 'dk-now', hidden: true, 'aria-label': 'Continue writing' });
     this.grid = h('div', { class: 'dk-grid', role: 'list' });
-    this.count = h('span', { class: 'dk-count' });
     this.newBtn = editable ? h('button', { type: 'button', class: 'btn dk-new' }, h('span', { 'aria-hidden': 'true' }, '+'), 'New document') : null;
     this.newBtn?.addEventListener('click', () => this.onNew?.());
     this.sortBtn = h('button', { type: 'button', class: 'btn btn-quiet dk-sort', 'aria-haspopup': 'menu' });
     this.sortBtn.addEventListener('click', () => this.sortMenu());
-    this.othersHead = h('h3', { class: 'dk-head dk-others-head' }, 'Other files');
+    this.head = sectionHead('Documents', { tools: [this.sortBtn, this.newBtn] });
+    this.count = this.head.fact;
+    this.othersHead = sectionHead('Other files').el;
     this.others = h('div', { class: 'dk-others' }, this.othersHead, this.collection.el);
     this.el = h('div', { class: 'dk' },
       this.now,
       h('div', { class: 'dk-desk' },
-        h('div', { class: 'dk-bar' }, h('h3', { class: 'dk-head' }, 'Documents', this.count),
-          h('div', { class: 'dk-bar-end' }, this.sortBtn, this.newBtn)),
+        this.head.el,
         this.grid),
       this.others);
 

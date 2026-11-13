@@ -18,6 +18,9 @@
 .parts-matrix { display: grid; grid-template-columns: 56px repeat(6, max-content); align-items: center; gap: var(--space-16) var(--space-24); min-width: max-content; }
 .parts-own { padding: var(--space-16); border-radius: var(--r-box); }
 .parts-panel { width: min(320px, 100%); }
+.parts-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: var(--space-24); width: 100%; }
+.parts-file { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+.parts-heads { display: flex; flex-direction: column; width: 100%; }
 .parts-box, .parts-ctx { display: grid; place-items: center; width: 150px; height: 96px; border-radius: var(--r-box); font: var(--type-caption); color: var(--ink-2); }
 
 /* things that float in the app stand still here */

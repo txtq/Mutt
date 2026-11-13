@@ -15,7 +15,7 @@ import { convertible, convertText, fraction, showLine, splitLine, systemOf } fro
 import { api } from './api.js';
 import { nav } from './nav.js';
 import { glyph } from './planets.js';
-import { openContextMenu, openDialog, openMenu, segmented, toast } from './ui.js';
+import { openContextMenu, openDialog, openMenu, sectionHead, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
 import { DUR, EASE, autosize, bus, debounce, h, isEditable, reducedMotion } from './util.js';
 
@@ -92,10 +92,11 @@ export class RecipeBoxView {
     // files on the planet stay out of sight here; "Show as files again"
     // brings them back.
     this.newBtn = editable ? h('button', { type: 'button', class: 'btn cb-new', onclick: () => this.newCard() }, '+ New card') : null;
+    this.head = sectionHead('Recipes', { tools: [this.newBtn] });
     this.stack = h('div', { class: 'cb-stack', role: 'list', 'aria-label': 'Recipe cards' });
     this.inside = h('div', { class: 'cb-inside' }, this.stack);
     this.boxEl = h('div', { class: 'cb-box' },
-      this.newBtn ? h('div', { class: 'cb-bar' }, this.newBtn) : null,
+      this.head.el,
       this.inside);
     this.isOpen = true;
     this.el = h('div', { class: 'cb' }, this.boxEl);
@@ -174,6 +175,7 @@ export class RecipeBoxView {
 
   render({ entrance = false, born = null } = {}) {
     const all = this.ordered();
+    this.head.fact.textContent = all.length ? String(all.length) : '';
     const parts = [];
     let tabAt = 0;
     for (const ch of this.chapters) {

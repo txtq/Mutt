@@ -2,7 +2,8 @@
 // link the galaxies into a loose net, gathering into brighter knots where
 // they meet and into a soft halo round each galaxy. Dotted like a print
 // (brighter places get more dots, never a glow), with only a faint mauve
-// tint. Painted once for a layout, then moved as one picture.
+// tint. Painted once for a layout, then moved as one picture. A few threads
+// that reach a galaxy also carry a bead of light (`beads`, below).
 
 import { seeded } from './util.js';
 
@@ -63,6 +64,7 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
 
   // Threads: gently curved, wandering in width, brighter towards the ends
   // where they gather into knots. They stop short of a galaxy's planets.
+  const threads = [];
   for (const [i, j] of links.values()) {
     const a = all[i];
     const b = all[j];
@@ -72,6 +74,7 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
     const ny = (b.x - a.x) / len;
     const bend = (rand() - 0.5) * len * 0.35;
     const c = { x: (a.x + b.x) / 2 + nx * bend, y: (a.y + b.y) / 2 + ny * bend };
+    if (!a.knot || !b.knot) threads.push({ a, b, c, len });
     const thick = 1.6 + rand() * 3.2;
     const phase = rand() * TAU;
     const waves = 1 + rand() * 2.5;
@@ -119,5 +122,36 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
   buckets.forEach((pts, b) => {
     ctx.fillStyle = `rgba(222, 212, 240, ${SHADES[b]})`;
     for (let n = 0; n < pts.length; n += 2) ctx.fillRect(pts[n], pts[n + 1], size, size);
+  });
+  return threads;
+}
+
+// Beads of light for the threads that reach a galaxy: one small bead each (at
+// most MAX_BEADS), travelling slowly from end to end and fading at both. They
+// are plain elements moved by the browser, so they cost nothing to keep going.
+// `host` shares the web's own box, so they move with the picture. None under Still.
+const MAX_BEADS = 14;
+const BEAD_SPEED = 22;   // pixels a second
+export function beads(host, threads, still) {
+  host.replaceChildren();
+  if (still) return;
+  const rand = seeded(`beads:${threads.length}`);
+  const longest = [...threads].sort((p, q) => q.len - p.len).slice(0, MAX_BEADS);
+  longest.forEach(({ a, b, c, len }, n) => {
+    // stay clear of each end's galaxy, as the dots do
+    const from = Math.min(0.45, (a.r * 0.8) / len);
+    const to = 1 - Math.min(0.45, (b.r * 0.8) / len);
+    const frames = [];
+    for (let s = 0; s <= 10; s++) {
+      const t = from + ((to - from) * s) / 10;
+      const x = (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * c.x + t * t * b.x;
+      const y = (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * c.y + t * t * b.y;
+      frames.push({ transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`, opacity: s === 0 || s === 10 ? 0 : 1 });
+    }
+    const bead = document.createElement('span');
+    bead.className = 'uv-bead';
+    host.append(bead);
+    const time = (len * (to - from) * 1000) / BEAD_SPEED;
+    bead.animate(n % 2 ? frames.reverse() : frames, { duration: time, delay: -rand() * time, iterations: Infinity, easing: 'linear' });
   });
 }

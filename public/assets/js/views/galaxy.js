@@ -17,7 +17,7 @@ import { updatePrefs } from '../theme.js';
 import { openDialog, pinField, toast } from '../ui.js';
 import { addFiles, withinLimit } from '../uploads.js';
 import { DUR, EASE, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
-import { paintWeb } from '../uvweb.js';
+import { beads, paintWeb } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
 
@@ -826,7 +826,10 @@ class Galaxy {
         h('p', { class: 'uv-sub' }, 'Everyone’s galaxies. Open one to look around.')),
       this.uvScene, this.uvNear);
     // The cosmic web, far behind everything.
-    this.web = h('canvas', { class: 'uv-web', 'aria-hidden': 'true' });
+    // the web's picture and the beads that travel it share one box, so they move as one
+    this.webCanvas = h('canvas');
+    this.webBeads = h('span', { class: 'uv-beads' });
+    this.web = h('div', { class: 'uv-web', 'aria-hidden': 'true' }, this.webCanvas, this.webBeads);
     this.webLayer = h('div', { class: 'uv-web-layer' }, this.web);
     this.near = [];
     this.runway = h('div', { class: 'uv-runway' }, this.uvStage);
@@ -1636,7 +1639,8 @@ class Galaxy {
       const W = width * M;
       const H = viewH * M;
       const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
-      paintWeb(this.web, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner);
+      const threads = paintWeb(this.webCanvas, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner);
+      beads(this.webBeads, threads, reducedMotion());
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
     }
   }

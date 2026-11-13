@@ -5,11 +5,11 @@ The one standard for how Mutt looks and moves. Read it before touching anything 
 - **A value, part or rule that isn't in this file doesn't exist.** Don't invent one inside a feature. If a feature needs something new, add it here first (show the user), then build it.
 - **Every session that settles something visible updates this file before it ends**, so the file is never behind the app.
 - It is written as instructions. Where it says "is", build it that way.
-- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3, 4, 5 and 6 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
+- Decided with the user on 2026-11-11 (design session 1 of 8); sessions 3, 4, 5, 6 and 7 added what they settled (section 6). The drawn references are in `design/`: `look-board.html` (every value, material and part, drawn) and `sky-board.html` (the live sky). Open them in a browser when a number here isn't enough.
 
 ## Where the app stands against this file
 
-The app does not match this file yet. Sessions 7 and 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
+The app does not match this file yet. The second half of session 7 and session 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
 
 | Area | In the app today | Lands in |
 | --- | --- | --- |
@@ -18,22 +18,21 @@ The app does not match this file yet. Sessions 7 and 8 of the plan in `/Users/ed
 | Planet page, file boxes, planet colour rule | **Done (session 4).** One frame for every kind of file (`cells.js`, the section of `galaxy.css` headed THE FILE BOX), the header on the sky, one section heading for every mode, the readable greys, box glass to its recipe, nothing glowing at rest and only the pointed-at box leaning. What the modes still draw themselves is under "What sessions 2 to 4 left for later". | Session 4 ✓ |
 | Modes on the shared look | **Done (session 5).** List, cookbook, documents, reading and the file view are built from the named values and the shared parts (section 4, "The modes"); their four private palettes are gone; paper is the one cream; the full-screen places are rooms on one layer. | Session 5 ✓ |
 | Icons | **Done (session 6).** One set of 94 in `public/assets/js/icons.js`, drawn the same way everywhere and got with `icon(name)`; no keyboard character stands in for an icon; menus of things to do carry icons; the four offer drawings are panes from the same file. Section 4, "Icons". | Session 6 ✓ |
-| The sky, planets, logo | Old gradient sky; five logo styles in Settings | Session 7 |
+| The sky, the universe, the logo | **Done (session 7, part one).** The sky of section 3, built to its cost rules in `js/sky.js`; the universe is black with no stars, and beads of light travel the threads of its web; one logo, the Wonky. | Session 7 ✓ |
+| Planets, the files on them, how they show their use, their motion | Today's eight kinds, small white cards for files, no sign of use. Decided (section 6) and not built yet. | Session 7, part two |
 | Motion | The five lengths and three curves are named and used where they matched; 386 other lengths and curves are still typed by hand (279 in stylesheets, 107 in scripts) | Session 8 |
 
 ### Values that still hold yesterday's number
 
 Session 2 changed nothing a person can see. So where this file asks for a different value than the app had, the name exists but still holds the old value. Each line in `tokens.css` that does this ends with `WANTS <value> (session N)`. This is the to-do list; when a session switches one, it deletes the `WANTS` note and the row here.
 
-| Name | Holds today | This file asks for | Switched in |
-| --- | --- | --- | --- |
-| The sky | the old gradient, clouds and ribbons (`--neb-*`, `--ribbon*`) | the sky in section 3 | Session 7 |
+None are left: the sky was the last, switched in session 7.
 
 Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-io`) sit in a marked block at the foot of `tokens.css` with the session that removes each. Don't use them in new work.
 
 ### What sessions 2 to 6 left for later, on purpose
 
-- **Values off the scales stay hand-typed** until their part is rebuilt: a few 12.5 and 11.5 text sizes, 14 and 10 corners, 0.3 and 0.25 second motion. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3, 4, 5 and 6: colours 501 → 448 → 432 → 189 → 180, text sizes 204 → 176 → 163 → 74 → 73, corners 168 → 141 → 137 → 90 → 82, shadows 97 → 94 → 93 → 64 → 62, speeds 279 → 254 → 243 → 191 → 191.
+- **Values off the scales stay hand-typed** until their part is rebuilt: a few 12.5 and 11.5 text sizes, 14 and 10 corners, 0.3 and 0.25 second motion. They are what `tests/run.sh drift` counts. In the stylesheets, after sessions 2, 3, 4, 5 and 6: colours 501 → 448 → 432 → 189 → 180, text sizes 204 → 176 → 163 → 74 → 73, corners 168 → 141 → 137 → 90 → 82, shadows 97 → 94 → 93 → 64 → 62, speeds 279 → 254 → 243 → 191 → 191. After session 7's first part: colours 177, text sizes 69, corners 80, shadows 62, speeds 187 (the old sky's and the four other logos' rules went).
 - **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet (the top bar, page heads, sign-in, the markdown rules, settings). The file view's rules left it in session 5. Nothing new goes in that section.
 - **A setting is not a palette.** The editor and the reader keep a few names of their own for what the owner has chosen, set by their scripts: `--de-size`, `--de-lh`, `--de-face` (a document's type size, line height and face) and `--rd-size`, `--rd-lh`, `--rd-font`, `--rd-h`, `--rd-vw` (the reader's, and the size of its page). They hold no colour.
 - **A document's own colours are typed where they are used**: the eleven inks a writer can choose and the six rhyme colours of a poem (`doceditor.js`, `docs.css`), and the colours a `::highlight()` paints (find, spelling, rhyme, comments), which can't read a named value in every browser.
@@ -62,7 +61,9 @@ Every name in this section is written once, in `public/assets/tokens.css`, which
 
 | Name | Value | Use |
 | --- | --- | --- |
-| `--sky-top` `--sky-deep` `--sky-mid` `--sky-low` | Vita: `#020721` `#041038` `#0a1f6c` `#1a56d0` | The sky's four steps, dark to bright. Nebula, Aurora and Dusk have their own four (in `galaxy.css`); session 7 tunes them so each step is as light as Vita's. |
+| `--sky-top` `--sky-deep` `--sky-mid` `--sky-low` | Vita: `#020721` `#041038` `#0a1f6c` `#1a56d0` | The sky's four steps, dark to bright. Nebula `#0b0425` `#16093b` `#2e0d74` `#7732dd`, Aurora `#010a12` `#02161f` `#032c39` `#096b65`, Dusk `#11031c` `#230925` `#471044` `#a43951`: each step exactly as light as Vita's, so words read the same on all four. |
+| `--star-white` `--star-amber` `--star-blue` `--star-pink` `--star-mint` | `#ffffff` `#ffbd80` `#9eccff` `#ffb8e6` `#99ffe6` | The stars' colours: about a third white, the rest warm and cool. Read by `js/sky.js`. |
+| `--night-mid` `--night-deep` `--night-edge` | `#070914` `#020307` `#000002` | The universe's black, from the middle of the screen to its edge. |
 | `--ink` | `#f2f5fc` | Titles and the owner's own words. |
 | `--ink-2` | `#cbd3e8` | Body, labels on controls, captions. |
 | `--ink-3` | `#a4b0cd` | Facts (dates, counts, sizes), hints, placeholders, small labels. |
@@ -253,25 +254,52 @@ One cream, flat, everywhere paper shows: a page on a desk, the pages of a docume
 
 The best-realised piece in Mutt, and the bar for everything else. Don't restyle it. What it is: a stippled black-and-white print: a bright white light caged by dark, sinewy strands that web together where they cross, turning in 3D; stippled cells, bright at their rims and dim in the middle; faint rays; only a faint mauve tint. Bright places are dotted more densely, like a print. Sized in proportion to the planets, sitting straight on the sky with no dark halo. No crosshair lines, no orange, no pixel sparks, no realistic or painted light. Add boxes that open from it are flat and plain like Are.na's: spacious, no glass, gloss or glow, not paper.
 
+How it is drawn (`js/voidart.js`; session 7 drew it finer at the user's word, the idea untouched). These are rules for anyone who touches it:
+
+- **Sharp.** Painted at the screen's own sharpness, up to 2 pixels a point (`SHARP`). Never stretch a smaller picture to fit.
+- **Dots laid evenly, never scattered at random.** The stipple is one small tile of dots spaced evenly (`evenPoints`, 1.12 points apart) and punched through each layer of light; random scatter clumps and leaves bald patches. A dot is 0.26 to 0.64 points in radius, the same on every sharp screen; on a plain screen (under 1.5 pixels a point) dots and spacing grow by half so no dot is smaller than a pixel. All four numbers are `DOT`.
+- **Brighter places get more dots, not bigger ones**: each layer (cells, rims and rays, the light's glow, its core) is punched with the same tile, shifted, so where layers overlap the dots add up.
+- **Strands are smooth curves** (`ribbon`), never straight pieces: at sign-in the void fills the screen and corners show.
+- **A hairline of light on the near strands** (`edges`): 0.6 wide, on the side toward the light, brightest beside it and gone by the edge of the cage. It is the only light on the strands; no gradients, no glow.
+- **Cost.** It is redrawn about thirty times a second at rest and every frame only while opening, closing, hungry or swallowing; it rests when off screen, when the tab is hidden and under Motion: Still. Keep that.
+
 Sign-in: only the dark sky and the void, no box and no horizon. The void is huge and looming (it fills the screen; on a phone its cage runs off the sides). Every word (logo, name, code) sits in dark ink on its clean white light: never put text over the speckled cage. Dust spirals in and stars streak toward it along the same swirl; it reacts to every key, ripples on a wrong code, and on the right code everything rushes in and the light takes the screen. Ominous, an experience. One step to start: type a name (a known name asks for its code, a new one picks a code); never an "are you new?" question. Always night.
 
 ### The sky
 
-Decided look; built in session 7 (until then the app keeps its old sky). The full recipe is the small painter in `design/sky-board.html`; copy its look, not its cost. In words and numbers:
+Built in session 7 (`public/assets/js/sky.js`, the rules headed `.sky` in `galaxy.css`). The drawn reference is `design/sky-board.html`: the look is the board's, the way it is built is not.
 
-- **Ground.** A vertical fade: `--sky-top` at the top, `--sky-deep` at 34%, half `--sky-mid` half `--sky-deep` at 78%, a little brighter at the foot. The bright floor is `--sky-low` at about half its old strength (46%), glowing from the bottom-left corner. It stays blue; it no longer washes out words.
-- **Print dust.** Light made of fine dots (0.4 to 1px, pale blue-white, 22 to 80% strong), in two dot screens of different size and angle so thick dust never looks like a grid. The dust gathers in **one river** that crosses the sky from low left to high right, with dark winding lanes through it like the void's cage, and thins to almost nothing elsewhere. Each dot fades in and out as the dust drifts past it.
-- **Stars: many, mixed.** Most are small soft points that gather where the dust is. Only a handful flare, and no two match: each has its own size, tilt (about a third are turned to an ×) and arm lengths, a soft halo, and red and blue pulled apart a little like an old lens. Colours: about a third white, the rest amber, blue, pink and mint. They twinkle by a seventh, over 5 to 30 seconds.
-- **Liquid light: a hint.** The sky is treated as the surface of a dark liquid lit from above. A pale grainy sheen sits on the folds that face the light, and colour appears only as a thin line (2 to 14px) where each highlight ends, in the order red, amber, pale core, green, blue, violet, breaking up along its length. One or two of these on screen at a time, never bands or floods of rainbow.
-- **Old film.** Grain over everything, a slightly warm and faded tone, blacks lifted a touch.
-- **Movement: slow.** One slow liquid field drives the river, the lanes and the light together, so the parts move as one. A fold travels a few pixels a second. Evolving, never distracting.
-- **The universe.** Black, no stars. Every galaxy sits in its own small knot of dots. **Threads** join neighbouring galaxies: a hairline with dots gathered on it and small beads of light travelling slowly along it.
-- **Four skies, tuned alike.** Vita, Nebula, Aurora, Dusk stay. A sky is only its four colours; every other part of the recipe is shared.
-- When it is built: it must cost almost nothing (the slow field at low resolution, stars as a still layer, drawn a few times a second, stopped when the tab is hidden). Motion: Still and the system's reduced-motion setting show one still frame. Without the graphics it needs, show a still picture of the same sky.
+**The look**
+
+- **Ground.** A vertical fade: `--sky-top` at the top, `--sky-deep` at 34%, half `--sky-mid` half `--sky-deep` at 78%, a little brighter at the foot. The bright floor is `--sky-low` at 46%, glowing from the bottom-left corner. It stays blue; it does not wash out words.
+- **Print dust.** Light made of fine dots (0.4 to 1px, pale blue-white, 22 to 80% strong), in two dot screens of different size and angle (2.7 and 3.4 across, the second turned 27°) so thick dust never looks like a grid. The dust gathers in **one river** from low left to high right, with dark winding lanes through it like the void's cage, and thins to almost nothing elsewhere. Each dot fades in and out as the dust drifts past it.
+- **Stars: many, mixed.** Most are small soft points that gather where the river is. A handful flare, and no two match: each has its own size, tilt (about a third are turned to an ×) and arm lengths, a soft halo, and red and blue pulled apart a little like an old lens. Colours are the five `--star-*` names. They twinkle by a sixth.
+- **Liquid light: a hint.** The sky is the surface of a dark liquid lit from above. A pale grainy sheen sits on the folds that face the light, and colour appears only as a thin line (2 to 14px) where each highlight ends, in the order red, amber, pale core, green, blue, violet, breaking up along its length. Never bands or floods of rainbow.
+- **Old film.** Grain over everything (it changes six times a second), a slightly warm and faded tone, blacks lifted a touch.
+- **Movement: slow.** One slow liquid field drives the river, the lanes and the light together, so the parts move as one.
+- **The universe.** Black (`--night-*`), with grain and **no stars**. Mutt's stippled web joins the galaxies (`js/uvweb.js`, painted once for a layout), each galaxy in its own halo of dots, and **beads of light** travel the threads that reach a galaxy: at most 14, one to a thread, 22 pixels a second, fading at both ends (`beads()` in `uvweb.js`, `.uv-bead`).
+- **Four skies, tuned alike.** Vita, Nebula, Aurora, Dusk. A sky is only its four colours; every other part of the recipe is shared, and each step is as light as Vita's.
+- No ribbons and no colour clouds: the river replaced them.
+
+**How it is built, and what it may cost.** These are rules, not notes: a change to the sky keeps every one.
+
+1. **Three layers**, all absolutely placed inside `.sky` (a canvas that sizes its own box grows without end): `.sky-wash`, the ground as a plain gradient (seen for the first moment and wherever the dust can't be drawn); `.sky-dust`, the moving dust; `.sky-stars`, the stars. Over the dust sits `.sky-night`, the universe's black.
+2. **The liquid is worked out small**: a picture a sixth of the screen each way (`FIELD`), holding how much dust, the light on the liquid, where it shows and how wide its colour line is. It needs more than 8 bits, so the dust needs WebGL2 with half-float pictures.
+3. **One light pass at full size** (at most 1.5 pixels a point) turns that into ground, dots, sheen and grain. Nothing slow may go in this pass: no noise of more than one step, no loops.
+4. **Eight pictures a second** (`DUST_FPS`), not sixty. **None while the tab is hidden, none out in the universe** (the black covers it), and **one** under Motion: Still, under Calm, and on a slow computer.
+5. **A slow computer gets the still sky.** The first five pictures of dust are timed; if the middle one takes more than 14 thousandths of a second, or the graphics are drawn by the processor, the dust is drawn once, copied onto a plain picture, and never moves. Without WebGL2 there is no dust at all: the ground, the stars and a still grain (`.sky.is-flat`).
+6. **Stars are a still layer**: ready-made pictures (a point per colour, one picture per flare) placed with `drawImage`, redrawn four times a second to twinkle (`STAR_FPS`) and every frame only while something pushes them about: the pointer (they lean a little), a scroll, the void bending them into a ring (`setLens`), or the void swallowing a file (`pull`).
+7. **Night is the stylesheet's.** `setNight(0..1)` only sets `--night`; the black fades in, the stars fade out and the dust rests, with nothing redrawn for the fade.
+8. **A sky's colours are read, not typed**: the painter reads `--sky-*` off `.sky-wash`, where they ease when another sky is picked, and follows that ease frame by frame.
+
+**To add a sky**: its four colours in `tokens.css` (`html[data-sky="name"]`), each step as light as Vita's (relative luminance 0.003, 0.007, 0.021, 0.114); its name in `PREF_CHOICES` (`mutt/api.py`) and `SKIES` (`js/theme.js`). Nothing else.
+**To change what the sky is made of**: change the board first (show the user), then the two shaders in `sky.js`; keep the cost rules; look at it with `/Users/edan/Mutt-notes/design/session7/shots.py`, and give the user what to watch at real speed, because the hidden browser draws it still.
 
 ### The logo
 
-One logo, the Wonky: Fraunces italic 500, `"SOFT" 100, "WONK" 1, "opsz" 144`, `-0.02em`. The other four styles and their row in Settings go (session 7, with when the letter-flicker plays and what it costs to load).
+One logo, the Wonky: Fraunces italic 500, `"SOFT" 100, "WONK" 1, "opsz" 144`, `-0.02em` (`.logo-word`; `logo()` in `js/logo.js`). There is no other design and no setting for one.
+
+Its letters flicker through a run of 25 other typefaces and land back, left to right: when Mutt opens, at sign-in as the logo leaves the void (a longer, rougher run), and when it is pointed at (a quick one; the user kept this in session 7). Those typefaces are fetched the first time the flicker plays and never before; only the four letters of "mutt" are downloaded. Never under Motion: Still.
 
 ## 4. Parts
 
@@ -616,4 +644,16 @@ Decided by the user, 2026-11-12 and 13 (design session 6; the page with the alte
 - All 93 icons approved as drawn; the star added after as a point of light with four rays (a five-point star, and the four-point star that now reads as an AI mark, were offered).
 - An offer's drawing: of the four first shown, only the cookbook's was liked, so all four are panes in its manner, with a glass fill (line only was offered).
 
-Still open, with the session that settles it: sharper planets, files wrapped onto worlds, loose files round the void, when the logo flicker plays, the three other skies' colours (7); every length and curve at real speed (8).
+Decided by the user, 2026-11-13 (design session 7; the page with the alternatives is `/Users/edan/Mutt-notes/design/session7/worlds-and-sky-2026-11-13.html`):
+
+- The sky, built the cheap way: yes, as it is.
+- "Recenter the design of planets" means around the world itself: better worlds first, files modest on them.
+- Files on a planet: cards in a belt, each drawn as what it is (three big faces, and one face at a time facing you, which was my pick, were turned down).
+- All eight kinds are redrawn, Moon rock goes, and there are **twelve kinds**, each with its own effects and weather, keeping the charm of today's style.
+- A planet shows its use. What counts: files added or changed on it. How long: calm after a week, dust from one month, full at three (my pick of a gentler scale was turned down). Who sees it: everyone who can open the planet (my pick of dust for the owner only was turned down).
+- Coming back to a dusty planet: the dust blows off, as weather changing, not as a wipe.
+- Pointing at a planet: lively. Opening one: a dive. Turning: about a minute a turn.
+- The logo flickers when pointed at as well as when Mutt opens (my pick of only when Mutt opens was turned down).
+- Built in two parts: the sky, the universe and the logo first; then the planets.
+
+Still open, with the session that settles it: the twelve kinds of planet as drawn, the files on them, use and the planets' motion (7, part two); every length and curve at real speed (8).

@@ -35,7 +35,6 @@ LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
 PREF_CHOICES = {
     'size': {'s', 'm', 'l'},
     'motion': {'fluid', 'calm', 'off'},
-    'logo': {'wonk', 'editorial', 'stamp', 'wide', 'mono'},
     'sky': {'vita', 'nebula', 'aurora', 'dusk'},
     'music': {'on', 'off'},
 }

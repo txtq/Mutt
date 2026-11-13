@@ -56,7 +56,7 @@ h1, h2, h3, p { margin: 0; }
   view-transition-name: topbar;
 }
 body.no-chrome .topbar { display: none; }
-/* The wordmark: five designs (Settings → Logo), set by data-variant. */
+/* The wordmark: one design, the Wonky (a soft, wobbly italic serif). */
 .logo {
   position: relative;
   display: inline-flex;
@@ -67,40 +67,15 @@ body.no-chrome .topbar { display: none; }
   line-height: 1;
 }
 .logo-big { font-size: 76px; }
-.logo-word { display: inline-flex; align-items: baseline; white-space: nowrap; }
-.logo-l { display: inline-block; }
-
-/* Wonky: soft, wobbly italic serif */
-.logo[data-variant="wonk"] .logo-word {
+.logo-word {
+  display: inline-flex; align-items: baseline; white-space: nowrap;
   font-family: "Fraunces", Georgia, serif;
   font-style: italic;
   font-weight: 500;
   font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
   letter-spacing: -0.02em;
 }
-
-/* Editorial: an upright display serif */
-.logo[data-variant="editorial"] .logo-word { font-family: "Instrument Serif", Georgia, serif; font-size: 1.12em; letter-spacing: -0.015em; }
-.logo[data-variant="editorial"] .logo-l:first-child { text-transform: uppercase; }
-
-/* Stamp: pixel capitals in a thin outlined stamp */
-.logo[data-variant="stamp"] .logo-word {
-  font-family: "Silkscreen", ui-monospace, monospace;
-  font-weight: 400;
-  font-size: 0.56em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.42em 0.62em 0.36em 0.7em;
-  border: 1.5px solid currentColor;
-  border-radius: 0.5em;
-}
-.logo-big[data-variant="stamp"] .logo-word { border-width: 3px; }
-
-/* Wide: a heavy gallery grotesque */
-.logo[data-variant="wide"] .logo-word { font-family: "Syne", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.05em; }
-
-/* Mono: whimsical geometric unicase */
-.logo[data-variant="mono"] .logo-word { font-family: "Major Mono Display", ui-monospace, monospace; font-size: 0.86em; letter-spacing: -0.04em; }
+.logo-l { display: inline-block; }
 
 /* The intro: letters flick through faces, then land */
 .logo.is-glitching .logo-word { overflow: visible; animation: logo-scan 0.9s steps(1, end) both; }
@@ -396,15 +371,6 @@ html[data-vt="mode"]::view-transition-new(root) { animation: page-in var(--dur-a
 .set-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 20px; align-items: center; padding: 14px 0; }
 .set-label { font-size: var(--text-label); color: var(--ink-3); }
 .fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: var(--space-8); }
-.logo-picks { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
-.logo-pick {
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 14px;
-  color: var(--ink);
-  text-align: left;
-}
-.logo-pick:hover { border-color: var(--ink-4); }
 .cx-owner { font: 400 var(--text-fact)/1 var(--mono); color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ caption & motion settings */
@@ -469,50 +435,30 @@ body {
 /* ------------------------------------------------------------------ the sky */
 
 .sky { position: fixed; inset: 0; z-index: var(--z-sky); overflow: hidden; pointer-events: none; }
+/* the ground, drawn here for the first moment and wherever the moving dust can't be (js/sky.js paints the same ground under its dust) */
 .sky-wash {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(130% 85% at 12% 112%, var(--sky-low) 0%, transparent 62%),
-    radial-gradient(90% 60% at 100% 100%, color-mix(in srgb, var(--sky-low) 50%, transparent) 0%, transparent 60%),
-    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-deep) 34%, var(--sky-mid) 78%, color-mix(in srgb, var(--sky-mid) 70%, var(--sky-low)) 100%);
+    radial-gradient(130% 85% at 12% 112%, color-mix(in srgb, var(--sky-low) 46%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-deep) 34%, color-mix(in srgb, var(--sky-mid), var(--sky-deep)) 78%, color-mix(in srgb, color-mix(in srgb, var(--sky-mid), var(--sky-low) 30%) 55%, var(--sky-deep)) 100%);
   transition: --sky-top var(--dur-scene) ease, --sky-deep var(--dur-scene) ease, --sky-mid var(--dur-scene) ease, --sky-low var(--dur-scene) ease;
 }
-.sky-nebula {
-  position: absolute;
-  inset: -20%;
-  /* already soft: a blur filter here cost a full-screen blur every frame for no visible change */
-  background:
-    radial-gradient(40% 30% at 70% 30%, var(--neb-a), transparent 70%),
-    radial-gradient(35% 28% at 25% 55%, var(--neb-b), transparent 70%);
-  animation: nebula-drift 90s ease-in-out infinite alternate;
-  opacity: calc(1 - var(--night, 0));
-  will-change: transform, opacity;
-  transition: --neb-a var(--dur-scene) ease, --neb-b var(--dur-scene) ease;
-}
-@keyframes nebula-drift { to { transform: translate(4%, -3%) rotate(5deg) scale(1.05); } }
-.sky-ribbons {
-  position: absolute; left: 0; right: 0; bottom: -4%; width: 100%; height: 100%;
-  overflow: hidden;
-  mix-blend-mode: var(--ribbon-blend);
-  opacity: calc(0.85 - var(--night, 0) * 0.85);
-  will-change: opacity;
-  transition: --ribbon var(--dur-scene) ease, --ribbon-line var(--dur-scene) ease;
-}
-/* each band is its own layer that only slides (sized and placed by sky.js) */
-.sky-ribbon { position: absolute; display: block; will-change: transform; animation: ribbon-drift 130s linear infinite; }
-.sky-ribbon-1 { animation-duration: 95s; animation-direction: reverse; }
-.sky-ribbon-2 { animation-duration: 170s; }
-@keyframes ribbon-drift { to { transform: translateX(var(--drift)); } }
-/* out in the universe: dark, still, deep */
+.sky.is-flat .sky-wash { background-image: var(--sky-grain),
+    radial-gradient(130% 85% at 12% 112%, color-mix(in srgb, var(--sky-low) 46%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-deep) 34%, color-mix(in srgb, var(--sky-mid), var(--sky-deep)) 78%, color-mix(in srgb, color-mix(in srgb, var(--sky-mid), var(--sky-low) 30%) 55%, var(--sky-deep)) 100%); }
+/* the dust and the stars: both must stay absolutely placed, or a canvas sizes its own box and grows without end */
+.sky-dust, .sky-stars { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sky.is-flat .sky-dust { display: none; }
+/* out in the universe: black and still, no stars; only the film's grain stays */
 .sky-night {
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 90% at 50% 55%, #070914 0%, #020307 60%, #000002 100%);
+  background: var(--sky-grain), radial-gradient(120% 90% at 50% 55%, var(--night-mid) 0%, var(--night-deep) 60%, var(--night-edge) 100%);
   opacity: var(--night, 0);
   will-change: opacity;
 }
-.sky-stars { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sky-stars { opacity: calc(1 - var(--night, 0)); }
 
 /* ================================================================== SHARED PARTS
    One of each, used everywhere: DESIGN.md section 4 gives every size and state,
@@ -1009,22 +955,6 @@ body.no-chrome .sb { display: none; }
 .sky-pick[aria-pressed="true"] { color: var(--ink); }
 .sky-pick[aria-pressed="true"] .sky-pick-ball { box-shadow: 0 0 0 2px var(--ink), 0 2px 6px rgba(0, 0, 20, 0.35); }
 
-.logo-picks { display: flex; flex-wrap: wrap; gap: 6px; }
-.logo-pick {
-  display: grid;
-  place-items: center;
-  min-width: 56px;
-  min-height: 0;
-  height: 40px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: var(--tint);
-  transition: background var(--dur-change), border-color var(--dur-change);
-}
-.logo-pick .logo { font-size: 17px; color: var(--ink); pointer-events: none; }
-.logo-pick:hover { background: var(--tint-2); }
-.logo-pick[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 70%, transparent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 
 .sheet-search > svg { flex: none; color: var(--ink-3); margin-right: var(--space-2); }
 .search-chips { display: contents; }
@@ -1910,6 +1840,14 @@ body.no-chrome #view { padding: 0; }
 /* the cosmic web, far behind */
 .uv-web-layer { position: fixed; left: 0; right: 0; top: var(--bar); bottom: 0; z-index: 0; overflow: hidden; opacity: 0; pointer-events: none; }
 .uv-web { position: absolute; display: block; will-change: transform; }
+.uv-web canvas { display: block; width: 100%; height: 100%; }
+/* a bead of light on a thread (js/uvweb.js moves it): a small bright point with a faint halo, never a glow that spreads */
+.uv-beads { position: absolute; inset: 0; }
+.uv-bead { position: absolute; left: 0; top: 0; width: var(--space-12); height: var(--space-12); margin: calc(var(--space-12) / -2); border-radius: var(--r-full); opacity: 0;
+  background: radial-gradient(circle, var(--ink) 0 14%, color-mix(in srgb, var(--ink) 30%, transparent) 26%, transparent 68%); }
+/* the beads are moved by script, so Still hides them itself */
+html[data-motion="off"] .uv-beads { display: none; }
+@media (prefers-reduced-motion: reduce) { .uv-beads { display: none; } }
 
 /* a galaxy on the map, at the size its own page draws it */
 .uvg {
@@ -2277,7 +2215,6 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 
 /* ------------------------------------------------------------------ calmer motion */
 
-html[data-motion="calm"] .sky-ribbon, html[data-motion="calm"] .sky-nebula { animation-play-state: paused; }
 /* Still: everything is already where it ends up. Each animation runs once, in
    no time (the older base, above, sets the duration), so entrances land on their last frame
    and the ones that loop come to rest. Pausing them instead would hold every
@@ -2352,7 +2289,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sky-ribbon, .sky-nebula, .gx-cue .ic { animation: none !important; }
+  .gx-cue .ic { animation: none !important; }
 }
 
 /* ================================================================== LIST MODE

@@ -143,6 +143,10 @@
   --sky-deep: #041038;
   --sky-mid: #0a1f6c;
   --sky-low: #1a56d0;
+  /* the stars: about a third white, the rest warm and cool (js/sky.js) */
+  --star-white: #ffffff; --star-amber: #ffbd80; --star-blue: #9eccff; --star-pink: #ffb8e6; --star-mint: #99ffe6;
+  /* the universe: black, with no stars */
+  --night-mid: #070914; --night-deep: #020307; --night-edge: #000002;
 
   /* ---------------------------------------------------------------- type */
 
@@ -253,33 +257,17 @@
 
   --bg: #0a1130;         /* a solid stand-in for the sky: the ring round a chosen swatch, the old top bar's fallback (session 7) */
 
-  /* the old sky's ribbons and colour clouds (session 7 replaces the sky) */
-  --ribbon: #a8d4ff;
-  --ribbon-line: #e4f2ff;
-  --ribbon-blend: screen;
-  --neb-a: rgba(70, 130, 255, 0.26);
-  --neb-b: rgba(120, 80, 255, 0.14);
-
   /* two more curves (session 8 keeps or drops them) */
   --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
 
 }
 
-/* The other three skies. A sky is only its four colours (and, until session 7,
-   the old ribbons and clouds); session 7 tunes them so each step is as light as Vita's. */
-html[data-sky="nebula"] {
-  --sky-top: #06021a; --sky-deep: #120734; --sky-mid: #24095f; --sky-low: #6a2cc6;
-  --ribbon: #e3c8ff; --ribbon-line: #f6ecff; --neb-a: rgba(190, 90, 255, 0.24); --neb-b: rgba(255, 110, 190, 0.12);
-}
-html[data-sky="aurora"] {
-  --sky-top: #010a12; --sky-deep: #031a24; --sky-mid: #04313f; --sky-low: #0c7a74;
-  --ribbon: #a6ffe4; --ribbon-line: #e6fff7; --neb-a: rgba(40, 220, 170, 0.2); --neb-b: rgba(70, 130, 255, 0.14);
-}
-html[data-sky="dusk"] {
-  --sky-top: #0b0214; --sky-deep: #1e0720; --sky-mid: #3a0b37; --sky-low: #b23e58;
-  --ribbon: #ffd6c6; --ribbon-line: #fff1ea; --neb-a: rgba(255, 110, 130, 0.22); --neb-b: rgba(255, 180, 110, 0.12);
-}
+/* The other three skies. A sky is only its four colours; every other part of the sky's recipe is
+   shared (DESIGN.md, "The sky"). Each step is exactly as light as Vita's, so words read the same on all four. */
+html[data-sky="nebula"] { --sky-top: #0b0425; --sky-deep: #16093b; --sky-mid: #2e0d74; --sky-low: #7732dd; }
+html[data-sky="aurora"] { --sky-top: #010a12; --sky-deep: #02161f; --sky-mid: #032c39; --sky-low: #096b65; }
+html[data-sky="dusk"] { --sky-top: #11031c; --sky-deep: #230925; --sky-mid: #471044; --sky-low: #a43951; }
 
 /* The reader's three other pages. A page is only these values; every part of the
    reader is written once and reads them. Paper is the one cream. */
@@ -302,7 +290,3 @@ html[data-sky="dusk"] {
 @property --sky-deep { syntax: '<color>'; inherits: true; initial-value: #041038; }
 @property --sky-mid { syntax: '<color>'; inherits: true; initial-value: #0a1f6c; }
 @property --sky-low { syntax: '<color>'; inherits: true; initial-value: #1a56d0; }
-@property --neb-a { syntax: '<color>'; inherits: true; initial-value: transparent; }
-@property --neb-b { syntax: '<color>'; inherits: true; initial-value: transparent; }
-@property --ribbon { syntax: '<color>'; inherits: true; initial-value: #fff; }
-@property --ribbon-line { syntax: '<color>'; inherits: true; initial-value: #fff; }

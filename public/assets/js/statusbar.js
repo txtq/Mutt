@@ -5,7 +5,7 @@
 // galaxy, from their galaxy out to the universe, and from there home.
 
 import { api, session } from './api.js';
-import { LOGOS, glitch, logo } from './logo.js';
+import { glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
 import { closeTopLayer, confirmDialog, segmented, toast } from './ui.js';
@@ -77,19 +77,6 @@ function skyPicker() {
   return wrap;
 }
 
-function logoPicker() {
-  const wrap = h('div', { class: 'logo-picks' });
-  const paint = () => wrap.querySelectorAll('.logo-pick').forEach((t) => t.setAttribute('aria-pressed', t.dataset.value === current().logo));
-  for (const { value, label } of LOGOS) {
-    wrap.append(h('button', {
-      type: 'button', class: 'logo-pick', dataset: { value }, 'aria-label': label, title: label,
-      onclick: () => { save({ logo: value }); paint(); },
-    }, logo({ href: null, variant: value })));
-  }
-  paint();
-  return wrap;
-}
-
 // Forget where you put your planets; they find their own places again.
 async function tidyPlanets() {
   const ok = await confirmDialog({
@@ -117,7 +104,6 @@ function settingsBody(close) {
         ? h('button', { type: 'button', class: 'btn btn-main', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
         : null),
     row('Sky', skyPicker()),
-    row('Logo', logoPicker()),
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),

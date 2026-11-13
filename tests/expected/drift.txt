@@ -1,11 +1,11 @@
 # Values typed by hand instead of taken from a name in tokens.css (tests/drift.py).
 # The first ten lines are the limits; the rest only help find where a new one crept in.
-styles | colours: 180
-styles | text sizes: 73
-styles | corners: 82
+styles | colours: 177
+styles | text sizes: 69
+styles | corners: 80
 styles | shadows: 62
-styles | speeds: 191
-scripts | colours: 215
+styles | speeds: 187
+scripts | colours: 207
 scripts | text sizes: 0
 scripts | corners: 0
 scripts | shadows: 0
@@ -15,11 +15,11 @@ docs.css | corners: 7
 docs.css | shadows: 2
 docs.css | speeds: 14
 docs.css | text sizes: 21
-galaxy.css | colours: 146
-galaxy.css | corners: 74
+galaxy.css | colours: 143
+galaxy.css | corners: 72
 galaxy.css | shadows: 60
-galaxy.css | speeds: 177
-galaxy.css | text sizes: 52
+galaxy.css | speeds: 173
+galaxy.css | text sizes: 48
 js/account.js | speeds: 1
 js/blackhole.js | colours: 3
 js/comments.js | speeds: 2
@@ -43,7 +43,7 @@ js/reading.js | colours: 10
 js/reading.js | speeds: 2
 js/router.js | speeds: 2
 js/see.js | colours: 1
-js/sky.js | colours: 3
+js/sky.js | colours: 1
 js/theme.js | colours: 12
 js/thumbs.js | colours: 3
 js/util.js | colours: 9
@@ -55,5 +55,5 @@ js/views/login.js | colours: 3
 js/views/login.js | speeds: 9
 js/views/planet.js | colours: 1
 js/views/planet.js | speeds: 2
-js/voidart.js | colours: 17
+js/voidart.js | colours: 11
 parts.css | corners: 1

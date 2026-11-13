@@ -1,22 +1,13 @@
-// The Mutt wordmark. Five designs to choose from (Settings → Logo). On load
-// the letters flick through a run of typefaces, decoding left to right,
-// before landing on the logo.
+// The Mutt wordmark: one design, the Wonky (DESIGN.md, "The logo"). On load,
+// and when pointed at, its letters flick through a run of typefaces, decoding
+// left to right, before landing back on the logo.
 
 import { h, reducedMotion, wait } from './util.js';
 
-export const LOGOS = [
-  { value: 'wonk', label: 'Wonky' },
-  { value: 'editorial', label: 'Editorial' },
-  { value: 'stamp', label: 'Stamp' },
-  { value: 'wide', label: 'Wide' },
-  { value: 'mono', label: 'Mono' },
-];
-export const DEFAULT_LOGO = 'wonk';
-
-// The other four designs' typefaces and the ones the letters flick through.
-// Only the letters of "mutt" are downloaded for these. They're fetched the first
-// time the flicker runs or a design other than the Wonky is shown (the picker in
-// Settings shows all five), never up front: the page doesn't wait for them.
+// The typefaces the letters flick through. Only the letters of "mutt" are
+// downloaded for these, and only the first time the flicker runs, never up
+// front: the page doesn't wait for them. (The logo's own face, Fraunces, is
+// linked by index.html.)
 const FACES = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@800&family=Major+Mono+Display&family=Silkscreen:wght@400;700&family=Bodoni+Moda:ital,wght@1,700&family=Playfair+Display:wght@900&family=Unbounded:wght@800&family=Big+Shoulders+Display:wght@900&family=Six+Caps&family=VT323&family=Gloock&family=Abril+Fatface&family=DM+Serif+Display:ital@1&family=Cinzel:wght@700&family=Orbitron:wght@800&family=Tilt+Warp&family=Bungee+Hairline&family=Libre+Barcode+128+Text&family=Bricolage+Grotesque:wght@800&family=Space+Mono:wght@700&family=Rubik+Mono+One&family=Monoton&family=Zen+Dots&family=Climate+Crisis&family=Sixtyfour&text=MUTTmutt&display=swap';
 let facesAsked;
 function loadFaces() {
@@ -41,28 +32,11 @@ const RUN = [
   ['Syne', 'normal', 800],
 ];
 
-const current = () => document.documentElement.dataset.logo || DEFAULT_LOGO;
-
-// variant: a fixed design (for previews), or follow the viewer's setting.
-export function logo({ big = false, href = '/', variant = null } = {}) {
+export function logo({ big = false, href = '/' } = {}) {
   const word = h('span', { class: 'logo-word', 'aria-hidden': 'true' }, [...'mutt'].map((ch) => h('span', { class: 'logo-l' }, ch)));
-  const el = h(href ? 'a' : 'div', {
-    class: `logo${big ? ' logo-big' : ''}`, href, 'aria-label': 'Mutt',
-    dataset: { variant: variant || current(), ...(variant ? {} : { follow: '' }) },
-  }, word);
-  if (el.dataset.variant !== DEFAULT_LOGO) loadFaces();
+  const el = h(href ? 'a' : 'div', { class: `logo${big ? ' logo-big' : ''}`, href, 'aria-label': 'Mutt' }, word);
   el.addEventListener('pointerenter', () => glitch(el, { quick: true }));
   return el;
-}
-
-// Called when the viewer picks another design.
-export function followLogo(value) {
-  document.querySelectorAll('.logo[data-follow]').forEach((el) => {
-    if (el.dataset.variant === value) return;
-    el.dataset.variant = value;
-    if (value !== DEFAULT_LOGO) loadFaces();
-    glitch(el, { quick: true });
-  });
 }
 
 let fontsReady;

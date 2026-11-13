@@ -1,13 +1,12 @@
-// Your look & feel: the sky, text size, motion and logo. Saved with your
+// Your look & feel: the sky, text size and motion. Saved with your
 // account and cached locally so pages open already dressed.
 
 import { api, session } from './api.js';
-import { DEFAULT_LOGO, followLogo } from './logo.js';
 import { burst } from './fx.js';
 import { PALETTE, debounce, reducedMotion, seeded } from './util.js';
 
 export const DEFAULTS = {
-  size: 'm', motion: 'fluid', logo: DEFAULT_LOGO, sky: 'vita', autosort: false, music: 'on',
+  size: 'm', motion: 'fluid', sky: 'vita', autosort: false, music: 'on',
 };
 
 // Skies to live under. [deep, glow] for the picker;
@@ -28,10 +27,8 @@ export function applyPrefs(raw = {}) {
   const sky = SKIES[p.sky] || SKIES.vita;
   root.style.setProperty('--t', SIZES[p.size] || 1);
   root.dataset.motion = p.motion;
-  root.dataset.logo = p.logo;
   root.dataset.sky = SKIES[p.sky] ? p.sky : 'vita';
   root.dataset.music = p.music === 'off' ? 'off' : 'on';
-  followLogo(p.logo);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', sky.theme);
   return p;
 }

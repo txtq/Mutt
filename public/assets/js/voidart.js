@@ -5,12 +5,17 @@
 // with no patch of night round it.
 //
 // The cells are a texture built once; the strands are drawn fresh each frame
-// from a handful of rings on a sphere. Opening the void widens the light
+// from a handful of rings on a sphere, as smooth curves. It is painted at the
+// screen's own sharpness (up to SHARP pixels a point), and its dots are laid
+// evenly and sized for the screen, like a stippled print (DESIGN.md, "Print: the void"). Opening the void widens the light
 // until it holds the add box, burning through the strands behind it.
 
 import { h, reducedMotion, seeded } from './util.js';
 
-const TEX = 480;
+const TEX = 768;
+const SHARP = 2;       // pixels a point, at most
+// The print's dots, in points: how far apart they sit, and their smallest and largest radius.
+const DOT = { gap: 1.12, small: 0.26, large: 0.64, tile: 192 };
 const TAU = Math.PI * 2;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const smooth = (t) => t * t * (3 - 2 * t);
@@ -27,6 +32,7 @@ export function voidRadius(width, viewH) {
 export const REACH = { x: 3.1, y: 3.3 };
 const CAGE = 2.5; // the sphere the strands wrap, in multiples of the radius
 const LILAC = '236, 231, 247';
+const white = (a) => `rgba(255, 255, 255, ${a})`;
 const INK = '#0c0911';
 const INK_RGB = [12, 9, 17];
 
@@ -123,10 +129,62 @@ function shell() {
   return { cells: canvas, body };
 }
 
+// Evenly spaced points on a tile that repeats (Bridson's method, wrapped round
+// its edges): no clumps and no bald patches, as a hand stipples a print.
+function evenPoints(size, gap, rand) {
+  const cell = gap / Math.SQRT2;
+  const n = Math.ceil(size / cell);
+  const grid = new Int32Array(n * n).fill(-1);
+  const pts = [];
+  const active = [];
+  const put = (x, y) => {
+    grid[(Math.floor(y / cell) % n) * n + (Math.floor(x / cell) % n)] = pts.length;
+    active.push(pts.length);
+    pts.push([x, y]);
+  };
+  const free = (x, y) => {
+    const gx = Math.floor(x / cell);
+    const gy = Math.floor(y / cell);
+    for (let j = -2; j <= 2; j++) {
+      for (let i = -2; i <= 2; i++) {
+        const k = grid[((gy + j + n) % n) * n + ((gx + i + n) % n)];
+        if (k < 0) continue;
+        let dx = Math.abs(pts[k][0] - x);
+        let dy = Math.abs(pts[k][1] - y);
+        if (dx > size / 2) dx = size - dx;
+        if (dy > size / 2) dy = size - dy;
+        if (dx * dx + dy * dy < gap * gap) return false;
+      }
+    }
+    return true;
+  };
+  put(rand() * size, rand() * size);
+  while (active.length) {
+    const pick = Math.floor(rand() * active.length);
+    const [px, py] = pts[active[pick]];
+    let found = false;
+    for (let tries = 0; tries < 12 && !found; tries++) {
+      const a = rand() * TAU;
+      const d = gap * (1 + rand());
+      const x = (px + Math.cos(a) * d + size) % size;
+      const y = (py + Math.sin(a) * d + size) % size;
+      if (free(x, y)) { put(x, y); found = true; }
+    }
+    if (!found) { active[pick] = active[active.length - 1]; active.pop(); }
+  }
+  return pts;
+}
+
 // Stipple: punched through whatever is drawn under it, it clears all but
-// round dots of mixed sizes, so soft light breaks up like a print.
-function stippleTile() {
-  const size = 240;
+// round dots of mixed sizes, so soft light breaks up like a print. The tile
+// is made for the screen's sharpness, so a dot is the same size on every
+// sharp screen and crisp on all of them. On a plain screen (under 1.5 pixels
+// a point) the dots are drawn larger and further apart, or they would be
+// smaller than a pixel and blur into grey.
+function stippleTile(dpr) {
+  const size = Math.round(DOT.tile * dpr);
+  const k = size / DOT.tile;
+  const grow = Math.max(1, 1.5 / dpr);
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -136,14 +194,14 @@ function stippleTile() {
   ctx.globalCompositeOperation = 'destination-out';
   ctx.fillStyle = '#000';
   const rand = seeded('stipple');
-  for (let i = 0; i < size * size * 0.17; i++) {
-    const x = rand() * size;
-    const y = rand() * size;
-    const r = 0.45 + rand() ** 2 * 0.85;
+  for (const [px, py] of evenPoints(DOT.tile, DOT.gap * grow, rand)) {
+    const x = px * k;
+    const y = py * k;
+    const r = (DOT.small + rand() ** 2 * (DOT.large - DOT.small)) * k * grow;
     // Drawn again across each edge, so the tile repeats without seams.
     for (const ox of [0, -size, size]) {
       for (const oy of [0, -size, size]) {
-        if ((ox && Math.abs(x + ox - size / 2) > size / 2 + 2) || (oy && Math.abs(y + oy - size / 2) > size / 2 + 2)) continue;
+        if ((ox && Math.abs(x + ox - size / 2) > size / 2 + 3) || (oy && Math.abs(y + oy - size / 2) > size / 2 + 3)) continue;
         ctx.beginPath();
         ctx.arc(x + ox, y + oy, r, 0, TAU);
         ctx.fill();
@@ -161,6 +219,7 @@ const RAYS = (() => {
 
 let shellTex = null;
 let tile = null;
+let tileFor = 0;   // the sharpness the tile was made for
 
 // ---------------------------------------------------------------- the cage
 
@@ -237,6 +296,7 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
   const ictx = ink.getContext('2d');
   let stipple = null;
   let speckle = null;
+  let madeFor = null;
   let drawnBox = null;
   const root = document.documentElement;
 
@@ -353,9 +413,9 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     for (const [angle, width] of RAYS) {
       const a = angle + turn;
       const g = lctx.createLinearGradient(0, 0, Math.cos(a) * L, Math.sin(a) * L);
-      g.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-      g.addColorStop(rc / L, 'rgba(255, 255, 255, 0.5)');
-      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      g.addColorStop(0, white(0.8));
+      g.addColorStop(rc / L, white(0.5));
+      g.addColorStop(1, white(0));
       lctx.fillStyle = g;
       lctx.beginPath();
       lctx.moveTo(0, 0);
@@ -381,12 +441,46 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
       left.push([p.x + nx * w, p.y + ny * w]);
       right.push([p.x - nx * w, p.y - ny * w]);
     }
+    // One smooth outline: a curve through the middles of the pieces, so a big
+    // void's strands have no corners.
+    const side = (list) => {
+      for (let i = 1; i < list.length - 1; i++) c.quadraticCurveTo(list[i][0], list[i][1], (list[i][0] + list[i + 1][0]) / 2, (list[i][1] + list[i + 1][1]) / 2);
+      c.lineTo(list[list.length - 1][0], list[list.length - 1][1]);
+    };
+    right.reverse();
     c.beginPath();
     c.moveTo(left[0][0], left[0][1]);
-    for (const [x, y] of left) c.lineTo(x, y);
-    for (let i = right.length - 1; i >= 0; i--) c.lineTo(right[i][0], right[i][1]);
+    side(left);
+    c.lineTo(right[0][0], right[0][1]);
+    side(right);
     c.closePath();
     c.fill();
+  }
+  // The light catches the near strands: a hairline along each, on the side
+  // toward the light, brightest beside it and gone by the edge of the cage.
+  function edges(rings, rc, S) {
+    const fade = ctx.createRadialGradient(0, 0, rc * 0.9, 0, 0, S * 0.92);
+    fade.addColorStop(0, white(0.75));
+    fade.addColorStop(0.5, white(0.28));
+    fade.addColorStop(1, white(0));
+    ctx.strokeStyle = fade;
+    ctx.lineWidth = 0.6;
+    const near = (p) => {
+      const d = Math.hypot(p.x, p.y) || 1;
+      return [p.x - (p.x / d) * p.w * 0.36, p.y - (p.y / d) * p.w * 0.36];
+    };
+    for (const pts of rings) {
+      runs(pts, (p) => p.z > 0, (run) => {
+        ctx.beginPath();
+        ctx.moveTo(...near(run[0]));
+        for (let i = 1; i < run.length - 1; i++) {
+          const a = near(run[i]);
+          const b = near(run[i + 1]);
+          ctx.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        }
+        ctx.stroke();
+      });
+    }
   }
 
   function light(rc, alpha) {
@@ -461,8 +555,8 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     });
     pass([41, 171], () => {
       const halo = lctx.createRadialGradient(0, 0, rc * 0.85, 0, 0, glow(2.6));
-      halo.addColorStop(0, 'rgba(255, 255, 255, 1)');
-      halo.addColorStop(0.35, 'rgba(255, 255, 255, 1)');
+      halo.addColorStop(0, white(1));
+      halo.addColorStop(0.35, white(1));
       halo.addColorStop(0.65, `rgba(${LILAC}, 0.55)`);
       halo.addColorStop(1, `rgba(${LILAC}, 0)`);
       lctx.fillStyle = halo;
@@ -473,8 +567,8 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     });
     pass([173, 89], () => {
       const core = lctx.createRadialGradient(0, 0, rc * 0.9, 0, 0, glow(1.8));
-      core.addColorStop(0, 'rgba(255, 255, 255, 1)');
-      core.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      core.addColorStop(0, white(1));
+      core.addColorStop(1, white(0));
       lctx.fillStyle = core;
       lctx.beginPath();
       lctx.arc(0, 0, glow(1.8), 0, TAU);
@@ -487,6 +581,7 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     light(rc, 1);
     strands(rings, true, 1, box);
     centre();
+    edges(rings, rc, S);
 
     // Open, the light burns through the strands behind the box.
     if (o > 0.01) light(rc, smooth(o));
@@ -542,12 +637,14 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     // Size the light (radius r) and the canvas round it (w × h CSS pixels).
     resize(r, w, hgt) {
       shellTex ||= shell();
-      tile ||= stippleTile();
       const same = r === R && Math.round(w) === W && Math.round(hgt) === H;
       R = r;
       W = Math.round(w);
       H = Math.round(hgt);
-      dpr = Math.min(devicePixelRatio || 1, 1.5);
+      dpr = Math.min(devicePixelRatio || 1, SHARP);
+      if (tileFor !== dpr) { tile = stippleTile(dpr); tileFor = dpr; }
+      // patterns belong to one tile: made again if the screen's sharpness changed
+      if (madeFor !== tile) { stipple = null; speckle = null; madeFor = tile; }
       if (!same || !canvas.width) {
         for (const c of [canvas, layer, ink]) {
           c.width = Math.round(W * dpr);

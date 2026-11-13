@@ -33,7 +33,7 @@ export function append(el, children) {
 // from there, so a script and a stylesheet can't drift apart (DESIGN.md, Motion).
 // Use these in `.animate()` and timers instead of typing a number or a curve.
 const shared = getComputedStyle(document.documentElement);
-const named = (name) => shared.getPropertyValue(name).trim();
+export const named = (name) => shared.getPropertyValue(name).trim();   // a named value from tokens.css, as written there
 const ms = (name) => { const v = named(name); return v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000 || 0; };
 export const DUR = {
   quick: ms('--dur-quick'), change: ms('--dur-change'), move: ms('--dur-move'), arrive: ms('--dur-arrive'), scene: ms('--dur-scene'),

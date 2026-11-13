@@ -183,6 +183,8 @@ def migrate(conn):
         # A moon belongs to a planet; empty = a planet. Moons go with their planet.
         conn.execute('ALTER TABLE drawers ADD COLUMN parent_id TEXT REFERENCES drawers(id) ON DELETE CASCADE')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_drawers_parent ON drawers(parent_id)')
+    # Moon rock stopped being a kind of planet (2026-11): those planets are Pearl now.
+    conn.execute("UPDATE drawers SET look = 'pearl' WHERE look = 'rock' AND parent_id IS NULL")
     if 'own_sharing' not in drawer_columns:
         # A moon follows its planet's sharing until its owner sets the moon's own.
         # Moons made before this keep whatever they have if it already differs.

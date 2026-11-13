@@ -27,7 +27,15 @@ COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
 PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240']
 VISIBILITY = ('private', 'pin', 'people', 'public')
-PLANET_LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'rock', 'storm')
+# The twelve kinds of planet (public/assets/js/planets.js draws them; DESIGN.md "Planets" says how to add one).
+PLANET_LOOKS = ('ocean', 'terran', 'gas', 'pale', 'lava', 'ice', 'desert', 'storm', 'lagoon', 'bloom', 'haze', 'pearl')
+# A planet with no kind of its own gets one from its id. Planets made before there were twelve keep
+# drawing from the first eight, so none changed; `twelve` tells the page which a planet is.
+TWELVE_SINCE = 1795132800   # 2026-11-20: safely after the day the twelve kinds went live, so no planet made before then changes
+
+
+def twelve(row):
+    return row['created_at'] >= TWELVE_SINCE
 MOON_LOOKS = ('luna', 'io', 'europa', 'titan', 'enceladus', 'triton', 'phobos', 'hyperion', 'iapetus', 'callisto')
 MAX_MOONS = 4
 LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
@@ -90,6 +98,7 @@ def drawer_json(row, count=None, previews=None):
         'community': bool(row['community']) if 'community' in row.keys() else False,
         'visibility': row['visibility'] if 'visibility' in row.keys() else 'pin',
         'look': row['look'] if 'look' in row.keys() else None,
+        'twelve': twelve(row),
         'x': row['x'] if 'x' in row.keys() else None,
         'y': row['y'] if 'y' in row.keys() else None,
         'parentId': row['parent_id'] if 'parent_id' in row.keys() else None,
@@ -638,7 +647,7 @@ def find_user(req, username):
 def drawer_previews(req, drawer_id, limit=8, owner=None, newest=False):
     order = 'c.connected_at DESC, c.position' if newest else 'c.position, c.connected_at DESC'
     rows = req.db.execute(
-        'SELECT b.*, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'SELECT b.*, c.checked, u.username AS owner_name FROM connections c JOIN blocks b ON b.id = c.block_id '
         'JOIN users u ON u.id = b.user_id '
         f'WHERE c.drawer_id = ? ORDER BY {order} LIMIT ?', (drawer_id, limit)).fetchall()
     me_id = req.user['id']
@@ -694,8 +703,29 @@ def moons_of(req, planet_id):
     return out
 
 
+def planet_use(req, row):
+    """How used a planet is, 0 (forgotten) to 1 (busy today), from when a file was last added to it or
+    changed on it. The galaxy draws it: weather on a busy planet, dust on a forgotten one. Busy for a day,
+    calm (0.5) by a week, the first dust at a month (under USE_DUST), all of it at three."""
+    last = req.db.execute('SELECT MAX(c.connected_at), MAX(b.updated_at) FROM connections c JOIN blocks b ON b.id = c.block_id '
+                          'WHERE c.drawer_id = ?', (row['id'],)).fetchone()
+    days = (now() - max(last[0] or 0, last[1] or 0, row['created_at'])) / 86400
+    for start, end, high, low in USE_STEPS:
+        if days < end:
+            return round(high + (low - high) * max(0.0, days - start) / (end - start), 3)
+    return 0.0
+
+
+USE_DUST = 0.385   # under this a planet gathers dust (the painter's `1 - use * 2.6`)
+# (from day, to day, use at the start, use at the end)
+USE_STEPS = ((0, 1, 1.0, 1.0), (1, 7, 1.0, 0.5), (7, 30, 0.5, USE_DUST), (30, 90, USE_DUST, 0.0))
+
+
 def planet_json(req, row, count, previews=None, locked=False):
     data = drawer_json(row, count, previews)
+    if previews is not None and not row['parent_id']:
+        # everyone who can open a planet sees how used it is; a locked one says nothing
+        data['use'] = planet_use(req, row)
     if not data['parentId']:
         data['moons'] = [] if locked else moons_of(req, row['id'])
     if previews is not None:
@@ -711,7 +741,7 @@ def planet_json(req, row, count, previews=None, locked=False):
 
 
 def private_planet(row):
-    return {'id': row['id'], 'title': '', 'icon': {'c': json.loads(row['icon']).get('c')}, 'look': row['look'],
+    return {'id': row['id'], 'title': '', 'icon': {'c': json.loads(row['icon']).get('c')}, 'look': row['look'], 'twelve': twelve(row),
             'x': row['x'], 'y': row['y'], 'count': 0, 'moons': [], 'locked': True, 'private': True,
             'mine': False, 'visibility': 'private', 'hasCode': False}
 
@@ -865,7 +895,7 @@ def list_galaxies(req):
             hidden = not open_ and r['visibility'] != 'pin'
             worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': 0 if hidden else r['n'],
                            'locked': not open_, 'private': hidden,
-                           'look': r['look'], 'x': r['x'], 'y': r['y'],
+                           'look': r['look'], 'twelve': twelve(r), 'x': r['x'], 'y': r['y'],
                            'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
         opened = [w for w in worlds if not w['locked']]
         private = sum(1 for w in worlds if w['private'])

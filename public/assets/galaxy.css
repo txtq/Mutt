@@ -302,6 +302,21 @@ body.no-chrome #view { max-width: none; }
 ::view-transition-group(*.planet) { animation-duration: 0.72s; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
 ::view-transition-old(*.planet), ::view-transition-new(*.planet) { animation-duration: 0.72s; animation-timing-function: ease-in-out; }
 
+/* Opening a planet from a galaxy is a dive: the galaxy rushes past from where the planet is
+   (router.js sets --dive-x and --dive-y), the planet swells toward you, then settles into the top
+   of its page as the page comes in. Coming back is a pull away: the galaxy shrinks into place
+   round the planet. Its lengths and curves are the named ones. */
+html[data-vt="dive"]::view-transition-old(root) { transform-origin: var(--dive-x, 50%) var(--dive-y, 50%); animation: dive-out var(--dur-arrive) var(--ease-in) both; }
+html[data-vt="dive"]::view-transition-new(root) { animation: page-in var(--dur-arrive) var(--ease-settle) var(--dur-move) both; }
+html[data-vt="dive"]::view-transition-group(*.planet) { animation-duration: var(--dur-scene); }
+html[data-vt="dive"]::view-transition-old(*.planet), html[data-vt="dive"]::view-transition-new(*.planet) { animation-duration: var(--dur-scene); }
+html[data-vt="dive"]::view-transition-image-pair(*.planet) { animation: dive-swell var(--dur-scene) var(--ease-glide) both; }
+html[data-vt="rise"]::view-transition-old(root) { animation: fade-out var(--dur-change) ease both; }
+html[data-vt="rise"]::view-transition-new(root) { transform-origin: var(--dive-x, 50%) var(--dive-y, 50%); animation: rise-in var(--dur-scene) var(--ease-settle) both; }
+@keyframes dive-out { 50% { opacity: 1; } to { transform: scale(3.4); opacity: 0; } }
+@keyframes dive-swell { 40% { transform: scale(1.8); } }
+@keyframes rise-in { from { transform: scale(2.4); opacity: 0; } }
+
 html[data-vt="first"]::view-transition-old(root) { animation: none; opacity: 0; }
 
 /* A room arriving or going: the picture of the page fades to the bare sky (and back), evenly both ways. */
@@ -1395,7 +1410,7 @@ body.no-chrome #view { padding: 0; }
 /* being moved: it follows the pointer, lifted a little */
 .gx-scene .planet.is-moving { z-index: 7; transition: none; }
 .planet.is-moving .planet-body { transform: scale(1.06); }
-.planet.is-moving .planet-ball { box-shadow: 0 18px 34px -10px rgba(0, 0, 10, 0.6); }
+.planet:not(.is-gl).is-moving .planet-ball { box-shadow: 0 18px 34px -10px rgba(0, 0, 10, 0.6); }
 /* ...and where it will land: the orbit, dotted, and a dotted ring the
    planet's size, which slides from place to place as it snaps */
 .gx-guide, .gx-ghost { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s var(--ease-settle); }
@@ -1420,10 +1435,11 @@ body.no-chrome #view { padding: 0; }
   transition: transform var(--dur-arrive) var(--ease-settle);
 }
 .planet:focus-visible .planet-body { transform: scale(1.04); }
-/* hovering a planet: it lifts a touch, its shadow deepens and its lit edge brightens */
+/* pointing at a planet: it rises and swells with a soft bounce, and spins up a little to show
+   more of what is on it (planets.js `nudge`) */
 @media (hover: hover) {
-  a.planet:hover .planet-body { transform: translateY(-3px) scale(1.03); }
-  a.planet:hover .planet-ball { box-shadow: 0 12px 24px -8px rgba(0, 0, 10, 0.62); }
+  a.planet:hover .planet-body { transform: translateY(-3px) scale(1.09); transition-timing-function: var(--ease-spring); }
+  a.planet:not(.is-gl):hover .planet-ball { box-shadow: 0 12px 24px -8px rgba(0, 0, 10, 0.62); }
   a.planet:hover .planet-atmo { filter: brightness(1.4) saturate(1.1); }
   a.planet:hover .planet-title { color: #fff; }
 }
@@ -1446,10 +1462,13 @@ body.no-chrome #view { padding: 0; }
 .gx-scene .planet.is-movable .planet-title { pointer-events: auto; cursor: move; }
 .planet-map { display: block; width: 100%; height: 100%; transform: rotate(var(--tilt)); }
 /* painted live: the canvas has its own tilt, light and soft edge */
-.planet.is-gl .planet-ball { background: transparent; }
-.planet.is-gl .planet-map { transform: none; }
-.planet.is-gl .planet-shade { background: radial-gradient(circle at 30% 27%, rgba(255, 255, 255, 0.1) 0%, transparent 38%); }
-.planet[data-look="rock"] .planet-atmo { display: none; }
+/* The painted world (planetgl.js). Its picture is larger than the ball by the painter's AIR (1.12),
+   which is room for the air it draws round the edge, so the ball must not clip it. The highlight,
+   the halo and the drop shadow below are the plain painter's and are not used here: the painter
+   lights the world itself. */
+.planet.is-gl .planet-ball { background: transparent; overflow: visible; box-shadow: none; }
+.planet.is-gl .planet-map { transform: none; position: absolute; left: 50%; top: 50%; width: 112%; height: 112%; margin: -56% 0 0 -56%; }
+.planet.is-gl .planet-shade, .planet.is-gl .planet-atmo { display: none; }
 /* sunlight from the upper left: a soft terminator and a lit limb */
 .planet-shade {
   position: absolute;
@@ -1484,17 +1503,19 @@ body.no-chrome #view { padding: 0; }
 }
 .planet-lock { display: none; }
 
-/* thin rings, once a planet is full: the back half behind, the front in front */
+/* thin rings, on any kind of planet once it holds ten files: the back half behind, the front in
+   front. They lie round its middle, so they lean as it does (--tilt) and open as far as its lean
+   shows them (0.62 of 2.1); the painter casts their shadow on the world to the same measure. */
 .planet-ring {
   display: none;
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(var(--s) * 2);
-  height: calc(var(--s) * 0.42);
-  margin: calc(var(--s) * -0.21) 0 0 calc(var(--s) * -1);
+  width: calc(var(--s) * 2.1);
+  height: calc(var(--s) * 0.62);
+  margin: calc(var(--s) * -0.31) 0 0 calc(var(--s) * -1.05);
   border-radius: 50%;
-  transform: rotate(calc(var(--tilt) * 0.6 + var(--ring-tilt)));
+  transform: rotate(var(--tilt));
   pointer-events: none;
   background: radial-gradient(closest-side,
     transparent 64%,
@@ -1544,8 +1565,8 @@ body.no-chrome #view { padding: 0; }
   transition: box-shadow 0.25s;
 }
 .moon[data-look="iapetus"]:not(.is-gl) .moon-ball { background: linear-gradient(100deg, #e6e1d8 48%, #1d1814 52%); }
-.moon.is-gl .moon-ball { background: transparent; box-shadow: none; }
-.moon-map { display: block; width: 100%; height: 100%; }
+.moon.is-gl .moon-ball { background: transparent; box-shadow: none; overflow: visible; }
+.moon-map { display: block; position: absolute; left: 50%; top: 50%; width: 112%; height: 112%; margin: -56% 0 0 -56%; }
 /* Phobos and Hyperion are lumps: the painter dents their outline */
 .moon[role="link"] { cursor: pointer; }
 .moon:focus-visible .moon-ball { box-shadow: 0 0 0 2px #7fb3ff; }
@@ -1738,11 +1759,13 @@ body.no-chrome #view { padding: 0; }
 
 .planet-body.is-gulping .planet-atmo { animation: atmo-flare 0.9s var(--ease-settle); }
 .planet-body.is-gulping .planet-ball { animation: planet-nudge 0.7s var(--ease-settle); }
+.planet.is-gl .planet-body.is-gulping .planet-map { animation: world-flare var(--dur-scene) var(--ease-settle); }
+@keyframes world-flare { 30% { filter: brightness(1.3); } }
 @keyframes atmo-flare { 30% { filter: brightness(2.2); } }
 @keyframes planet-nudge { 30% { transform: scale(1.05); } }
 
-/* someone's locked planet: frosted over, with a lock */
-.planet.is-locked .planet-map { filter: blur(4px) saturate(0.5) brightness(1.1); }
+/* someone's locked planet: clouded over by the painter (blurred, where there is only the plain painter), with a lock */
+.planet:not(.is-gl).is-locked .planet-map { filter: blur(4px) saturate(0.5) brightness(1.1); }
 .planet.is-locked .planet-lock { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; color: #fff; filter: drop-shadow(0 1px 2px rgba(0, 0, 30, 0.6)); }
 .planet.is-locked { cursor: pointer; }
 /* Private planets (and ones shared with other people) show only as a blur. */
@@ -1766,7 +1789,8 @@ body.no-chrome #view { padding: 0; }
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
 }
 
-/* Planet colour picker: each dot is a small world of that colour (its own drawing; session 7). */
+/* Planet colour picker: each dot is the planet's own kind of world painted in that colour (planets.js `worldDot`);
+   the shaded dot beneath is what shows without the painter. */
 .swatches { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; padding: var(--space-4) 0 var(--space-2); }
 .planet-swatch {
   width: 30px;
@@ -1777,6 +1801,7 @@ body.no-chrome #view { padding: 0; }
   transition: transform var(--dur-change) var(--ease-settle);
 }
 .planet-swatch:hover { transform: scale(1.08); }
+.planet-swatch .world-dot { display: block; width: 112%; height: 112%; margin: -6%; pointer-events: none; }
 .planet-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink); }
 .swatch-custom { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
 .swatch-custom::-webkit-color-swatch-wrapper { padding: 3px; }
@@ -1787,7 +1812,7 @@ body.no-chrome #view { padding: 0; }
 .look-pick:hover, .look-pick:focus-visible { background: var(--tint-2); }
 .look-pick[aria-checked="true"] { background: var(--tint-2); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .look-pick .planet { margin-bottom: var(--space-8); pointer-events: none; }
-.look-name { font-size: 12.5px; font-weight: 500; }
+.look-name { font-size: 12.5px; font-weight: 500; text-align: center; }
 .look-note { font: 400 var(--text-small)/1.2 var(--mono); color: var(--ink-3); }
 
 /* small planets (search) and the one on a planet's own page sit in the flow */
@@ -1874,7 +1899,7 @@ html[data-motion="off"] .uv-beads { display: none; }
   background: radial-gradient(circle at 35% 32%, var(--c-light), var(--c) 45%, var(--c-dark) 90%);
 }
 .uv-world.is-painted { background: none; }
-.uv-world-map { position: absolute; inset: 0; width: 100%; height: 100%; }
+.uv-world-map { position: absolute; left: -6%; top: -6%; width: 112%; height: 112%; }
 .uv-world.has-rings::after {
   content: "";
   position: absolute;

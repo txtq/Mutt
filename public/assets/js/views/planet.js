@@ -9,7 +9,7 @@ import { MENU_ORDER, MODES, OFFER_ORDER, allowed as modeAllowed, codeOf, loadMod
 import { momentLine } from '../moments.js';
 import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
-import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
+import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { DUR, EASE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
@@ -386,7 +386,7 @@ export const planetView = {
         PALETTE.map((c) => h('button', {
           type: 'button', class: 'planet-swatch', role: 'radio', style: { '--c': c }, 'aria-label': c,
           'aria-checked': String(c === current), onclick: () => pick(c),
-        })),
+        }, drawer.parentId ? null : worldDot(drawer, c, 30))),
         custom);
       const dialog = openDialog({ title: 'Planet colour', body });
     }
@@ -406,7 +406,7 @@ export const planetView = {
 
     function pickLook() {
       const previews = world.planet?.previews || [];
-      const auto = LOOKS.find((l) => l.id === lookOf({ id })).label;
+      const auto = LOOKS.find((l) => l.id === lookOf({ id, twelve: drawer.twelve })).label;
       const choices = [{ id: null, label: 'Auto', note: auto }, ...LOOKS];
       const grid = h('div', { class: 'look-grid', role: 'radiogroup', 'aria-label': 'Kind of planet' });
       const dialog = openDialog({ title: 'Planet type', className: 'dialog-wide', body: grid });

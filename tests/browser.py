@@ -28,7 +28,7 @@ ELEMENT = 'element-6066-11e4-a52e-4f735466cecf'
 NAME, CODE = 'tester', '482193'
 DESK, PHONE = (1280, 800), (375, 812)
 ENTER = '\ue007'
-LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'rock', 'storm')   # a planet's kinds (api.PLANET_LOOKS)
+LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'pearl', 'storm')   # eight of a planet's twelve kinds (api.PLANET_LOOKS)
 
 
 class Fail(Exception):

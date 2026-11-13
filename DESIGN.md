@@ -9,7 +9,7 @@ The one standard for how Mutt looks and moves. Read it before touching anything 
 
 ## Where the app stands against this file
 
-The app does not match this file yet. The second half of session 7 and session 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
+The app does not match this file yet. Session 8 of the plan in `/Users/edan/Mutt-notes/PROGRESS.md` bring it into line, in this order. Update this table as each lands.
 
 | Area | In the app today | Lands in |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ The app does not match this file yet. The second half of session 7 and session 8
 | Modes on the shared look | **Done (session 5).** List, cookbook, documents, reading and the file view are built from the named values and the shared parts (section 4, "The modes"); their four private palettes are gone; paper is the one cream; the full-screen places are rooms on one layer. | Session 5 ✓ |
 | Icons | **Done (session 6).** One set of 94 in `public/assets/js/icons.js`, drawn the same way everywhere and got with `icon(name)`; no keyboard character stands in for an icon; menus of things to do carry icons; the four offer drawings are panes from the same file. Section 4, "Icons". | Session 6 ✓ |
 | The sky, the universe, the logo | **Done (session 7, part one).** The sky of section 3, built to its cost rules in `js/sky.js`; the universe is black with no stars, and beads of light travel the threads of its web; one logo, the Wonky. | Session 7 ✓ |
-| Planets, the files on them, how they show their use, their motion | Today's eight kinds, small white cards for files, no sign of use. Decided (section 6) and not built yet. | Session 7, part two |
+| Planets, the files on them, how they show their use, their motion | **Done (session 7, part two).** Twelve kinds each with its own weather and effect, files as cards in a belt each drawn as what it is, use shown as weather or dust, rings on any planet with ten files, the dive on opening a planet. Section 3, "Planets". | Session 7 ✓ |
 | Motion | The five lengths and three curves are named and used where they matched; 386 other lengths and curves are still typed by hand (279 in stylesheets, 107 in scripts) | Session 8 |
 
 ### Values that still hold yesterday's number
@@ -36,7 +36,8 @@ Names kept from before that are not in this file (`--bg`, `--ease-in`, `--ease-i
 - **`galaxy.css` still opens with "the older base"**: what is left of the old white site's stylesheet (the top bar, page heads, sign-in, the markdown rules, settings). The file view's rules left it in session 5. Nothing new goes in that section.
 - **A setting is not a palette.** The editor and the reader keep a few names of their own for what the owner has chosen, set by their scripts: `--de-size`, `--de-lh`, `--de-face` (a document's type size, line height and face) and `--rd-size`, `--rd-lh`, `--rd-font`, `--rd-h`, `--rd-vw` (the reader's, and the size of its page). They hold no colour.
 - **A document's own colours are typed where they are used**: the eleven inks a writer can choose and the six rhyme colours of a poem (`doceditor.js`, `docs.css`), and the colours a `::highlight()` paints (find, spelling, rhyme, comments), which can't read a named value in every browser.
-- *For session 7 (planets and sky):* the planet colour picker's dots are small worlds of their own (`.planet-swatch`), not the shared swatch. The lock drawn on a locked world is the set's lock at whatever size the world asks for (`icon('lock', n)` in `planets.js`), the one place an icon is not 12, 16 or 20.
+- The planet colour picker's dots are the planet's own kind of world painted in each colour (`worldDot`, `.planet-swatch`), not the shared swatch. The lock drawn on a locked world is the set's lock at whatever size the world asks for (`icon('lock', n)` in `planets.js`), the one place an icon is not 12, 16 or 20.
+- *For session 8 (motion), from session 7:* nobody but the user has watched at real speed the sky's drift, the stars bending round the void, the beads, the void (turning, opening, swallowing, sign-in), the planets' weather and effects, the hover's bounce and spin, the dust lifting, the dive and the pull away. The dive's lengths are the named ones and untuned. A galaxy of many planets now paints more than before (twice as sharp, richer kinds): measure it.
 - *For session 8 (motion):* an icon's body lights over `--dur-change` when pointed at; nobody has watched it at real speed. The lengths typed by hand in the shared parts (a menu's 0.42 s, a sheet's 0.45 s, a dialog's and a toast's 0.6 s, the bead's 0.45 s), in the file box (a picture's 0.6 s fade and 0.9 s lift, the tag's 0.35 s) and in the rooms (the 0.38 s fade as a room arrives, the editor's own flight, the reader's page turns) are the app's old ones, kept so nothing moves differently yet. A room arrives as a fade between two pictures of the screen; in a browser without that (older Safari) the page behind fades by itself and its glass loses its frost for that half second.
 - Mutt keeps no icon for a link's site, so a link's caption is the site's name alone. Search's planet picker rows (`.cx-row`) are their own.
 
@@ -294,6 +295,65 @@ Built in session 7 (`public/assets/js/sky.js`, the rules headed `.sky` in `galax
 
 **To add a sky**: its four colours in `tokens.css` (`html[data-sky="name"]`), each step as light as Vita's (relative luminance 0.003, 0.007, 0.021, 0.114); its name in `PREF_CHOICES` (`mutt/api.py`) and `SKIES` (`js/theme.js`). Nothing else.
 **To change what the sky is made of**: change the board first (show the user), then the two shaders in `sky.js`; keep the cost rules; look at it with `/Users/edan/Mutt-notes/design/session7/shots.py`, and give the user what to watch at real speed, because the hidden browser draws it still.
+
+### Planets
+
+Built in session 7 (`public/assets/js/planets.js`, painted by `planetgl.js`). The drawn reference is `/Users/edan/Mutt-notes/design/session7/twelve-worlds-2026-11-13.html`. The world comes first; a planet's files ride on it, modest.
+
+**Twelve kinds**, each with ground, weather and one effect that is its own. Their order is the painter's (looks 0 to 11); names are plain and say what you see.
+
+| Kind (`id`) | What it is | Its own effect |
+| --- | --- | --- |
+| Deep ocean (`ocean`) | deep water, islands in pale shallows | a cyclone that turns; the sun's glint on the sea |
+| Forests and seas (`terran`) | forest and plain, mountains with snow, ice caps | an aurora round its pole, brightest in the dark |
+| Banded giant (`gas`) | bands sliding past each other, curling where they rub | a great storm, a few white ovals |
+| Pale giant (`pale`) | a calm giant with soft bands | a six-sided storm on its pole |
+| Lava seas (`lava`) | dark plates and a molten sea | seams that breathe, vents that flare, smoke |
+| Ice sheets (`ice`) | pale sheets cut by blue crevasses | a blizzard, glints off the snow, crevasses lit at night |
+| Red desert (`desert`) | rust plains, ochre dunes, old dark lava, one canyon, small caps | a dust storm crossing |
+| Thunderstorm (`storm`) | cloud curling over cloud | two hurricanes with clear eyes; lightning |
+| Coral shallows (`lagoon`) | warm shallows, atolls of sand round pale pools | light dancing on the water; small clouds |
+| Night bloom (`bloom`) | dark seas, continents of veined growth | its veins and shores glow at night, in slow waves |
+| Golden haze (`haze`) | no ground, only thick cloud | cloud racing round in a sideways V, deep glowing air |
+| Pearl mist (`pearl`) | a milky world of slow veils | the colours of oil on water sliding over it |
+
+- **A planet's kind** is its owner's pick (`drawers.look`), or one from its id. Planets made before there were twelve draw from the first eight, so none changed by itself (`twelve` from the server, `lookOf`). Moon rock is gone; those planets are Pearl mist. Moons are their own ten real moons and did not change.
+- **Colour.** A kind is four colours (`PALETTES`), each leaning a set amount toward the planet's own colour, then pushed (`rich`). This is the one place raw colours are typed outside `tokens.css`.
+- **Light.** One sun, upper left. A crisp edge between day and night, a warm last light along it, and a thin glow of air on the lit side only, painted in a picture 1.12 times the ball (`AIR`) so nothing clips it. No highlight laid over the ball, no halo behind it, no drop shadow: those belong to the plain painter only (below).
+- **Sharp.** Painted at the screen's own sharpness, up to 2 pixels a point.
+- **It turns** once in about a minute (40 to 75 seconds). Pointed at, it rises 3 and swells to 1.09 on `--ease-spring` and spins up a little (`nudge`), then coasts down. Each world's weather keeps its own clock, faster on a busy world.
+- **Rings** are on any kind of planet that holds ten files or more, and on no other. They lie round its middle, lean as it leans, and the painter casts their shadow on the world.
+- **Locked**, a world is clouded over by the painter with the set's lock on it. A private one is a blur.
+
+**Files on a world.** Cards in a belt round the middle (two belts past six files), at most 60 tall of the map's 256. Weather parts round them, dust settles on them, and they stay softly lit on the night side. Each kind of file has its own small drawing, so a planet's use reads from the galaxy; words are bars, because nothing here is meant to be read, only told apart.
+
+| A file | Its drawing (`FACES`) |
+| --- | --- |
+| a picture, a video | a print with a pale border (a video's has a play mark) |
+| a note | paper, a heading and lines |
+| a checklist, and every note on a list planet (three to a card) | rows: a tick box and its words |
+| a recipe | an index card: its name over a red rule, ingredients beside steps |
+| a book | its cover, with a spine |
+| a long note, and every note on a desk | a cream page, centred title, paragraphs |
+| a link | a small window with its bar |
+| a PDF or other paper | a white sheet with a red tag |
+| a sound | its shape as bars, on night |
+| anything else | its kind, in a colour |
+
+**Use.** A planet shows how used it is, to everyone who can open it. What counts: a file added to it or changed on it (`planet_use` in `mutt/api.py`, from times Mutt already keeps). The scale: busy for a day (1), calm by a week (0.5), the first dust at a month (under 0.385), all of it at three (0). Busy is more weather, faster, and brighter light of its own; forgotten is no weather, thin air, drained colour and a coat of dust over ground and files. When something lands on a dusty world the dust lifts as weather does (2.5 seconds, once): a wind gets up, the coat breaks into patches and streams off as dust in the air, and the weather comes back behind it (`wakeUp`). Still shows the state without the movement.
+
+**Opening a planet** from a galaxy is a dive: the galaxy rushes past from where the planet is, the planet swells toward you and settles at the top of its page. Coming back is a pull away. Between two planets, pages just change. (`router.js`, the rules headed "Opening a planet" in `galaxy.css`; its lengths and curves are the named ones.)
+
+**Without the painter** (no WebGL2, or `?flat=1`): the plain painter wraps a flat picture round a ball, with the same cards. It has no kinds beyond colour, no weather and no use. Keep it working; don't grow it.
+
+**To add a kind of planet** (show the user a sheet first: the kind large, at galaxy size and at the smallest, beside its neighbours):
+1. Add `{ id, label }` at the END of `LOOKS` in `planets.js` (the order is the painter's) and its four colours to `PALETTES`.
+2. Add its branch to the painter's chain in `planetgl.js`, before the moons, with the next number, and move the moons' numbers up by one (they follow the planets; `LOOK_INDEX` in `planets.js` counts them the same way). A branch sets `col` and may set `cloud`, `cloudC`, `spec`, `atmo`, `atmoC`, `glow` (light of its own), `nightGlow` (light only in the dark), `limb`. Use `busy` and `calm` for what should follow use. Give it one effect no other kind has.
+3. Add the id to `PLANET_LOOKS` in `mutt/api.py`.
+4. Raise the two colour lines in `tests/expected/drift.txt` by hand (a palette is the one allowed place), after telling the user.
+5. Add its row to the table above.
+
+**To give a new kind of file, or a new mode, its drawing on a world**: add a drawing to `FACES` in `planets.js` (map pixels; bars, not words; colours from `INK`), a line to `faceOf` saying which files get it (a mode decides through `planet.modes`), and, if the cards should be taller than wide, its name to `UPRIGHT`. If the mode changes what the galaxy must know, add that mode's flag to the texture's key in `textureFor`. Add its row to the table above.
 
 ### The logo
 
@@ -649,11 +709,13 @@ Decided by the user, 2026-11-13 (design session 7; the page with the alternative
 - The sky, built the cheap way: yes, as it is.
 - "Recenter the design of planets" means around the world itself: better worlds first, files modest on them.
 - Files on a planet: cards in a belt, each drawn as what it is (three big faces, and one face at a time facing you, which was my pick, were turned down).
-- All eight kinds are redrawn, Moon rock goes, and there are **twelve kinds**, each with its own effects and weather, keeping the charm of today's style.
+- All eight kinds are redrawn, Moon rock goes, and there are **twelve kinds**, each with its own effects and weather, keeping the charm of today's style. All twelve approved as drawn. Their names are plain and descriptive (names after real space things, Hycean, Janssen, Coriolis and the like, were offered and turned down). Moon rock planets become Pearl mist.
 - A planet shows its use. What counts: files added or changed on it. How long: calm after a week, dust from one month, full at three (my pick of a gentler scale was turned down). Who sees it: everyone who can open the planet (my pick of dust for the owner only was turned down).
-- Coming back to a dusty planet: the dust blows off, as weather changing, not as a wipe.
+- Coming back to a dusty planet: the dust blows off, as weather changing, not as a wipe (a bright edge sweeping across was shown first and turned down as too digital).
+- Rings are on any planet with ten files or more, of any kind, never one kind's own mark.
+- The void is drawn finest: full sharpness, evenly laid dots, smooth strands, a hairline of light on the near strands (a sharper and a finer print were offered).
 - Pointing at a planet: lively. Opening one: a dive. Turning: about a minute a turn.
 - The logo flickers when pointed at as well as when Mutt opens (my pick of only when Mutt opens was turned down).
 - Built in two parts: the sky, the universe and the logo first; then the planets.
 
-Still open, with the session that settles it: the twelve kinds of planet as drawn, the files on them, use and the planets' motion (7, part two); every length and curve at real speed (8).
+Still open, with the session that settles it: every length and curve at real speed (8).

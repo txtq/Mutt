@@ -1,11 +1,12 @@
-// Planets: every drawer is a small world that turns slowly. Its files are
-// laid onto the surface like continents between bands of weather, mapped
-// onto a real sphere (a little canvas per planet), then lit from the upper
-// left with an atmosphere round the edge, with its name underneath.
+// Planets: every drawer is a small world that turns slowly, one of twelve
+// kinds, each with its own ground, weather and effects (planetgl.js paints
+// them). Its files ride on it as cards in a belt, each drawn as what it is,
+// so a planet's use reads from the galaxy. How used it is shows too: weather
+// on a busy world, dust on a forgotten one. DESIGN.md "Planets" has the rules.
 
 import { nav } from './nav.js';
-import { canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, h, onMotionChange, plural, reducedMotion, seeded } from './util.js';
+import { AIR, canPaint, forget, paint, together } from './planetgl.js';
+import { BLUE, h, named, onMotionChange, plural, reducedMotion, seeded } from './util.js';
 import { icon } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -76,16 +77,27 @@ export function fileFace(block, { lazy = false } = {}) {
 
 // Every planet is one kind of world. One that hasn't been given a kind gets
 // it from its id, so it never changes by itself.
+// Their order is the painter's (planetgl.js, looks 0 to 11): add at the end.
 export const LOOKS = [
-  { id: 'ocean', label: 'Ocean' },
-  { id: 'terran', label: 'Green' },
-  { id: 'gas', label: 'Gas giant' },
-  { id: 'lava', label: 'Lava' },
-  { id: 'ice', label: 'Ice' },
-  { id: 'desert', label: 'Desert' },
-  { id: 'rock', label: 'Moon rock' },
-  { id: 'storm', label: 'Storm' },
+  { id: 'ocean', label: 'Deep ocean' },
+  { id: 'terran', label: 'Forests and seas' },
+  { id: 'gas', label: 'Banded giant' },
+  { id: 'pale', label: 'Pale giant' },
+  { id: 'lava', label: 'Lava seas' },
+  { id: 'ice', label: 'Ice sheets' },
+  { id: 'desert', label: 'Red desert' },
+  { id: 'storm', label: 'Thunderstorm' },
+  { id: 'lagoon', label: 'Coral shallows' },
+  { id: 'bloom', label: 'Night bloom' },
+  { id: 'haze', label: 'Golden haze' },
+  { id: 'pearl', label: 'Pearl mist' },
 ];
+// A planet with no kind of its own gets one from its id. Those made before
+// there were twelve (the server says which: `twelve`) keep drawing from the
+// first eight, so none of them changed by itself (Moon rock, which is gone,
+// became Pearl mist).
+const FIRST_KINDS = ['ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'pearl', 'storm'];
+const ALL_KINDS = LOOKS.map((l) => l.id);
 
 // Moons are modelled on real ones. Each has its own colours, how long it
 // takes to go round (seconds), how fast it turns on its own axis (Luna not
@@ -107,15 +119,21 @@ const LOOK_INDEX = Object.fromEntries([...LOOKS, ...MOON_LOOKS].map((l, i) => [l
 
 // Four colours each (what they're for depends on the kind), and how far each
 // one leans toward the planet's own colour.
+// `rich` is how far its colours are pushed (1.4 unless the kind is pale or
+// already vivid).
 const PALETTES = {
-  ocean: { colors: ['#12324f', '#2b6e94', '#a8a573', '#f2f0ea'], tint: [0.25, 0.25, 0.1, 0] },
-  terran: { colors: ['#1d4466', '#5d7f45', '#9a7f58', '#eef0f2'], tint: [0.2, 0.12, 0.12, 0] },
-  gas: { colors: ['#8a5a3c', '#c99c6e', '#efe0c4', '#b5523a'], tint: [0.45, 0.4, 0.15, 0.2] },
-  lava: { colors: ['#17110f', '#2e2420', '#4a3a33', '#e8742f'], tint: [0.1, 0.15, 0.15, 0.08] },
-  ice: { colors: ['#4f86b0', '#bcd3e2', '#eef4f7', '#dfe9f2'], tint: [0.2, 0.18, 0.08, 0.05] },
-  desert: { colors: ['#7a5236', '#c69563', '#e3c290', '#d8b383'], tint: [0.12, 0.15, 0.1, 0.1] },
-  rock: { colors: ['#3f3d3e', '#7a7674', '#a19c97', '#e9e4dc'], tint: [0.2, 0.2, 0.15, 0] },
-  storm: { colors: ['#1b1433', '#47336f', '#a593cf', '#cfd8ff'], tint: [0.18, 0.2, 0.12, 0] },
+  ocean: { colors: ['#0f2c4a', '#2a6f97', '#b5a878', '#f3f1eb'], tint: [0.25, 0.25, 0.1, 0] },
+  terran: { colors: ['#1b4264', '#4f7f3f', '#9a8058', '#f0f2f3'], tint: [0.2, 0.12, 0.1, 0] },
+  gas: { colors: ['#8a5536', '#cf9b68', '#f1dfc0', '#b9502f'], tint: [0.4, 0.35, 0.15, 0.2] },
+  pale: { colors: ['#c2a56a', '#e3cf9c', '#f4e9cc', '#9c8150'], tint: [0.25, 0.22, 0.1, 0.2], rich: 1.15 },
+  lava: { colors: ['#15100e', '#2c2320', '#4a3a33', '#ee7a2c'], tint: [0.08, 0.12, 0.12, 0.06], rich: 1.1 },
+  ice: { colors: ['#4b84b3', '#bdd5e4', '#eff5f8', '#f4f8fb'], tint: [0.2, 0.16, 0.06, 0.04] },
+  desert: { colors: ['#3d2420', '#9c5741', '#cfa277', '#e8c9a0'], tint: [0.1, 0.12, 0.1, 0.08], rich: 1.12 },
+  storm: { colors: ['#151033', '#3b2f7a', '#8f7fd0', '#e6e2ff'], tint: [0.16, 0.18, 0.12, 0] },
+  lagoon: { colors: ['#0b6f86', '#27b7b4', '#f0e2b8', '#f08a7a'], tint: [0.2, 0.2, 0.05, 0.1], rich: 1.18 },
+  bloom: { colors: ['#0c2f3a', '#b23a8e', '#6a3fb0', '#ffb3de'], tint: [0.2, 0.2, 0.2, 0.05], rich: 1.18 },
+  haze: { colors: ['#b98a2e', '#e2c463', '#f3e6a8', '#f6dc8a'], tint: [0.2, 0.2, 0.1, 0.15] },
+  pearl: { colors: ['#e9c9cf', '#f6ead9', '#fbf6ee', '#ffe3ee'], tint: [0.14, 0.1, 0.05, 0.08], rich: 1.15 },
 };
 // Moons keep their real colours, whatever their planet's.
 const MOON_PALETTES = {
@@ -141,7 +159,8 @@ export function moonLookOf(moon) {
 export function lookOf(planet) {
   if (planet.parentId) return moonLookOf(planet);
   if (planet.look && PALETTES[planet.look]) return planet.look;
-  return LOOKS[Math.floor(seeded(`look:${planet.id}`)() * LOOKS.length)].id;
+  const pool = planet.twelve ? ALL_KINDS : FIRST_KINDS;
+  return pool[Math.floor(seeded(`look:${planet.id}`)() * pool.length)];
 }
 
 // More colourful: pushes a colour's saturation up and lifts it a touch.
@@ -209,7 +228,7 @@ function worldColors(planet, look = lookOf(planet)) {
   const tint = shade(planet.icon?.c || planet.c || '#2F6BFF', '#6f7891', 0.15);
   const pal = PALETTES[look];
   // Lava stays dark and hot rather than taking on the planet's colour.
-  const colors = pal.colors.map((c, i) => richer(shade(c, tint, pal.tint[i]), look === 'lava' ? 1.1 : 1.4));
+  const colors = pal.colors.map((c, i) => richer(shade(c, tint, pal.tint[i]), pal.rich || 1.4));
   const base = look === 'lava' ? shade(colors[1], colors[3], 0.4) : colors[1];
   return { colors, base, light: shade(base, '#f4f1ea', 0.38), dark: shade(base, '#070a16', 0.5) };
 }
@@ -226,7 +245,6 @@ const MAP_W = 512;
 const MAP_H = 256;
 const TEX_W = 1024;
 const TEX_H = 512;
-const KIND_TINT = { link: '#5d8fb8', pdf: '#b8775a', doc: '#b8946a', audio: '#4f9b85', video: '#9b5d82', code: '#7468a8', archive: '#7d8597', other: '#7d8597' };
 
 // The newest few hundred pictures are kept for painting planets; older ones
 // are let go, or a long visit would hold every picture it ever passed (the
@@ -245,16 +263,6 @@ function loadImage(src) {
     if (imageCache.size > MAX_IMAGES) imageCache.delete(imageCache.keys().next().value);
   }
   return imageCache.get(src);
-}
-
-function roundRect(ctx, x, y, w, hgt, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + hgt, r);
-  ctx.arcTo(x + w, y + hgt, x, y + hgt, r);
-  ctx.arcTo(x, y + hgt, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
 }
 
 // For the plain painter (no WebGL): soft bands that wander, a few storms, ice at the poles.
@@ -308,70 +316,264 @@ function paintTerrain(ctx, colors, rand) {
   ctx.globalAlpha = 1;
 }
 
-// Where each file sits: one belt round the equator, or two when there are many.
-function tileSpots(n) {
-  const w = 54;
-  const hgt = 40;
-  if (n <= 5) {
-    const step = MAP_W / Math.max(n, 3);
-    return Array.from({ length: n }, (_, i) => ({ x: i * step + step / 2 - w / 2, y: MAP_H / 2 - hgt / 2, w, h: hgt }));
-  }
-  const top = Math.ceil(n / 2);
-  const bottom = n - top;
-  const spots = [];
-  for (let i = 0; i < top; i++) spots.push({ x: (i + 0.5) * (MAP_W / top) - w / 2, y: MAP_H * 0.39 - hgt / 2, w, h: hgt });
-  for (let i = 0; i < bottom; i++) spots.push({ x: (i + 1) * (MAP_W / bottom) - w / 2, y: MAP_H * 0.62 - hgt / 2, w, h: hgt });
-  return spots;
-}
+// ---- the small drawings: what a file looks like as a card on a world.
+// Each kind of file has its own, so a planet's use reads from the galaxy: a
+// list is rows with tick boxes, a recipe an index card, a book a cover, a
+// document a cream page, a picture a print. DESIGN.md "Files on a world" says
+// how to add one. They are drawn in map pixels (the card is at most about 64
+// by 48), so words are bars: nothing here is meant to be read, only told apart.
+const INK = { paper: named('--paper'), ink: named('--paper-ink'), ink2: named('--paper-ink-2'), ink3: named('--paper-ink-3'), rule: named('--paper-rule'), well: named('--paper-well'), tick: BLUE, red: named('--ribbon-red'), night: named('--room-night'), pale: named('--pale') };
+const PRINT = INK.paper;                                // the pale border of a photographic print, and marks on a dark card
+const SHADOW = 'rgba(0, 0, 12, 0.55)';                  // under every card
+const KIND_TINT = { video: named('--mark-pink'), code: named('--mark-purple'), other: named('--ink-4') };
 
-function drawTile(ctx, block, spot, img) {
-  const { x, y, w, h: hgt } = spot;
-  // Each file sits in a little crater of light, so it reads as part of the world.
+function card(ctx, x, y, w, hgt, fill, r = 3) {
   ctx.save();
-  ctx.shadowColor = 'rgba(255, 250, 235, 0.55)';
-  ctx.shadowBlur = 6;
-  roundRect(ctx, x, y, w, hgt, 4);
-  ctx.fillStyle = '#f3f1ea';
+  ctx.shadowColor = SHADOW;
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, hgt, r);
+  ctx.fillStyle = fill;
   ctx.fill();
   ctx.restore();
+}
+function bar(ctx, x, y, w, t, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x, y, Math.max(1, w), t, t / 2);
+  ctx.fill();
+}
+function fit(ctx, img, x, y, w, hgt) {
+  const k = Math.max(w / img.width, hgt / img.height);
   ctx.save();
-  roundRect(ctx, x, y, w, hgt, 4);
+  ctx.beginPath();
+  ctx.rect(x, y, w, hgt);
   ctx.clip();
-  if (img) {
-    const scale = Math.max(w / img.width, hgt / img.height);
-    const dw = img.width * scale;
-    const dh = img.height * scale;
-    ctx.drawImage(img, x + (w - dw) / 2, y + (hgt - dh) / 2, dw, dh);
-  } else if (block.kind === 'text') {
-    ctx.fillStyle = '#f6f4ee';
-    ctx.fillRect(x, y, w, hgt);
-    ctx.fillStyle = 'rgba(40, 44, 60, 0.55)';
-    ctx.font = '600 6px sans-serif';
-    const words = excerpt(block.title || block.content, 60).split(' ');
-    let line = '';
-    let ly = y + 9;
-    for (const word of words) {
-      if (ctx.measureText(`${line} ${word}`).width > w - 8 && line) {
-        ctx.fillText(line, x + 4, ly);
-        line = word;
-        ly += 7;
-        if (ly > y + hgt - 3) break;
-      } else line = line ? `${line} ${word}` : word;
-    }
-    if (ly <= y + hgt - 3) ctx.fillText(line, x + 4, ly);
+  ctx.drawImage(img, x + (w - img.width * k) / 2, y + (hgt - img.height * k) / 2, img.width * k, img.height * k);
+  ctx.restore();
+}
+function tickBox(ctx, x, y, s, done) {
+  ctx.beginPath();
+  if (done) {
+    ctx.roundRect(x, y, s, s, s * 0.22);
+    ctx.fillStyle = INK.tick;
+    ctx.fill();
+    ctx.strokeStyle = PRINT;
+    ctx.lineWidth = Math.max(0.9, s * 0.16);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + s * 0.24, y + s * 0.52);
+    ctx.lineTo(x + s * 0.43, y + s * 0.72);
+    ctx.lineTo(x + s * 0.78, y + s * 0.3);
+    ctx.stroke();
   } else {
-    ctx.fillStyle = KIND_TINT[block.kind] || KIND_TINT.other;
-    ctx.fillRect(x, y, w, hgt);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.roundRect(x + 0.5, y + 0.5, s - 1, s - 1, s * 0.22);
+    ctx.strokeStyle = INK.ink3;
+    ctx.lineWidth = Math.max(0.8, s * 0.12);
+    ctx.stroke();
+  }
+}
+const FACES = {
+  // a picture: a print with a white border (a video's carries a play mark)
+  photo(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, PRINT, 2);
+    const b = Math.max(1.6, w * 0.035);
+    fit(ctx, f.img, x + b, y + b, w - b * 2, hgt - b * 2);
+    if (f.video) {
+      ctx.fillStyle = PRINT;
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.42, y + hgt * 0.34);
+      ctx.lineTo(x + w * 0.64, y + hgt * 0.5);
+      ctx.lineTo(x + w * 0.42, y + hgt * 0.66);
+      ctx.fill();
+    }
+  },
+  // a note: paper, a heading and a few lines
+  note(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, INK.paper);
+    const p = w * 0.09;
+    bar(ctx, x + p, y + hgt * 0.16, w * 0.55, Math.max(2.2, hgt * 0.075), INK.ink);
+    for (let i = 0; i < 4; i++) bar(ctx, x + p, y + hgt * (0.36 + i * 0.14), (w - p * 2) * [1, 0.92, 0.97, 0.6][i], Math.max(1.4, hgt * 0.04), INK.ink3);
+  },
+  // a list: rows, each a tick box and its words
+  list(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, INK.paper);
+    const pad = Math.max(3, w * 0.07);
+    const rh = (hgt - pad * 2) / f.items.length;
+    const s = Math.min(rh * 0.62, 10);
+    f.items.forEach((done, i) => {
+      const cy = y + pad + rh * (i + 0.5);
+      tickBox(ctx, x + pad, cy - s / 2, s, done);
+      bar(ctx, x + pad + s + 3, cy - rh * 0.14, (w - pad * 2 - s - 4) * (0.5 + 0.45 * (((i + f.items.length) * 37) % 10) / 10), Math.max(1.6, rh * 0.28), done ? INK.rule : INK.ink2);
+      if (i) { ctx.fillStyle = INK.rule; ctx.fillRect(x + pad, y + pad + rh * i - 0.3, w - pad * 2, 0.6); }
+    });
+  },
+  // a recipe: an index card, its name over a red rule, ingredients beside steps (its dish on top when it has one)
+  recipe(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, INK.paper);
+    const p = w * 0.08;
+    let top = y + hgt * 0.12;
+    if (f.img) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, hgt, 3);
+      ctx.clip();
+      fit(ctx, f.img, x, y, w, hgt * 0.46);
+      ctx.restore();
+      top = y + hgt * 0.54;
+    }
+    bar(ctx, x + p, top, w * 0.5, Math.max(2.2, hgt * 0.07), INK.ink);
+    ctx.fillStyle = INK.red;
+    ctx.fillRect(x + p, top + hgt * 0.13, w - p * 2, 0.8);
+    const from = top + hgt * 0.2;
+    const lh = (y + hgt - from - 3) / 3;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = INK.red;
+      ctx.beginPath();
+      ctx.arc(x + p + 1.2, from + lh * (i + 0.5), Math.min(1.3, lh * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+      bar(ctx, x + p + 4, from + lh * (i + 0.5) - lh * 0.16, w * [0.2, 0.26, 0.16][i], Math.max(1.2, lh * 0.32), INK.ink3);
+      bar(ctx, x + w * 0.5, from + lh * (i + 0.5) - lh * 0.16, w * [0.42, 0.36, 0.3][i], Math.max(1.2, lh * 0.32), INK.rule);
+    }
+  },
+  // a book: its cover, with a spine down the left
+  book(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, f.color, 1.5);
+    if (f.img) fit(ctx, f.img, x, y, w, hgt);
+    else {
+      bar(ctx, x + w * 0.2, y + hgt * 0.16, w * 0.6, Math.max(1.8, hgt * 0.05), PRINT);
+      bar(ctx, x + w * 0.2, y + hgt * 0.26, w * 0.4, Math.max(1.8, hgt * 0.05), PRINT);
+    }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    ctx.fillRect(x, y, w * 0.08, hgt);
+  },
+  // a document: a cream page, a centred title and lines in paragraphs
+  page(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, INK.paper, 1.5);
+    const p = w * 0.13;
+    bar(ctx, x + w * 0.24, y + hgt * 0.12, w * 0.52, Math.max(2, hgt * 0.045), INK.ink);
+    const n = Math.max(5, Math.min(11, Math.floor((hgt * 0.66) / 5)));
+    const turn = Math.floor(n * 0.45);
+    for (let i = 0; i < n; i++) {
+      const first = i === 0 || i === turn + 1;
+      const last = i === n - 1 || i === turn;
+      bar(ctx, x + p + (first ? w * 0.08 : 0), y + hgt * 0.26 + i * ((hgt * 0.66) / n), (w - p * 2) * (last ? 0.55 : 1) - (first ? w * 0.08 : 0), Math.max(1, hgt * 0.018), INK.ink3);
+    }
+  },
+  // a link: a small window with its bar, the site's mark and name
+  link(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, INK.pale);
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, hgt, 3);
+    ctx.clip();
+    if (f.img) fit(ctx, f.img, x, y, w, hgt);
+    ctx.fillStyle = INK.rule;
+    ctx.fillRect(x, y, w, hgt * 0.2);
+    ctx.fillStyle = INK.ink3;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + w * 0.08 + i * w * 0.07, y + hgt * 0.1, Math.max(1, hgt * 0.035), 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    if (f.img) return;
+    ctx.fillStyle = INK.tick;
+    ctx.beginPath();
+    ctx.arc(x + w * 0.24, y + hgt * 0.58, hgt * 0.17, 0, Math.PI * 2);
+    ctx.fill();
+    bar(ctx, x + w * 0.46, y + hgt * 0.46, w * 0.4, Math.max(2, hgt * 0.07), INK.ink2);
+    bar(ctx, x + w * 0.46, y + hgt * 0.63, w * 0.28, Math.max(1.5, hgt * 0.05), INK.ink3);
+  },
+  // a PDF or other paper: a white sheet with a red tag
+  sheet(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, PRINT, 1.5);
+    if (f.img) fit(ctx, f.img, x, y, w, hgt);
+    else for (let i = 0; i < 6; i++) bar(ctx, x + w * 0.14, y + hgt * (0.3 + i * 0.1), w * (i === 5 ? 0.4 : 0.72), Math.max(1, hgt * 0.022), INK.ink3);
+    ctx.fillStyle = INK.red;
+    ctx.beginPath();
+    ctx.roundRect(x + w * 0.14, y + hgt * 0.1, w * 0.42, hgt * 0.12, 1.2);
+    ctx.fill();
+  },
+  // a sound: its shape as bars, on night
+  audio(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, INK.night);
+    const n = Math.floor(w / 4);
+    const rand = seeded(`sound:${f.id}`);
+    for (let i = 0; i < n; i++) {
+      const a = (0.15 + 0.85 * Math.abs(Math.sin(i * 0.5) * (0.4 + 0.6 * rand()))) * hgt * 0.62;
+      ctx.fillStyle = i < n * 0.4 ? INK.pale : INK.ink3;
+      ctx.beginPath();
+      ctx.roundRect(x + w * 0.08 + i * ((w * 0.84) / n), y + hgt / 2 - a / 2, Math.max(1.2, (w * 0.84) / n - 1.4), a, 0.8);
+      ctx.fill();
+    }
+  },
+  // anything else: its kind, in its colour
+  other(ctx, f, x, y, w, hgt) {
+    card(ctx, x, y, w, hgt, KIND_TINT[f.kind] || KIND_TINT.other);
+    ctx.fillStyle = PRINT;
     ctx.font = '700 11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(kindWord(block), x + w / 2, y + hgt / 2 + 4);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(f.word, x + w / 2, y + hgt / 2 + 0.5);
+  },
+};
+// Cards that stand taller than wide.
+const UPRIGHT = { book: true, page: true, sheet: true };
+const COVERS = [named('--mark-blue'), named('--ribbon-red'), named('--mark-green'), named('--mark-purple'), named('--mark-yellow')];
+const isDone = (text) => /^\s*(?:[-*]\s*)?\[[xX✓]\]/.test(text);
+const isItem = (text) => /^\s*(?:[-*]\s*)?\[[ xX✓]?\]/.test(text);
+
+// Which drawing a file gets. `planet.modes` decides for notes: on a list every note
+// is an item, on a desk every note is a page. A new kind of file or a new mode adds
+// its line here and its drawing above.
+function faceOf(planet, block, img) {
+  const modes = planet.modes || {};
+  const id = block.id;
+  if (block.meta?.recipe) return { k: 'recipe', img };
+  if (block.kind === 'text') {
+    const text = block.content || block.title || '';
+    const lines = text.split('\n').filter((l) => l.trim());
+    if (lines.length > 1 && lines.filter(isItem).length >= lines.length / 2) return { k: 'list', items: lines.slice(0, 4).map(isDone) };
+    if (modes.documents?.on || text.length > 900) return { k: 'page' };
+    return { k: 'note' };
   }
-  ctx.restore();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.lineWidth = 1;
-  roundRect(ctx, x + 0.5, y + 0.5, w - 1, hgt - 1, 4);
-  ctx.stroke();
+  if (block.ext === 'epub' || (modes.reading?.on && block.ext === 'pdf')) return { k: 'book', img, color: COVERS[Math.floor(seeded(`cover:${id}`)() * COVERS.length)] };
+  if (block.kind === 'link') return { k: 'link', img };
+  if (block.kind === 'pdf' || block.kind === 'doc') return { k: 'sheet', img };
+  if (img) return { k: 'photo', img, video: block.kind === 'video' };
+  if (block.kind === 'audio') return { k: 'audio', id };
+  return { k: 'other', kind: block.kind, word: kindWord(block) };
+}
+
+// A planet's cards. On a list planet the notes are its items, three to a card.
+function cardsOf(planet, previews, images) {
+  if (!planet.modes?.list?.on) return previews.map((b, i) => faceOf(planet, b, images?.[i] || null));
+  const cards = [];
+  let items = [];
+  previews.forEach((b, i) => {
+    if (b.kind === 'text') {
+      items.push(!!b.checked);
+      if (items.length === 3) { cards.push({ k: 'list', items }); items = []; }
+    } else cards.push(faceOf(planet, b, images?.[i] || null));
+  });
+  if (items.length) cards.push({ k: 'list', items });
+  return cards;
+}
+
+// Where the cards sit: one belt round the middle, or two when there are many.
+// The world comes first, so cards stay modest: at most 60 tall of the map's 256.
+function belt(ctx, cards) {
+  const n = cards.length;
+  const two = n > 6;
+  const top = two ? Math.ceil(n / 2) : n;
+  cards.forEach((f, i) => {
+    const upper = i < top;
+    const count = upper ? top : n - top;
+    const j = upper ? i : i - top;
+    const step = MAP_W / Math.max(count, two ? 4 : 5);
+    const hgt = two ? 38 : UPRIGHT[f.k] ? 60 : count <= 3 ? 60 : 48;
+    const w = UPRIGHT[f.k] ? hgt * 0.7 : Math.min(hgt * 1.34, step - 10);
+    FACES[f.k](ctx, f, (j + 0.5 + (upper ? 0 : 0.5)) * step - w / 2, MAP_H * (two ? (upper ? 0.385 : 0.615) : 0.5) - hgt / 2, w, hgt);
+  });
 }
 
 const textures = new Map();
@@ -394,8 +596,7 @@ function composeTexture(planet, previews, images, flat) {
   ctx.scale(TEX_W / MAP_W, TEX_H / MAP_H);
   const colors = worldColors(planet);
   if (flat) paintTerrain(ctx, colors, seeded(planet.id));
-  const spots = tileSpots(previews.length);
-  previews.forEach((block, i) => drawTile(ctx, block, spots[i], images?.[i] || null));
+  belt(ctx, cardsOf(planet, previews, images));
   if (!flat) return { canvas };
   // A thin haze of the planet's own colour over everything ties it together.
   ctx.globalAlpha = 0.12;
@@ -409,7 +610,8 @@ function composeTexture(planet, previews, images, flat) {
 // pictures have loaded.
 function textureFor(planet, previews, onReady) {
   const flat = !canPaint();
-  const key = `${planet.id}|${flat ? `${planet.icon?.c}|${lookOf(planet)}` : ''}|${previews.map((b) => `${b.id}:${b.thumb || ''}`).join(',')}`;
+  const modes = planet.modes || {};
+  const key = `${planet.id}|${flat ? `${planet.icon?.c}|${lookOf(planet)}` : ''}|${modes.list?.on ? 'l' : ''}${modes.documents?.on ? 'd' : ''}${modes.reading?.on ? 'r' : ''}|${previews.map((b) => `${b.id}:${b.thumb || ''}:${b.checked ? 1 : 0}:${b.updatedAt || ''}`).join(',')}`;
   const have = textures.get(key);
   if (have) return have;
   const tex = { key, version: 0, ...composeTexture(planet, previews, null, flat) };
@@ -465,7 +667,7 @@ let gap = 16.7;
 function tick(now) {
   // Held or Still: every planet keeps its picture, so the loop rests until wake().
   const resting = held || reducedMotion();
-  if (resting && !spinning.size) { frame = 0; lastNow = 0; return; }
+  if (resting && !spinning.size && !lifting.size) { frame = 0; lastNow = 0; return; }
   frame = turning.size ? requestAnimationFrame(tick) : 0;
   const dt = lastNow ? Math.min(100, now - lastNow) : 16.7;
   if (lastNow) gap += (dt - gap) * 0.05;
@@ -478,16 +680,17 @@ function tick(now) {
       if (!globe.step(dt)) spinning.delete(globe);
       globe.draw(now, true);
     }
+    for (const globe of lifting) if (!spinning.has(globe)) globe.draw(now, true);
     if (resting) return;
     for (const globe of turning) {
-      if (spinning.has(globe)) continue;
+      if (spinning.has(globe) || lifting.has(globe)) continue;
       if (gone(globe, now)) { letGo(globe); continue; }
       if ((i++ + beat) % turns === 0) globe.draw(now);
     }
   });
 }
 function wake() {
-  if (turning.size && !frame && !document.hidden && (spinning.size || (!held && !reducedMotion()))) frame = requestAnimationFrame(tick);
+  if (turning.size && !frame && !document.hidden && (spinning.size || lifting.size || (!held && !reducedMotion()))) frame = requestAnimationFrame(tick);
 }
 // Planets that have left the page stop turning. The loop lets them go as it
 // goes, but it rests while held or Still, so each new planet checks too.
@@ -522,12 +725,27 @@ export function holdPlanets(on) {
 const FLICK_MS = 90;
 const MAX_SPIN = 0.005;
 const RUB = 2e-7;
+const NUDGE = 0.00022;   // the spin a planet picks up when pointed at, in turns a millisecond
+const LIFT_MS = 2500;    // how long dust takes to lift off a world that has just been used
+const RISE_MS = 1500;    // how long a calm world takes to grow busy
+const DUSTY = 0.385;     // under this much use a world gathers dust (mutt/api.py USE_DUST)
+// Worlds whose dust is lifting are painted every frame until it has.
+const lifting = new Set();
 
 function makeGlobe(canvas, rand, rate = 1) {
-  const period = (80 + rand() * 70) * 1000;
+  // about a minute a turn
+  const period = (40 + rand() * 35) * 1000;
   const offset = rand() * period;
   const seed = [rand() * 97, rand() * 97, rand() * 97];
   const live = canPaint();
+  // Its weather keeps its own clock, so it runs faster on a busy world
+  // without jumping when its use changes.
+  let clock = seed[0] * 10;
+  let clockAt = 0;
+  // Dust lifting off (wake): when it began, and what the world's use becomes after.
+  let lift = 0;
+  let liftFrom = 0.5;
+  let liftTo = 0.5;
   let size = 0;
   let cssSize = 0;
   // A hand's spin on top of its own slow turn: extra turn (a fraction of a
@@ -556,8 +774,10 @@ function makeGlobe(canvas, rand, rate = 1) {
     born: performance.now(),
     setSize(css) {
       cssSize = css;
-      // At most 1.5 pixels a point: sharper costs far more to paint for little to see.
-      const next = Math.max(32, Math.min(live ? 420 : 300, Math.round(css * Math.min(devicePixelRatio || 1, 1.5))));
+      // As sharp as the screen, up to 2 pixels a point; the painter's picture is a
+      // little larger than the ball, for the air round its edge.
+      const next = live ? Math.max(32, Math.min(660, Math.round(css * AIR * Math.min(devicePixelRatio || 1, 2))))
+        : Math.max(32, Math.min(300, Math.round(css * Math.min(devicePixelRatio || 1, 1.5))));
       if (next === size) return;
       size = next;
       canvas.width = size;
@@ -589,7 +809,19 @@ function makeGlobe(canvas, rand, rate = 1) {
       job.source = tex;
       job.turn = turn;
       job.lean = 0.3 + tip;
-      job.time = still ? 0 : now / 1000;
+      if (lift) {
+        // A dusty world: over LIFT_MS the dust clears in patches, then its weather comes
+        // back. One that wasn't dusty just grows busier, over RISE_MS.
+        const dusty = liftFrom < DUSTY;
+        const t = still ? 1 : Math.min(1, (now - lift) / (dusty ? LIFT_MS : RISE_MS));
+        const back = dusty ? Math.max(0, Math.min(1, (t - 0.6) / 0.4)) : t;
+        job.clear = dusty ? Math.min(1, t / 0.75) : 0;
+        job.use = liftFrom + (liftTo - liftFrom) * back * back * (3 - 2 * back);
+        if (t >= 1) { lift = 0; job.clear = 0; job.use = liftTo; lifting.delete(globe); }
+      }
+      if (clockAt && !still) clock += (Math.min(250, now - clockAt) / 1000) * (0.35 + 1.35 * (job.use ?? 0.5));
+      clockAt = now;
+      job.time = still ? 0 : clock;
       if (live && world && paint(ctx, size, job)) {
         drawn = true;
         return;
@@ -609,6 +841,23 @@ function makeGlobe(canvas, rand, rate = 1) {
       visible = on;
       if (on) globe.draw(performance.now(), true);
     },
+    // Pointed at: it spins up a little to show more of what is on it, then coasts down.
+    nudge() {
+      if (grabbed || reducedMotion() || Math.abs(vel) > NUDGE) return;
+      vel = -NUDGE;
+      spinning.add(globe);
+      wake();
+    },
+    // Something landed on a dusty world: the dust lifts off on a wind and its weather returns.
+    wakeUp(to = 1) {
+      liftTo = to;
+      if (lift || (job.use ?? 0.5) >= to) return;
+      liftFrom = job.use ?? 0.5;
+      lift = performance.now();
+      lifting.add(globe);
+      wake();
+    },
+    lifting: () => !!lift,
     // Spinning by hand, like a fidget spinner: the surface follows the
     // pointer sideways (a whole turn is the distance round its middle) and,
     // let go, keeps the speed and direction it was flicked with, coasting
@@ -726,7 +975,7 @@ function spinnable(el, globe) {
 export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true, tag = href ? 'a' : 'div', orbit = false } = {}) {
   const rand = seeded(planet.id);
   const tilt = Math.round((rand() - 0.5) * 36);
-  const ringTilt = Math.round((rand() - 0.5) * 24);
+  rand();   // (a draw once used for the rings' own tilt: kept so every planet shows the face it always has)
   const isMoon = !!planet.parentId;
 
   const canvas = h('canvas', { class: 'planet-map', 'aria-hidden': 'true' });
@@ -746,8 +995,8 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     body,
     label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta) : null);
 
+  // its rings lie round its middle, so they lean as it does
   el.style.setProperty('--tilt', `${tilt}deg`);
-  el.style.setProperty('--ring-tilt', `${ringTilt}deg`);
 
   // Its moons, going round it (on the galaxy only).
   const host = { size: 0, hovered: false };
@@ -772,7 +1021,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     el.classList.toggle('has-moons', orbits.length > 0);
   }
   if (orbit) {
-    const hover = (on) => (e) => { if (e.pointerType !== 'touch') { host.hovered = on; wakeOrbits(); } };
+    const hover = (on) => (e) => { if (e.pointerType !== 'touch') { host.hovered = on; wakeOrbits(); if (on) globeApi.nudge(); } };
     el.addEventListener('pointerenter', hover(true));
     el.addEventListener('pointerleave', hover(false));
     el.addEventListener('focusin', () => { host.hovered = true; wakeOrbits(); });
@@ -780,6 +1029,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   }
 
   let shownWorld = '';
+  let fresh = 0;
   el.update = (next, opts = {}) => {
     planet = next;
     el.planet = next;
@@ -788,17 +1038,21 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const look = lookOf(next);
     const colors = worldColors(next, look);
     el.dataset.look = look;
-    const worldKey = `${look}|${colors.colors.join()}`;
+    const rings = !isMoon && (next.count || 0) >= 10;
+    // How used it is (the server works it out); a moon and a planet that says nothing are calm.
+    // (once something has landed here it stays busy for this visit, whatever the galaxy last said)
+    const use = globeApi.lifting() ? null : Math.max(next.use ?? 0.5, fresh);
+    const worldKey = `${look}|${colors.colors.join()}|${rings}|${!!next.locked}|${use}`;
     if (worldKey !== shownWorld) {
       shownWorld = worldKey;
-      globeApi.setWorld({ look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: colors.colors.map(rgb) });
+      globeApi.setWorld({ look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: colors.colors.map(rgb), rings, lock: !!next.locked, ...(use == null ? {} : { use }) });
     }
     el.style.setProperty('--c', colors.base);
     el.style.setProperty('--c-light', colors.light);
     el.style.setProperty('--c-dark', colors.dark);
     el.classList.toggle('is-locked', !!next.locked);
     el.classList.toggle('is-private', !!next.private);
-    el.classList.toggle('has-rings', !isMoon && (next.count || 0) >= 10);
+    el.classList.toggle('has-rings', rings);
     el.classList.toggle('is-empty', !next.count);
     globeApi.setSize(s);
     if (orbit) setMoons(next.locked ? [] : (next.moons || []), s);
@@ -834,8 +1088,11 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     void bubble.offsetWidth;
     bubble.classList.add('is-on');
   };
-  // Something arrived: the atmosphere flares a little.
+  // Something arrived: the world brightens a moment, and if it had gathered
+  // dust, the dust lifts off.
   el.gulp = () => {
+    fresh = 1;
+    globeApi.wakeUp();
     body.classList.remove('is-gulping');
     void body.offsetWidth;
     body.classList.add('is-gulping');
@@ -898,7 +1155,7 @@ export function moonEl(moon, { size = 28, link = true } = {}) {
     ball.append(canvas);
     const globe = makeGlobe(canvas, rand, kind.rate);
     globe.setSize(size);
-    globe.setWorld({ look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: MOON_PALETTES[look].map(rgb) });
+    globe.setWorld({ look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: MOON_PALETTES[look].map(rgb), use: 0.5 });
     globe.setTexture(blankTexture());
     el.globe = globe;
     el.classList.add('is-gl');
@@ -1027,6 +1284,26 @@ export function planetDot(planet) {
   return h('span', { class: 'planet-dot', style: { '--c': planet.icon?.c || planet.c || '#2F6BFF' }, 'aria-hidden': 'true' });
 }
 
+// A planet's kind of world painted once in another colour, bare and still, for
+// the colour picker. Nothing without the painter (the picker's own dot shows).
+export function worldDot(planet, color, size) {
+  if (!canPaint()) return null;
+  const rand = seeded(planet.id);
+  const tilt = (rand() - 0.5) * 36;
+  rand();
+  const period = 40 + rand() * 35;
+  const offset = rand() * period;
+  const seed = [rand() * 97, rand() * 97, rand() * 97];
+  const look = lookOf(planet);
+  const px = Math.round(size * AIR * Math.min(devicePixelRatio || 1, 2));
+  const canvas = h('canvas', { class: 'world-dot', width: px, height: px, 'aria-hidden': 'true' });
+  const ok = paint(canvas.getContext('2d'), px, {
+    source: blankTexture(), look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: worldColors({ ...planet, icon: { c: color } }, look).colors.map(rgb),
+    turn: offset / period, time: seed[0] * 10, seed, use: 0.5,
+  });
+  return ok ? canvas : null;
+}
+
 // A planet as it looks in its own galaxy, painted once and held still, for
 // the universe. It has no files on it (the universe doesn't load them).
 // `res` is how sharp it's painted, in pixels per pixel of `size`.
@@ -1050,7 +1327,7 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
   const rand = seeded(world.id);
   const tilt = (rand() - 0.5) * 36;
   rand();
-  const period = 80 + rand() * 70;
+  const period = 40 + rand() * 35;
   const offset = rand() * period;
   const seed = [rand() * 97, rand() * 97, rand() * 97];
   if (!blank) {
@@ -1059,7 +1336,7 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
     canvas.height = 2;
     blank = { canvas };
   }
-  const px = Math.max(16, Math.round(size * res));
+  const px = Math.max(16, Math.round(size * res * AIR));
   const canvas = h('canvas', { class: 'uv-world-map', width: px, height: px, 'aria-hidden': 'true' });
   const ok = paint(canvas.getContext('2d'), px, {
     source: blank,
@@ -1067,8 +1344,10 @@ export function worldPicture(world, size, res = Math.min(3, (devicePixelRatio ||
     tilt: (tilt * Math.PI) / 180,
     colors: colors.colors.map(rgb),
     turn: offset / period,
-    time: 0,
+    time: seed[0] * 10,
     seed,
+    use: 0.5,
+    lock: !!world.locked,
   });
   if (ok) {
     el.classList.add('is-painted');

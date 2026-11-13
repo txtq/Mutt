@@ -163,14 +163,30 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     // Everything else fades with the page, so the old page's files don't
     // hang crisp over the new one while it arrives.
     const coming = new Set([...inst.el.querySelectorAll('[data-vt]')].map((el) => el.dataset.vt));
-    let names = new Set();
+    const pairs = visibleShared().filter(([, n]) => coming.has(n));
+    const names = new Set(pairs.map(([, n]) => n));
+    // Opening a planet from a galaxy is a dive toward it, and coming back a pull
+    // away from it (DESIGN.md, "Planets"): the page grows from, or shrinks to,
+    // where the planet is. Between two planets, and everywhere else, pages just change.
+    const isWorld = ([el]) => el.classList.contains('planet-body');
+    const onPlanet = (path) => path.startsWith('/p/');
+    const world = pairs.find(isWorld);
+    const type = !world || onPlanet(current.path) === onPlanet(url.pathname) ? 'page' : onPlanet(url.pathname) ? 'dive' : 'rise';
+    const aim = (pair) => {
+      if (!pair) return;
+      const r = pair[0].getBoundingClientRect();
+      document.documentElement.style.setProperty('--dive-x', `${(r.left + r.width / 2).toFixed(1)}px`);
+      document.documentElement.style.setProperty('--dive-y', `${(r.top + r.height / 2).toFixed(1)}px`);
+    };
+    if (type === 'dive') aim(world);
     await transition(swap, {
-      before: () => {
-        const pairs = visibleShared().filter(([, n]) => coming.has(n));
-        names = new Set(pairs.map(([, n]) => n));
-        return pairs;
+      type,
+      before: () => pairs,
+      after: () => {
+        const now = visibleShared().filter(([, n]) => names.has(n));
+        if (type === 'rise') aim(now.find(isWorld));
+        return now;
       },
-      after: () => visibleShared().filter(([, n]) => names.has(n)),
     });
   }
   else swap();

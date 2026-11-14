@@ -2059,7 +2059,7 @@ def search(req):
         if names:  # "dogs", "a cat on the beach": pictures that show it count too
             seen = [r['id'] for r in req.db.execute(
                 "SELECT id, kind, json_extract(meta, '$.see') AS see FROM blocks "
-                "WHERE user_id = ? AND json_extract(meta, '$.see.v') = ?", (uid, sight.VERSION))
+                "WHERE user_id = ? AND deleted_at IS NULL AND json_extract(meta, '$.see.v') = ?", (uid, sight.VERSION))
                 if sight.shows(json.loads(r['see']), names, r['kind'])]
             if seen:
                 words += " OR b.id IN (SELECT value FROM json_each(?))"
@@ -2767,7 +2767,7 @@ def new_comments(req):
     rows = req.db.execute(
         'SELECT c.block_id, COUNT(*) AS n, MAX(c.created_at) AS latest FROM file_comments c '
         'JOIN blocks b ON b.id = c.block_id '
-        'WHERE b.user_id = ? AND c.seen = 0 AND c.user_id != b.user_id '
+        'WHERE b.user_id = ? AND b.deleted_at IS NULL AND c.seen = 0 AND c.user_id != b.user_id '
         'GROUP BY c.block_id ORDER BY latest DESC LIMIT 12', (req.user['id'],)).fetchall()
     files = []
     for r in rows:

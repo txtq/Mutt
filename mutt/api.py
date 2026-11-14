@@ -1940,9 +1940,20 @@ def search(req):
     pattern = None
     if q:
         pattern = '%' + q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
-        where.append("(b.title LIKE ? ESCAPE '\\' OR b.description LIKE ? ESCAPE '\\' OR "
-                     "b.content LIKE ? ESCAPE '\\' OR b.file_name LIKE ? ESCAPE '\\' OR json_remove(b.meta, '$.look') LIKE ? ESCAPE '\\')")
+        # A picture's reading is numbers, not words: it's matched by what it shows below.
+        words = ("b.title LIKE ? ESCAPE '\\' OR b.description LIKE ? ESCAPE '\\' OR b.content LIKE ? ESCAPE '\\' "
+                 "OR b.file_name LIKE ? ESCAPE '\\' OR json_remove(b.meta, '$.look', '$.see') LIKE ? ESCAPE '\\'")
         params += [pattern] * 5
+        names = sight.asked(q)
+        if names:  # "dogs", "a cat on the beach": pictures that show it count too
+            seen = [r['id'] for r in req.db.execute(
+                "SELECT id, kind, json_extract(meta, '$.see') AS see FROM blocks "
+                "WHERE user_id = ? AND json_extract(meta, '$.see.v') = ?", (uid, sight.VERSION))
+                if sight.shows(json.loads(r['see']), names, r['kind'])]
+            if seen:
+                words += " OR b.id IN (SELECT value FROM json_each(?))"
+                params.append(json.dumps(seen))
+        where.append(f'({words})')
     kind_list = list_arg(req, 'kind', set(kinds.KINDS))
     if kind_list:
         where.append(f"b.kind IN ({','.join('?' * len(kind_list))})")

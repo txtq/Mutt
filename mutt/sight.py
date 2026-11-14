@@ -91,6 +91,64 @@ def read(see):
     return vec, mediums, sights
 
 
+# ---------------------------------------------------------------- searching by what pictures show
+SHOWS_AT = 0.25  # how sure a reading must be for search to say a picture shows something
+
+
+def _picture_words():
+    from .lexicon import MEDIUMS, PICTURE_WORDS, SIGHTS
+    words = {}
+    for name, extra in PICTURE_WORDS.items():
+        if name not in MEDIUMS and name not in SIGHTS:
+            continue
+        for w in [name, *extra.split('|')]:
+            if w:
+                words.setdefault(w, name)
+    return words
+
+
+PICTURE_WORDS = _picture_words()
+LONGEST_WORD = max((len(w.split()) for w in PICTURE_WORDS), default=1)
+
+
+def _word(token):
+    """A typed word as a picture word, plurals included ("beaches", "puppies")."""
+    for w in (token, token[:-3] + 'y' if token.endswith('ies') else None,
+              token[:-2] if token.endswith('es') else None, token[:-1] if token.endswith('s') else None):
+        if w and w in PICTURE_WORDS:
+            return PICTURE_WORDS[w]
+    return None
+
+
+def asked(text):
+    """The kinds of picture and subjects that typed words ask for, when every
+    word means one ("dogs", "a cat on the beach", "linocut"), else an empty set."""
+    from .lexicon import PICTURE_FILLER
+    tokens = [t for t in text.lower().replace(',', ' ').split() if t not in PICTURE_FILLER]
+    names, i = set(), 0
+    while i < len(tokens):
+        for n in range(min(LONGEST_WORD, len(tokens) - i), 0, -1):
+            name = _word(' '.join(tokens[i:i + n]))
+            if name:
+                names.add(name)
+                i += n
+                break
+        else:
+            return set()
+    return names
+
+
+def shows(see, names, kind=None):
+    """Whether a picture's reading says it is or shows every one of `names`.
+    A link's picture is a web page's preview: what it shows counts half, as in sorting."""
+    vec, mediums, sights = read(see)
+    if vec is None:
+        return False
+    if kind == 'link':
+        mediums, sights = {}, {k: p * 0.5 for k, p in sights.items()}
+    return all(max(mediums.get(n, 0), sights.get(n, 0)) >= SHOWS_AT for n in names)
+
+
 def likeness(similarity):
     """How alike two pictures look (from dot() of their numbers), 0..1. CLIP
     puts unrelated pictures at about 0.45 and the same kind of subject at 0.75 and above."""

@@ -45,6 +45,19 @@ echo "bad kind: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" "$B/api/searc
 echo "bad colour: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" "$B/api/search?color=chartreuse")"
 echo "bad vibe: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" "$B/api/search?vibe=sparkly")"
 echo "todo (grey is old-style): $(curl -s "${C[@]}" "$B/api/looks/todo" | j "$names")"
+# What pictures show: readings made to look like the descriptions themselves.
+seen() { python3 -c "
+import base64,json,sys
+d=json.load(open('mutt/sights.json'))['sights']
+v=[sum(x) for x in zip(*(__import__('array').array('b',base64.b64decode(d[n])) for n in sys.argv[1:]))]
+m=max(abs(x) for x in v); print(json.dumps({'see':{'v':1,'e':base64.b64encode(bytes((round(x/m*127))&255 for x in v)).decode()}}))" "$@"; }
+P4=$(up rex.jpg 'dog' image/jpeg); P5=$(up shore.jpg 'beach' image/jpeg); P6=$(up walk.jpg 'both' image/jpeg)
+for pair in "$P4 dog" "$P5 beach" "$P6 dog beach"; do set -- $pair; id=$1; shift
+  curl -s -o /dev/null "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$id -d "$(seen "$@")"; done
+s "pictures that show dogs" "q=puppies"
+s "a dog on the beach" "q=a%20dog%20on%20the%20beach"
+s "beach, in words and pictures" "q=beach"
+s "a word that is not a subject" "q=rex%20dog"
 for i in $(seq 1 62); do curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"filler $i\"}"; done
 echo "page 1: $(curl -s "${C[@]}" "$B/api/search?q=filler" | j "(len(d['blocks']), d['more'])")"
 echo "page 2: $(curl -s "${C[@]}" "$B/api/search?q=filler&offset=60" | j "(len(d['blocks']), d['more'])")"

@@ -26,5 +26,9 @@ bad kind: 400
 bad colour: 400
 bad vibe: 400
 todo (grey is old-style): ['grey']
+pictures that show dogs: ['walk', 'rex']
+a dog on the beach: ['walk']
+beach, in words and pictures: ['walk', 'shore', 'sunset by the beach']
+a word that is not a subject: []
 page 1: (60, True)
 page 2: (2, False)

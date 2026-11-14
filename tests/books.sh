@@ -49,4 +49,6 @@ echo "visitor's own place: $(curl -s "${O[@]}" "${J[@]}" -X PUT $B/api/books/$E/
 echo "visitor can't convert: $(curl -s "${O[@]}" -H X-Mutt:1 -H Content-Type:application/json -X PUT --data-binary @"$SP/t.json" -o /dev/null -w '%{http_code}' $B/api/books/$P/text)"
 echo "visitor can't touch owner's mark: $(curl -s "${O[@]}" "${J[@]}" -X DELETE -o /dev/null -w '%{http_code}' $B/api/books/$E/marks/$H)"
 echo "delete book: $(curl -s "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$E | j "d['ok']")"
+echo "marks kept while recently deleted: $(sqlite3 "$SP/data/mutt.db" 'SELECT COUNT(*) FROM book_marks; SELECT COUNT(*) FROM book_progress;' 2>/dev/null | tr '\n' ' ')"
+echo "empty recently deleted: $(curl -s "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/deleted | j "d['ok']")"
 echo "marks gone: $(sqlite3 "$SP/data/mutt.db" 'SELECT COUNT(*) FROM book_marks; SELECT COUNT(*) FROM book_progress;' 2>/dev/null | tr '\n' ' ')"

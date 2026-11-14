@@ -767,6 +767,12 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .sheet .set-label { font: var(--type-label); color: var(--ink-2); }
 .sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding-top: var(--space-16); border-top: 1px solid var(--line); }
 .sheet-actions .btn-quiet { margin-left: auto; }
+/* Recently deleted, in the account sheet: a section heading over small file boxes, only while something waits */
+.sheet-deleted { padding: var(--space-12) 0 var(--space-16); border-top: 1px solid var(--line); }
+.sheet-deleted[hidden], .sheet-deleted-more[hidden] { display: none; }
+.sheet-deleted-files { --cols: 3; gap: var(--space-12); }
+.sheet-deleted .cell { cursor: pointer; }
+.sheet-deleted-more { margin-top: var(--space-12); }
 @media (max-width: 720px) {
   .sheet { padding: var(--space-16); }
   .sheet .set-row { grid-template-columns: 1fr; gap: var(--space-8); }

@@ -12,6 +12,10 @@ upload: <id> code /f/<id>/a.py
 range: 206 5
 link: link Example Domain
 drawer has: ['code', 'text']
+delete keeps it a week: 1 ['text'] (['code'], 7, 604800000)
+deleted file shows to its owner, can't be edited: 200 404
+restore puts it back: 1 ['code', 'text'] 0
+delete it again from recently deleted: True 0 404
 no csrf header: 403
 spa route: 200
 {"error":"That username and code don't match."}

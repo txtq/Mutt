@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 import threading
 import time
+import traceback
 import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -265,8 +266,10 @@ def own_drawer(req, drawer_id):
     return row
 
 
-def own_block(req, block_id):
-    row = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.id = ? AND b.user_id = ?',
+def own_block(req, block_id, deleted=False):
+    """One of your files. A deleted one only when `deleted` asks for it."""
+    row = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.id = ? AND b.user_id = ?'
+                         + ('' if deleted else ' AND b.deleted_at IS NULL'),
                          (block_id, req.user['id'])).fetchone()
     if not row:
         raise HttpError(404, 'That file does not exist.')
@@ -323,11 +326,15 @@ def in_community_drawer(req, block_id):
         'WHERE c.block_id = ? AND d.community = 1 LIMIT 1', (block_id,)).fetchone())
 
 
-def readable_block(req, block_id):
-    """Your own file, a shared one, or one on a planet you're allowed to see."""
+def readable_block(req, block_id, deleted=False):
+    """Your own file, a shared one, or one on a planet you're allowed to see.
+    A deleted file is gone for everyone, except its owner when `deleted` asks
+    (its picture in Recently deleted)."""
     row = req.db.execute(
         f'SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id '
         'WHERE b.id = ?', (block_id,)).fetchone()
+    if row and row['deleted_at'] and not (deleted and row['user_id'] == req.user['id']):
+        row = None
     if not row:
         raise HttpError(404, 'That file does not exist.')
     if row['user_id'] == req.user['id']:
@@ -406,7 +413,8 @@ def target_drawer(req, drawer_id):
 def saved_from_ids(req):
     return {r[0] for r in req.db.execute(
         "SELECT json_extract(meta, '$.savedFrom.id') FROM blocks "
-        "WHERE user_id = ? AND json_extract(meta, '$.savedFrom.id') IS NOT NULL", (req.user['id'],))}
+        "WHERE user_id = ? AND deleted_at IS NULL AND json_extract(meta, '$.savedFrom.id') IS NOT NULL",
+        (req.user['id'],))}
 
 
 def mark_saved(req, blocks):
@@ -437,10 +445,10 @@ def link_file(from_user, to_user, key):
 
 
 def user_stats(conn, user_id):
-    files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ?', (user_id,)).fetchone()[0]
+    files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ? AND deleted_at IS NULL', (user_id,)).fetchone()[0]
     drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ? AND parent_id IS NULL', (user_id,)).fetchone()[0]
     stars = conn.execute(
-        'SELECT COUNT(*) FROM blocks b WHERE b.user_id = ? AND NOT EXISTS '
+        'SELECT COUNT(*) FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL AND NOT EXISTS '
         '(SELECT 1 FROM connections c WHERE c.block_id = b.id)', (user_id,)).fetchone()[0]
     return {'files': files, 'drawers': drawers, 'stars': stars}
 
@@ -768,7 +776,7 @@ def galaxy_of(req, owner):
     }
     if mine:
         stars = req.db.execute(
-            f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND NOT EXISTS '
+            f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL AND NOT EXISTS '
             '(SELECT 1 FROM connections c WHERE c.block_id = b.id) ORDER BY b.created_at DESC LIMIT 3000',
             (owner['id'],)).fetchall()
         data['stars'] = [block_json(r) for r in stars]
@@ -979,7 +987,7 @@ def create_drawer(req):
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
         position = 0
         for block_id in block_ids:
-            owned = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND user_id = ?',
+            owned = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
                                    (str(block_id), req.user['id'])).fetchone()
             if owned:
                 req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
@@ -1192,7 +1200,7 @@ def photo_json(req, photo_id, owner_id):
     if not photo_id:
         return None
     p = req.db.execute('SELECT id, file_key, file_name, thumb_key, kind, width, height FROM blocks '
-                       'WHERE id = ? AND user_id = ?', (photo_id, owner_id)).fetchone()
+                       'WHERE id = ? AND user_id = ? AND deleted_at IS NULL', (photo_id, owner_id)).fetchone()
     if not p or not (p['thumb_key'] or p['kind'] == 'image'):
         return None
     file_url = f"/f/{p['id']}/{urllib.parse.quote(p['file_name'] or 'photo')}" if p['file_key'] else None
@@ -1493,11 +1501,9 @@ def delete_drawer(req, drawer_id):
     orphans = req.db.execute(ORPHANS_SQL, {'d': drawer_id, 'u': req.user['id']}).fetchall() if req.arg('blocks') == 'orphans' else []
     with db.transaction(req.db):
         for orphan in orphans:
-            req.db.execute('DELETE FROM blocks WHERE id = ?', (orphan['id'],))
+            set_aside(req.db, orphan['id'])
         req.db.execute('DELETE FROM drawers WHERE parent_id = ?', (drawer_id,))
         req.db.execute('DELETE FROM drawers WHERE id = ?', (drawer_id,))
-    for orphan in orphans:
-        remove_block_files(req.user['id'], orphan['file_key'], orphan['thumb_key'])
     return json_response({'ok': True, 'deletedBlocks': len(orphans)})
 
 
@@ -1793,7 +1799,7 @@ def save_block(req, block_id):
         raise HttpError(400, 'That one is already yours.')
     drawer_id = target_drawer(req, req.json().get('drawer'))
     existing = req.db.execute(
-        "SELECT id FROM blocks WHERE user_id = ? AND json_extract(meta, '$.savedFrom.id') = ?",
+        "SELECT id FROM blocks WHERE user_id = ? AND deleted_at IS NULL AND json_extract(meta, '$.savedFrom.id') = ?",
         (req.user['id'], block_id)).fetchone()
     if existing:
         copy_id = existing['id']
@@ -1872,13 +1878,118 @@ def update_block(req, block_id):
 
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)')
 def delete_block(req, block_id):
-    row = own_block(req, block_id)
-    # Where it sat on each planet, so an Undo can put it back in the same place.
-    positions = {r['drawer_id']: r['position'] for r in req.db.execute(
-        'SELECT drawer_id, position FROM connections WHERE block_id = ?', (block_id,))}
-    req.db.execute('DELETE FROM blocks WHERE id = ?', (block_id,))
-    remove_block_files(req.user['id'], row['file_key'], row['thumb_key'])
+    """Delete a file. It waits in Recently deleted for a week (`?forever=1`,
+    or one already there, goes for good now)."""
+    row = own_block(req, block_id, deleted=True)
+    if row['deleted_at'] or req.arg('forever') == '1':
+        erase_block(req.db, row)
+        return json_response({'ok': True, 'positions': {}})
+    with db.transaction(req.db):
+        positions = set_aside(req.db, block_id)
     return json_response({'ok': True, 'positions': positions})
+
+
+# ---------------------------------------------------------------- recently deleted
+
+KEEP_DELETED = 7 * 24 * 3600   # a week
+
+
+def set_aside(conn, block_id):
+    """Take a file off every planet and into Recently deleted, remembering
+    where it sat so it can go back. Returns {planet: position}."""
+    spots = [dict(r) for r in conn.execute(
+        'SELECT drawer_id, position, checked FROM connections WHERE block_id = ?', (block_id,))]
+    conn.execute('DELETE FROM connections WHERE block_id = ?', (block_id,))
+    for s in spots:
+        conn.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), s['drawer_id']))
+    conn.execute('UPDATE blocks SET deleted_at = ?, deleted_from = ? WHERE id = ?', (now(), json.dumps(
+        [{'drawer': s['drawer_id'], 'position': s['position'], 'checked': s['checked']} for s in spots]), block_id))
+    return {s['drawer_id']: s['position'] for s in spots}
+
+
+def erase_block(conn, row):
+    """Gone for good: the row (and everything hung on it) and its files on disk."""
+    conn.execute('DELETE FROM blocks WHERE id = ?', (row['id'],))
+    remove_block_files(row['user_id'], row['file_key'], row['thumb_key'])
+
+
+def purge_deleted(conn, user_id=None):
+    """Erase what has waited in Recently deleted for more than a week."""
+    where, params = 'deleted_at IS NOT NULL AND deleted_at < ?', [now() - KEEP_DELETED]
+    if user_id is not None:
+        where += ' AND user_id = ?'
+        params.append(user_id)
+    rows = conn.execute(f'SELECT id, user_id, file_key, thumb_key FROM blocks WHERE {where}', params).fetchall()
+    for r in rows:
+        erase_block(conn, r)
+    return len(rows)
+
+
+def deleted_json(row):
+    out = block_json(row)
+    out['deletedAt'] = ms(row['deleted_at'])
+    out['goneAt'] = ms(row['deleted_at'] + KEEP_DELETED)
+    return out
+
+
+def start_purging():
+    """Once an hour, erase what has waited in Recently deleted for a week, for everyone."""
+    def loop():
+        while True:
+            try:
+                conn = db.connect()
+                try:
+                    purge_deleted(conn)
+                finally:
+                    conn.close()
+            except Exception:
+                traceback.print_exc()
+            time.sleep(3600)
+    threading.Thread(target=loop, name='purge-deleted', daemon=True).start()
+
+
+@route('GET', r'/api/deleted')
+def list_deleted(req):
+    """Your recently deleted files, newest first."""
+    purge_deleted(req.db, req.user['id'])
+    rows = req.db.execute(
+        f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NOT NULL '
+        'ORDER BY b.deleted_at DESC LIMIT 500', (req.user['id'],)).fetchall()
+    return json_response({'blocks': [deleted_json(r) for r in rows], 'keepDays': KEEP_DELETED // 86400})
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/restore')
+def restore_block(req, block_id):
+    """Put a deleted file back where it was: on every planet it sat on that
+    still exists and still takes it, or as a star if none does."""
+    row = own_block(req, block_id, deleted=True)
+    if not row['deleted_at']:
+        return json_response({'block': block_json(row), 'connections': block_connections(req, block_id),
+                              'drawers': [], 'positions': {}})
+    back, spots = [], {}
+    with db.transaction(req.db):
+        for spot in json.loads(row['deleted_from'] or '[]'):
+            drawer = req.db.execute('SELECT * FROM drawers WHERE id = ?', (str(spot.get('drawer')),)).fetchone()
+            if not drawer or not (drawer['user_id'] == req.user['id'] or drawer['community']):
+                continue
+            req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, checked) '
+                           'VALUES (?, ?, ?, ?, ?)', (block_id, drawer['id'], spot.get('position'), now(), spot.get('checked')))
+            req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer['id']))
+            back.append(drawer['id'])
+            spots[drawer['id']] = spot.get('position')
+        req.db.execute('UPDATE blocks SET deleted_at = NULL, deleted_from = NULL WHERE id = ?', (block_id,))
+    return json_response({'block': reload_block(req, block_id), 'connections': block_connections(req, block_id),
+                          'drawers': back, 'positions': spots})
+
+
+@route('DELETE', r'/api/deleted')
+def empty_deleted(req):
+    """Erase everything in Recently deleted now."""
+    rows = req.db.execute('SELECT id, user_id, file_key, thumb_key FROM blocks WHERE user_id = ? AND deleted_at IS NOT NULL',
+                          (req.user['id'],)).fetchall()
+    for r in rows:
+        erase_block(req.db, r)
+    return json_response({'ok': True, 'erased': len(rows)})
 
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/connections')
@@ -1936,7 +2047,7 @@ def search(req):
     """Your planets and files, by words and/or kind, extension, date, colour and traits."""
     q = (req.arg('q') or '').strip()[:100]
     uid = req.user['id']
-    where, params = ['b.user_id = ?'], [uid]
+    where, params = ['b.user_id = ?', 'b.deleted_at IS NULL'], [uid]
     pattern = None
     if q:
         pattern = '%' + q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
@@ -2003,7 +2114,7 @@ def search(req):
 def see_todo(req):
     """Your files with a picture that the picture reader hasn't read yet."""
     rows = req.db.execute(
-        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? "
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL "
         "AND (b.thumb_key IS NOT NULL OR b.kind = 'image') "
         "AND COALESCE(json_extract(b.meta, '$.see.v'), 0) != ? "
         "ORDER BY b.created_at DESC LIMIT 200", (req.user['id'], sight.VERSION)).fetchall()
@@ -2024,7 +2135,7 @@ def see_model(req):
 def looks_todo(req):
     """Your files with a picture whose colours haven't been measured (the current way) yet."""
     rows = req.db.execute(
-        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? "
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL "
         "AND (b.thumb_key IS NOT NULL OR b.kind = 'image') "
         "AND COALESCE(json_extract(b.meta, '$.look.v'), 0) < 2 "
         "ORDER BY b.created_at DESC LIMIT 300", (req.user['id'],)).fetchall()
@@ -2308,7 +2419,7 @@ FILE_CSP = "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self';
 
 @route('GET', r'/f/(?P<block_id>[\w-]+)(?:/[^/]*)?')
 def serve_file(req, block_id):
-    row, _ = readable_block(req, block_id)
+    row, _ = readable_block(req, block_id, deleted=True)
     if not row['file_key']:
         raise HttpError(404, 'This file has nothing to download.')
     path = os.path.join(db.user_files_dir(row['user_id']), row['file_key'])
@@ -2321,7 +2432,7 @@ def serve_file(req, block_id):
 
 @route('GET', r'/t/(?P<block_id>[\w-]+)')
 def serve_thumb(req, block_id):
-    row, _ = readable_block(req, block_id)
+    row, _ = readable_block(req, block_id, deleted=True)
     if not row['thumb_key']:
         raise HttpError(404, 'No preview yet.')
     path = os.path.join(db.user_files_dir(row['user_id']), row['thumb_key'])

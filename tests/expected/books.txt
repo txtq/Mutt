@@ -29,4 +29,6 @@ visitor's own place: 1:5 / owner still 3:1200
 visitor can't convert: 404
 visitor can't touch owner's mark: 404
 delete book: True
+marks kept while recently deleted: 2 2
+empty recently deleted: True
 marks gone: 0 0

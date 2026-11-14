@@ -8,8 +8,10 @@ import { api, session } from './api.js';
 import { glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
-import { closeTopLayer, confirmDialog, segmented, toast } from './ui.js';
-import { bus, h, plural } from './util.js';
+import { closeTopLayer, confirmDialog, openContextMenu, openMenu, sectionHead, segmented, toast } from './ui.js';
+import { bus, DUR, EASE_LEAVE, h, plural } from './util.js';
+import { renderCell } from './cells.js';
+import { restoreBlock } from './actions.js';
 import { changePin, deleteAccount, signOut } from './account.js';
 import { searchBody } from './search.js';
 import { icon } from './icons.js';
@@ -27,8 +29,8 @@ function sheet(className, build) {
   document.body.append(el);
   let open = false;
   let anchor = null;
-  // Menus opened from a sheet sit outside it; using them keeps it open, and Escape closes them first.
-  const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target) && !e.target.closest?.('.pop')) close(); };
+  // Menus and dialogs opened from a sheet sit outside it; using them keeps it open, and Escape closes them first.
+  const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target) && !e.target.closest?.('.pop, .scrim')) close(); };
   const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (!closeTopLayer()) close(); } };
   function show(from) {
     for (const s of sheets) if (s !== api_) s.close();
@@ -97,6 +99,108 @@ async function tidyPlanets() {
   }
 }
 
+// ---------------------------------------------------------------- recently deleted
+
+// Deleted files wait here a week before they go for good. The section shows
+// only while something is waiting; a file is put back from its menu.
+const FIRST = 6;   // two rows, shown before "Show all"
+const DAY = 86400000;
+
+function leftOf(block) {
+  const days = Math.ceil((block.goneAt - Date.now()) / DAY);
+  return days > 1 ? `${plural(days, 'day')} left` : 'Goes today';
+}
+
+function recentlyDeleted() {
+  const el = h('section', { class: 'sheet-deleted', hidden: true, 'aria-label': 'Recently deleted' });
+  let blocks = [];
+  let all = false;
+  const grid = h('div', { class: 'grid sheet-deleted-files' });
+  const more = h('button', { type: 'button', class: 'btn btn-quiet btn-small sheet-deleted-more', onclick: () => { all = true; paint(); } });
+  const empty = h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: emptyAll }, 'Empty');
+  const head = sectionHead('Recently deleted', { tools: [empty] });
+  el.append(head.el, grid, more);
+
+  function paint() {
+    el.hidden = !blocks.length;
+    head.fact.textContent = `${blocks.length} · kept a week`;
+    const shown = all ? blocks : blocks.slice(0, FIRST);
+    grid.replaceChildren(...shown.map(cellFor));
+    more.hidden = shown.length === blocks.length;
+    more.textContent = `Show all ${blocks.length}`;
+  }
+
+  function cellFor(block) {
+    const cell = renderCell(block, { actions: false });
+    const cap = cell.querySelector('.cell-cap');
+    cap.querySelector('.cell-fact')?.remove();
+    cap.append(h('span', { class: 'cell-fact' }, leftOf(block)));
+    cell.setAttribute('role', 'button');
+    cell.setAttribute('aria-haspopup', 'menu');
+    const items = () => [
+      { icon: 'undo', label: 'Put back', run: () => putBack(block, cell) },
+      { icon: 'trash', label: 'Delete now…', danger: true, run: () => eraseOne(block, cell) },
+    ];
+    cell.addEventListener('click', () => openMenu(cell, items()));
+    cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMenu(cell, items()); } });
+    cell.addEventListener('contextmenu', (e) => openContextMenu(e, items(), { target: cell }));
+    return cell;
+  }
+
+  // A box leaving the section folds away before the rest close the gap.
+  async function leave(block, cell) {
+    blocks = blocks.filter((b) => b.id !== block.id);
+    await cell.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.92)' }],
+      { duration: DUR.change, easing: EASE_LEAVE }).finished.catch(() => {});
+    paint();
+  }
+
+  async function putBack(block, cell) {
+    const back = await restoreBlock(block);
+    if (!back) return;
+    leave(block, cell);
+    const names = back.connections.filter((c) => back.drawers.includes(c.id)).map((c) => c.title);
+    toast(names.length === 1 ? `Put back on ${names[0]}` : names.length ? `Put back on ${plural(names.length, 'planet')}` : 'Put back as a star');
+  }
+
+  async function eraseOne(block, cell) {
+    const ok = await confirmDialog({
+      title: 'Delete this file for good?',
+      message: 'It can’t be brought back.',
+      confirm: 'Delete for good',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.del(`/api/blocks/${block.id}`);
+      leave(block, cell);
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async function emptyAll() {
+    const ok = await confirmDialog({
+      title: 'Empty Recently deleted?',
+      message: `${plural(blocks.length, 'file')} will be gone for good. This can’t be undone.`,
+      confirm: 'Empty',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.del('/api/deleted');
+      blocks = [];
+      paint();
+      toast('Recently deleted is empty');
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  api.get('/api/deleted').then((res) => { blocks = res.blocks || []; paint(); }).catch(() => {});
+  return el;
+}
+
 function settingsBody(close) {
   const stats = { files: 0, drawers: 0, stars: 0, ...session.stats };
   return h('div', { class: 'sheet-in' },
@@ -111,6 +215,7 @@ function settingsBody(close) {
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
+    recentlyDeleted(),
     h('div', { class: 'sheet-actions' },
       h('button', { type: 'button', class: 'btn', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
       h('button', { type: 'button', class: 'btn', onclick: () => { close(); changePin(); } }, 'Change code'),

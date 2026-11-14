@@ -150,6 +150,10 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Settings**: sky (Vita, Nebula, Aurora,
   Dusk), logo, text size, motion (Lively, Calm or Still) and music (On or
   Off). Mutt also respects your system's reduce-motion setting.
+- **Recently deleted**: a deleted file waits a week before it's gone for
+  good. While anything is waiting, the account sheet shows it under
+  "Recently deleted": put a file back (onto the planets it was on) or delete
+  it now, or empty the lot.
 - **Music**: `public/assets/audio/music.mp3` plays quietly on a loop while
   you're signed in, starting on your first tap or key (browsers don't allow
   sound before that) and pausing when the tab is hidden. Without that file, a

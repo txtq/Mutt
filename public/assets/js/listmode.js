@@ -467,8 +467,8 @@ export class ListView {
       if (after) body.after = after;
       const { block } = await api.post('/api/blocks', body);
       if (!this.find(temp.id)) {
-        // Removed while it was being saved.
-        api.del(`/api/blocks/${block.id}`).catch(() => {});
+        // Removed while it was being saved: nothing to keep in Recently deleted.
+        api.del(`/api/blocks/${block.id}?forever=1`).catch(() => {});
         return null;
       }
       this.swapId(temp.id, { ...block, checked: temp.checked || null });
@@ -764,23 +764,15 @@ export class ListView {
   }
 
   // Undo. Each item goes back where it was, both on screen and on the server.
-  // A note made again gets a new id, so later items placed beside it look it up.
+  // A deleted note comes back out of Recently deleted, in its old place.
   async restore(gone) {
-    const renamed = new Map();
-    const here = (id) => {
-      const now = renamed.get(id) || id;
-      return now && this.find(now) ? now : null;
-    };
+    const here = (id) => (id && this.find(id) ? id : null);
     let failed = null;
     for (const { block, prevId, nextId, only, position } of gone) {
       try {
         let back;
         if (only) {
-          const body = { content: block.content, drawer: this.drawer.id };
-          if (typeof position === 'number') body.position = position;
-          else if (here(prevId)) body.after = here(prevId);
-          ({ block: back } = await api.post('/api/blocks', body));
-          renamed.set(block.id, back.id);
+          ({ block: back } = await api.post(`/api/blocks/${block.id}/restore`));
         } else {
           const body = { drawer: this.drawer.id };
           if (typeof position === 'number') body.position = position;

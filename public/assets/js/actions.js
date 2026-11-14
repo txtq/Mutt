@@ -307,8 +307,8 @@ export async function deleteBlock(block) {
   const ok = await confirmDialog({
     title: 'Delete this file?',
     message: block.connectionCount > 1
-      ? `It leaves all ${plural(block.connectionCount, 'planet')} it’s on. This can’t be undone.`
-      : 'This can’t be undone.',
+      ? `It leaves all ${plural(block.connectionCount, 'planet')} it’s on, and waits a week in Recently deleted.`
+      : 'It waits a week in Recently deleted, in your account.',
     confirm: 'Delete',
     danger: true,
   });
@@ -316,11 +316,25 @@ export async function deleteBlock(block) {
   try {
     await api.del(`/api/blocks/${block.id}`);
     bus.emit('block:deleted', { id: block.id });
-    toast('Deleted');
+    toast('Deleted', { action: { label: 'Undo', run: () => restoreBlock(block) } });
     return true;
   } catch (err) {
     toast(err.message);
     return false;
+  }
+}
+
+// Bring a deleted file back out of Recently deleted, onto every planet it was
+// on (that still takes it), in its old place; a star if none does.
+export async function restoreBlock(block) {
+  try {
+    const { block: back, connections, drawers, positions } = await api.post(`/api/blocks/${block.id}/restore`);
+    for (const drawerId of drawers) bus.emit('block:connected', { block: back, drawerId, connections, position: positions[drawerId] });
+    if (!drawers.length) bus.emit('block:connected', { block: back, drawerId: null, connections });
+    return { block: back, drawers, connections };
+  } catch (err) {
+    toast(err.message);
+    return null;
   }
 }
 

@@ -2635,11 +2635,58 @@ def file_comments(req, block_id, owner_id):
              'canRemove': me in (r['user_id'], owner_id)} for r in rows]
 
 
+def comments_seen(req, block_id):
+    req.db.execute('UPDATE file_comments SET seen = 1 WHERE block_id = ? AND seen = 0', (block_id,))
+
+
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/comments')
 def get_file_comments(req, block_id):
-    """What people have said about a file, oldest first. Anyone who can see the file can read them."""
-    row, _ = readable_block(req, block_id)
+    """What people have said about a file, oldest first. Anyone who can see the file can read them.
+    Its owner reading them has seen them."""
+    row, mine = readable_block(req, block_id)
+    if mine:
+        comments_seen(req, block_id)
     return json_response({'comments': file_comments(req, block_id, row['user_id'])})
+
+
+@route('GET', r'/api/comments/new')
+def new_comments(req):
+    """Comments other people left on your files that you haven't seen yet, one
+    entry per file, newest first: told about on your galaxy, under the clock."""
+    rows = req.db.execute(
+        'SELECT c.block_id, COUNT(*) AS n, MAX(c.created_at) AS latest FROM file_comments c '
+        'JOIN blocks b ON b.id = c.block_id '
+        'WHERE b.user_id = ? AND c.seen = 0 AND c.user_id != b.user_id '
+        'GROUP BY c.block_id ORDER BY latest DESC LIMIT 12', (req.user['id'],)).fetchall()
+    files = []
+    for r in rows:
+        block = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.id = ?', (r['block_id'],)).fetchone()
+        last = req.db.execute(
+            'SELECT c.body, c.created_at, u.username FROM file_comments c JOIN users u ON u.id = c.user_id '
+            'JOIN blocks b ON b.id = c.block_id WHERE c.block_id = ? AND c.seen = 0 AND c.user_id != b.user_id '
+            'ORDER BY c.created_at DESC', (r['block_id'],)).fetchall()
+        people = list(dict.fromkeys(x['username'] for x in last))
+        # The planet to open it on: the first it was put on (a star opens on the galaxy).
+        planet = req.db.execute(
+            'SELECT d.id, d.title FROM connections c JOIN drawers d ON d.id = c.drawer_id '
+            'WHERE c.block_id = ? ORDER BY d.parent_id IS NOT NULL, c.connected_at LIMIT 1', (r['block_id'],)).fetchone()
+        files.append({
+            'block': block_json(block),
+            'count': r['n'],
+            'people': people,
+            'latest': {'by': last[0]['username'], 'body': last[0]['body'][:140], 'createdAt': ms(last[0]['created_at'])},
+            'planet': {'id': planet['id'], 'title': planet['title']} if planet else None,
+        })
+    return json_response({'files': files})
+
+
+@route('POST', r'/api/comments/seen')
+def mark_comments_seen(req):
+    """The owner has seen what was said on one of their files (or waved the note away)."""
+    block_id = str(req.json().get('block') or '')
+    own_block(req, block_id)
+    comments_seen(req, block_id)
+    return json_response({'ok': True})
 
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/comments')
@@ -2649,8 +2696,11 @@ def add_file_comment(req, block_id):
     text = text_field(req.json(), 'body', COMMENT_LIMIT, 'Comment')
     if not text:
         raise HttpError(400, 'Write a comment first.')
-    req.db.execute('INSERT INTO file_comments (id, block_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)',
-                   (new_id(), block_id, req.user['id'], text, now()))
+    mine = row['user_id'] == req.user['id']
+    if mine:
+        comments_seen(req, block_id)  # answering them means they were read
+    req.db.execute('INSERT INTO file_comments (id, block_id, user_id, body, created_at, seen) VALUES (?, ?, ?, ?, ?, ?)',
+                   (new_id(), block_id, req.user['id'], text, now(), 1 if mine else 0))
     return json_response({'comments': file_comments(req, block_id, row['user_id'])}, status=201)
 
 

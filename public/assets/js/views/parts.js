@@ -13,6 +13,7 @@ import { entryCell } from '../entry.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, stepper, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
 import { ICON_NAMES, icon } from '../icons.js';
+import { commentNote } from '../commentnotes.js';
 
 const held = (el, ...states) => { el.classList.add(...states.map((s) => `is-${s}`)); el.tabIndex = -1; return el; };
 const off = (el) => { el.disabled = true; return el; };
@@ -164,6 +165,11 @@ function overlays() {
         upload(0, 'Uploading 1 of 7'), upload(0.43, 'Uploading 3 of 7'), upload(1, 'Added 7 files'), h('div', { class: 'toast is-upload is-failed' }, h('i', { class: 'toast-void' }), h('span', null, '2 uploads failed'), h('button', { type: 'button' }, 'Retry'))),
       row('The real ones', btn('Show a toast', '', { onclick: () => toast('Sent to Recipes', { action: { label: 'Move', run: () => toast('Moved') } }) }),
         btn('A long one', '', { onclick: () => toast('“The summer we kept writing home” is on Postcards and Drafts now, and it kept its place in both') }))),
+    section('Comment note', 'New comments on your files, told on your own galaxy under the clock, one note per file, three at a time. Pressing it opens the file at its comments; the cross waves it away.',
+      h('div', { class: 'parts-stack parts-notes' },
+        commentNote({ block: { kind: 'text', content: 'the pier at dusk' }, count: 1, people: ['ines'], latest: { by: 'ines', body: 'I know this pier! Is it Brighton?', createdAt: Date.now() - 3 * 3600e3 } }),
+        commentNote({ block: { kind: 'text', title: 'The summer we kept writing home' }, count: 3, people: ['tomas'], latest: { by: 'tomas', body: 'The second paragraph is my favourite thing you have written all year, honestly.', createdAt: Date.now() - 26 * 3600e3 } }),
+        commentNote({ block: { kind: 'image', title: 'Harbour wall.jpg' }, count: 4, people: ['ines', 'tomas', 'ada'], latest: { by: 'ada', body: 'Such light', createdAt: Date.now() - 4 * 86400e3 } }))),
     section('Tip', 'Mutt speaking once: the sharing tip, the phone note.', tip),
     section('Tooltip', 'What an icon button or a cut-off name is called. Point at the round buttons at the top for the real one.',
       row(null, tooltip('Search', '/'), tooltip('Planet options'))),

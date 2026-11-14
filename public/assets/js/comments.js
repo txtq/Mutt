@@ -10,6 +10,10 @@ import { icon } from './icons.js';
 
 const LIMIT = 2000;
 
+// A file opened from a "new comments" note (commentnotes.js) shows its comments once they're in.
+let reveal = null;
+export function showCommentsOf(id) { reveal = id; }
+
 export function commentSection(block, { go = () => {}, onCount = () => {} } = {}) {
   const owner = block.mine !== false;
   let comments = null;
@@ -129,7 +133,12 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
 
   el.hidden = owner && !block.commentCount;
   if (!owner || block.commentCount) list.append(h('li', { class: 'vw-cm-empty' }, '…'));
-  api.get(`/api/blocks/${block.id}/comments`).then((res) => show(res.comments)).catch(() => {
+  api.get(`/api/blocks/${block.id}/comments`).then((res) => {
+    show(res.comments);
+    if (reveal !== block.id) return;
+    reveal = null;
+    requestAnimationFrame(() => list.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }).catch(() => {
     if (!comments) list.replaceChildren(h('li', { class: 'vw-cm-empty' }, 'Comments didn’t load.'));
   });
 

@@ -254,6 +254,15 @@ def migrate(conn):
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'body TEXT NOT NULL, created_at REAL NOT NULL)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_file_comments ON file_comments(block_id, created_at)')
+    if 'seen' not in {row[1] for row in conn.execute('PRAGMA table_info(file_comments)')}:
+        # Whether the file's owner has seen it: what they're told about on their
+        # galaxy. An owner's own comments, and any they've answered, count as seen.
+        conn.execute('ALTER TABLE file_comments ADD COLUMN seen INTEGER NOT NULL DEFAULT 0')
+        conn.execute('UPDATE file_comments SET seen = 1 WHERE user_id = (SELECT user_id FROM blocks WHERE id = block_id) '
+                     'OR EXISTS (SELECT 1 FROM file_comments o JOIN blocks b ON b.id = o.block_id '
+                     'WHERE o.block_id = file_comments.block_id AND o.user_id = b.user_id '
+                     'AND o.created_at >= file_comments.created_at)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_file_comments_unseen ON file_comments(seen, block_id)')
     # Browsers that have signed in to an account; they skip its account-wide lock.
     conn.execute('CREATE TABLE IF NOT EXISTS devices ('
                  'device_hash TEXT NOT NULL, '

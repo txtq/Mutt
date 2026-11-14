@@ -106,7 +106,7 @@ export function stepper({ value, min = -Infinity, max = Infinity, step = 1, form
   return { el, set, get value() { return current; }, down, up, out };
 }
 
-function exit(el, className = 'is-leaving', fallback = DUR.change + 60) {
+export function exit(el, className = 'is-leaving', fallback = DUR.change + 60) {
   return new Promise((resolve) => {
     if (reducedMotion()) { el.remove(); resolve(); return; }
     el.classList.add(className);

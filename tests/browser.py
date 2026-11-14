@@ -236,6 +236,10 @@ def seed():
     other = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     other.open(urllib.request.Request(SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
                                       data=json.dumps({'username': 'neighbour', 'pin': '258093'}).encode()), timeout=20)
+    # who leaves a comment on one of the postcards, for the note under the clock
+    pier = next(b['id'] for b in send('GET', f'/api/drawers/{ids["Postcards"]}')['blocks'] if b['content'] == 'the pier at dusk')
+    other.open(urllib.request.Request(SITE + f'/api/blocks/{pier}/comments', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+                                      data=json.dumps({'body': 'I know this pier! Is it Brighton?'}).encode()), timeout=20)
 
     # the seed itself is checked: each planet must be offered the mode its path expects
     for title, mode in (('Shopping', 'list'), ('Recipes to try', 'cookbook'), ('Essays', 'documents'), ('Shelf', 'reading')):
@@ -296,6 +300,38 @@ def sign_in(s, seeded):
            'the right code did not open the galaxy with its 7 planets', 12)
     s.settle(1.5)
     s.shot('galaxy')
+
+
+def comment_notes(s, seeded):
+    """A comment left while you were away shows under the clock on your galaxy and opens its file."""
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
+    note = s.see('.cn-note', 'a new comment was not told under the clock')
+    if 'neighbour' not in s.js('return arguments[0].textContent', note):
+        raise Fail('the note under the clock does not say who commented')
+    s.settle(1)
+    s.shot('comment-note')
+    s.size(PHONE)
+    try:
+        s.go('/')
+        s.see('.cn-note', 'the note under the clock did not show at phone width')
+        s.settle(1)
+        s.no_sideways_scroll('The galaxy with a comment note')
+        s.shot('phone-comment-note')
+    finally:
+        s.size(DESK)
+    s.go('/')
+    s.click('.cn-open')
+    s.wait('return location.pathname === arguments[0] && new URL(location.href).searchParams.has("b")',
+           'pressing the note did not open the file on its planet', 8, (f'/p/{seeded["Postcards"]}',))
+    s.wait('return /Brighton/.test(document.querySelector(".vw-cm-list")?.textContent || "")',
+           'the file opened from the note does not show the comment')
+    s.settle(1)
+    s.shot('comment-note-opened')
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
+    s.settle(1)
+    s.gone('.cn-note', 'a comment already seen was told again')
 
 
 def add_through_void(s, seeded):
@@ -468,7 +504,7 @@ def keyboard(s, seeded):
     s.shot('keyboard-in-sheet')
 
 
-PATHS = [sign_up, sign_in, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
+PATHS = [sign_up, sign_in, comment_notes, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, open_book, universe, phone, sample_page, keyboard]
 
 

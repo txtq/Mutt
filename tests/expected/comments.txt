@@ -12,4 +12,10 @@ visitor takes back: ['other', 'owner']
 owner removes other's: ['owner']
 gone: That comment is gone.
 no csrf: Requests need to come from Mutt itself.
+owner told: [('Sunset', 'Photos', ['other', 'visitor'], 3, 'Nice one from X')]
+others not told: []
+not yours to mark: That file does not exist.
+opened, seen: []
+a new one: [('Sunset', 'Photos', ['visitor'], 1, 'One more')]
+waved away: []
 file deleted: That file does not exist.

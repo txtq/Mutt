@@ -25,5 +25,18 @@ echo "visitor takes back: $(curl -s "${V[@]}" -H X-Mutt:1 -X DELETE $B/api/block
 echo "owner removes other's: $(curl -s "${A[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$F/comments/$C2 | j "[c['by'] for c in d['comments']]")"
 echo "gone: $(curl -s "${A[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$F/comments/$C2 | j "d['error']")"
 echo "no csrf: $(curl -s "${V[@]}" -H Content-Type:application/json -X POST $B/api/blocks/$F/comments -d '{"body":"x"}' | j "d.get('error')")"
+# New comments are told to the owner on their galaxy until they've seen them.
+G=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"Sunset\",\"drawer\":\"$D\"}" | j "d['block']['id']")
+for who in V V X; do eval "curl -s \"\${$who[@]}\" \"\${J[@]}\" -X POST $B/api/blocks/$G/comments -d '{\"body\":\"Nice one from $who\"}' >/dev/null"; done
+NEW="[(f['block']['content'], f['planet']['title'], f['people'], f['count'], f['latest']['body']) for f in d['files']]"
+echo "owner told: $(curl -s "${A[@]}" $B/api/comments/new | j "$NEW")"
+echo "others not told: $(curl -s "${V[@]}" $B/api/comments/new | j "d['files']")"
+echo "not yours to mark: $(curl -s "${V[@]}" "${J[@]}" -X POST $B/api/comments/seen -d "{\"block\":\"$G\"}" | j "d['error']")"
+curl -s "${A[@]}" $B/api/blocks/$G/comments >/dev/null
+echo "opened, seen: $(curl -s "${A[@]}" $B/api/comments/new | j "$NEW")"
+curl -s "${V[@]}" "${J[@]}" -X POST $B/api/blocks/$G/comments -d '{"body":"One more"}' >/dev/null
+echo "a new one: $(curl -s "${A[@]}" $B/api/comments/new | j "$NEW")"
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/comments/seen -d "{\"block\":\"$G\"}" >/dev/null
+echo "waved away: $(curl -s "${A[@]}" $B/api/comments/new | j "$NEW")"
 curl -s "${A[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$F >/dev/null
 echo "file deleted: $(curl -s "${V[@]}" $B/api/blocks/$F/comments | j "d['error']")"

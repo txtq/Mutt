@@ -499,7 +499,7 @@ body {
 /* ---- bar glass: Mutt's own. A new shared part joins this list; a feature's own tool on Mutt's glass
    (the editor's toolbar, its bubble) takes the class `.bar-glass`.
    No `position` here: .pop must stay fixed, and each part places itself. */
-.sheet, .dialog, .pop, .toast, .tip, .tooltip, .fx-chip, .bar-glass {
+.sheet, .dialog, .pop, .toast, .cn-note, .tip, .tooltip, .fx-chip, .bar-glass {
   background: var(--glass-fill);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-light), var(--shadow-float);
@@ -843,6 +843,52 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .toast-void { position: relative; flex: none; width: var(--space-16); height: var(--space-16); border-radius: var(--r-full); background: var(--void); box-shadow: 0 0 0 1px var(--void-ring), 0 0 calc(var(--p, 0) * 10px) color-mix(in srgb, var(--white) calc(var(--p, 0) * 80%), transparent); overflow: hidden; transition: --p var(--dur-move) linear; }
 .toast-void::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-full); background: radial-gradient(circle, var(--white) 0%, var(--white) calc(var(--p, 0) * 70%), transparent calc(var(--p, 0) * 70% + 22%)); }
 .toast.is-failed .toast-void { box-shadow: 0 0 0 1px var(--danger); }
+
+/* ---- comment note: commentnotes.js. New comments on your files, told on your own galaxy, under the clock:
+   a toast's glass set at the top right, one per file, three at a time. Pressing it opens the file at its comments. */
+.cn-notes {
+  position: fixed;
+  top: calc(var(--bar) + var(--space-8));
+  right: max(var(--space-8), env(safe-area-inset-right));
+  z-index: var(--z-bar);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: min(280px, calc(100vw - 2 * var(--space-16)));
+  pointer-events: none;
+}
+.cn-note {
+  position: relative;
+  border-radius: var(--r-box);
+  pointer-events: auto;
+  animation: cn-in var(--dur-arrive) var(--ease-settle) backwards;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+.cn-note.is-leaving { animation: cn-out var(--dur-change) var(--ease-leave) both; }
+@keyframes cn-in { from { opacity: 0; transform: translateY(-12px) scale(0.97); } }
+@keyframes cn-out { to { opacity: 0; transform: translateX(12px) scale(0.98); } }
+.cn-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  padding: 6px 32px 6px 6px;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+  transition: background-color var(--dur-quick);
+}
+.cn-open:hover { background: var(--tint); }
+.cn-x { position: absolute; top: var(--space-4); right: var(--space-4); }
+.cn-lead { flex: none; display: grid; place-items: center; width: 28px; height: 28px; overflow: hidden; border-radius: var(--r-row); background: var(--well); border: 1px solid var(--line); color: var(--who, var(--ink-3)); }
+.cn-lead img { width: 100%; height: 100%; object-fit: cover; }
+.cn-text { display: flex; flex-direction: column; min-width: 0; }
+.cn-line { display: flex; align-items: baseline; gap: var(--space-8); }
+.cn-what { flex: 1; min-width: 0; font: var(--type-caption); color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.cn-at { font-weight: 500; color: var(--blue-ink); }
+.cn-file { font-weight: 500; color: var(--ink); }
+.cn-when { flex: none; font: var(--type-fact); color: var(--ink-3); }
+.cn-said { font: var(--type-caption); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- tip: Mutt speaking once (the sharing tip, the phone note). .tip > .tip-title, .tip-text, .tip-btns */
 .tip { width: min(300px, calc(100vw - 32px)); padding: var(--space-16); border-radius: var(--r-panel); }

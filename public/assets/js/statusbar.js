@@ -13,6 +13,7 @@ import { bus, h, plural } from './util.js';
 import { changePin, deleteAccount, signOut } from './account.js';
 import { searchBody } from './search.js';
 import { icon } from './icons.js';
+import { commentNotes } from './commentnotes.js';
 
 const current = () => ({ ...DEFAULTS, ...session.prefs });
 const save = (patch) => updatePrefs(patch, (err) => err && toast(err.message));
@@ -141,6 +142,9 @@ export function createStatusbar() {
     else nav.go('/');
   });
   let out = false;
+  // New comments on your files, under the clock, while you're on your own galaxy.
+  const notes = commentNotes();
+  const showNotes = () => notes.set(!!session.user && current?.chrome === 'galaxy' && !!current?.who?.you && !out);
   const showHome = () => {
     home.hidden = !session.user || !current?.home;
     // On a phone the arrow sits in the bar, so the bar makes room for it.
@@ -153,6 +157,7 @@ export function createStatusbar() {
     out = on;
     paintWho();
     showHome();
+    showNotes();
   });
 
   const settings = sheet('sheet-settings', settingsBody);
@@ -182,6 +187,7 @@ export function createStatusbar() {
       current = inst;
       paintWho();
       showHome();
+      showNotes();
       if (session.user && !glitched) {
         glitched = true;
         requestAnimationFrame(() => glitch(mark));

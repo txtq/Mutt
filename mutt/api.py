@@ -14,9 +14,9 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, db, documents, kinds, links, media, recipes, sight, sorting
+from . import auth, books, db, documents, export, kinds, links, media, recipes, sight, sorting
 from . import modes as modes_registry
-from .web import HttpError, Response, file_response, json_response, route, stream_to_file
+from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
 MAX_THUMB = 8 * 1024 * 1024
@@ -625,6 +625,29 @@ def delete_account(req):
 
 
 # ---------------------------------------------------------------- look & feel
+
+@route('GET', r'/api/me/export')
+def export_everything(req):
+    """All your files, a folder per planet, and everything Mutt keeps about you, as one zip."""
+    # `mark` comes back as a short-lived cookie once the zip is packed (or failed), so the
+    # page can say "Packing your galaxy…" until the download has really started.
+    mark = req.arg('mark') or ''
+    told = re.fullmatch(r'[a-z0-9]{1,16}', mark)
+    try:
+        tmp, size, name = export.build(req.db, req.user['id'])
+    except Exception:
+        if told:
+            req.extra_headers.append(('Set-Cookie', f'mutt-export={mark}.x; Path=/; Max-Age=120; SameSite=Lax'))
+        raise
+    if told:
+        req.extra_headers.append(('Set-Cookie', f'mutt-export={mark}; Path=/; Max-Age=120; SameSite=Lax'))
+    return Response(200, [
+        ('Content-Type', 'application/zip'),
+        ('Content-Length', str(size)),
+        ('Content-Disposition', content_disposition('attachment', name)),
+        ('Cache-Control', 'no-store'),
+    ], export.stream(tmp))
+
 
 def save_prefs(req, prefs):
     req.db.execute('UPDATE users SET prefs = ? WHERE id = ?', (json.dumps(prefs), req.user['id']))

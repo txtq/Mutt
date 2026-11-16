@@ -22,6 +22,8 @@ echo "deleted file shows to its owner, can't be edited: $(curl -s "${C[@]}" -o /
 echo "restore puts it back: $(curl -s "${C[@]}" -H X-Mutt:1 -X POST $B/api/blocks/$FID/restore | j "len(d['drawers'])") $(curl -s "${C[@]}" $B/api/drawers/$D | j "[b['kind'] for b in d['blocks']]") $(curl -s "${C[@]}" $B/api/deleted | j "len(d['blocks'])")"
 curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$FID
 echo "delete it again from recently deleted: $(curl -s "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$FID | j "d['ok']") $(curl -s "${C[@]}" $B/api/deleted | j "len(d['blocks'])") $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' "$B${F##* }")"
+curl -s "${C[@]}" -D "$SP/exp.h" -o "$SP/exp.zip" "$B/api/me/export?mark=t1"
+echo "download everything: $(grep -o 'mutt-export=t1;' "$SP/exp.h") $(python3 -c "import zipfile,sys,json; z=zipfile.ZipFile(sys.argv[1]); n=sorted(z.namelist()); print(n, json.loads(z.read(\"tester's galaxy/Your data.json\"))['account']['username'])" "$SP/exp.zip") signed out $(curl -s -o /dev/null -w "%{http_code}" $B/api/me/export)"
 echo "no csrf header: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" -H Content-Type:application/json -X POST $B/api/drawers -d '{"title":"x"}')"
 echo "spa route: $(curl -s -o /dev/null -w '%{http_code}' $B/d/whatever)"
 X=(-b "$SP/x.txt" -c "$SP/x.txt")

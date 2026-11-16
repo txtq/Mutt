@@ -9,7 +9,7 @@ import { glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
 import { closeTopLayer, confirmDialog, openContextMenu, openMenu, sectionHead, segmented, toast } from './ui.js';
-import { bus, DUR, EASE_LEAVE, h, plural } from './util.js';
+import { BEAT, bus, DUR, EASE_LEAVE, h, plural } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
 import { changePin, deleteAccount, signOut } from './account.js';
@@ -97,6 +97,36 @@ async function tidyPlanets() {
   } catch (err) {
     toast(err.message);
   }
+}
+
+// ---------------------------------------------------------------- download everything
+
+// Every file, a folder for each planet, and everything Mutt keeps about you,
+// as one zip ("<username>'s galaxy"). Packing a big galaxy takes a while, so
+// the button stays busy until the server's cookie says the download has begun.
+const LONGEST = 30 * 60;   // beats to wait before giving up on hearing back
+
+function downloadEverything() {
+  const label = 'Download everything';
+  const btn = h('button', { type: 'button', class: 'btn' }, label, icon('download'));
+  const cookie = () => document.cookie.split('; ').find((c) => c.startsWith('mutt-export='))?.slice(12);
+  const done = () => { document.cookie = 'mutt-export=; Path=/; Max-Age=0'; btn.disabled = false; btn.replaceChildren(label, icon('download')); };
+  btn.addEventListener('click', () => {
+    const mark = Math.random().toString(36).slice(2, 12);
+    btn.disabled = true;
+    btn.textContent = 'Packing your galaxy…';
+    h('a', { href: `/api/me/export?mark=${mark}`, download: '' }).click();
+    let beats = 0;
+    const wait = setInterval(() => {
+      const got = cookie();
+      if (got === mark || got === `${mark}.x` || ++beats > LONGEST) {
+        clearInterval(wait);
+        done();
+        if (got === `${mark}.x`) toast('Your galaxy couldn’t be packed. Try again in a moment.');
+      }
+    }, BEAT.quick);
+  });
+  return btn;
 }
 
 // ---------------------------------------------------------------- recently deleted
@@ -215,6 +245,7 @@ function settingsBody(close) {
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
+    row('Your files', downloadEverything()),
     recentlyDeleted(),
     h('div', { class: 'sheet-actions' },
       h('button', { type: 'button', class: 'btn', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),

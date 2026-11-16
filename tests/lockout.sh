@@ -15,7 +15,9 @@ echo "2.2.2.2 right code, new browser (expect 200): $(code 2.2.2.2 123493)"
 for i in 1 2 3 4 5 6; do from "2001:db8::$i" 0000 > /dev/null; done
 echo "same IPv6 /64, 7th address (expect 429): $(from 2001:db8::7 0000)"
 for n in $(seq 10 17); do for i in 1 2 3 4 5; do from "9.9.9.$n" 0000 > /dev/null; done; done
-echo "after 40+ misses, new browser (expect 429): $(from 3.3.3.3 1234)"
+# The day is counted from the first of those misses, so a busy machine loses a few seconds
+# before this asks: the wait only has to be within a minute of 24 hours.
+echo "after 40+ misses, new browser (expect 429): $(from 3.3.3.3 1234 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['error'], 'retryAfter within a minute of 24 hours:', 86340 <= d.get('retryAfter', 0) <= 86400)")"
 echo "after 40+ misses, owner's browser (expect 200): $(code 4.4.4.4 123493 -b "$SP/o.txt")"
 echo "owner's browser, wrong code (expect 401): $(code 4.4.4.4 9999 -b "$SP/o.txt")"
 printf '<script>alert(1)</script>' > "$SP/x.html"

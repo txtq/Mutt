@@ -9,7 +9,7 @@ device cookie: 1
 1.1.1.1 right code (expect 429): 429
 2.2.2.2 right code, new browser (expect 200): 200
 same IPv6 /64, 7th address (expect 429): {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
-after 40+ misses, new browser (expect 429): {"error":"Too many wrong codes. Try again in 24 hours.","retryAfter":86399}
+after 40+ misses, new browser (expect 429): Too many wrong codes. Try again in 24 hours. retryAfter within a minute of 24 hours: True
 after 40+ misses, owner's browser (expect 200): 200
 owner's browser, wrong code (expect 401): 401
 x.html served as: <id>: text/plain; charset=utf-8 Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'

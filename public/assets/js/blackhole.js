@@ -237,6 +237,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     open = true;
     clearTimeout(lowering);
     el.classList.add('is-open');
+    sound('swoop');
     sheet.inert = false;
     el.closest('.gx')?.classList.add('is-adding');
     core.setAttribute('aria-expanded', 'true');
@@ -256,6 +257,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     if (!open) return;
     open = false;
     hideList();
+    if (!el.classList.contains('is-swallowing')) sound('unswoop');
     el.classList.remove('is-open', 'is-hungry');
     sheet.inert = true;   // closed, its box takes no keyboard
     el.closest('.gx')?.classList.remove('is-adding');

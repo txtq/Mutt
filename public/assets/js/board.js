@@ -26,6 +26,7 @@ import { confirmDialog, openContextMenu, openPopover, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor } from './uploads.js';
 import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, h, named, personLabel, reducedMotion, seeded, sharpness, uid } from './util.js';
 import { wisp } from './uvweb.js';
+import { sound } from './sound.js';
 
 const UNIT = 220;            // a file's width in the grid
 const GAP = 24;              // between files in the grid
@@ -1196,6 +1197,7 @@ export class BoardView {
     this.place(it);
     it.el?.classList.add('is-lifted');
     this.el.classList.add('is-carrying');
+    sound('lift');
     this.choose(it);
     // the others' edges and middles, to line up with
     const others = [...this.items.values()].filter((o) => o !== it && o.el).map((o) => this.rect(o));
@@ -1338,6 +1340,7 @@ export class BoardView {
       }
       // held and let go without moving: its menu
       if (!g.moved && g.touch) { this.menu({ clientX: e.clientX, clientY: e.clientY, preventDefault() {} }, it); return; }
+      if (g.moved) sound('drop');
       this.moved(it);
     }
   }

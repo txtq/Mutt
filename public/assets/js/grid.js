@@ -2,6 +2,7 @@
 
 import { renderCell, renderDivider, renderPending, updatePending } from './cells.js';
 import { aim, fly, isFlick, landed, tracker } from './fling.js';
+import { sound } from './sound.js';
 import { glide, measure } from './transitions.js';
 import { DUR, EASE, EASE_LEAVE, STAGGER, h, inViewport, reducedMotion } from './util.js';
 
@@ -388,6 +389,7 @@ export class Grid {
     document.body.append(ghost);
     cell.classList.add('is-placeholder');
     document.body.classList.add('is-dragging');
+    sound('lift');
     // Mid-drag the page doesn't scroll, and a phone doesn't open its long-press menu.
     const blockTouch = (te) => te.preventDefault();
     addEventListener('touchmove', blockTouch, { passive: false });
@@ -462,6 +464,7 @@ export class Grid {
     const rects = measure(nearby(items));
     if (slot > current) target.after(d.cell);
     else target.before(d.cell);
+    sound('shift');
     glide(rects, { duration: DUR.arrive });
   }
 
@@ -531,6 +534,7 @@ export class Grid {
       ).finished.then(finish, finish);
     }
     const keys = this.keys();
+    setTimeout(() => sound('drop'), reducedMotion() ? 0 : DUR.move * 0.7);   // as it settles into its place
     if (keys.join(',') !== d.initial) this.onReorder?.(keys);
   }
 

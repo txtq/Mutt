@@ -898,6 +898,8 @@ export class ListView {
     grip.setPointerCapture(e.pointerId);
     li.classList.add('is-lifted');
     this.el.classList.add('is-dragging');
+    sound('lift');
+    let heard = start;
     for (const p of peers) if (p !== li) p.style.transition = `transform 260ms ${EASE}`;
 
     const move = (ev) => {
@@ -905,6 +907,7 @@ export class ListView {
       li.style.transform = `translateY(${dy}px) scale(1.02)`;
       const centre = rects[start].top + rects[start].height / 2 + dy;
       target = Math.max(0, Math.min(peers.length - 1, peers.reduce((n, p, j) => (p !== li && centre > rects[j].top + rects[j].height / 2 ? n + 1 : n), 0)));
+      if (target !== heard) { heard = target; sound('shift'); }   // the others make way
       peers.forEach((p, j) => {
         if (p === li) return;
         let shift = 0;
@@ -934,6 +937,7 @@ export class ListView {
       // Settle from where it was let go.
       const to = li.getBoundingClientRect();
       if (moving()) li.animate([{ transform: `translateY(${from.top - to.top}px) scale(1.02)` }, { transform: 'none' }], { duration: DUR.move, easing: EASE });
+      setTimeout(() => sound('drop'), moving() ? DUR.move * 0.7 : 0);   // as it settles into its place
       if (target !== start) this.saveOrder();
     };
     grip.addEventListener('pointermove', move);

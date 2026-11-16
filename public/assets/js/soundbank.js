@@ -22,7 +22,7 @@
 
 // How loud a sound is, by how often it happens: a press is the quietest, something rare the
 // loudest (the music's own loudest moment is between `done` and `rare`).
-export const LOUD = { press: 0.32, moving: 0.4, done: 0.55, rare: 0.62 };
+export const LOUD = { press: 0.24, moving: 0.3, done: 0.41, rare: 0.47 };
 
 // Each kind of planet has its note (MIDI numbers, D E F G A): big heavy worlds low, small bright high.
 export const PLANET_NOTES = {
@@ -33,7 +33,8 @@ const HOME = 86;   // D: a star's, and the void's
 
 // Every sound. `rank`: 3 rare, 2 something done, 1 moving about, 0 a touch or press (how loud,
 // and who wins when too many arrive at once). `run`: asked again while it still sounds, it adds
-// one more small snap, up to this many in all, instead of starting again. `shy`: left out if
+// one more small snap, up to this many in all, instead of starting again. `gap`: how long after
+// itself it stays silent (a slide while you drag across many places). `shy`: left out if
 // anything sounded just before (none is, now that toasts are silent).
 export const SOUNDS = {
   // Touches and presses
@@ -45,9 +46,12 @@ export const SOUNDS = {
   step: { rank: 0, when: 'A stepper’s + or −', made: 'One tooth of a ratchet' },
   slide: { rank: 0, when: 'A slider passing each notch', made: 'The smallest tick' },
   detent: { rank: 0, when: 'The ring of planets on a phone turning past each planet', made: 'A dial’s notch' },
+  shift: { rank: 0, gap: 'quick', when: 'Rearranging: each time the others make way for what you carry (a planet’s files, a list, a board)', made: 'A soft short slide, like cards shuffling over each other' },
   pick: { rank: 0, when: 'Choosing a row in a menu', made: 'A soft tick as the row blinks' },
   over: { rank: 0, when: 'Something you carry coming over a place that would take it', made: 'A faint breath as the ring lights' },
   // Moving about
+  swoop: { rank: 1, when: 'The void opening into the add box', made: 'A rush of fine dust swooping down and up, settling with a soft pat' },
+  unswoop: { rank: 1, when: 'The void closing again (not when it swallows: that is `take`)', made: 'A shorter rush of dust falling away' },
   pop: { rank: 1, when: 'A menu or small panel growing open', made: 'A small quick rise of air' },
   unpop: { rank: 1, when: 'A menu or panel going', made: 'A small fall of air' },
   sheet: { rank: 1, when: 'A sheet or dialog arriving (account, a question)', made: 'A sweep of air that comes quickly and settles' },
@@ -82,10 +86,11 @@ export const SOUNDS = {
 
 const LEVEL = ['press', 'moving', 'done', 'rare'];
 // Measured (rendered offline in Safari's engine, the loudest 50 ms of each, against the music's
-// loudest): each sound's trim brings it to its rank's loudness, -36, -31, -27 and -25 dB against
-// the music's -19 (2026-11-16, "less distracting"); a long sweep a little under that, since it
+// loudest): each sound's trim brings it to its rank's loudness, -38.5, -33.5, -29.5 and -27.5 dB against
+// the music's -19 (2026-11-16: "less distracting", then "a bit quieter"); a long sweep a little under that, since it
 // lasts. The faintest ticks (a press, a slider, a notch, a menu row, a find) stay fainter still.
 const TRIM = {
+  swoop: 0.3, unswoop: 0.46, shift: 0.85,
   press: 3.5, key: 1.84, on: 0.34, off: 0.41, select: 0.97, step: 2.24, slide: 2.5, detent: 3,
   pick: 3, over: 0.62, pop: 0.38, unpop: 0.38, sheet: 0.34, unsheet: 0.33, turn: 0.28, open: 0.24,
   close: 0.27, dive: 0.23, surface: 0.26, lift: 0.68, search: 0.35, found: 3, take: 0.53, land: 0.62,
@@ -198,6 +203,17 @@ export function makeBank(ctx, input, { dur }) {
     }
   }
 
+  // Dust: many tiny soft grains, their loudness following a movement's curve (the void is a print
+  // of dust; its opening sounds like that dust rushing round).
+  function dust(d, t, length, n, { shape = 'glide', peak = 0.3, f = 3500, spread = 3000 } = {}) {
+    const pts = [[0, 0], ...SHAPES[shape]];
+    const level = (x) => { for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const [a, va] = pts[i - 1]; const [b, vb] = pts[i]; return va + (vb - va) * ((x - a) / (b - a)); } return 0; };
+    for (let i = 0; i < n; i++) {
+      const x = Math.random();
+      click(d, t + x * length, { f: f + (Math.random() - 0.5) * spread, q: 2.5, len: 0.0015, peak: peak * level(x) * (0.4 + Math.random() * 0.6) });
+    }
+  }
+
   // A soft low touch: something set down or arriving. Felt more than heard.
   function pat(d, t, { f = 260, peak = 1 } = {}) {
     const { g } = noise(d, t, 0.1, f * vary(), 1.2, 'lowpass');
@@ -231,9 +247,28 @@ export function makeBank(ctx, input, { dur }) {
     step(d, t, { down } = {}) { click(d, t, { f: down ? 3000 : 3600, len: 0.002 }); knock(d, t, down ? 1300 : 1650, { decay: 0.01, peak: 0.4 }); return D('quick'); },
     slide(d, t) { click(d, t, { f: 4200, q: 5, len: 0.0015, peak: 0.5 }); return 0.03; },
     detent(d, t) { click(d, t, { f: 3100, q: 4, len: 0.002, peak: 0.6 }); knock(d, t, 1300, { decay: 0.007, peak: 0.25 }); return 0.04; },
+    shift(d, t) { swell(d, t, D('change'), 1500, 2300, { peak: 0.3, shape: 'settle', q: 1.3 }); grain(d, t + 0.005, 2, D('change') * 0.4, { f: 3000, spread: 1200, peak: 0.12 }); return D('change'); },
     pick(d, t) { click(d, t, { f: 3400, q: 3, len: 0.002, peak: 0.7 }); knock(d, t, 1500, { decay: 0.012, peak: 0.35 }); return D('quick'); },
     over(d, t) { swell(d, t, D('move'), 600, 1400, { peak: 0.3, shape: 'settle', q: 0.8 }); return D('move'); },
 
+    swoop(d, t) {
+      const L = D('scene');
+      const { g, bp } = noise(d, t, L, 1400, 0.9);   // air dipping, then rising as it opens
+      bp.frequency.exponentialRampToValueAtTime(500, t + L * 0.3);
+      bp.frequency.exponentialRampToValueAtTime(2200, t + L * 0.85);
+      for (const [at, v] of SHAPES.glide) g.gain.linearRampToValueAtTime(0.45 * v, t + L * at);
+      const b = noise(d, t, L, 300, 0.7, 'lowpass');
+      for (const [at, v] of SHAPES.glide) b.g.gain.linearRampToValueAtTime(0.25 * v, t + L * at);
+      dust(d, t, L * 0.9, 70, { shape: 'glide', peak: 0.35 });
+      pat(d, t + L * 0.85, { f: 240, peak: 0.3 });
+      return L;
+    },
+    unswoop(d, t) {
+      const L = D('move');
+      swell(d, t, L, 2000, 450, { peak: 0.4, shape: 'leave', low: 0.2 });
+      dust(d, t, L, 25, { shape: 'leave', peak: 0.3 });
+      return L;
+    },
     pop(d, t) { swell(d, t, D('move') * 0.7, 1400, 3200, { peak: 0.45, shape: 'spring' }); return D('move'); },
     unpop(d, t) { swell(d, t, D('change'), 2800, 1200, { peak: 0.4, shape: 'leave' }); return D('change'); },
     sheet(d, t) { swell(d, t, D('arrive'), 700, 2200, { peak: 0.55, shape: 'settle', low: 0.25 }); return D('arrive'); },
@@ -329,7 +364,7 @@ export function makeBank(ctx, input, { dur }) {
     const s = SOUNDS[name];
     const t = ctx.currentTime;
     const prev = last[name];
-    const window = s.rank === 0 ? 0.03 : D('move');
+    const window = s.gap ? D(s.gap) : s.rank === 0 ? 0.03 : D('move');
     if (prev && t - prev.at < window) {
       prev.at = t;
       if (!s.run || prev.n >= s.run) return false;

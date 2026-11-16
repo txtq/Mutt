@@ -6,7 +6,7 @@
 // If `/assets/audio/music.mp3` exists it plays that on a loop instead.
 
 import { session } from './api.js';
-import { audio, mayRest, musicPlays } from './sound.js';
+import { audio, mayRest, musicPlays, speakers } from './sound.js';
 
 const TRACK = '/assets/audio/music.mp3';
 const VOLUME = 0.112;
@@ -145,7 +145,7 @@ async function setup() {
   muffle.type = 'lowpass';
   muffle.frequency.value = MUFFLE;
   muffle.Q.value = 0.5;
-  master.connect(muffle).connect(ctx.destination);
+  master.connect(muffle).connect(speakers(ctx));
   if (await hasTrack()) {
     track = new Audio(TRACK);
     track.loop = true;

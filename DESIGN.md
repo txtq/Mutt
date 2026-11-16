@@ -398,6 +398,8 @@ Settled with the user on 2026-11-16 (design idea 20, three rounds on a listening
 
 **On Apple devices** the clock is an "ambient" sound (`navigator.audioSession`): it mixes with the person's own music, and the silent switch silences it. Browsers allow sound only after a tap, so the clock wakes on every pointer-down and key, rests after 15 quiet seconds when no music or wind needs it, and stops when the tab is hidden.
 
+**A browser run by a test is heard by nobody** (2026-11-16, the user: they don't want to hear the hidden browser's tests): when a test drives the browser (`navigator.webdriver`), every sound and the music still play and are counted, but into a silent end with a meter (`speakers()` in `sound.js`; `soundsLoudest()` reads it, the browser path `sounds` checks it), and a song or video in the page plays muted. Anything new that makes sound goes to `speakers(ctx)`, never straight to `ctx.destination`.
+
 **The switch:** `Sounds`, its own row under `Music` in the account sheet, On from the start (`sound` pref, `data-sound` on the page).
 
 **How to add a sound:** say which existing sound it is most like, and use that one if it fits (another chat's throw is a `land`). If it is truly new, add it to `SOUNDS` with a rank, `when` and `made`, build it from the parts above in `MAKE` (no tones held, no chords, at most one glint), measure it (the board's tool, `Mutt-notes/design/sound/`) and set its `TRIM` to its rank's loudness, add it to the table here, and play it to the user first.

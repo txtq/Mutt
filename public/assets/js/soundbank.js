@@ -405,7 +405,7 @@ export function makeBank(ctx, input, { dur }) {
 
 // The chain every sound goes through: a little muffle off the very top, and a limiter, so many
 // sounds at once are never louder than one clear one.
-export function makeOut(ctx) {
+export function makeOut(ctx, end = ctx.destination) {
   const muffle = ctx.createBiquadFilter();
   muffle.type = 'lowpass';
   muffle.frequency.value = 9000;
@@ -418,6 +418,6 @@ export function makeOut(ctx) {
   limit.release.value = 0.2;
   const out = ctx.createGain();
   out.gain.value = 1;
-  muffle.connect(limit).connect(out).connect(ctx.destination);
+  muffle.connect(limit).connect(out).connect(end);
   return { input: muffle, level: out };
 }

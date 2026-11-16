@@ -26,6 +26,34 @@ const root = document.documentElement;
 
 export const soundOn = () => root.dataset.sound !== 'off';
 
+// A browser driven by a test or a measuring script (tests/browser.py's hidden browser, a script in
+// Mutt-notes) is heard by nobody. Everything still plays and is counted (`soundsHeard`), but into a
+// silent end with a meter on it, so a check can still tell that sound came out (`soundsLoudest`)
+// without it reaching the speakers of the computer it runs on. A song or video in the page plays
+// muted there. Every browser marks itself this way when a test drives it (navigator.webdriver).
+const driven = navigator.webdriver === true;
+let sink = null;
+let loudest = 0;
+
+// Where every sound in Mutt goes: the speakers, or the silent end in a test.
+export function speakers(c) {
+  if (!driven) return c.destination;
+  if (sink) return sink;
+  const meter = c.createAnalyser();
+  meter.fftSize = 32768;   // the last ~0.7 s, so reading it every --dur-change misses nothing
+  const hush = c.createGain();
+  hush.gain.value = 0;
+  meter.connect(hush).connect(c.destination);
+  const wave = new Float32Array(meter.fftSize);
+  setInterval(() => {
+    if (c.state !== 'running') return;
+    meter.getFloatTimeDomainData(wave);
+    for (const v of wave) if (Math.abs(v) > loudest) loudest = Math.abs(v);
+  }, DUR.change);
+  sink = meter;
+  return sink;
+}
+
 // The shared sound clock, made on the first call (call it from inside a tap or key the first time).
 export function audio() {
   if (ctx) return ctx;
@@ -39,7 +67,7 @@ export function audio() {
 // Whether something in Mutt is playing its own sound right now (a song, a video with sound).
 function mediaPlaying() {
   for (const m of document.querySelectorAll('audio, video')) {
-    if (!m.paused && !m.muted && m.volume > 0 && !m.ended) return true;
+    if (!m.paused && !m.ended && (m.hushed || (!m.muted && m.volume > 0))) return true;
   }
   return false;
 }
@@ -91,7 +119,7 @@ function wake() {
   woke = performance.now();
   if (c.state !== 'running') c.resume().catch(() => {});
   restLater();
-  if (!bank && made) bank = made.makeBank(c, made.makeOut(c).input, { dur: DUR });
+  if (!bank && made) bank = made.makeBank(c, made.makeOut(c, speakers(c)).input, { dur: DUR });
   else if (!made) fetchBank();
 }
 
@@ -110,6 +138,7 @@ let pressed = 0;   // when a pointer last went down
 let tabbed = 0;    // when Tab was last pressed
 
 export function startSound() {
+  if (driven) addEventListener('play', (e) => { e.target.hushed = true; e.target.muted = true; }, { capture: true });
   if (!(window.AudioContext || window.webkitAudioContext)) return;
   // Fetched once the page is up, so the first tap already has its sound.
   const early = () => { if (soundOn()) fetchBank(); };
@@ -149,3 +178,5 @@ export function startSound() {
 
 // What played lately, newest last (for the checks in tests/browser.py).
 export const soundsHeard = () => [...(bank?.heard || [])];
+// How loud the silent end got since last asked, 0 to 1 (tests only; always 0 outside one).
+export function soundsLoudest() { const l = loudest; loudest = 0; return l; }

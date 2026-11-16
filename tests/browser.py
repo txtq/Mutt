@@ -478,12 +478,18 @@ def sign_in(s, seeded):
     s.shot('galaxy')
 
 
-def heard(s):
-    """The names of the sounds played lately (sound.js keeps the last 40)."""
+def heard(s, ask='soundsHeard'):
+    """The names of the sounds played lately (sound.js keeps the last 40). A browser driven by a test
+    plays them into a silent end, so nobody at the computer hears them; `loudest` reads its meter."""
     s.js('window.__heard = null; const v = (document.querySelector("script[src*=\'main.js\']")?.src.match(/\\?v=[^&]+/) || [""])[0];'
-         'import("/assets/js/sound.js" + v).then((m) => { window.__heard = m.soundsHeard(); });')
-    s.wait('return Array.isArray(window.__heard)', 'the sound module could not be asked what it played')
+         f'import("/assets/js/sound.js" + v).then((m) => {{ window.__heard = m.{ask}(); }});')
+    s.wait('return window.__heard !== null', 'the sound module could not be asked what it played')
     return s.js('return window.__heard')
+
+
+def loudest(s):
+    """How loud the silent end got since last asked (0 to 1)."""
+    return heard(s, 'soundsLoudest')
 
 
 def sounds(s, seeded):
@@ -501,6 +507,8 @@ def sounds(s, seeded):
     s.settle(1.5)
     if 'hello' not in heard(s):
         raise Fail(f'signing in made no sound (heard {heard(s)})')
+    if not loudest(s) > 0.001:
+        raise Fail('signing in was counted as a sound, but nothing came out of the silent end')
     s.click(s.see('.sb-who', 'the account button is missing'))
     s.see('.sheet-settings.is-open', 'the account sheet did not open')
     s.settle(0.6)

@@ -587,7 +587,8 @@ GROUP_NAMES = {
     'Sounds': 'sounds sound audio recordings voice memos',
     'Reading': 'reading documents docs papers pdfs articles readings',
     'Links': 'links link bookmarks websites sites web',
-    'Notes': 'notes note text texts thoughts writing jottings',
+    # Not "writing": a planet called Writing is about writing (poems, stories), not for any note.
+    'Notes': 'notes note text texts thoughts jottings',
     'Code': 'code scripts snippets',
     'Files': 'files stuff misc downloads',
 }

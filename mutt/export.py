@@ -84,7 +84,7 @@ def build(conn, user_id):
     drawers = conn.execute('SELECT * FROM drawers WHERE user_id = ? ORDER BY created_at', (uid,)).fetchall()
     blocks = conn.execute('SELECT * FROM blocks WHERE user_id = ? ORDER BY created_at', (uid,)).fetchall()
     links = conn.execute(
-        'SELECT c.block_id, c.drawer_id, c.position, c.checked, d.title, d.user_id, d.parent_id, u.username '
+        'SELECT c.block_id, c.drawer_id, c.position, c.checked, c.placed, d.title, d.user_id, d.parent_id, u.username '
         'FROM connections c JOIN blocks b ON b.id = c.block_id JOIN drawers d ON d.id = c.drawer_id '
         'JOIN users u ON u.id = d.user_id WHERE b.user_id = ? ORDER BY c.position', (uid,)).fetchall()
 
@@ -221,6 +221,7 @@ def file_data(conn, b, where, folder_of, others, paths, root):
             else others[c['drawer_id']].path[len(root) + 1:] if c['drawer_id'] in others else None,
             'owner': None if c['drawer_id'] in folder_of else c['username'],
             'ticked': iso(c['checked']),
+            'placedBy': {'hand': 'you', 'auto': 'autosort'}.get(c['placed']),
         } for c in where],
     }
     comments = conn.execute(
@@ -254,6 +255,10 @@ def everything(conn, user, drawers, folder_of, files, root):
     for r in conn.execute('SELECT a.drawer_id, u.username FROM drawer_access a JOIN users u ON u.id = a.user_id '
                           'JOIN drawers d ON d.id = a.drawer_id WHERE d.user_id = ?', (uid,)):
         people.setdefault(r['drawer_id'], []).append(r['username'])
+    # What autosort learned matters on each planet from where you moved files.
+    attention = {r['drawer_id']: {'weights': loads(r['weights'], {}), 'lessons': r['lessons']} for r in conn.execute(
+        'SELECT a.drawer_id, a.weights, a.lessons FROM planet_attention a JOIN drawers d ON d.id = a.drawer_id '
+        'WHERE d.user_id = ?', (uid,))}
     planets = [{
         'id': d['id'],
         'name': d['title'],
@@ -266,6 +271,7 @@ def everything(conn, user, drawers, folder_of, files, root):
         'othersCanAdd': bool(d['community']),
         'kindOfWorld': d['look'],
         'modes': loads(d['modes'], {}),
+        'autosortLearned': attention.get(d['id']),
         'made': iso(d['created_at']),
         'changed': iso(d['updated_at']),
     } for d in drawers]

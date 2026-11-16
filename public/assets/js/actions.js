@@ -195,11 +195,38 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
 
 // ---------------------------------------------------------------- after autosort
 
-// "Sent to Recipes · Move": one tap to fix a wrong guess.
-export function sortedToast(block, { planet, created }) {
+// "Sent to Recipes · Move": one tap to fix a wrong guess. On a close call
+// between two planets autosort names the other one, and the one tap is that:
+// "Sent to Recipes · Rome trip instead".
+export function sortedToast(block, { planet, created, or }) {
+  if (or) {
+    toast(`Sent to ${planet.title}`, {
+      action: { label: `${or.title} instead`, run: () => moveSorted(block, planet, or) },
+    });
+    return;
+  }
   toast(created ? `Sent to a new planet, ${planet.title}` : `Sent to ${planet.title}`, {
     action: { label: 'Move', stay: true, run: (anchor, done) => openMove(anchor, block, planet, { created, onClose: done }) },
   });
+}
+
+// Take a file off the planet autosort chose and put it on another (or, with
+// no planet, back among the stars). Autosort learns from it on the server.
+async function moveSorted(block, from, drawer, { created = false } = {}) {
+  if (drawer) {
+    const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: drawer.id });
+    bus.emit('block:connected', { block: res.block, drawerId: drawer.id, connections: res.connections });
+  }
+  const res = await api.del(`/api/blocks/${block.id}/connections/${from.id}`);
+  bus.emit('block:disconnected', { block: res.block, drawerId: from.id, connections: res.connections });
+  if (created) {
+    const left = (await api.get('/api/drawers?lite=1')).drawers.find((d) => d.id === from.id);
+    if (left && !left.count) {
+      await api.del(`/api/drawers/${from.id}`);
+      bus.emit('drawer:changed', null);
+    }
+  }
+  toast(drawer ? `Moved to ${drawer.title}` : 'Kept as a star');
 }
 
 // Take a file off the planet autosort chose and put it somewhere else (or back
@@ -224,20 +251,7 @@ export async function openMove(anchor, block, from, { created = false, onClose }
   const move = async (drawer) => {
     pop.close();
     try {
-      if (drawer) {
-        const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: drawer.id });
-        bus.emit('block:connected', { block: res.block, drawerId: drawer.id, connections: res.connections });
-      }
-      const res = await api.del(`/api/blocks/${block.id}/connections/${from.id}`);
-      bus.emit('block:disconnected', { block: res.block, drawerId: from.id, connections: res.connections });
-      if (created) {
-        const left = (await api.get('/api/drawers?lite=1')).drawers.find((d) => d.id === from.id);
-        if (left && !left.count) {
-          await api.del(`/api/drawers/${from.id}`);
-          bus.emit('drawer:changed', null);
-        }
-      }
-      toast(drawer ? `Moved to ${drawer.title}` : 'Kept as a star');
+      await moveSorted(block, from, drawer, { created });
     } catch (err) {
       toast(err.message);
     }

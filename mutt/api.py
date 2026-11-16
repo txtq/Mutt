@@ -439,12 +439,13 @@ def block_connections(req, block_id):
     return [drawer_json(r) for r in rows if drawer_visible(req, r)]
 
 
-def connect(conn, block_id, drawer_id, position=None):
+def connect(conn, block_id, drawer_id, position=None, placed='hand'):
+    """Put a file on a planet. placed: 'hand' (its owner did) or 'auto' (autosort did)."""
     if position is None:
         low = conn.execute('SELECT MIN(position) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
         position = low - 1 if low is not None else 0
-    conn.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
-                 'VALUES (?, ?, ?, ?)', (block_id, drawer_id, position, now()))
+    conn.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, placed) '
+                 'VALUES (?, ?, ?, ?, ?)', (block_id, drawer_id, position, now(), placed))
     conn.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
 
 
@@ -2078,7 +2079,7 @@ def autosort(req, block_id, icon=None, text=None):
     block = own_block(req, block_id)
     if text is None:
         text = stored_text(req.user['id'], block)
-    drawer_id, title = sorting.pick(req.db, req.user['id'], block, text)
+    drawer_id, title, other = sorting.pick(req.db, req.user['id'], block, text)
     created = drawer_id is None
     if created:
         drawer_id = new_id()
@@ -2088,10 +2089,13 @@ def autosort(req, block_id, icon=None, text=None):
             "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'public', '{\"shareTip\": true}', ?)",
             (drawer_id, req.user['id'], title, json.dumps(icon or default_icon()), stamp, stamp,
              fresh_look(req.db, req.user['id'])))
-    connect(req.db, block_id, drawer_id)
+    connect(req.db, block_id, drawer_id, placed='auto')
     row = own_drawer(req, drawer_id)
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
-    return {'planet': planet_json(req, row, count, drawer_previews(req, drawer_id, limit=12)), 'created': created}
+    answer = {'planet': planet_json(req, row, count, drawer_previews(req, drawer_id, limit=12)), 'created': created}
+    if other:  # a close call: the toast offers the other planet too ("Sent to Recipes · Rome trip instead")
+        answer['or'] = {'id': other, 'title': own_drawer(req, other)['title']}
+    return answer
 
 
 def icon_arg(value):
@@ -2801,6 +2805,19 @@ def add_connection(req, block_id):
     return json_response({'block': reload_block(req, block_id), 'connections': block_connections(req, block_id)})
 
 
+def learn_from_move(req, block_id, wrong_id):
+    """Autosort put this file on the wrong planet and its owner took it off:
+    the planet they just put it on by hand (if any) learns, and so does the wrong one."""
+    right = req.db.execute(
+        "SELECT c.drawer_id FROM connections c JOIN drawers d ON d.id = c.drawer_id WHERE c.block_id = ? "
+        "AND c.placed = 'hand' AND d.user_id = ? AND d.parent_id IS NULL AND c.connected_at >= ? "
+        'ORDER BY c.connected_at DESC LIMIT 1', (block_id, req.user['id'], now() - 900)).fetchone()
+    try:
+        sorting.learn(req.db, req.user['id'], block_id, wrong_id, right['drawer_id'] if right else None)
+    except Exception:  # learning must never stop a move
+        traceback.print_exc()
+
+
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)/connections/(?P<drawer_id>[\w-]+)')
 def remove_connection(req, block_id, drawer_id):
     drawer = writable_drawer(req, drawer_id)
@@ -2809,9 +2826,11 @@ def remove_connection(req, block_id, drawer_id):
     moderating = block and drawer['community'] and drawer['user_id'] == req.user['id']
     if not (mine or moderating):
         raise HttpError(404, 'That file does not exist.')
-    found = req.db.execute('SELECT position FROM connections WHERE block_id = ? AND drawer_id = ?',
+    found = req.db.execute('SELECT position, placed FROM connections WHERE block_id = ? AND drawer_id = ?',
                            (block_id, drawer_id)).fetchone()
     req.db.execute('DELETE FROM connections WHERE block_id = ? AND drawer_id = ?', (block_id, drawer_id))
+    if mine and found and found['placed'] == 'auto' and drawer['user_id'] == req.user['id']:
+        learn_from_move(req, block_id, drawer_id)
     req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
     if not mine:
         return json_response({'ok': True, 'position': found['position'] if found else None})

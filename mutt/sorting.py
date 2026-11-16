@@ -16,13 +16,18 @@ purpose() reads one planet on its own: what it's about, what it's used for
 kinds and forms of its files, and the words that are its own. Autosort uses
 the same reading, and features that appear when a planet needs them should too.
 
-Nothing leaves the server. pick() returns (drawer id, None) for a planet that
-fits, or (None, title) for a new planet to make. The words themselves live in
-mutt/lexicon.py.
+Each file already on a planet also counts on its own: a new file is likened to
+every one (Nosofsky's Generalized Context Model, "likeness to each file" below),
+with each planet's own sense of what matters, learned from the owner's moves.
+
+Nothing leaves the server. pick() returns (drawer id, None, other) for a planet
+that fits (other: a second planet when it's a close call), or (None, title, None)
+for a new planet to make. The words themselves live in mutt/lexicon.py.
 """
 import json
 import math
 import re
+import time
 import zipfile
 from array import array
 import zlib
@@ -591,10 +596,11 @@ class Doc:
     """One file, boiled down."""
     __slots__ = ('id', 'kind', 'group', 'ext', 'site', 'path', 'heads', 'body', 'lead', 'topics', 'concepts', 'forms',
                  'role', 'look', 'terms', 'screenshot', 'see', 'medium', 'medium_sure', 'sights', 'taken', 'gps', 'added', 'doctype',
-                 'device', 'artist', 'genre', 'spread')
+                 'device', 'artist', 'genre', 'spread', 'profile')
 
     def __init__(self, row, extra='', limit=20000):
         meta = json.loads(row['meta'] or '{}')
+        self.profile = None  # its subjects and forms, boiled down for comparing with one file at a time
         self.id = row['id']
         self.kind = row['kind']
         self.ext = (row['ext'] or '').lower()
@@ -950,8 +956,10 @@ class Planet:
     """A planet read as a whole: what it's about (from its name and its files),
     what it's for, and what its files are like."""
 
-    def __init__(self, row, members, vecs=None, terms=None):
+    def __init__(self, row, members, vecs=None, terms=None, strengths=None, learned=None):
         self.id = row['id']
+        self.strengths = strengths or [STRENGTH[None]] * len(members)  # how strongly each file is remembered
+        self.learned = learned or {}  # attention learned from the owner's moves
         self.title = row['title'] or ''
         self.name = set(stems(self.title))
         self.about = Counter(stems(self.title))
@@ -1150,10 +1158,10 @@ DISTINCT_FORMS = {'poem', 'dated', 'measured', 'recipe', 'quote', 'checklist', '
 GENRES = {'poem', 'story', 'chapter', 'quote'}
 STRONG_FORMS = {'poem', 'quote', 'code', 'recipe', 'tab', 'chapter', 'dated', 'measured', 'checklist', 'list',
                 'diary', 'story'}
-SUBJECT = ('name', 'topic', 'concept', 'content', 'site', 'look', 'visual', 'moment')
+SUBJECT = ('name', 'topic', 'concept', 'content', 'site', 'look', 'visual', 'moment', 'alike')
 
 
-def evidence(doc, terms, vec_doc, planet, idf, df):
+def evidence(doc, terms, vec_doc, planet, idf, df, vecs=None):
     """Each kind of clue that the file belongs on this planet, from 0 to 1."""
     n = len(planet.members)
     vec, sure = topic_profile(doc.topics)
@@ -1212,6 +1220,11 @@ def evidence(doc, terms, vec_doc, planet, idf, df):
     clues['look'] = look_match(doc, planet)
     clues['visual'] = picture_likeness(doc, planet)
     clues['moment'] = moment_match(doc, planet)
+    clues['alike'] = alike_match(doc, vec_doc, planet, vecs)
+    if n and doc.group not in MEDIA and clues['alike'] < 0.2:
+        # A word or two in common counts for less when none of the planet's files is
+        # anything like this one (a note about a car's MOT, a poem with "car" in it).
+        clues['content'] *= 0.4 + 0.6 * clues['alike'] / 0.2
     # A picture that looks like nothing on a planet of pictures (a pot among
     # linocuts) doesn't belong there, unless its name, kind or when and where
     # it was taken says it does.
@@ -1270,7 +1283,7 @@ def weights(doc):
     return {'name': 0.85, 'topic': 0.7, 'concept': 0.55, 'content': 0.75, 'site': 0.55, 'look': 0.3,
             'kind': 0.5 if media else 0.2 if doc.group in MEDIA else 0.25,
             'named': 0.55 if doc.group in MEDIA else 0.5, 'form': 0.55, 'role': 0.45,
-            'visual': 0.7, 'moment': 0.5, 'batch': 0.25}
+            'visual': 0.7, 'moment': 0.5, 'batch': 0.25, 'alike': ALIKE}
 
 
 FITS = 0.34   # fits well enough whatever else there is
@@ -1278,10 +1291,13 @@ CLEAR = 0.22  # or, with something specific, fits clearly better than any other 
 SPECIFIC = SUBJECT
 
 
-def score(doc, terms, vec_doc, planet, idf, df):
+ALIKE = 0.7
+
+
+def score(doc, terms, vec_doc, planet, idf, df, vecs=None):
     """How well the file fits, 0 to 1: the clues combine like independent
     witnesses, so one strong clue or several weaker ones are both enough."""
-    clues = evidence(doc, terms, vec_doc, planet, idf, df)
+    clues = evidence(doc, terms, vec_doc, planet, idf, df, vecs)
     miss = 1.0
     for clue, weight in weights(doc).items():
         miss *= 1 - weight * clues[clue]
@@ -1290,6 +1306,7 @@ def score(doc, terms, vec_doc, planet, idf, df):
     _, sure = topic_profile(doc.topics)
     if sure and planet.topics and clues['name'] < 0.5:
         strength = 0.4 + 0.3 * planet.content_topics[1]
+        strength *= 1 - 0.8 * clues['alike']  # unless its near-twins are there (run logs kept in a journal)
         miss = 1 - (1 - miss) * (1 - strength * sure * max(0.0, 0.6 - clues['agree']) / 0.6)
     if clues['clash']:
         miss = 1 - (1 - miss) * (1 - 0.2 * clues['clash'])
@@ -1299,6 +1316,186 @@ def score(doc, terms, vec_doc, planet, idf, df):
     clues['specific'] = 1 - math.prod(1 - w * clues[c] for c, w in weights(doc).items()
                                       if c in SPECIFIC or blind or (doc.group in MEDIA and c == 'form'))
     return 1 - miss, clues
+
+
+# ---------------------------------------------------------------- likeness to each file
+#
+# After Nosofsky's Generalized Context Model: a new file is compared with every
+# file on a planet, one at a time, rather than with the planet's average. How far
+# apart two files are is weighed along a few lines (their words, subject, kind,
+# how they're written, how a picture looks, when and where it was taken, which
+# site), each planet paying its own attention to each line; likeness falls off
+# steeply with distance (exp(-c * d)), so near-twins count and loosely related
+# files hardly do. The likenesses are added up per planet. A file the owner put
+# there by hand counts more than one autosort put there. Each planet's attention
+# starts from what it reads as (a trip watches time and place, an art planet the
+# look) and is learned from where the owner moves files autosort got wrong.
+
+LINES = ('words', 'subject', 'kind', 'form', 'look', 'moment', 'site')
+BASE_ATTENTION = {'words': 1.0, 'subject': 0.8, 'kind': 0.3, 'form': 0.5, 'look': 0.9, 'moment': 0.6, 'site': 0.4}
+TELLING_LINES = {'words', 'subject', 'look', 'moment'}  # being the same kind of file alone isn't likeness
+SENSITIVITY = 8.0    # c: how steeply likeness falls with distance
+NEAREST = 8          # only a planet's closest files are added up (the rest are ~0 anyway)
+RECALL = 0.6         # summed likeness -> 0..1: one hand-placed near-twin is most of the way
+STRENGTH = {'hand': 1.0, 'auto': 0.5, None: 0.8}  # files placed before this was kept: in between
+LEARN_RATE = 1.0
+LEARNED_RANGE = (0.25, 4.0)
+
+
+def profile(doc):
+    """A file's subjects and forms as comparing needs them, worked out once per file."""
+    if doc.profile is None:
+        topics, sure = topic_profile(doc.topics)
+        concepts, csure = topic_profile(doc.concepts, CONCEPT_SCALE)
+        forms = {f: min(1.0, v) for f, v in doc.forms.items() if f in DISTINCT_FORMS and v >= 0.4}
+        doc.profile = (topics if sure >= 0.15 else None, concepts if csure >= 0.2 else None, forms)
+    return doc.profile
+
+
+def apart(a, b, vec_a, vec_b):
+    """How far apart two files are along each line they can be compared on (0 = the same, 1 = nothing alike)."""
+    lines = {}
+    if vec_a and vec_b:
+        lines['words'] = max(0.0, 1 - cosine(vec_a, vec_b) / 0.7)
+    ta, ca, fa = profile(a)
+    tb, cb, fb = profile(b)
+    if ta and tb:
+        alike = topic_match(ta, tb)
+        if ca and cb:
+            alike = 0.5 * alike + 0.5 * cosine(ca, cb)
+        lines['subject'] = 1 - alike
+    lines['kind'] = 0.0 if a.group == b.group and a.ext == b.ext else 0.25 if a.group == b.group else 1.0
+    if fa or fb:
+        shared = sum(min(v, fb.get(f, 0)) for f, v in fa.items())
+        lines['form'] = 1 - shared / max(sum(fa.values()), sum(fb.values()))
+    if a.see is not None and b.see is not None:
+        lines['look'] = min(1.0, max(0.0, (0.9 - sight.dot(a.see, b.see)) / 0.4))
+    parts = []
+    if a.taken and b.taken:
+        parts.append(min(1.0, math.log1p(abs(a.taken - b.taken) / 3600) / math.log1p(720)))  # a month apart: far
+    if a.gps and b.gps:
+        parts.append(min(1.0, math.log1p(km(a.gps, b.gps)) / math.log1p(500)))
+    if parts:
+        lines['moment'] = sum(parts) / len(parts)
+    if a.site and b.site:
+        lines['site'] = 0.0 if a.site == b.site else 1.0
+    return lines
+
+
+def likeness(lines, attention):
+    """exp(-c * the attention-weighted distance), over the lines both files have."""
+    if not TELLING_LINES & lines.keys():
+        return 0.0
+    total = sum(attention[k] for k in lines)
+    return math.exp(-SENSITIVITY * sum(attention[k] * d for k, d in lines.items()) / total)
+
+
+def attention(planet):
+    """What matters on this planet: from what it reads as, times what it has learned."""
+    w = dict(BASE_ATTENTION)
+    n = len(planet.members) or 1
+    if planet.role == 'planning' or len(planet.moments) >= max(2, n / 2):
+        w['moment'] *= 3  # a trip, a shoot, a day out
+    if planet.pictures:
+        art = sum(v for k, v in planet.mediums.items() if k in ART_MEDIUMS)
+        if art >= len(planet.pictures) / 2:
+            w['look'] *= 2.5  # an art planet goes by how things look
+            w['words'] *= 0.6
+        elif planet.seen_share >= 0.6:
+            w['look'] *= 1.8
+    if max((v for f, v in planet.forms.items() if f in STRONG_FORMS), default=0) >= 0.5:
+        w['form'] *= 2.5  # recipes, poems, lists, logs: how it's written
+    if planet.sites and planet.sites.most_common(1)[0][1] >= max(2, n / 2):
+        w['site'] *= 2.5
+    for k, f in planet.learned.items():
+        if k in w:
+            w[k] *= f
+    return w
+
+
+def nearest(doc, vec_doc, planet, vecs):
+    """The planet's files most like this one: [(likeness, how strongly it's remembered, its lines)]."""
+    w = attention(planet)
+    found = []
+    for m, strength in zip(planet.members, planet.strengths):
+        lines = apart(doc, m, vec_doc, vecs.get(m.id) if vecs else None)
+        found.append((likeness(lines, w), strength, lines))
+    found.sort(key=lambda f: f[0], reverse=True)
+    return found[:NEAREST]
+
+
+def alike_match(doc, vec_doc, planet, vecs):
+    """Summed likeness to the planet's files (0..1)."""
+    if not planet.members:
+        return 0.0
+    total = sum(s * strength for s, strength, _ in nearest(doc, vec_doc, planet, vecs))
+    return 1 - math.exp(-total / RECALL)
+
+
+def learned_weights(conn, ids):
+    """What each planet has learned from the owner's moves: {drawer id: {line: factor}}."""
+    if not ids:
+        return {}
+    rows = conn.execute(f"SELECT drawer_id, weights FROM planet_attention WHERE drawer_id IN ({','.join('?' * len(ids))})",
+                        list(ids)).fetchall()
+    out = {}
+    for r in rows:
+        try:
+            out[r['drawer_id']] = {k: float(v) for k, v in json.loads(r['weights']).items() if k in LINES}
+        except (ValueError, TypeError, AttributeError):
+            pass
+    return out
+
+
+def learn(conn, user_id, block_id, wrong_id, right_id=None):
+    """The owner moved a file off the planet autosort chose (to another, or back
+    to the stars). Both planets learn to pay more attention to the lines that
+    tell them apart for this file (where it's more like the right planet's files
+    than the wrong one's) and less to the lines that misled (where it's more like
+    the wrong one's). Moved back to the stars, the wrong planet learns alone."""
+    row = conn.execute('SELECT * FROM blocks WHERE id = ?', (block_id,)).fetchone()
+    if not row:
+        return
+    doc = Doc(row)
+    planets, members, strengths = galaxy(conn, user_id, block_id, with_strengths=True)
+    by_id = {p['id']: p for p in planets}
+    if wrong_id not in by_id:
+        return
+    learned = learned_weights(conn, list(by_id))
+    docs = {m.id: m for ms in members.values() for m in ms}
+    docs[doc.id] = doc
+    _, _, _, vecs = weigh(docs)
+
+    def per_line(drawer_id):
+        """How alike the file is, line by line, to the planet's closest files."""
+        if drawer_id not in by_id or not members[drawer_id]:
+            return None
+        planet = Planet(by_id[drawer_id], members[drawer_id], vecs, None, strengths[drawer_id], learned.get(drawer_id))
+        found = {}
+        for _, _, lines in nearest(doc, vecs[doc.id], planet, vecs):
+            for k, d in lines.items():
+                found.setdefault(k, []).append(math.exp(-SENSITIVITY * d))
+        return {k: sum(v) / len(v) for k, v in found.items()}
+
+    wrong, right = per_line(wrong_id), per_line(right_id)
+    if not wrong:
+        return
+    if right:
+        tells = {k: right[k] - wrong[k] for k in wrong.keys() & right.keys()}
+    else:  # no right planet to set against: the lines that made it look at home here misled
+        mean = sum(wrong.values()) / len(wrong)
+        tells = {k: mean - a for k, a in wrong.items()}
+    if not any(abs(v) > 0.01 for v in tells.values()):
+        return
+    stamp = time.time()
+    for drawer_id in filter(None, (wrong_id, right_id if right else None)):
+        factors = dict(learned.get(drawer_id, {}))
+        for k, t in tells.items():
+            f = factors.get(k, 1.0) * math.exp(LEARN_RATE * t)
+            factors[k] = round(min(LEARNED_RANGE[1], max(LEARNED_RANGE[0], f)), 3)
+        conn.execute('INSERT INTO planet_attention (drawer_id, weights, lessons, updated_at) VALUES (?, ?, 1, ?) '
+                     'ON CONFLICT(drawer_id) DO UPDATE SET weights = excluded.weights, lessons = lessons + 1, '
+                     'updated_at = excluded.updated_at', (drawer_id, json.dumps(factors), stamp))
 
 
 # ---------------------------------------------------------------- choosing
@@ -1317,20 +1514,23 @@ def member(row):
 
 
 PER_PLANET = 150
-MEMBER_SQL = ('SELECT * FROM (SELECT c.drawer_id, b.id, b.kind, b.title, b.description, b.content, b.file_name, '
+MEMBER_SQL = ('SELECT * FROM (SELECT c.drawer_id, c.placed, b.id, b.kind, b.title, b.description, b.content, b.file_name, '
               'b.ext, b.meta, b.updated_at, b.created_at, ROW_NUMBER() OVER (PARTITION BY c.drawer_id '
               'ORDER BY c.connected_at DESC) AS rn FROM connections c JOIN blocks b ON b.id = c.block_id '
               'JOIN drawers d ON d.id = c.drawer_id WHERE d.user_id = ? AND d.parent_id IS NULL AND b.id != ?) WHERE rn <= ?')
 
 
-def galaxy(conn, user_id, leave_out=''):
-    """A person's planets (newest first) and the files on each, boiled down."""
+def galaxy(conn, user_id, leave_out='', with_strengths=False):
+    """A person's planets (newest first) and the files on each, boiled down
+    (and, if asked, how strongly each is remembered: placed by hand or by autosort)."""
     planets = conn.execute('SELECT id, title, description FROM drawers WHERE user_id = ? AND parent_id IS NULL '
                            'ORDER BY updated_at DESC', (user_id,)).fetchall()
     members = {p['id']: [] for p in planets}
+    strengths = {p['id']: [] for p in planets}
     for r in conn.execute(MEMBER_SQL, (user_id, leave_out, PER_PLANET)):
         members[r['drawer_id']].append(member(r))
-    return planets, members
+        strengths[r['drawer_id']].append(STRENGTH.get(r['placed'], STRENGTH[None]))
+    return (planets, members, strengths) if with_strengths else (planets, members)
 
 
 def weigh(docs):
@@ -1346,38 +1546,63 @@ def weigh(docs):
 
 
 def pick(conn, user_id, row, extra='', explain=None):
-    """Where a file belongs: (drawer id, None), or (None, title) for a new planet."""
+    """Where a file belongs: (drawer id, None, other), or (None, title, None) for
+    a new planet. other is a second planet when it's a close call between two."""
     doc = Doc(row, extra)
-    planets, members = galaxy(conn, user_id, row['id'])
+    planets, members, strengths = galaxy(conn, user_id, row['id'], with_strengths=True)
+    learned = learned_weights(conn, [p['id'] for p in planets])
     docs = {m.id: m for ms in members.values() for m in ms}
     docs[doc.id] = doc
     terms, df, idf, vecs = weigh(docs)
     df.subtract(terms[doc.id].keys())  # from here on: how many files on planets use each word
 
     ranked = []
-    built = [Planet(p, members[p['id']], vecs, terms) for p in planets]
+    built = [Planet(p, members[p['id']], vecs, terms, strengths[p['id']], learned.get(p['id'])) for p in planets]
     doc.spread = sum(1 for planet in built if batch_match(doc, planet))  # planets holding the rest of this go
     for i, planet in enumerate(built):
-        fit, clues = score(doc, terms[doc.id], vecs[doc.id], planet, idf, df)
+        fit, clues = score(doc, terms[doc.id], vecs[doc.id], planet, idf, df, vecs)
         # A hair's preference for planets used lately, only to break ties.
         ranked.append((fit + 0.004 * (len(planets) - i) / len(planets), fit, planet, clues))
     ranked.sort(key=lambda r: r[0], reverse=True)
     if explain is not None:
         explain.extend((p.title, round(fit, 3), {k: round(v, 2) for k, v in clues.items() if v and k != 'agree'})
                        for _, fit, p, clues in ranked)
+    # The choice, as in the model: each planet's pull against the others' and
+    # against a new planet (the background, which wins when nothing is alike
+    # enough). A planet must earn its place on its own (fits(), the bars below);
+    # when two do and their pulls are close, both are offered.
     if ranked:
         best, runner_up = ranked[0][1], (ranked[1][1] if len(ranked) > 1 else 0.0)
-        clues = ranked[0][3]
-        elsewhere = (topic_profile(doc.topics)[1] >= 0.55 and clues['agree'] < 0.4 and clues['name'] < 0.3
-                     and clues['content'] < 0.3)
-        enough = clues['specific'] >= 0.3 or doc.group in MEDIA  # more than being a note too
-        if (best >= FITS and enough) or (best >= CLEAR and best - runner_up >= 0.06 and best >= 1.3 * runner_up
-                            and clues['specific'] >= 0.1 and not elsewhere and not clues['clash']
-                            and clues['unlike'] < 0.4):
-            return ranked[0][2].id, None
+        if fits(doc, ranked[0][3], best, runner_up):
+            other = None
+            if len(ranked) > 1 and fits(doc, ranked[1][3], runner_up, 0.0, alone=True) and (
+                    pull(runner_up) / pull(best)) >= CLOSE_CALL:
+                other = ranked[1][2].id
+            return ranked[0][2].id, None, other
     title = new_title(doc)
     same = next((p['id'] for p in planets if p['title'].strip().lower() == title.lower()), None)
-    return (same, None) if same else (None, title)
+    return (same, None, None) if same else (None, title, None)
+
+
+CLOSE_CALL = 0.7    # the runner-up's pull, against the winner's, that makes it a close call
+
+
+def pull(fit):
+    """A planet's pull in the choice (Luce's rule): the odds that the file fits.
+    Fits bunch up near 1, odds don't, so 0.94 against 0.90 isn't a close call."""
+    return fit / max(1e-6, 1 - fit)
+
+
+def fits(doc, clues, best, runner_up, alone=False):
+    """Does the planet beat the background (a new planet)? Either it fits well
+    enough whatever else there is, or (not alone) it fits clearly better than any other."""
+    elsewhere = (topic_profile(doc.topics)[1] >= 0.55 and clues['agree'] < 0.4 and clues['name'] < 0.3
+                 and clues['content'] < 0.3 and clues['alike'] < 0.3)
+    enough = clues['specific'] >= 0.3 or doc.group in MEDIA  # more than being a note too
+    if best >= FITS and enough:
+        return True
+    return (not alone and best >= CLEAR and best - runner_up >= 0.06 and best >= 1.3 * runner_up
+            and clues['specific'] >= 0.1 and not elsewhere and not clues['clash'] and clues['unlike'] < 0.4)
 
 
 def new_title(doc):

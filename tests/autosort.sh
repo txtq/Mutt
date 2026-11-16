@@ -159,3 +159,37 @@ curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$P1/share -d '{"shared":true}'
 echo "someone else sees: $(curl -s -b "$SP/b.txt" $B/api/blocks/$P1 | j "d.get('error') or d['block']['meta']")"
 curl -s -o "$SP/dl.jpg" -b "$SP/b.txt" $B/f/$P1
 echo "where it was taken, left in the photo they download: $(python3 -c "import sys; from mutt import media; print(media.read(sys.argv[1], 'jpg').get('gps'))" "$SP/dl.jpg")"
+
+# Likeness to each file (Nosofsky's model): what a file's closest look-alikes are on counts,
+# not only what a planet is about on average.
+said='(d["sortedInto"]["planet"]["title"] + (" (new)" if d["sortedInto"]["created"] else "") + (" (or " + d["sortedInto"]["or"]["title"] + ")" if d["sortedInto"].get("or") else ""))'
+ask() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(python3 -c 'import json,sys; print(json.dumps({"content": sys.argv[1], "autosort": True}))' "$1")"; }
+JO=$(planet Journal); FI=$(planet Fitness)
+put $JO 'Long day at the studio. Called mum in the evening, she sounds tired.'
+put $JO "Dinner with Priya. We talked about moving to Lisbon and I still can't decide."
+put $JO 'Rainy Sunday. Read on the sofa and did nothing else, which was perfect.'
+put $JO 'Run 5k in 27:40, easy, legs heavy after yesterday'
+put $JO 'Run 8k in 46:05, steady, windy along the canal'
+put $FI 'Gym plan: squats 5x5, bench 5x5, rows 3x8. Rest 2 min between sets.'
+put $FI 'Stretching routine after training: hamstrings, hips, calves, 30 seconds each'
+put $FI 'Marathon training plan: week 1 long run 10k, intervals Tuesday, rest Friday'
+put $FI 'Running shoes: replace every 500 miles. Try a stability shoe for long runs.'
+echo "look-alikes: $(ask 'Run 6k in 33:10, easy, sunny by the canal' | j "$said")"
+# Nothing alike makes a new planet.
+echo "nothing alike: $(ask 'Car MOT due 14 March at the garage on Mill Road, ask them about the brakes' | j "$said")"
+# A close call names both planets.
+IT=$(planet 'Rome trip')
+put $IT 'Rome: Colosseum tickets for 10am, Vatican Museums on Thursday, Trastevere in the evening'
+put $IT 'Hotel near Campo de Fiori, 3 nights. Train from Fiumicino to Termini.'
+echo "close call: $(ask 'Where to eat in Rome: Roscioli for carbonara, Da Enzo for cacio e pepe, supplì at Trapizzino' | j "$said")"
+# Moving a file by hand changes where the next one like it goes.
+HO=$(planet Home)
+put $HO 'Fix the dripping kitchen tap and rehang the bathroom door'
+put $HO 'Paint the hallway, new bulbs for the landing, clear the gutters'
+X1=$(ask 'Fix the shed door hinge and paint the garden fence')
+echo "before a move: $(echo "$X1" | j "$said")"
+X1ID=$(echo "$X1" | j "d['block']['id']"); FROM=$(echo "$X1" | j "d['sortedInto']['planet']['id']")
+# Its owner says it's a garden job: on to Garden, off the planet autosort chose.
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$X1ID/connections -d "{\"drawer\":\"$G\"}" > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X DELETE $B/api/blocks/$X1ID/connections/$FROM > /dev/null
+echo "after moving it by hand: $(ask 'Paint the shed and fix the fence post by the garden gate' | j "$said")"

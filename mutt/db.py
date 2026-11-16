@@ -180,6 +180,10 @@ def migrate(conn):
     connection_columns = {row[1] for row in conn.execute('PRAGMA table_info(connections)')}
     if 'checked' not in connection_columns:
         conn.execute('ALTER TABLE connections ADD COLUMN checked REAL')  # ticked off on a list planet
+    if 'placed' not in connection_columns:
+        # Who put a file on a planet: 'hand' (its owner) or 'auto' (autosort); empty = from before this was kept.
+        # Autosort remembers files placed by hand more strongly, and learns from autosort's that get moved.
+        conn.execute('ALTER TABLE connections ADD COLUMN placed TEXT')
     if 'x' not in drawer_columns:
         # Where its owner put it in their galaxy, from the void's centre; empty = not placed yet.
         conn.execute('ALTER TABLE drawers ADD COLUMN x REAL')
@@ -315,6 +319,11 @@ def migrate(conn):
                  'other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'score REAL NOT NULL, at REAL NOT NULL, visited_at REAL NOT NULL DEFAULT 0, '
                  'PRIMARY KEY (user_id, other_id))')
+    # What autosort has learned matters on each planet, from where its owner
+    # moved files it got wrong (sorting.learn): {line: factor}, e.g. {"moment": 1.6}.
+    conn.execute('CREATE TABLE IF NOT EXISTS planet_attention ('
+                 'drawer_id TEXT PRIMARY KEY REFERENCES drawers(id) ON DELETE CASCADE, '
+                 "weights TEXT NOT NULL DEFAULT '{}', lessons INTEGER NOT NULL DEFAULT 0, updated_at REAL NOT NULL)")
 
 
 @contextmanager

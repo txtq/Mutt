@@ -1794,7 +1794,7 @@ class Galaxy {
   }
 
   // Out of the void to the planet it went onto: the file itself, flying.
-  async launch(block, { planet, created }, { sorted = false } = {}) {
+  async launch(block, { planet, created, or }, { sorted = false } = {}) {
     this.setPlanet(planet);
     let el = this.planetEls.get(planet.id);
     if (!el) {
@@ -1811,7 +1811,7 @@ class Galaxy {
     el.gulp();
     el.bump(1);
     burst(to, { color: 'rgba(255,255,255,0.8)', count: 5, reach: 20 });
-    if (sorted) sortedToast(block, { planet, created });
+    if (sorted) sortedToast(block, { planet, created, or });
     else toast(created ? `New planet: ${planet.title}` : `Added to ${planet.title}`);
     this.setHint();
     this.refresh();

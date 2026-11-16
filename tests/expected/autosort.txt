@@ -34,3 +34,8 @@ good reading, as the owner sees it: {'v': 1}
 pictures still to read: ['DSC_0413']
 someone else sees: {'media': {'device': 'camera'}}
 where it was taken, left in the photo they download: None
+look-alikes: Journal
+nothing alike: Cars (new)
+close call: Recipes (or Rome trip)
+before a move: To do (or Home)
+after moving it by hand: Garden

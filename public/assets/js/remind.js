@@ -106,7 +106,8 @@ export function calendarFile(c) {
 export function cometRows(c, { open = true } = {}) {
   return [
     ...(open ? [{ label: 'Open note', icon: 'open', run: () => openComet(c) }] : []),
-    ...(c.due || c.soon ? [{ label: 'Done', icon: 'check', run: () => dealWith(c, 'done') }] : []),
+    { label: 'Done', icon: 'check', run: () => dealWith(c, 'done') },
+    { label: 'Change when…', icon: 'date', run: () => askWhen({ id: c.id, title: cometName(c) }, { comet: c }) },
     { label: 'Remind me in an hour', icon: 'history', run: () => dealWith(c, 'snooze', 'hour') },
     { label: 'Remind me tomorrow', icon: 'date', run: () => dealWith(c, 'snooze', 'tomorrow') },
     { label: 'Add to Calendar', icon: 'download', run: () => calendarFile(c) },
@@ -114,53 +115,114 @@ export function cometRows(c, { open = true } = {}) {
   ];
 }
 
-// "Make it a comet…" in any file's menu (actions.js): a comet already opens its own menu; a note that
-// names a day becomes one at once; anything else asks when it should remind you.
+// "Make it a comet…" in any file's menu (actions.js): a comet already opens its own menu; anything
+// else opens the box that asks when, starting from what its words say.
 export async function cometFor(anchor, block) {
   tell();
   let got;
   try {
     got = await api.get(`/api/blocks/${block.id}/comet?tz=${tz()}`);
   } catch (err) { toast(err.message); return; }
-  if (got.comet) {
+  if (got.comet && !got.comet.done) {
     openMenu(anchor, [{ heading: `A comet will remind you ${cometWhen(got.comet).split(' · ')[0]}` }, ...cometRows(got.comet, { open: false })], { align: 'end' });
-  } else if (got.could) {
-    makeComet(block.id, { told: true });
   } else {
-    askWhen(block);
+    askWhen(block, { could: got.could });
   }
 }
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const atDay = (n) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
+const hm = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: new Date(t).getMinutes() ? '2-digit' : undefined });
 
-// The small box that asks when: a day (tomorrow to start) and, if wanted, a time.
-function askWhen(block) {
-  const today = new Date();
-  const day = h('input', { class: 'field', type: 'date', min: iso(today), value: iso(new Date(today.getTime() + DAY)), 'aria-label': 'Day', required: true });
-  const time = h('input', { class: 'field', type: 'time', 'aria-label': 'Time (if any)' });
-  const go = h('button', { type: 'submit', class: 'btn btn-main' }, 'Make it a comet');
+// The quick choices under the words: what the note says first, then the usual ones.
+function picks(could) {
+  const now = new Date();
+  const out = [];
+  if (could) out.push({ label: `“${could.said}”`, title: 'What it says', day: could.day, time: could.time || '' });
+  const later = new Date(now.getTime() + 3 * HOUR);
+  if (later.getDate() === now.getDate() && later.getHours() <= 21) {
+    out.push({ label: 'Later today', day: iso(now), time: `${String(later.getHours()).padStart(2, '0')}:00` });
+  }
+  out.push({ label: 'Tomorrow', day: iso(atDay(1)), time: '' });
+  const wd = now.getDay();   // 0 Sunday … 6 Saturday
+  if (wd >= 1 && wd <= 5) out.push({ label: 'This weekend', day: iso(atDay(6 - wd)), time: '' });
+  out.push({ label: 'Next week', day: iso(atDay(((8 - wd) % 7) || 7)), time: '' });
+  // the note's own day first; a usual one that is the same day and time is left out
+  return out.filter((p, i) => !out.slice(0, i).some((q) => q.day === p.day && q.time === p.time));
+}
+
+// When it will remind you, in words: "Friday 20 November at 5 PM, and an hour before."
+function sayWhen(dayValue, timeValue) {
+  if (!dayValue) return { gone: true, words: 'Pick a day.' };
+  const [y, mo, d] = dayValue.split('-').map(Number);
+  const [hh, mm] = (timeValue || '09:00').split(':').map(Number);
+  const at = new Date(y, mo - 1, d, hh, mm);
+  if (at.getTime() <= Date.now()) return { gone: true, words: 'That time has already gone. Pick a later one.' };
+  const gap = Math.round((new Date(y, mo - 1, d) - atDay(0)) / DAY);
+  const day = gap === 0 ? 'today' : gap === 1 ? 'tomorrow' : at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  const ahead = timeValue ? 'and an hour before' : 'and the evening before at 7 PM';
+  return { gone: false, words: `It will remind you ${day} at ${hm(at)}, ${ahead}.` };
+}
+
+// The box that asks when (DESIGN.md "Comet: when"): quick choices (what the note says, pressed, first),
+// a day and a time, and a line saying when it will remind you. With `comet`, it changes that one's day.
+export function askWhen(block, { could = null, comet = null } = {}) {
+  const choices = picks(comet ? null : could);
+  const first = comet ? { day: comet.day, time: comet.time || '' } : choices[0];
+  const day = h('input', { class: 'field', type: 'date', min: iso(new Date()), value: first.day, 'aria-label': 'Day', required: true });
+  const time = h('input', { class: 'field', type: 'time', value: first.time, 'aria-label': 'Time (if any)' });
+  const clear = h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round cm-ask-clear', 'aria-label': 'No time', title: 'No time' }, icon('close'));
+  const none = h('span', { class: 'cm-ask-none', 'aria-hidden': 'true' }, 'No time');
+  const note = h('p', { class: 'cm-ask-note', 'aria-live': 'polite' });
+  const go = h('button', { type: 'submit', class: 'btn btn-main' }, comet ? 'Save' : 'Make it a comet');
+  const buttons = choices.map((p) => {
+    const b = h('button', { type: 'button', class: 'btn btn-small cm-ask-pick', title: p.title || null }, p.label);
+    b.addEventListener('click', () => { day.value = p.day; time.value = p.time; update(); });
+    return [p, b];
+  });
+  const update = () => {
+    for (const [p, b] of buttons) b.setAttribute('aria-pressed', String(p.day === day.value && p.time === time.value));
+    clear.hidden = !time.value;
+    time.parentElement?.classList.toggle('is-empty', !time.value);   // Safari shows a made-up time in an empty box
+    const said = sayWhen(day.value, time.value);
+    note.textContent = said.words;
+    note.classList.toggle('is-gone', said.gone);
+    go.disabled = said.gone;
+  };
+  clear.addEventListener('click', () => { time.value = ''; update(); time.focus(); });
+  day.addEventListener('input', update);
+  time.addEventListener('input', update);
+  const name = (block.title || block.content || block.fileName || '').trim().split('\n')[0].slice(0, 60);
   const form = h('form', { class: 'cm-ask' },
-    h('p', { class: 'dialog-text' }, 'Pick when it should remind you. Until then its comet crosses your sky.'),
+    h('p', { class: 'dialog-text' }, name ? `A comet will remind you of “${name}”. Until then it crosses your sky.` : 'A comet will remind you. Until then it crosses your sky.'),
+    comet ? null : h('div', { class: 'cm-ask-picks', role: 'group', 'aria-label': 'Quick choices' }, ...buttons.map(([, b]) => b)),
     h('div', { class: 'cm-ask-fields' },
       h('label', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Day'), day),
-      h('label', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Time'), time)),
-    h('p', { class: 'cm-ask-note' }, 'With no time: 9 in the morning, with a heads-up the evening before.'),
+      h('div', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Time'), h('div', { class: 'cm-ask-time' }, time, none, clear))),
+    note,
     h('div', { class: 'dialog-actions' },
       h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'), go));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!day.value) return;
+    if (!day.value || go.disabled) return;
     go.disabled = true;
-    const c = await makeComet(block.id, { told: true, when: { day: day.value, time: time.value || null } });
-    if (c) dialog.close();
-    else go.disabled = false;
+    const when = { day: day.value, time: time.value || null };
+    const c = await makeComet(block.id, { told: true, when, quiet: !!comet });
+    if (!c) { go.disabled = false; return; }
+    dialog.close();
+    if (comet) {
+      toast(`The comet will remind you ${cometWhen(c).split(' · ')[0]}`, {
+        action: { label: 'Undo', run: async () => { await makeComet(comet.id, { told: true, quiet: true, when: { day: comet.day, time: comet.time } }); } },
+      });
+    }
   });
-  const dialog = openDialog({ title: 'Make it a comet', body: form });
+  const dialog = openDialog({ title: comet ? 'Change when it reminds you' : 'Make it a comet', body: form });
+  update();
 }
 
+// A comet opens its note where you are (over your sky), not on its planet; the note has its comet row.
 export function openComet(c) {
-  if (c.planet) nav.go(`/p/${c.planet}?b=${c.id}`);
-  else nav.openBlock(c.id);
+  nav.openBlock(c.id);
 }
 
 // ------------------------------------------------------------------ being told with Mutt closed

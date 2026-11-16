@@ -166,14 +166,16 @@ for t in ['Dentist Thursday 3pm', 'Rae birthday 24 Nov', 'flight 2 Dec 07:40', '
           'Sat 10am parkrun', 'meeting Mon 23 Nov 9:30', 'renew passport by 3/2/2027', 'in 2 weeks: seedlings', 'Mum b-day 3 Jan',
           'May 3 garden show', 'next Monday notes', 'next Tuesday vet 10am', 'next Saturday market',
           'today I felt calm', 'Pilates every Tuesday 6pm', 'sat on the step in the sun', 'Sun cream', '16 Nov: ran 5k',
-          '1/2 cup sugar, bake at 180', 'the light at 6pm on the bridge', 'Day 1: flour', 'Monday notes from the meeting', 'it may 3 times']:
+          '1/2 cup sugar, bake at 180', 'the light at 6pm on the bridge', 'Day 1: flour', 'Monday notes from the meeting', 'it may 3 times',
+          'call Mum at 5', 'Friday morning gym', 'this weekend: clean the car', 'rent by the 20th', 'invoices end of the month',
+          'in March: taxes', 'call back in 2 hours', 'pay rent today', 'good morning', 'gym every day at 7am', 'the 5th time I tried']:
     print(t + ' = ' + (', '.join(f['day'].isoformat() + (' ' + f['time'] if f['time'] else '') + (' yearly' if f['yearly'] else '') for f in when.read(t, w)) or '-'), end='; ')
 ")"
 # A note doesn't become a comet by itself: writing a day offers it (a moment mode), and pressing it makes it one.
 CN=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"Dentist tomorrow 3pm, ask about the crown"}' | j "d['block']['id']")
 echo "no comet by itself: $(curl -s "${A[@]}" "$B/api/comets" | j "len(d['comets'])")  offered: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/moment -d '{"text":"Dentist tomorrow 3pm","tz":0}' | j "(d['comet']['fits'], d['comet']['say'])")  not for a plain note: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/moment -d '{"text":"the light on the bridge","tz":0}' | j "d['comet']['fits']")"
 echo "made a comet: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet -d '{"tz":0}' | j "(lambda c: (c['title'], c['time'], c['said'], c['due'], (c['at'] - c['ahead']) // 60000))(d['comet'])")  could: $(curl -s "${A[@]}" "$B/api/blocks/$CN/comet?tz=0" | j "(d['comet'] is not None, d['could']['said'])")"
-LIST=$(mk '{"title":"Errands"}')
+LIST=$(mk '{"title":"Errands"}'); curl -s -o /dev/null "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$LIST -d '{"modes":{"list":{"on":true}}}'
 CL=$(add "post the parcel tomorrow" $LIST)
 echo "a day alone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CL/comet -d '{"tz":60}' | j "(lambda c: (c['time'], (c['at'] - c['ahead']) // 3600000))(d['comet'])")"
 echo "comets: $(curl -s "${A[@]}" "$B/api/comets" | j "[(c['title'], c['planet'] == '$LIST') for c in d['comets']]")"
@@ -181,6 +183,11 @@ echo "comets: $(curl -s "${A[@]}" "$B/api/comets" | j "[(c['title'], c['planet']
 add "milk" $LIST >/dev/null; CB=$(add "return the books Friday" $LIST)
 echo "a list's comets: $(curl -s "${A[@]}" "$B/api/drawers/$LIST/comets?tz=0" | j "(list(d['comets']) == ['$CL'], d['could'] == ['$CB'])")"
 rule "someone saw which of another's list items are comets" "$(status "${U[@]}" "$B/api/drawers/$LIST/comets?tz=0")" "404"
+# Done on a list item's comet (from the sky, or the note under the clock) ticks it off on its list; Undo unticks it
+CBW=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CB/comet -d '{"tz":0}' | j "json.dumps(d['comet'])")
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CB/comet/done
+echo "done ticks it off: $(curl -s "${A[@]}" "$B/api/drawers/$LIST/comets?tz=0" | j "('$CB' in d['ticked'], '$CB' in d['comets'])")  still says done: $(curl -s "${A[@]}" "$B/api/blocks/$CB/comet?tz=0" | j "d['comet']['done'] is not None")  undone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CB/comet/back -d "{\"comet\":$CBW}" >/dev/null; curl -s "${A[@]}" "$B/api/drawers/$LIST/comets?tz=0" | j "('$CB' in d['ticked'], '$CB' in d['comets'])")"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X DELETE $B/api/blocks/$CB/comet
 curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$LIST/check -d "{\"block\":\"$CL\",\"checked\":true}"
 echo "ticked off, its comet gone: $(curl -s "${A[@]}" "$B/api/comets" | j "[c['title'] for c in d['comets']]")"
 curl -s -o /dev/null "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$CN -d '{"content":"Dentist in 3 days 4pm, ask about the crown"}'

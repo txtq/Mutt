@@ -2500,6 +2500,13 @@ def first_day(text, tz):
     return None
 
 
+def words_of(row):
+    """What a file says about when: a note's words, else its name."""
+    if row['kind'] == 'text':
+        return row['content'] or ''
+    return row['title'] or re.sub(r'\.[A-Za-z0-9]{1,5}$', '', row['file_name'] or '').replace('_', ' ')
+
+
 def ticked(db_, block_id):
     """A list item ticked off (on every list it is on)."""
     rows = db_.execute('SELECT checked FROM connections WHERE block_id = ?', (block_id,)).fetchall()
@@ -2572,7 +2579,8 @@ def planet_comets(req, drawer_id):
     made = {r['id'] for r in rows if r['made']}
     live = {c['id']: c for c in live_comets(req.db, req.user['id']) if c['id'] in made and not c['done']}
     could = [r['id'] for r in rows if not r['made'] and not r['checked'] and first_day(r['content'], tz)]
-    return json_response({'comets': live, 'could': could})
+    ticked = [r['id'] for r in rows if r['checked']]   # Done on a comet elsewhere ticks it off here too
+    return json_response({'comets': live, 'could': could, 'ticked': ticked})
 
 
 @route('GET', r'/api/comets/due')
@@ -2609,8 +2617,11 @@ def make_comet(req, block_id):
         if clock is not None and not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', str(clock)):
             raise HttpError(400, 'That isn’t a time.')
         f = {'time': clock, 'said': '', 'yearly': False}
+        got = first_day(words_of(row), tz)
+        if got and got[1] == day and got[0]['time'] == clock:
+            f = got[0]   # what the words say: it keeps following them
     else:
-        got = first_day(row['content'], tz) if row['kind'] == 'text' else None
+        got = first_day(words_of(row), tz)
         if not got:
             raise HttpError(400, 'Pick a day for the comet to remind you.')
         f, day = got
@@ -2631,11 +2642,11 @@ def get_comet(req, block_id):
     r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
                        (block_id,)).fetchone()
     could = None
-    if row['kind'] == 'text' and req.arg('tz') is not None:
-        got = first_day(row['content'], _tz_arg(req.arg('tz')))
+    if req.arg('tz') is not None:
+        got = first_day(words_of(row), _tz_arg(req.arg('tz')))
         if got:
             could = {'day': got[1].isoformat(), 'time': got[0]['time'], 'said': got[0]['said']}
-    return json_response({'comet': comet_json(r) if r and not ticked(req.db, block_id) else None, 'could': could})
+    return json_response({'comet': comet_json(r) if r and (r['done_at'] or not ticked(req.db, block_id)) else None, 'could': could})
 
 
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
@@ -2655,6 +2666,9 @@ def deal_with_comet(req, block_id, act):
     body = req.json()
     if act == 'done':
         req.db.execute('UPDATE reminders SET done_at = ? WHERE block_id = ?', (now(), block_id))
+        # done is ticked off too, on every list it is on (the comet opened from the sky, the note under the clock)
+        req.db.execute("UPDATE connections SET checked = ? WHERE block_id = ? AND checked IS NULL AND drawer_id IN "
+                       "(SELECT id FROM drawers WHERE json_extract(modes, '$.list.on') = 1)", (now(), block_id))
     elif act == 'close':
         req.db.execute('UPDATE reminders SET closed = at WHERE block_id = ?', (block_id,))
     elif act == 'snooze':
@@ -2678,14 +2692,16 @@ def deal_with_comet(req, block_id, act):
             raise HttpError(400, 'Nothing to put back.')
         req.db.execute('UPDATE reminders SET at = ?, ahead = ?, made_at = ?, done_at = NULL, sent_ahead = ?, sent_at = ? '
                        'WHERE block_id = ?', (at, ahead, made, int(ahead <= now()), int(at <= now()), block_id))
+        if r['done_at']:   # what Done ticked off comes back too
+            req.db.execute('UPDATE connections SET checked = NULL WHERE block_id = ? AND checked >= ?', (block_id, r['done_at']))
     return json_response({'comet': comet_json(_own_comet(req, block_id))})
 
 
 def follow_words(db_, block_id, content):
     """A note's words changed: its comet follows the day they now name (if they still name one)."""
     r = db_.execute('SELECT * FROM reminders WHERE block_id = ? AND done_at IS NULL', (block_id,)).fetchone()
-    if not r:
-        return
+    if not r or not r['said']:
+        return   # a day picked by hand stays as it was picked
     got = first_day(content, r['tz'])
     if not got:
         return  # no day any more: it keeps the one it had until it's stopped

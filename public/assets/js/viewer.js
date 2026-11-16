@@ -924,7 +924,14 @@ function cometRow(block) {
       if (state?.cometRow !== slot) return;
       slot.key = key;
       const c = got.comet && { ...got.comet, title: state.block.content.split('\n')[0] };
-      if (c) {
+      if (c?.done) {
+        // Done: ticked off, and its comet is leaving the sky (Undo is in the toast)
+        slot.el.replaceChildren(h('section', { class: 'vw-comet' },
+          h('span', { class: 'vw-comet-mark' }, icon('check')),
+          h('span', { class: 'vw-comet-text' },
+            h('span', { class: 'vw-comet-label' }, 'Done'),
+            h('span', { class: 'vw-comet-when' }, 'Leaving your sky'))));
+      } else if (c) {
         const more = h('button', { type: 'button', class: 'btn btn-quiet btn-small', 'aria-haspopup': 'menu' }, 'Comet', icon('caret', 12));
         more.addEventListener('click', () => openMenu(more, cometRows(c, { open: false })));
         slot.el.replaceChildren(h('section', { class: 'vw-comet' },
@@ -933,7 +940,7 @@ function cometRow(block) {
             h('span', { class: 'vw-comet-label' }, c.due ? 'A comet is reminding you' : 'A comet will remind you'),
             h('span', { class: 'vw-comet-when' }, cometWhen(c).split(' · ')[0])),
           h('span', { class: 'vw-comet-acts' },
-            c.due || c.soon ? h('button', { type: 'button', class: 'btn btn-small', onclick: () => dealWith(c, 'done') }, icon('check', 12), 'Done') : null,
+            h('button', { type: 'button', class: 'btn btn-small', onclick: () => dealWith(c, 'done') }, icon('check', 12), 'Done'),
             more)));
       } else if (got.could) {
         slot.el.replaceChildren(h('section', { class: 'vw-comet is-offer' },

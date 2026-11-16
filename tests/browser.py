@@ -982,6 +982,14 @@ def comet(s, seeded):
     s.named('.gx-comet-tag.is-shown .gx-comet-tag-name', 'Dentist', 'the comet\'s tag should name what it is for, without its day')
     s.settle(1)
     s.shot('comet')
+    # pressed, it opens its note over the sky (not on its planet), where it can be dealt with
+    s.js('arguments[0].click()', s.see('.gx-comet-hit[aria-label^="Dentist"]', 'no comet to press'))
+    s.see('.vw-comet', "the comet's note did not open with its comet row", 10)
+    s.wait('return location.pathname === "/" && 1', 'a comet opened on a planet, not over the sky')
+    s.click(s.named('.vw-comet .btn', 'Done', "the comet's note has no Done"))
+    s.named('.vw-comet-label', 'Done', 'Done did not say it was done', 6)
+    s.shot('comet-done')
+    s.press('Escape')
     made = s.fetch('/api/comets')['comets'][0]['id']
     s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', made)
     # a list's items can be comets too: offered under its add box, marked at the item's end, in its menu
@@ -1010,6 +1018,16 @@ def comet(s, seeded):
     s.click('.cm-ask .btn-main')
     s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => li.querySelector(".lm-text")?.value === "Milk" && li.querySelector(".lm-comet"))',
            'the item given a day by hand did not become a comet', 10)
+    # comets go to the top of the list, soonest first
+    s.wait('return [...document.querySelectorAll(".lm-item")].slice(0, 2).every((li) => li.classList.contains("is-comet"))',
+           'the comets did not move to the top of the list', 6)
+    # the box reads what the item says: "Friday" is the first choice, pressed
+    books = s.js('return [...document.querySelectorAll(".lm-item")].find((li) => /library/.test(li.querySelector(".lm-text")?.value))')
+    s.js('const r = arguments[0].getBoundingClientRect(); arguments[0].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 40, clientY: r.top + r.height / 2 }))', books)
+    s.click(s.named('.menu button, .menu [role=menuitem]', 'Make it a comet…', "a file's menu has no Make it a comet…"))
+    s.named('.cm-ask-pick[aria-pressed="true"]', '“Friday', 'the comet box did not start from the day the item names')
+    s.shot('comet-ask-read')
+    s.click(s.named('.cm-ask .btn-quiet', 'Cancel', 'the comet box has no Cancel'))
     for c in s.fetch('/api/comets')['comets']:
         s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', c['id'])
 

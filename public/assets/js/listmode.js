@@ -139,9 +139,8 @@ export class ListView {
       this.hint.classList.add('lm-hint');
       this.input.addEventListener('input', () => this.hint.check(this.input.value));
     }
-    // Your items that are comets ({id: comet}) and those whose words name a day (`could`): one ask a visit
+    // Your items that are comets ({id: comet}): one ask a visit, again when one changes
     this.comets = {};
-    this.could = new Set();
     this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.hint || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.ol.addEventListener('contextmenu', (e) => this.context(e));
@@ -157,7 +156,7 @@ export class ListView {
       bus.on('upload:done', (item) => {
         if (item.block && contextKey(item.ctx) === contextKey({ drawerId: this.drawer.id })) this.arrive(item.block);
       }),
-      bus.on('comet:changed', () => this.askComets()),
+      bus.on('comet:changed', () => this.askComets(0, { sync: true })),
       bus.on('block:changed', (b) => {
         const i = this.blocks.findIndex((x) => x.id === b.id);
         if (i < 0) return;
@@ -175,16 +174,28 @@ export class ListView {
 
   // ------------------------------------------------------------ comets (DESIGN.md "Comets")
 
-  askComets(wait = 0) {
+  // `sync`: a comet was dealt with somewhere (Done ticks it off), so its tick is read again too.
+  askComets(wait = 0, { sync = false } = {}) {
     if (!this.editable) return;
     clearTimeout(this.cometTimer);
     this.cometTimer = setTimeout(async () => {
       try {
         const got = await api.get(`/api/drawers/${this.drawer.id}/comets?tz=${-new Date().getTimezoneOffset()}`);
+        const before = this.order().map((b) => b.id).join();
         this.comets = got.comets || {};
-        this.could = new Set(got.could || []);
-      } catch { return; }
-      for (const id of this.rows.keys()) this.paintComet(id);
+        if (sync) {
+          const ticked = new Set(got.ticked || []);
+          for (const b of this.blocks) {
+            if (b.pending || b.mine === false || b.kind !== 'text' || !!b.checked === ticked.has(b.id)) continue;
+            b.checked = ticked.has(b.id) ? Date.now() : null;
+            this.paintTick(b.id);
+          }
+          this.updateCount();
+        }
+        for (const id of this.rows.keys()) this.paintComet(id);
+        // comets go to the top, soonest first; one that stops goes back to its own place
+        if (this.order().map((b) => b.id).join() !== before) { this.arrange(); this.placeDivider(); }
+      } catch { /* the list stays as it is */ }
     }, wait);
   }
 
@@ -200,7 +211,11 @@ export class ListView {
     return el;
   }
 
+  // An item that is a comet and not yet ticked: it sits at the top of the list.
+  isComet(b) { return !!this.comets[b.id] && !b.checked; }
+
   paintComet(id) {
+    this.rows.get(id)?.classList.toggle('is-comet', this.isComet(this.find(id) || { id }));
     const row = this.rows.get(id)?.querySelector('.lm-row');
     if (!row) return;
     row.querySelector('.lm-comet')?.remove();
@@ -259,9 +274,13 @@ export class ListView {
 
   ticking() { return this.opts.type === 'check'; }
 
+  // Comets first, the soonest at the top (DESIGN.md "List comet mark"), then the items in their own
+  // order, ticked ones last if the list says so.
   order() {
-    if (!this.ticking() || !this.opts.doneLast) return this.blocks;
-    return [...this.blocks.filter((b) => !b.checked), ...this.blocks.filter((b) => b.checked)];
+    const comets = this.blocks.filter((b) => this.isComet(b)).sort((a, b) => this.comets[a.id].at - this.comets[b.id].at);
+    const rest = comets.length ? this.blocks.filter((b) => !this.isComet(b)) : this.blocks;
+    if (!this.ticking() || !this.opts.doneLast) return comets.length ? [...comets, ...rest] : rest;
+    return [...comets, ...rest.filter((b) => !b.checked), ...rest.filter((b) => b.checked)];
   }
 
   render({ entrance = false } = {}) {
@@ -304,6 +323,7 @@ export class ListView {
 
   row(block) {
     const li = h('li', { class: 'lm-item', 'data-id': block.id });
+    li.classList.toggle('is-comet', this.isComet(block));
     li.classList.toggle('is-done', !!block.checked && this.ticking());
     const grip = this.editable ? h('span', { class: 'lm-grip', 'aria-hidden': 'true', title: 'Drag to move' }, icon('grip')) : null;
     grip?.addEventListener('pointerdown', (e) => this.drag(e, li));
@@ -882,11 +902,11 @@ export class ListView {
     const grip = e.currentTarget;
     const id = li.dataset.id;
     const block = this.find(id);
-    if (!block || block.pending) return;
-    // Only among the items of its own part (open or ticked).
+    if (!block || block.pending || this.isComet(block)) return;   // a comet's place is its day
+    // Only among the items of its own part (open or ticked), never among the comets.
     const split = this.ticking() && this.opts.doneLast;
     const peers = [...this.ol.querySelectorAll(':scope > .lm-item')]
-      .filter((x) => !split || !!this.find(x.dataset.id)?.checked === !!block.checked);
+      .filter((x) => { const b = this.find(x.dataset.id); return b && !this.isComet(b) && (!split || !!b.checked === !!block.checked); });
     const rects = peers.map((x) => x.getBoundingClientRect());
     const start = peers.indexOf(li);
     const gap = peers.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 0;
@@ -944,9 +964,12 @@ export class ListView {
   }
 
   async saveOrder() {
-    const shown = [...this.ol.querySelectorAll(':scope > .lm-item')].map((x) => x.dataset.id);
+    // The comets keep their own places underneath (where each goes back to when it stops);
+    // the other items fill the rest in the order they are shown.
     const byId = new Map(this.blocks.map((b) => [b.id, b]));
-    this.blocks = shown.map((id) => byId.get(id)).filter(Boolean);
+    const shown = [...this.ol.querySelectorAll(':scope > .lm-item')].map((x) => byId.get(x.dataset.id)).filter((b) => b && !this.isComet(b));
+    let k = 0;
+    this.blocks = this.blocks.map((b) => (this.isComet(b) ? b : shown[k++])).filter(Boolean);
     const ids = this.blocks.map((b) => b.id).filter((id) => !isTmp(id));
     try {
       await api.put(`/api/drawers/${this.drawer.id}/order`, { ids });

@@ -1,7 +1,7 @@
 // The shared parts that are built in script (DESIGN.md section 4): the segmented
 // bar and tabs, the stepper, toasts, dialogs, small panels, menus, and the PIN field.
 
-import { DUR, h, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_LEAVE, h, reducedMotion } from './util.js';
 import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- segmented bar, tabs
@@ -38,6 +38,72 @@ export function sectionHead(name, { fact = '', tools = [] } = {}) {
   const el = h('div', { class: 'sec-head' }, h('h3', { class: 'sec-name' }, name), factEl,
     kept.length ? h('div', { class: 'sec-tools' }, kept) : null);
   return { el, fact: factEl };
+}
+
+// Pages inside a sheet (DESIGN.md "Sheet page"): the sheet's first page keeps what you change
+// often; a door is a row that slides the sheet over to a page of its own, whose head has Back.
+// `door(name, { fact, page })` gives the row (`page()` returns { title, fact, tools, body }, or the
+// same page again); `back()` steps back, true if there was a page to leave (Escape asks it first).
+export function sheetPages(home) {
+  const el = h('div', { class: 'sheet-pages' }, home);
+  let open = null;     // the page showing, or null on the first page
+  let from = null;     // the door it was opened from, to hand the keyboard back to
+  const swap = async (next, onward, focus) => {
+    const out = el.firstElementChild;
+    const step = onward ? -1 : 1;   // forward: the page leaves to the left and the next comes from the right
+    if (out && !reducedMotion()) {
+      out.inert = true;
+      await out.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${step * 16}px)` }],
+        { duration: DUR.change, easing: EASE_LEAVE }).finished.catch(() => {});
+      out.inert = false;
+    }
+    el.replaceChildren(next);
+    if (!reducedMotion()) {
+      next.animate([{ opacity: 0, transform: `translateX(${-step * 16}px)` }, { opacity: 1, transform: 'none' }],
+        { duration: DUR.move, easing: EASE });
+    }
+    focus?.focus({ preventScroll: true });
+  };
+  const built = new WeakMap();
+  const pageOf = (spec) => {
+    if (built.has(spec)) return built.get(spec);
+    const back = h('button', { type: 'button', class: 'btn btn-quiet btn-round sheet-back', 'aria-label': 'Back', title: 'Back', onclick: () => api.back() }, icon('chevron-left'));
+    const fact = h('div', { class: 'sheet-sub' }, spec.fact || '');
+    const tools = (spec.tools || []).filter(Boolean);
+    const page = h('div', { class: 'sheet-page' },
+      h('header', { class: 'sheet-head sheet-page-head' }, back,
+        h('div', { class: 'sheet-page-name' }, h('div', { class: 'sheet-who' }, spec.title), fact),
+        tools.length ? h('div', { class: 'sheet-page-tools' }, tools) : null),
+      ...spec.body);
+    page.back = back;
+    page.fact = fact;
+    built.set(spec, page);
+    return page;
+  };
+  const api = {
+    el,
+    door(name, { fact = '', page }) {
+      const factEl = h('span', { class: 'sheet-door-fact' }, fact);
+      const btn = h('button', { type: 'button', class: 'sheet-door' },
+        h('span', { class: 'sheet-door-name' }, name), factEl, icon('chevron-right'));
+      btn.addEventListener('click', () => {
+        if (open) return;
+        open = pageOf(page());
+        from = btn;
+        swap(open, true, open.back);
+      });
+      btn.fact = (text) => { factEl.textContent = text; };
+      return btn;
+    },
+    back() {
+      if (!open) return false;
+      open = null;
+      swap(home, false, from);
+      return true;
+    },
+    isOpen: () => !!open,
+  };
+  return api;
 }
 
 export function segmented(options, active, onPick, { className = '', label, tabs = false } = {}) {

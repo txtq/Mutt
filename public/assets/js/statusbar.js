@@ -8,11 +8,11 @@ import { api, session } from './api.js';
 import { glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
-import { closeTopLayer, confirmDialog, openContextMenu, openMenu, sectionHead, segmented, toast } from './ui.js';
+import { closeTopLayer, confirmDialog, openContextMenu, openMenu, segmented, sheetPages, toast } from './ui.js';
 import { BEAT, bus, DUR, EASE_LEAVE, h, plural } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
-import { askForKey, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
+import { askForKey, askForName, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
 import { dropHeldSearch, heldSearch, searchBody } from './search.js';
 import { icon } from './icons.js';
 import { commentNotes } from './commentnotes.js';
@@ -32,7 +32,7 @@ function sheet(className, build) {
   // Menus and dialogs opened from a sheet sit outside it; using them keeps it open, and Escape closes them first.
   // (what search found round the void belongs to search: pressing it keeps search open)
   const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target) && !e.target.closest?.('.pop, .scrim, .gx-found')) close(); };
-  const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (!closeTopLayer()) close(); } };
+  const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (!closeTopLayer() && !body?.back?.()) close(); } };
   let body = null;
   function show(from) {
     for (const s of sheets) if (s !== api_) s.close();
@@ -138,7 +138,7 @@ function downloadEverything() {
 
 // Deleted files wait here a week before they go for good. The section shows
 // only while something is waiting; a file is put back from its menu.
-const FIRST = 6;   // two rows, shown before "Show all"
+const FIRST = 8;   // two rows, shown before "Show all"
 const DAY = 86400000;
 
 function leftOf(block) {
@@ -146,19 +146,21 @@ function leftOf(block) {
   return days > 1 ? `${plural(days, 'day')} left` : 'Goes today';
 }
 
-function recentlyDeleted() {
-  const el = h('section', { class: 'sheet-deleted', hidden: true, 'aria-label': 'Recently deleted' });
+// Its own page in the account sheet: the files, and for the page's head a fact and Empty.
+// `onCount` hears how many are waiting, so the door can show the number (and hide at none).
+function recentlyDeleted({ onCount }) {
+  const el = h('section', { class: 'sheet-deleted', 'aria-label': 'Recently deleted' });
   let blocks = [];
   let all = false;
   const grid = h('div', { class: 'grid sheet-deleted-files' });
   const more = h('button', { type: 'button', class: 'btn btn-quiet btn-small sheet-deleted-more', onclick: () => { all = true; paint(); } });
   const empty = h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: emptyAll }, 'Empty');
-  const head = sectionHead('Recently deleted', { tools: [empty] });
-  el.append(head.el, grid, more);
+  const fact = h('span', null);
+  el.append(grid, more);
 
   function paint() {
-    el.hidden = !blocks.length;
-    head.fact.textContent = `${blocks.length} · kept a week`;
+    onCount(blocks.length);
+    fact.textContent = `${plural(blocks.length, 'file')} · kept a week`;
     const shown = all ? blocks : blocks.slice(0, FIRST);
     grid.replaceChildren(...shown.map(cellFor));
     more.hidden = shown.length === blocks.length;
@@ -233,7 +235,7 @@ function recentlyDeleted() {
   }
 
   api.get('/api/deleted').then((res) => { blocks = res.blocks || []; paint(); }).catch(() => {});
-  return el;
+  return { el, fact, tools: [empty] };
 }
 
 // The name you'd like to be called: any words, or none. Saved when you leave the box.
@@ -257,15 +259,9 @@ function nameField(paintHead) {
   return input;
 }
 
-// Your way back in if you forget your code.
-function keyRow(close) {
-  const has = !!session.user.hasKey;
-  return h('div', { class: 'sheet-key' },
-    h('span', { class: 'sheet-key-fact' }, has ? 'Kept outside Mutt' : 'None yet'),
-    h('button', { type: 'button', class: `btn btn-small${has ? ' btn-quiet' : ''}`, onclick: () => { close(); newRecoveryKey(); } },
-      has ? 'Make a new one' : 'Make one'));
-}
-
+// The account sheet. Its first page holds what you change often (your name and how Mutt
+// looks) and Sign out; what you need now and then is behind a door, on a page of its own:
+// Recently deleted (only while something waits), your files, your code and recovery key.
 function settingsBody(close) {
   const stats = { files: 0, drawers: 0, stars: 0, ...session.stats };
   const whoEl = h('div', { class: 'sheet-who' });
@@ -277,7 +273,7 @@ function settingsBody(close) {
     paintWhoBar?.();
   };
   paintHead();
-  // For whoever runs Mutt: people waiting for a reset, above Recently deleted.
+  // For whoever runs Mutt: people waiting for a reset, under the doors.
   const resets = h('div', { class: 'sheet-resets-slot' });
   if (session.user.admin) {
     import('./resets.js').then(async (m) => {
@@ -285,26 +281,64 @@ function settingsBody(close) {
       if (waiting.length) resets.replaceWith(m.resetRequests(waiting));
     });
   }
-  return h('div', { class: 'sheet-in' },
+  const now = (run) => () => { close(); run(); };
+  const deleted = recentlyDeleted({
+    onCount: (n) => {
+      deletedDoor.hidden = !n;
+      deletedDoor.fact(String(n));
+      if (!n && pages.isOpen()) pages.back();
+    },
+  });
+  const deletedPage = { title: 'Recently deleted', fact: deleted.fact, tools: deleted.tools, body: [deleted.el] };
+  const filesPage = {
+    title: 'Your files',
+    fact: `${plural(stats.files, 'file')} · ${plural(stats.drawers, 'planet')}`,
+    body: [
+      row('Download', downloadEverything()),
+      row('Planets', h('button', { type: 'button', class: 'btn', onclick: now(tidyPlanets) }, 'Tidy planets')),
+    ],
+  };
+  const safePage = () => ({
+    title: 'Code and recovery key',
+    fact: `@${session.user.username}`,
+    body: [
+      row('Code', h('div', { class: 'sheet-fact-row' },
+        h('span', { class: 'sheet-fact' }, session.user.oldCode ? '4 digits' : '6 digits'),
+        h('button', { type: 'button', class: 'btn btn-small', onclick: now(changePin) }, 'Change'))),
+      row('Recovery key', h('div', { class: 'sheet-fact-row' },
+        h('span', { class: 'sheet-fact' }, session.user.hasKey ? 'Kept outside Mutt' : 'None yet'),
+        h('button', { type: 'button', class: `btn btn-small${session.user.hasKey ? ' btn-quiet' : ''}`, onclick: now(newRecoveryKey) },
+          session.user.hasKey ? 'Make a new one' : 'Make one'))),
+      h('div', { class: 'sheet-actions' },
+        h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: now(deleteAccount) }, 'Delete account')),
+    ],
+  });
+  const safe = safePage();
+  const home = h('div', { class: 'sheet-page' },
     h('header', { class: 'sheet-head' },
       h('div', null, whoEl, subEl),
       location.pathname !== '/'
         ? h('button', { type: 'button', class: 'btn btn-main', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
         : null),
+    row('Name', nameField(paintHead)),
     row('Sky', skyPicker()),
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
-    row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
-    row('Your files', downloadEverything()),
-    row('Name', nameField(paintHead)),
-    row('Recovery key', keyRow(close)),
+    row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])));
+  const pages = sheetPages(home);
+  const deletedDoor = pages.door('Recently deleted', { page: () => deletedPage });
+  deletedDoor.hidden = true;
+  home.append(
+    h('nav', { class: 'sheet-doors', 'aria-label': 'More settings' },
+      deletedDoor,
+      pages.door('Your files', { fact: 'Download, tidy', page: () => filesPage }),
+      pages.door('Code and recovery key', { fact: session.user.hasKey ? 'Key kept' : 'No key yet', page: () => safe })),
     resets,
-    recentlyDeleted(),
     h('div', { class: 'sheet-actions' },
-      h('button', { type: 'button', class: 'btn', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
-      h('button', { type: 'button', class: 'btn', onclick: () => { close(); changePin(); } }, 'Change code'),
-      h('button', { type: 'button', class: 'btn', onclick: () => { close(); signOut(); } }, 'Sign out'),
-      h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: () => { close(); deleteAccount(); } }, 'Delete account')));
+      h('button', { type: 'button', class: 'btn', onclick: now(signOut) }, 'Sign out')));
+  const body = h('div', { class: 'sheet-in' }, pages.el);
+  body.back = () => pages.back();   // Escape steps back a page before it closes the sheet
+  return body;
 }
 
 // ---------------------------------------------------------------- the bar
@@ -341,10 +375,13 @@ export function createStatusbar() {
   notes.onPast((on) => clock.setAttribute('aria-expanded', String(on)));
   // A recovery key, asked for once on your own galaxy if you have none.
   const keyTip = askForKey();
+  // A name, asked for each time you go out into the universe if you haven't given one.
+  const nameTip = askForName({ onSaved: () => paintWho() });
   const showNotes = () => {
     const home = !!session.user && current?.chrome === 'galaxy' && !!current?.who?.you && !out;
     notes.set(home);
     keyTip.set(home);
+    nameTip.set(!!session.user && current?.chrome === 'galaxy' && out);
   };
   const showHome = () => {
     home.hidden = !session.user || !current?.home;

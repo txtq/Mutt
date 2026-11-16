@@ -10,7 +10,7 @@
 
 import { renderCell } from '../cells.js';
 import { entryCell } from '../entry.js';
-import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, slider, stepper, toast } from '../ui.js';
+import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, sheetPages, slider, stepper, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
 import { DRAWING_NAMES, ICON_NAMES, drawing, icon } from '../icons.js';
 import { modeOffer } from '../offers.js';
@@ -152,6 +152,21 @@ function overlays() {
     h('header', { class: 'sheet-head' }, h('div', null, h('div', { class: 'sheet-who' }, '@edan'), h('div', { class: 'sheet-sub' }, '214 files · 9 planets · 6 stars'))),
     h('div', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Text'), h('div', null, sizes.el)),
     h('div', { class: 'sheet-actions' }, btn('Tidy planets'), btn('Sign out'), btn('Delete account', 'btn-quiet btn-small')));
+  // A sheet with pages: doors on the first page (one pointed at), and the real thing to click through.
+  const motion = segmented([{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }], 'fluid', (v) => motion.set(v), { className: 'set-seg', label: 'Sample motion' });
+  const first = h('div', { class: 'sheet-page' },
+    h('header', { class: 'sheet-head' }, h('div', null, h('div', { class: 'sheet-who' }, 'Edan'), h('div', { class: 'sheet-sub' }, '@edan · 214 files · 9 planets · 6 stars'))),
+    h('div', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Motion'), h('div', null, motion.el)));
+  const pages = sheetPages(first);
+  first.append(h('nav', { class: 'sheet-doors' },
+      held(pages.door('Recently deleted', { fact: '7', page: () => samplePage }), 'hover'),
+      pages.door('Your files', { fact: 'Download, tidy', page: () => samplePage }),
+      pages.door('Code and recovery key', { fact: 'Key kept', page: () => samplePage })),
+    h('div', { class: 'sheet-actions' }, btn('Sign out')));
+  const samplePage = { title: 'Your files', fact: '214 files · 9 planets', body: [
+    h('div', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Download'), h('div', null, btn('Download everything'))),
+    h('div', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Planets'), h('div', null, btn('Tidy planets')))] };
+  const paged = h('div', { class: 'sheet is-open' }, pages.el);
   const dialog = h('div', { class: 'dialog' }, h('h2', { class: 'dialog-title' }, 'Delete “Postcards”?'), h('p', { class: 'dialog-text' }, 'Its files float off and become stars.'),
     h('label', { class: 'tick' }, h('input', { type: 'checkbox' }), h('span', { class: 'tick-box' }), h('span', null, 'Also delete 3 files that only live here')),
     h('div', { class: 'dialog-actions' }, btn('Cancel', 'btn-quiet'), btn('Delete planet', 'btn-danger')));
@@ -163,6 +178,7 @@ function overlays() {
   const tooltip = (words, key) => h('div', { class: 'tooltip is-on' }, h('span', { class: 'tooltip-text' }, words), key ? h('span', { class: 'tooltip-key' }, key) : null);
   return [
     section('Sheet', 'Drops from the top bar: your account, search.', sheet),
+    section('Sheet page', 'A sheet whose first page keeps what you change often. A door is a row 40 high (its name, a fact, a chevron) that slides the sheet over to a page of its own; the page’s head has a round Back in front of its name. Escape steps back first. Click a door.', paged),
     section('Dialog', 'The quiet button first, the main or danger one last.', dialog,
       row('The real one', btn('Ask to delete', '', {
         onclick: () => confirmDialog({ title: 'Delete “Postcards”?', message: 'This is only a sample: nothing is deleted.', confirm: 'Delete planet', danger: true }),

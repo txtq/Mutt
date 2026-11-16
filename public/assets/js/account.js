@@ -138,6 +138,73 @@ export async function saveName(value) {
   return res.name;
 }
 
+// Someone with no name is asked for one every time they go out into the
+// universe, where everyone else's galaxies are: a tip at the top right, under
+// the bar, with a text box. Save keeps the name; Not now puts it away until the
+// next time they go out. Coming back in puts it away unanswered.
+export function askForName({ onSaved } = {}) {
+  let tip = null;
+  let timer = 0;
+  let here = false;
+  const due = () => !!session.user && !session.user.name;
+  const busy = () => !!document.querySelector('.scrim, .pop, .sheet.is-open, .room');
+  const away = () => {
+    if (!tip) return;
+    const el = tip;
+    tip = null;
+    el.inert = true;
+    exit(el);
+  };
+  const show = () => {
+    timer = 0;
+    if (!here || tip || !due()) return;
+    if (busy()) { timer = setTimeout(show, BEAT.quick); return; }
+    const input = h('input', {
+      class: 'field name-tip-field', type: 'text', maxlength: '40', placeholder: 'Your name',
+      'aria-label': 'Your name', spellcheck: 'false', autocomplete: 'name',
+    });
+    const save = h('button', { type: 'submit', class: 'btn btn-main btn-small' }, 'Save');
+    const later = h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: away }, 'Not now');
+    const form = h('form', {
+      class: 'name-tip-form',
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const value = input.value.trim();
+        if (!value) { input.focus(); return; }
+        save.disabled = true;
+        try {
+          const name = await saveName(value);
+          away();
+          toast(`People will see you as ${name}`);
+          onSaved?.();
+        } catch (err) {
+          save.disabled = false;
+          toast(err.message);
+        }
+      },
+    },
+    input,
+    h('div', { class: 'tip-btns' }, save, later));
+    tip = h('div', { class: 'tip name-tip', role: 'note', onkeydown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); away(); } } },
+      h('p', { class: 'tip-title' }, 'What should people call you?'),
+      h('p', { class: 'tip-text' }, 'Your name shows on your galaxy, planets and comments, in place of your @username.'),
+      form);
+    document.body.append(tip);
+  };
+  return {
+    // true while you're out in the universe
+    set(on) {
+      if (on === here) return;
+      here = on;
+      clearTimeout(timer);
+      timer = 0;
+      if (!on) { away(); return; }
+      // Once the zoom out has settled, so going out and straight back in asks nothing.
+      timer = setTimeout(show, DUR.scene);
+    },
+  };
+}
+
 // ---------------------------------------------------------------- your recovery key
 
 // Shown once, at sign-up and whenever a new one is made: kept somewhere

@@ -661,8 +661,35 @@ def universe(s, seeded):
     s.wait('return document.querySelector(".world").classList.contains("is-out")', 'scrolling out did not reach the universe')
     s.wait('return /neighbour/.test(document.body.textContent)',
            'the universe does not show the other person (@neighbour)')
+    # someone with no name is asked for one, at the top right, every time they go out
+    tip = s.see('.name-tip', 'going out into the universe with no name did not ask for one', 6)
     s.settle(1.2)
     s.shot('universe')
+    box = s.js('const r = arguments[0].getBoundingClientRect(); return [r.right, r.top]', tip)
+    if box[0] < 1280 - 40 or box[1] > 120:
+        raise Fail(f'the name tip is not at the top right (its right edge at {box[0]}, top at {box[1]})')
+    s.size(PHONE)
+    try:
+        s.settle(0.6)
+        s.no_sideways_scroll('The universe with the name tip')
+        s.shot('phone-name-tip')
+    finally:
+        s.size(DESK)
+    s.click(s.named('.name-tip button', 'Not now', 'the name tip had no Not now'))
+    s.gone('.name-tip', 'Not now did not put the name tip away')
+    s.js('window.scrollTo(0, 0)')
+    s.wait('return !document.querySelector(".world").classList.contains("is-out")', 'scrolling back did not come home')
+    s.settle(0.6)
+    s.js('window.scrollTo(0, document.documentElement.scrollHeight)')
+    s.type(s.see('.name-tip-field', 'going out again did not ask for a name again', 6), 'Sam Seed')
+    s.click(s.named('.name-tip button', 'Save', 'the name tip had no Save'))
+    s.gone('.name-tip', 'Save did not put the name tip away')
+    if s.js('return fetch("/api/me").then((r) => r.json()).then((d) => (d.user || d).name)') != 'Sam Seed':
+        raise Fail('Save in the name tip did not keep the name')
+    # the paths after this one expect no name
+    s.js('return fetch("/api/me/name", { method: "PUT", headers: { "Content-Type": "application/json", "X-Mutt": "1" }, body: JSON.stringify({ name: "" }) }).then((r) => r.ok)')
+    s.js('window.scrollTo(0, 0)')
+    s.wait('return !document.querySelector(".world").classList.contains("is-out")', 'scrolling back did not come home')
 
 
 def search_gravity(s, seeded):
@@ -805,6 +832,18 @@ def keyboard(s, seeded):
     if len(visited) < 3:   # Safari's own Tab skips buttons; Mutt has to walk them itself
         raise Fail(f'with the account sheet open, Tab only ever reached {len(visited)} control(s)')
     s.shot('keyboard-in-sheet')
+    # a door slides the sheet to its own page; Escape steps back first, then closes
+    s.click(s.named('.sheet-door', 'Your files', 'the account sheet had no Your files door'))
+    s.named('.sheet-settings button', 'Download everything', 'the Your files door did not open its page')
+    s.wait('return document.activeElement?.classList.contains("sheet-back")', 'Back did not take the keyboard on the new page')
+    s.settle(0.5)
+    s.shot('sheet-page')
+    s.press('Escape')
+    s.named('.sheet-door', 'Your files', 'Escape on a page did not step back to the doors')
+    if not s.js('return !!document.querySelector(".sheet-settings.is-open")'):
+        raise Fail('Escape on a page closed the whole sheet instead of stepping back')
+    s.press('Escape')
+    s.gone('.sheet-settings.is-open', 'Escape on the first page did not close the sheet')
 
 
 def constellation(s, seeded):

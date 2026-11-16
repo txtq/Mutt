@@ -7,6 +7,7 @@ import { createSky } from './sky.js';
 import { closeSheets, createStatusbar } from './statusbar.js';
 import { closeTopLayer } from './ui.js';
 import { startMusic } from './music.js';
+import { sound, startSound } from './sound.js';
 import { h, isEditable, styles } from './util.js';
 import { viewerOpen } from './viewer.js';
 import { bootPrefs, setPrefs } from './theme.js';
@@ -21,6 +22,7 @@ import { makeDropRing } from './dropring.js';
 
 bootPrefs();
 startMusic();
+startSound();
 watchSpelling();
 
 route(/^\/login$/, loginView);
@@ -61,6 +63,7 @@ const light = (t) => {
   lit?.classList.remove('is-drop');
   lit = t?.el || null;
   lit?.classList.add('is-drop');
+  if (lit) sound('over');
 };
 const hideDrop = () => {
   dragDepth = 0;

@@ -6,6 +6,7 @@ import { nav } from './nav.js';
 import { canTransition, transition, visibleShared } from './transitions.js';
 import { closeAllPopovers, toast } from './ui.js';
 import { DUR, EASE_LEAVE, bus, h, reducedMotion } from './util.js';
+import { sound } from './sound.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
 
 const routes = [];
@@ -190,6 +191,7 @@ export async function render({ pop = false, motion = 'page' } = {}) {
       document.documentElement.style.setProperty('--dive-y', `${(r.top + r.height / 2).toFixed(1)}px`);
     };
     if (type === 'dive') aim(world);
+    if (type !== 'page') sound(type === 'dive' ? 'dive' : 'surface');
     await transition(swap, {
       type,
       before: () => pairs,

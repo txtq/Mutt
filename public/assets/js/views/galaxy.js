@@ -10,7 +10,7 @@ import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { fileFace, holdPlanets, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
+import { fileFace, holdPlanets, lookOf, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
 import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
@@ -22,6 +22,7 @@ import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
 import { Sky } from '../constellations.js';
+import { holdSound, sound } from '../sound.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
@@ -1247,6 +1248,7 @@ class Galaxy {
     }
     this.planetEls.set(planet.id, el);
     this.field.append(el);
+    if (born) sound('born', { note: lookOf(planet) });
     if (born && !reducedMotion()) {
       el.body.animate([
         { transform: 'scale(0.2)', opacity: 0 },
@@ -1590,6 +1592,10 @@ class Galaxy {
       }
     }
     this.drawThreads();
+    // A notch each time a planet passes its place, like a dial (step is the room each planet has).
+    const notch = R.step ? Math.floor(this.turn / R.step) : 0;
+    if (this.notch != null && notch !== this.notch) sound('detent');
+    this.notch = notch;
   }
 
   // A swipe sideways turns the ring; up and down still scroll out to the universe.
@@ -2637,6 +2643,8 @@ class Galaxy {
 
   render(p) {
     this.p = p;
+    // The universe's wind rises the further out you are (DESIGN.md "Sound").
+    if (Math.abs(p - (this.windAt ?? 0)) > 0.01 || (p === 0 && this.windAt)) { this.windAt = p; holdSound('wind', p * p); }
     // The universe's beads rest while it is out of sight.
     if ((p > 0.02) !== this.beadsOn) { this.beadsOn = p > 0.02; beadsRun(this.webBeads, this.beadsOn); }
     if (p > 0.02 && !this.voidPic && this.m) this.snapVoid(this.m);
@@ -2947,6 +2955,7 @@ class Galaxy {
         this.void.destroy();
         this.found?.destroy();
         this.beams?.then((pile) => pile.destroy());
+        holdSound('wind', 0);
         theSky()?.setNight(0);
         holdPlanets(false);
         bus.emit('universe', false);

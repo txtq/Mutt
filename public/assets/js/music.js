@@ -6,6 +6,7 @@
 // If `/assets/audio/music.mp3` exists it plays that on a loop instead.
 
 import { session } from './api.js';
+import { audio, mayRest, musicPlays } from './sound.js';
 
 const TRACK = '/assets/audio/music.mp3';
 const VOLUME = 0.112;
@@ -107,6 +108,7 @@ function padChord(at, notes, dur) {
 
 // Schedule a little ahead of time so notes land exactly on the beat.
 function schedule() {
+  if (!wanted()) { next = Math.max(next, ctx.currentTime + 0.1); return; }   // the clock may run on for Mutt's sounds
   while (next < ctx.currentTime + 1.2) {
     if (pos % 4 === 0) padChord(next, PAD[pos / 4], 4 * BEAT);
     const [note, beats] = BASS[step];
@@ -134,8 +136,8 @@ async function hasTrack() {
 }
 
 async function setup() {
-  if (ctx) return;
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (master) return;
+  ctx = audio();   // one sound clock, shared with Mutt's sounds (sound.js)
   master = ctx.createGain();
   master.gain.value = 0;
   const muffle = ctx.createBiquadFilter();
@@ -152,12 +154,13 @@ async function setup() {
 
 async function sync() {
   if (!wanted()) {
-    if (!ctx || ctx.state !== 'running') return;
+    musicPlays(false);
+    if (!master || ctx.state !== 'running') return;
     fade(0, 0.8);
     setTimeout(() => {
       if (wanted()) return;
       track?.pause();
-      ctx.suspend();
+      if (mayRest()) ctx.suspend();
     }, 900);
     return;
   }
@@ -167,6 +170,7 @@ async function sync() {
   await setup();
   if (!wanted()) return;
   await ctx.resume();
+  musicPlays(true);
   if (track) {
     track.play().catch(() => {});
   } else if (!synth) {

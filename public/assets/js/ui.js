@@ -1,8 +1,9 @@
 // The shared parts that are built in script (DESIGN.md section 4): the segmented
 // bar and tabs, the stepper, toasts, dialogs, small panels, menus, and the PIN field.
 
-import { DUR, EASE, EASE_LEAVE, h, reducedMotion } from './util.js';
+import { DUR, EASE, EASE_LEAVE, h, reducedMotion, touchScreen } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 // ---------------------------------------------------------------- segmented bar, tabs
 
@@ -14,12 +15,14 @@ let rooms = 0;
 let leaving = 0;
 export function enterRoom() {
   rooms += 1;
+  sound('open');
   clearTimeout(leaving);
   document.documentElement.classList.remove('leaving-room');
   document.documentElement.classList.add('in-room');
 }
 export function leaveRoom() {
   rooms = Math.max(0, rooms - 1);
+  sound('close');
   if (rooms) return;
   document.documentElement.classList.add('leaving-room');
   document.documentElement.classList.remove('in-room');
@@ -49,6 +52,7 @@ export function sheetPages(home) {
   let open = null;     // the page showing, or null on the first page
   let from = null;     // the door it was opened from, to hand the keyboard back to
   const swap = async (next, onward, focus) => {
+    sound('turn');
     const out = el.firstElementChild;
     const step = onward ? -1 : 1;   // forward: the page leaves to the left and the next comes from the right
     if (out && !reducedMotion()) {
@@ -130,7 +134,7 @@ export function segmented(options, active, onPick, { className = '', label, tabs
     for (const b of buttons.values()) b.remove();
     buttons.clear();
     for (const o of opts) {
-      const b = h('button', { type: 'button', role: 'tab', class: part.btn, onclick: () => onPick(o.value) },
+      const b = h('button', { type: 'button', role: 'tab', class: part.btn, onclick: () => { if (o.value !== current) sound('select'); onPick(o.value); } },
         h('span', null, o.label), o.count != null ? h('span', { class: 'seg-n' }, o.count) : null);
       if (o.style) Object.assign(b.style, o.style);
       buttons.set(o.value, b);
@@ -166,7 +170,7 @@ export function stepper({ value, min = -Infinity, max = Infinity, step = 1, form
   const move = (by) => {
     const before = current;
     set(current + by);
-    if (current !== before) onChange?.(current);
+    if (current !== before) { sound('step', { down: by < 0 }); onChange?.(current); }
   };
   set(value);
   return { el, set, get value() { return current; }, down, up, out };
@@ -198,7 +202,7 @@ export function slider({ label, value = 0, min = -100, max = 100, step = 1, orig
     input.setAttribute('aria-valuetext', format(v));
   };
   const set = (v) => { input.value = v; paint(); };
-  input.addEventListener('input', () => { paint(); onInput?.(Number(input.value)); });
+  input.addEventListener('input', () => { paint(); sound('slide'); onInput?.(Number(input.value)); });
   input.addEventListener('change', () => onChange?.(Number(input.value)));
   input.addEventListener('dblclick', () => {
     if (Number(input.value) === origin) return;
@@ -272,6 +276,7 @@ export function toast(message, { action, duration } = {}) {
         // Once only: a double tap (or a tap as it fades) mustn't undo twice.
         if (fired) return;
         fired = true;
+        if (action.label === 'Undo') sound('undo');
         close();
         Promise.resolve()
           .then(() => action.run(button, close))
@@ -281,6 +286,7 @@ export function toast(message, { action, duration } = {}) {
     el.append(button);
   }
   toastHost.append(el);
+  sound('toast');
   // Keep at most three. Plain notes make way first, so a newer message
   // doesn't push an Undo off the screen before you can reach it.
   // The uploads toast isn't one of the three and never makes way.
@@ -310,6 +316,7 @@ export function openDialog({ title, body, className = '', onClose, dismissable =
     if (closed) return;
     closed = true;
     openLayers.splice(openLayers.indexOf(layer), 1);
+    sound('unsheet');
     exit(scrim);
     previous?.focus?.({ preventScroll: true });
     onClose?.(result);
@@ -318,6 +325,7 @@ export function openDialog({ title, body, className = '', onClose, dismissable =
   openLayers.push(layer);
   scrim.addEventListener('pointerdown', (e) => { if (e.target === scrim && dismissable) close(); });
   document.body.append(scrim);
+  sound('sheet');
   requestAnimationFrame(() => card.querySelector('[autofocus], input, textarea, button.btn-main')?.focus());
   return { el: card, close };
 }
@@ -401,6 +409,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
   const el = h('div', { class: `pop ${className}` }, content);
   if (width) el.style.width = `${width}px`;
   document.body.append(el);
+  sound('pop');
   const isMenu = content?.classList?.contains('menu');
   const shade = isMenu && phoneQuery.matches ? asSheet(el) : null;
   if (isMenu && !content.classList.contains('ctx-menu')) glideLight(content);
@@ -435,6 +444,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
     cancelAnimationFrame(following);
     openPopovers.delete(api);
     openLayers.splice(openLayers.indexOf(api), 1);
+    if (!api.picked) sound('unpop');   // a row chosen made its own sound
     if (el.contains(document.activeElement)) {
       if (anchor.isConnected) anchor.focus?.({ preventScroll: true });
       else document.activeElement.blur();
@@ -535,7 +545,7 @@ export function openMenu(anchor, items, opts = {}) {
       : item.heading ? h('div', { class: 'menu-head' }, item.heading)
       : h('button', {
         type: 'button', ...rowRole(item), class: `menu-item${item.danger ? ' is-danger' : ''}`,
-        onclick: (ev) => pickRow(ev.currentTarget, () => { pop.close(); item.run(); }),
+        onclick: (ev) => { if (!pop.picked) sound('pick'); pop.picked = true; pickRow(ev.currentTarget, () => { pop.close(); item.run(); }); },
       }, rowIcon(item), h('span', null, item.label), rowEnd(item))));
   pop = openPopover(anchor, list, opts);
   return pop;
@@ -569,6 +579,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     }));
   const el = h('div', { class: 'pop pop-ctx' }, list);
   document.body.append(el);
+  sound('pop');
   const shade = phoneQuery.matches ? asSheet(el) : null;
 
   // Open toward the room there is, growing from the corner at the pointer.
@@ -608,6 +619,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     else if (ev.key === 'Tab') { ev.preventDefault(); close(); return; }
     if (!next) return;
     ev.preventDefault();
+    sound('focus');
     light(next);
     if (!keepFocus) next.focus({ preventScroll: true });
   };
@@ -625,6 +637,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
   function pick(btn, item) {
     if (busy) return;
     busy = true;
+    sound('pick');
     light(btn);
     if (reducedMotion()) { close(); item.run(); return; }
     btn.classList.add('is-picked');
@@ -644,6 +657,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     removeEventListener('blur', close);
     openPopovers.delete(api);
     openLayers.splice(openLayers.indexOf(api), 1);
+    if (!busy) sound('unpop');
     if (el.contains(document.activeElement)) {
       if (before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
       else document.activeElement.blur();
@@ -716,10 +730,14 @@ export function pinField({ autocomplete = 'current-password', onComplete, label 
     return digits;
   };
   const done = (digits) => (digits.length === most || (short && digits.length === 4));
+  let typed = 0;
   input.addEventListener('input', () => {
     el.classList.remove('is-error');
     clearTimeout(pause);
     const digits = sync();
+    // A digit in, a key's click (a phone's own keyboard clicks for itself).
+    if (digits.length > typed && !touchScreen()) sound('key');
+    typed = digits.length;
     if (digits.length === most) onComplete?.(digits);
     else if (short && digits.length === 4) {
       pause = setTimeout(() => { if (input.value === digits) onComplete?.(digits); }, 1600);
@@ -742,6 +760,7 @@ export function pinField({ autocomplete = 'current-password', onComplete, label 
     state(name) {
       clearTimeout(pause);
       el.classList.remove('is-error', 'is-busy', 'is-ok');
+      if (name === 'error') sound('no');
       if (name) {
         void el.offsetWidth; // restart the animation
         el.classList.add(`is-${name}`);

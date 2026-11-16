@@ -7,6 +7,7 @@ import { forgetPrefs } from './theme.js';
 import { confirmDialog, exit, openDialog, pinField, toast } from './ui.js';
 import { BEAT, DUR, EASE, h, reducedMotion, wait } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 export async function signOut() {
   try { await api.post('/api/auth/logout'); } catch { /* signed out either way */ }
@@ -220,7 +221,7 @@ export function showRecoveryKey(key, username = session.user?.username) {
   const copy = h('button', {
     type: 'button', class: 'btn btn-small',
     onclick: async () => {
-      try { await navigator.clipboard.writeText(key); toast('Key copied'); } catch { box.select(); toast('Press Copy on your keyboard'); }
+      try { await navigator.clipboard.writeText(key); sound('copy'); toast('Key copied'); } catch { box.select(); toast('Press Copy on your keyboard'); }
     },
   }, icon('copy'), 'Copy');
   const save = h('button', {

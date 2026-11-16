@@ -17,6 +17,7 @@ import { bus, h, nameColor, personLabel, timeAgo } from './util.js';
 import { icon } from './icons.js';
 import { KIND_ONE, displayTitle, imageSrc } from './kinds.js';
 import { showCommentsOf } from './comments.js';
+import { sound } from './sound.js';
 
 const AT_ONCE = 3;
 // A phone shows one at a time, on one line across the top, and its galaxy makes room for it.
@@ -84,6 +85,7 @@ function beamNote(f, { step = 0, onOpen, onClose }) {
 
 const keyOf = (f) => (f.beam ? `beam:${f.from.username}` : f.block.id);
 
+let rang = false;   // the notes' sound has played this visit
 export function commentNotes() {
   const host = h('div', { class: 'cn-notes', role: 'region', 'aria-label': 'New comments' });
   let wanted = false;
@@ -157,6 +159,7 @@ export function commentNotes() {
       if (shown.has(keyOf(f)) || gone.has(keyOf(f))) continue;
       note(f, step++);
     }
+    if (step && !rang) { rang = true; sound('news'); }   // once a visit, however many notes
     if (shown.size && !host.isConnected) document.body.append(host);
   }
 

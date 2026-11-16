@@ -7,6 +7,7 @@ import { api } from './api.js';
 import { openDialog, sectionHead, toast } from './ui.js';
 import { DUR, EASE_LEAVE, h, plural, timeAgo } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 export const waitingResets = () => api.get('/api/admin/resets').then((r) => r.requests || [], () => []);
 
@@ -16,7 +17,7 @@ function showLink(who, res) {
   const copy = h('button', {
     type: 'button', class: 'btn btn-small',
     onclick: async () => {
-      try { await navigator.clipboard.writeText(res.link); toast('Link copied'); } catch { box.select(); toast('Press Copy on your keyboard'); }
+      try { await navigator.clipboard.writeText(res.link); sound('copy'); toast('Link copied'); } catch { box.select(); toast('Press Copy on your keyboard'); }
     },
   }, icon('copy'), 'Copy');
   const dialog = openDialog({

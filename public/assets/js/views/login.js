@@ -21,6 +21,7 @@ import { pinField } from '../ui.js';
 import { DUR, EASE, EASE_LEAVE, STAGGER, h, reducedMotion, touchScreen, wait } from '../util.js';
 import { voidArt } from '../voidart.js';
 import { icon } from '../icons.js';
+import { sound } from '../sound.js';
 
 const NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9]$/;
 const BEEN = 'mutt.been-here';
@@ -586,6 +587,7 @@ export const loginView = {
             : mode === 'reset' ? api.post(`/api/auth/reset/${encodeURIComponent(reset.token)}`, { pin: digits })
               : api.post(mode === 'signin' ? '/api/auth/login' : '/api/auth/signup', { username, pin: digits }));
         pin.state('ok');
+        sound('hello');
         remember(res.user?.username || nameInput.value);
         clearTimeout(twitch);
         const flash = await fallIn();

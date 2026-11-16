@@ -8,6 +8,7 @@ import { planetDot } from './planets.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './ui.js';
 import { bus, h, plural, styles, wait } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 // ---------------------------------------------------------------- connect picker
 
@@ -143,6 +144,7 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     try {
       const res = await api.post(`/api/blocks/${block.id}/save`, { drawer: drawer?.id });
       block.saved = true;
+      sound('save');
       onSaved?.(res.block);
       toast(drawer ? `Saved to ${drawer.title}` : 'Saved as a star', {
         action: { label: 'Open', run: () => nav.go(drawer ? drawerHref(drawer) : '/') },
@@ -331,6 +333,7 @@ export async function deleteBlock(block) {
   try {
     await api.del(`/api/blocks/${block.id}`);
     bus.emit('block:deleted', { id: block.id });
+    sound('bin');
     toast('Deleted', { action: { label: 'Undo', run: () => restoreBlock(block) } });
     return true;
   } catch (err) {
@@ -344,6 +347,7 @@ export async function deleteBlock(block) {
 export async function restoreBlock(block) {
   try {
     const { block: back, connections, drawers, positions } = await api.post(`/api/blocks/${block.id}/restore`);
+    sound('undo');
     for (const drawerId of drawers) bus.emit('block:connected', { block: back, drawerId, connections, position: positions[drawerId] });
     if (!drawers.length) bus.emit('block:connected', { block: back, drawerId: null, connections });
     return { block: back, drawers, connections };
@@ -402,8 +406,8 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
     canEditPicture(block) && { icon: 'edit', label: 'Edit picture', run: () => editPicture(block) },
     canDownload(block) && { icon: 'download', label: formatsOf(block).length ? 'Download as…' : 'Download', run: () => downloadMenu(anchor, block) },
-    block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
-    block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
+    block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => { sound('copy'); toast('Link copied'); }) },
+    block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => { sound('copy'); toast('Text copied'); }) },
     open && history && block.kind === 'text' && block.versions > 0 && { icon: 'history', label: 'History', run: () => { historyWish = block.id; open(); } },
     '-',
     drawer && { icon: 'takeoff', label: `Take off ${drawer.title}`, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },

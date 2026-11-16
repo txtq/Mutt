@@ -9,6 +9,7 @@ import { center, shockwave } from './fx.js';
 import { theSky } from './sky.js';
 import { DUR, h, isEditable, touchScreen } from './util.js';
 import { voidArt } from './voidart.js';
+import { sound } from './sound.js';
 import { icon } from './icons.js';
 
 const MODES = [
@@ -359,6 +360,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     },
     // Swallowed: the dark ripples and the stars lean in.
     gulp() {
+      sound('take');
       el.classList.remove('is-gulping');
       void el.offsetWidth;
       el.classList.add('is-gulping');

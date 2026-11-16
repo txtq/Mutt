@@ -4,6 +4,7 @@
 
 import { float } from './fx.js';
 import { DUR, EASE_SPRING, reducedMotion } from './util.js';
+import { sound } from './sound.js';
 
 const HOLD_MS = 260;
 const EDGE = 72;
@@ -42,6 +43,7 @@ export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd 
       dragging = true;
       blockClick = true;
       onStart?.();
+      sound('lift');
       list = targets();
       g = float(ghost(), pos);
       g.classList.add('drag-ghost');
@@ -84,6 +86,7 @@ export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd 
         hovered = next;
         hovered?.el.classList.add('is-target');
         hovered?.onHover?.(true);
+        if (hovered) sound('over');
       }
       // Planets have a pull: the star drifts toward the one you're over.
       const aim = hovered
@@ -200,6 +203,7 @@ export function movable(el, { enabled = () => true, from = () => true, onStart, 
       dragging = true;
       blockClick = true;
       document.body.classList.add('is-carrying');
+      sound('lift');
       onStart?.(start);
       frame = requestAnimationFrame(tick);
     }
@@ -229,6 +233,7 @@ export function movable(el, { enabled = () => true, from = () => true, onStart, 
       if (ev.pointerId !== pid) return;
       const wasDragging = dragging;
       cleanup();
+      if (wasDragging && ev.type !== 'pointercancel') sound('drop');
       if (wasDragging) onEnd?.(pos, ev.type === 'pointercancel');
     };
 

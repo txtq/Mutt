@@ -8,6 +8,7 @@ import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
 import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -1132,6 +1133,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   // Something arrived: the world brightens a moment, and if it had gathered
   // dust, the dust lifts off.
   el.gulp = () => {
+    sound('land', { note: lookOf(planet) });   // the planet's own note (DESIGN.md "Sound")
     fresh = 1;
     globeApi.wakeUp();
     body.classList.remove('is-gulping');
@@ -1210,6 +1212,7 @@ export function moonEl(moon, { size = 28, link = true } = {}) {
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
   };
   el.gulp = () => {
+    sound('land');
     el.classList.remove('is-gulping');
     void el.offsetWidth;
     el.classList.add('is-gulping');

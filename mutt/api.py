@@ -100,6 +100,7 @@ PREF_CHOICES = {
     'motion': {'fluid', 'calm', 'off'},
     'sky': {'vita', 'nebula', 'aurora', 'dusk'},
     'music': {'on', 'off'},
+    'sound': {'on', 'off'},
 }
 
 

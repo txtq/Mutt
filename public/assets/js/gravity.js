@@ -7,6 +7,7 @@
 import { fileFace } from './planets.js';
 import { theSky } from './sky.js';
 import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, h, reducedMotion } from './util.js';
+import { sound } from './sound.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 // How many fly at most (the rest stay a press away, under "+N more"), on a computer and on a phone.
@@ -164,6 +165,7 @@ export class Gravity {
 
   // Lifting off its planet and gliding to the void on a gentle curve.
   arrive(face, delay) {
+    setTimeout(() => sound('found'), delay + (reducedMotion() ? 0 : DUR.scene * 0.8));   // a glass note as each settles
     const d = this.away(face);
     if (!d) {
       face.animate([{ opacity: 0, transform: `scale(${SMALL})` }, { opacity: 1, transform: 'none' }],

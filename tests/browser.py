@@ -478,6 +478,78 @@ def sign_in(s, seeded):
     s.shot('galaxy')
 
 
+def heard(s):
+    """The names of the sounds played lately (sound.js keeps the last 40)."""
+    s.js('window.__heard = null; const v = (document.querySelector("script[src*=\'main.js\']")?.src.match(/\\?v=[^&]+/) || [""])[0];'
+         'import("/assets/js/sound.js" + v).then((m) => { window.__heard = m.soundsHeard(); });')
+    s.wait('return Array.isArray(window.__heard)', 'the sound module could not be asked what it played')
+    return s.js('return window.__heard')
+
+
+def sounds(s, seeded):
+    """Sound is on from the start: signing in, a sheet and a choice in it, diving into a planet and taking
+    a text box each make their own sound, and once it's switched off nothing more plays."""
+    s.go('/')
+    s.sign_out()
+    s.go('/')
+    s.see('.login-name', 'the sign-in page did not appear')
+    s.settle(1.5)
+    give_name(s, NAME)
+    s.wait('return /welcome back/i.test(document.querySelector(".login-prompt")?.textContent || "")', 'a known name was not welcomed back')
+    enter_code(s, CODE)
+    s.wait('return location.pathname === "/" && document.querySelectorAll(".planet").length >= 7', 'the right code did not open the galaxy', 12)
+    s.settle(1.5)
+    if 'hello' not in heard(s):
+        raise Fail(f'signing in made no sound (heard {heard(s)})')
+    s.click(s.see('.sb-who', 'the account button is missing'))
+    s.see('.sheet-settings.is-open', 'the account sheet did not open')
+    s.settle(0.6)
+    s.click(s.named('.sheet-settings .seg-btn', 'Calm', 'the Motion bar has no Calm'))
+    s.settle(0.4)
+    s.click(s.named('.sheet-settings .seg-btn', 'Lively', 'the Motion bar has no Lively'))
+    s.settle(0.4)
+    got = heard(s)
+    for name in ('sheet', 'select'):
+        if name not in got:
+            raise Fail(f'no "{name}" sound (heard {got})')
+    if 'press' in got[got.index('sheet'):]:
+        raise Fail(f'a press with a sound of its own also clicked (heard {got})')
+    s.press('Escape')
+    s.settle(0.6)
+    s.click(s.named('.planet', 'Postcards', 'the Postcards planet is not in the galaxy'))
+    s.wait('return location.pathname.startsWith("/p/")', 'clicking a planet did not open it')
+    s.settle(1)
+    if 'dive' not in heard(s):
+        raise Fail(f'opening a planet made no sound (heard {heard(s)})')
+    # A text box taken with a tap seats with its own small click.
+    s.click(s.see('textarea[aria-label="Add a file"]', 'the planet has no add box'))
+    s.settle(0.4)
+    if heard(s)[-1:] != ['field']:
+        raise Fail(f'taking the add box made no "field" sound (heard {heard(s)})')
+    s.press('Escape')
+    # Switched off in the account sheet: after a reload nothing plays and the sounds aren't even fetched.
+    s.click(s.see('.sb-who', 'the account button is missing'))
+    s.see('.sheet-settings.is-open', 'the account sheet did not open')
+    s.settle(0.6)
+    off = s.js('const row = [...document.querySelectorAll(".sheet-settings .set-row")].find((r) => r.querySelector(".set-label")?.textContent === "Sounds");'
+               'return row ? [...row.querySelectorAll(".seg-btn")].find((b) => b.textContent === "Off") : null')
+    if not off:
+        raise Fail('the account sheet has no Sounds row with Off')
+    s.click(off)
+    s.wait('return document.documentElement.dataset.sound === "off"', 'pressing Off did not switch Sounds off')
+    s.settle(1)
+    s.go('/')
+    s.settle(1.5)
+    s.click(s.see('.sb-who', 'the account button is missing'))
+    s.settle(0.8)
+    s.press('Escape')
+    s.settle(0.5)
+    if heard(s):
+        raise Fail(f'sounds played with Sound off (heard {heard(s)})')
+    if s.js('return performance.getEntriesByType("resource").some((e) => e.name.includes("soundbank"))'):
+        raise Fail('the sounds were fetched with Sound off')
+
+
 def forgot_code(s, seeded):
     """Two wrong codes offer a way back in; the recovery key picks a new code and gives a new key."""
     s.go('/')
@@ -1130,7 +1202,7 @@ def beam_file(s, seeded):
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
-         split_moons, board_mode, beam_file, forgot_code, key_nudge]
+         split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

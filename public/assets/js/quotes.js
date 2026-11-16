@@ -19,6 +19,7 @@ import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, openContextMenu, sectionHead, segmented, toast } from './ui.js';
 import { addFiles } from './uploads.js';
 import { BEAT, DUR, EASE, EASE_LEAVE, STAGGER, bus, debounce, h, named, paperFaces, plural, reducedMotion } from './util.js';
+import { sound } from './sound.js';
 
 const moving = () => !reducedMotion();
 
@@ -410,15 +411,16 @@ function openSlideshow(quotes, { start = 0, play = true, title = '' } = {}) {
       figure.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, easing: EASE, fill: 'forwards' });
     } else draw();
   };
-  const go = (dir) => {
+  const go = (dir, byHand = true) => {
     if (order.length < 2) return;
+    if (byHand) sound('turn');   // moving on by itself makes no sound
     turnTo((at + dir + order.length) % order.length);
     schedule();
   };
 
   const schedule = () => {
     clearTimeout(timer);
-    if (playing && order.length > 1 && document.visibilityState === 'visible') timer = setTimeout(() => go(1), PACE);
+    if (playing && order.length > 1 && document.visibilityState === 'visible') timer = setTimeout(() => go(1, false), PACE);
   };
   const keepAwake = async () => {
     if (!playing || document.visibilityState !== 'visible' || !el.isConnected) return;

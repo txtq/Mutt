@@ -17,6 +17,7 @@ import { dropHeldSearch, heldSearch, searchBody } from './search.js';
 import { icon } from './icons.js';
 import { askToKeep } from './keeping.js';
 import { commentNotes } from './commentnotes.js';
+import { sound } from './sound.js';
 
 const current = () => ({ ...DEFAULTS, ...session.prefs });
 const save = (patch) => updatePrefs(patch, (err) => err && toast(err.message));
@@ -42,6 +43,7 @@ function sheet(className, build) {
     el.replaceChildren(body);
     el.inert = false;
     open = true;
+    sound(className.includes('search') ? 'search' : 'sheet');
     anchor?.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => { if (open) el.classList.add('is-open'); });
     document.addEventListener('pointerdown', outside, true);
@@ -50,6 +52,7 @@ function sheet(className, build) {
   function close() {
     if (!open) return;
     open = false;
+    sound('unsheet');
     body?.onLeave?.();   // (search sends what it found home)
     el.tabsWith = null;
     el.classList.remove('is-open');
@@ -325,7 +328,8 @@ function settingsBody(close) {
     row('Sky', skyPicker()),
     row('Text', choice('size', [{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }])),
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
-    row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])));
+    row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
+    row('Sounds', choice('sound', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])));
   const pages = sheetPages(home);
   const deletedDoor = pages.door('Recently deleted', { page: () => deletedPage });
   deletedDoor.hidden = true;
@@ -376,6 +380,7 @@ export function createStatusbar() {
   document.body.append(home);
   let current = null;
   home.addEventListener('click', () => {
+    sound('back');
     if (current?.goHome) current.goHome();
     else nav.go('/');
   });

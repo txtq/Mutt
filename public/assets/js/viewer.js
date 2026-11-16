@@ -7,6 +7,7 @@ import { downloadMenu, formatsOf } from './downloads.js';
 import { api, session } from './api.js';
 import { KIND_ONE, canEditPicture, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
+import { sound } from './sound.js';
 import { briefNote } from './cells.js';
 import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
@@ -117,6 +118,7 @@ function step(delta) {
   const index = list.findIndex((b) => b.id === block.id);
   if (index < 0 || list.length < 2) return;
   const next = list[(index + delta + list.length) % list.length];
+  sound('turn');
   show(next);
   state.stepping?.cancel();
   const slide = state.stage.animate(

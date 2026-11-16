@@ -16,6 +16,7 @@ import { NoText, outlineOf, pdfToBook } from './pdfbook.js';
 import { segmented, stepper, toast } from './ui.js';
 import { DUR, EASE, EASE_LEAVE, debounce, h, paperFaces, plural, reducedMotion } from './util.js';
 import { icon as draw } from './icons.js';
+import { sound } from './sound.js';
 
 const THEMES = [
   { value: 'night', label: 'Night' },
@@ -722,7 +723,9 @@ class Reader {
   }
 
   goPage(page, { animate = true } = {}) {
+    const was = this.page;
     this.page = Math.max(0, Math.min(this.pages - 1, page));
+    if (animate && this.page !== was) sound('turn');
     const x = this.page * this.geo.step * (this.flow.dir === 'rtl' ? 1 : -1);
     const to = `translate3d(${x}px, 0, 0)`;
     if (animate && moving()) {

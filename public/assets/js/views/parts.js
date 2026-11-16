@@ -15,6 +15,7 @@ import { PALETTE, h } from '../util.js';
 import { DRAWING_NAMES, ICON_NAMES, drawing, icon } from '../icons.js';
 import { modeOffer } from '../offers.js';
 import { commentNote } from '../commentnotes.js';
+import { sound } from '../sound.js';
 
 const held = (el, ...states) => { el.classList.add(...states.map((s) => `is-${s}`)); el.tabIndex = -1; return el; };
 const off = (el) => { el.disabled = true; return el; };
@@ -308,11 +309,29 @@ function icons() {
     note('A menu of things to do gives every row an icon; a menu that picks one of a list gives none, and the chosen row ends in a tick. A menu never mixes the two.'));
 }
 
+// Every sound, to press and hear (DESIGN.md "Sound"). Played through sound(), so Sounds must be on.
+function sounds() {
+  const groups = h('div', { class: 'parts-sounds' });
+  import('../soundbank.js').then(({ SOUNDS, PLANET_NOTES }) => {
+    const ranks = ['Presses', 'Moving about', 'Something done', 'Rare'];
+    ranks.forEach((label, rank) => {
+      const names = Object.keys(SOUNDS).filter((n) => SOUNDS[n].rank === rank && n !== 'wind');
+      groups.append(row(label, ...names.map((n) => btn(n, 'btn-small', {
+        title: SOUNDS[n].when, 'data-quiet': '', onclick: () => sound(n, { note: 'ocean' }),
+      }))));
+    });
+    groups.append(row('Planet notes', ...Object.keys(PLANET_NOTES).map((k) => btn(k, 'btn-small btn-quiet', {
+      'data-quiet': '', onclick: () => sound('land', { note: k }),
+    }))));
+  });
+  return section('Sound', 'Every sound, by how often it happens. Point at one for when it plays. They play only with Sounds on in your account; the last row is the note each kind of planet plays when a file lands on it.', groups);
+}
+
 export function partsView() {
   const el = h('div', { class: 'parts' },
     h('header', { class: 'parts-head' }, h('h1', { class: 'parts-title' }, 'Parts'),
       note('Every shared part in every state, as DESIGN.md section 4 gives them. This page is linked from nowhere. A new part is drawn here first.')),
-    buttons(), textBoxes(), ...switches(), menus(), icons(), ...overlays(), ...fileBoxes(), ...modeParts());
+    buttons(), textBoxes(), ...switches(), menus(), icons(), sounds(), ...overlays(), ...fileBoxes(), ...modeParts());
   return {
     el,
     title: 'Parts',

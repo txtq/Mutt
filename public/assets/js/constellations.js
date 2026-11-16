@@ -15,6 +15,7 @@ import { modeOffer } from './offers.js';
 import { openMenu, openPopover, toast } from './ui.js';
 import { DUR, EASE_GLIDE, EASE_LEAVE, h, plural, reducedMotion, seeded, sharpness } from './util.js';
 import { wisp } from './uvweb.js';
+import { sound } from './sound.js';
 
 export const ENOUGH = 4;            // stars before it offers to become a planet (the user's pick)
 const NAME = 'Constellation';       // what one left unnamed is called
@@ -241,6 +242,7 @@ export class Sky {
         : await api.post('/api/constellations', { stars: [targetId, blockId] });
       this.set(res.constellations);
       this.g.layout();
+      sound('join', { count: res.constellation.stars?.length || 2 });
       const c = this.byId(res.constellation.id);
       if (!into) this.askName(c, { first: true });
       else this.maybeOffer(c);

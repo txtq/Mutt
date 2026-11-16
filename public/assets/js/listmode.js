@@ -13,6 +13,7 @@ import { openContextMenu, openDialog, openPopover, sectionHead, segmented, toast
 import { addFiles, contextKey } from './uploads.js';
 import { DUR, EASE, EASE_GLIDE, STAGGER, autosize, bus, h, plural, reducedMotion } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 export const LIST_TYPES = [
   { value: 'check', label: 'Checklist' },
@@ -621,6 +622,7 @@ export class ListView {
     if (!block || !this.editable || block.pending) return;
     const was = block.checked;
     block.checked = was ? null : Date.now();
+    sound(was ? 'untick' : 'tick');
     this.paintTick(id, { draw: true });
     this.updateCount();
     clearTimeout(this.sinkTimer);
@@ -662,7 +664,7 @@ export class ListView {
     if (!this.editable || block.mine === false) {
       openContextMenu(e, [
         { icon: 'open', label: 'Open', run: open },
-        block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
+        block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => { sound('copy'); toast('Text copied'); }) },
       ], { target: li });
       return;
     }

@@ -10,6 +10,7 @@ import { nav } from './nav.js';
 import { exit, openMenu, toast } from './ui.js';
 import { DUR, bus, h } from './util.js';
 import { icon } from './icons.js';
+import { sound } from './sound.js';
 
 const HOUR = 3600000;
 const DAY = 86400000;
@@ -192,8 +193,10 @@ function cometNotes() {
       shown.delete(id);
       exit(el);
     }
+    let rang = false;   // one sound however many arrive (Mutt Sounds, when on)
     for (const c of list.slice(0, 3)) {
       if (shown.has(c.id)) continue;
+      if (!rang) { rang = true; sound('news'); }
       const el = cometNote(c, {
         onOpen: () => openComet(c),
         onDone: () => dealWith(c, 'done'),

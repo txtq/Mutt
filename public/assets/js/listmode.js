@@ -9,11 +9,13 @@
 import { blockContextMenu, deleteBlock } from './actions.js';
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { openContextMenu, openDialog, openPopover, sectionHead, segmented, toast } from './ui.js';
+import { openContextMenu, openDialog, openMenu, openPopover, sectionHead, segmented, toast } from './ui.js';
 import { addFiles, contextKey } from './uploads.js';
 import { DUR, EASE, EASE_GLIDE, STAGGER, autosize, bus, h, plural, reducedMotion } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
+import { momentLine } from './moments.js';
+import { cometRows, cometWhen, makeComet, stopComet, tell } from './remind.js';
 
 export const LIST_TYPES = [
   { value: 'check', label: 'Checklist' },
@@ -132,8 +134,15 @@ export class ListView {
       this.left = h('span', { class: 'lm-left', 'aria-live': 'polite' });
       this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }, icon('plus')), this.input, this.left);
       this.wireAdder();
+      // a day in the item: the line under the box offers to make it a comet that reminds you then
+      this.hint = momentLine(this.input, { acts: { comet: { label: 'Make it a comet', run: () => this.addComet() } } });
+      this.hint.classList.add('lm-hint');
+      this.input.addEventListener('input', () => this.hint.check(this.input.value));
     }
-    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.ol);
+    // Your items that are comets ({id: comet}) and those whose words name a day (`could`): one ask a visit
+    this.comets = {};
+    this.could = new Set();
+    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.hint || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.ol.addEventListener('contextmenu', (e) => this.context(e));
     // A right-press anywhere on an item only opens its menu: it doesn't focus
@@ -148,9 +157,11 @@ export class ListView {
       bus.on('upload:done', (item) => {
         if (item.block && contextKey(item.ctx) === contextKey({ drawerId: this.drawer.id })) this.arrive(item.block);
       }),
+      bus.on('comet:changed', () => this.askComets()),
       bus.on('block:changed', (b) => {
         const i = this.blocks.findIndex((x) => x.id === b.id);
         if (i < 0) return;
+        this.askComets(800);   // its words may name another day now
         this.blocks[i] = { ...this.blocks[i], ...b, checked: this.blocks[i].checked };
         const li = this.rows.get(b.id);
         if (li && !li.contains(document.activeElement)) this.replaceRow(b.id);
@@ -159,6 +170,55 @@ export class ListView {
       bus.on('block:connected', (e) => { if (e.drawerId === this.drawer.id && e.block) this.arrive(e.block); }),
       bus.on('block:disconnected', (e) => { if (e.drawerId === this.drawer.id && e.block) this.forget(e.block.id); }),
     ];
+    this.askComets();
+  }
+
+  // ------------------------------------------------------------ comets (DESIGN.md "Comets")
+
+  askComets(wait = 0) {
+    if (!this.editable) return;
+    clearTimeout(this.cometTimer);
+    this.cometTimer = setTimeout(async () => {
+      try {
+        const got = await api.get(`/api/drawers/${this.drawer.id}/comets?tz=${-new Date().getTimezoneOffset()}`);
+        this.comets = got.comets || {};
+        this.could = new Set(got.could || []);
+      } catch { return; }
+      for (const id of this.rows.keys()) this.paintComet(id);
+    }, wait);
+  }
+
+  // The item's comet: a small mark at its end with its day in the comet's ember; pressed, the comet's menu.
+  cometEl(id) {
+    const c = this.comets[id];
+    if (!c) return null;
+    const when = cometWhen(c).split(' · ')[0];
+    const el = h('button', {
+      type: 'button', class: 'lm-comet', title: `A comet will remind you ${when}`, 'aria-label': `Comet: reminds you ${when}`,
+      onclick: (e) => openMenu(e.currentTarget, [{ heading: 'A comet will remind you' }, ...cometRows(c, { open: false })]),
+    }, icon('date', 12), h('span', null, when));
+    return el;
+  }
+
+  paintComet(id) {
+    const row = this.rows.get(id)?.querySelector('.lm-row');
+    if (!row) return;
+    row.querySelector('.lm-comet')?.remove();
+    const el = this.cometEl(id);
+    if (el) row.insertBefore(el, row.querySelector('.lm-x'));
+  }
+
+  // The add box's offer: the item is added as usual, then made a comet.
+  async addComet() {
+    const content = this.input.value.replace(/\s*\n\s*/g, ' ').slice(0, Math.max(this.opts.limit, 1)).trim();
+    if (!content) return;
+    tell();
+    this.input.value = '';
+    this.input.dispatchEvent(new Event('input'));
+    const temp = { id: tmpId(), kind: 'text', content, mine: true, checked: null, pending: true };
+    this.insertBlock(temp, null);
+    const id = await this.save(temp, content, this.above(temp)).catch(() => null);
+    if (id) makeComet(id, { told: true });
   }
 
   // ------------------------------------------------------------ options
@@ -250,7 +310,7 @@ export class ListView {
     const remove = this.editable && block.mine !== false
       ? h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round lm-x', 'aria-label': 'Remove', title: 'Remove', onclick: () => this.remove(block.id) }, icon('close'))
       : null;
-    li.append(h('div', { class: 'lm-row fglass' }, grip, this.markEl(block), this.bodyEl(block), remove));
+    li.append(h('div', { class: 'lm-row fglass' }, grip, this.markEl(block), this.bodyEl(block), this.cometEl(block.id), remove));
     return li;
   }
 
@@ -631,6 +691,7 @@ export class ListView {
     }
     try {
       await api.post(`/api/drawers/${this.drawer.id}/check`, { block: id, checked: !was });
+      if (this.comets[id] || was) bus.emit('comet:changed');   // a ticked item's comet ends; unticked, it comes back
     } catch (err) {
       block.checked = was;
       this.paintTick(id);
@@ -672,6 +733,8 @@ export class ListView {
     const extra = [
       this.ticking() && { icon: block.checked ? 'untick' : 'tick', label: block.checked ? 'Untick' : 'Tick off', run: () => this.toggle(id) },
       text && { icon: 'edit', label: 'Edit', run: () => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); } },
+      this.could.has(id) && !block.checked && { icon: 'date', label: 'Make it a comet', run: () => makeComet(id) },
+      this.comets[id] && { icon: 'close', label: 'Stop the comet', run: () => stopComet(this.comets[id]) },
     ].filter(Boolean);
     const worlds = (this.targets?.() || []).map((t) => ({ title: t.title, dot: t.dot, planet: t.planet, move: () => this.moveTo(t, id) }));
     const only = this.leaving(block).only;
@@ -901,6 +964,7 @@ export class ListView {
 
   destroy() {
     clearTimeout(this.sinkTimer);
+    clearTimeout(this.cometTimer);
     this.off.forEach((off) => off());
   }
 }

@@ -2551,6 +2551,22 @@ def comets(req):
     return json_response({'comets': out[:COMET_MOST]})
 
 
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/comets')
+def planet_comets(req, drawer_id):
+    """For a list of yours: which of your notes on it are comets ({id: comet}), and which name a day
+    still to come and could be (`could`, with `tz`), so each item can offer one in its menu."""
+    own_drawer(req, drawer_id)   # yours, or kept together with you: only your own notes on it count
+    tz = _tz_arg(req.arg('tz'))
+    rows = req.db.execute('SELECT b.id, b.content, c.checked, r.block_id AS made FROM connections c JOIN blocks b ON b.id = c.block_id '
+                          'LEFT JOIN reminders r ON r.block_id = b.id '
+                          'WHERE c.drawer_id = ? AND b.user_id = ? AND b.kind = \'text\' AND b.deleted_at IS NULL',
+                          (drawer_id, req.user['id'])).fetchall()
+    made = {r['id'] for r in rows if r['made']}
+    live = {c['id']: c for c in live_comets(req.db, req.user['id']) if c['id'] in made and not c['done']}
+    could = [r['id'] for r in rows if not r['made'] and not r['checked'] and first_day(r['content'], tz)]
+    return json_response({'comets': live, 'could': could})
+
+
 @route('GET', r'/api/comets/due')
 def comets_due(req):
     """What to tell you now: comets whose time has come and not been dealt with (`due`), and heads-ups

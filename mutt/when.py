@@ -157,6 +157,9 @@ def read(text, written):
             wd = DAYS.index(word[:3].lower())
             ahead = (wd - start.weekday()) % 7
             day = start + timedelta(days=ahead)
+            # "next Tuesday" is the Tuesday of next week: written on a Monday, eight days on, not tomorrow
+            if lead == 'next' and ahead and day.isocalendar()[:2] == start.isocalendar()[:2]:
+                day += timedelta(days=7)
         elif kind == 'tomorrow':
             day = start + timedelta(days=1)
         elif kind in ('tonight', 'today'):

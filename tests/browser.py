@@ -984,6 +984,25 @@ def comet(s, seeded):
     s.shot('comet')
     made = s.fetch('/api/comets')['comets'][0]['id']
     s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', made)
+    # a list's items can be comets too: offered under its add box, marked at the item's end, in its menu
+    errands = s.js('''return (async () => {
+        const send = (method, url, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const { drawer } = await send('POST', '/api/drawers', { title: 'Errands' });
+        await send('PATCH', `/api/drawers/${drawer.id}`, { modes: { list: { on: true } } });
+        for (const t of ['Milk', 'Return the library books Friday']) await send('POST', '/api/blocks', { content: t, drawer: drawer.id });
+        return drawer.id;
+      })()''')
+    s.go(f'/p/{errands}')
+    s.see('.lm-input', 'a list planet has no add box')
+    s.type('.lm-input', 'Call the plumber tomorrow 9am')
+    btn = s.named('.lm-hint .dk-hint-btn', 'Make it a comet', "a list item with a day in it did not offer to become a comet", 6)
+    s.js('arguments[0].click()', btn)
+    s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => /plumber/.test(li.querySelector(".lm-text")?.value) && li.querySelector(".lm-comet"))',
+           'the list item did not come back marked as a comet', 10)
+    s.shot('comet-list')
+    for c in s.fetch('/api/comets')['comets']:
+        s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', c['id'])
 
 
 def send_to_top(s, seeded):

@@ -1097,8 +1097,8 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
    control joins this list rather than growing its own. */
 @media (pointer: coarse) {
   .slider-track { height: var(--h-large); }   /* the channel and knob keep their look; the area to slide is 40 */
-  :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go is placed already */
-  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .gx-found-file, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
+  :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go and .lm-comet are placed already */
+  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .lm-comet, .gx-found-file, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
     content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, var(--h-large)); height: max(100%, var(--h-large)); transform: translate(-50%, -50%);
   }
   /* in a row of them, only upward and downward: sideways belongs to the neighbour */
@@ -2910,6 +2910,18 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-new:focus-within { border-color: color-mix(in srgb, var(--focus) 80%, transparent); box-shadow: var(--well-shadow), 0 0 0 var(--ring) color-mix(in srgb, var(--accent) 32%, transparent); }
 .lm-plus { display: grid; place-items: center; flex: none; width: var(--h-small); height: var(--h-small); color: var(--ink-3); transition: color var(--dur-change); }
 .lm-new:focus-within .lm-plus { color: var(--pt, var(--blue-ink)); }
+
+/* a comet (DESIGN.md "Comets"): under the add box, the line offering one; at an item's end, its mark,
+   the date icon and its day in the comet's ember, which opens the comet's menu */
+.lm-hint { margin: calc(-1 * var(--space-4)) 0 var(--space-8); padding: 0 var(--space-12) 0 18px; }
+.lm-comet { position: relative; flex: none; display: inline-flex; align-items: center; gap: var(--space-4); height: 24px; padding: 0 var(--space-8); border: 0; border-radius: var(--r-row); background: none; color: var(--comet-ember); font: var(--type-small); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-quick); }
+.lm-comet:hover { background: var(--tint); }
+.lm-item.is-done .lm-comet { display: none; }
+/* on a phone the day goes on its own line under the words, where they start, so neither is squeezed */
+@media (max-width: 720px) {
+  .lm-row:has(> .lm-comet) { flex-wrap: wrap; row-gap: 0; }
+  .lm-comet { order: 1; flex-basis: 100%; justify-content: flex-start; margin: calc(-1 * var(--space-4)) 0 0; padding-left: calc(10px - var(--space-4) + 2 * var(--space-12) + var(--h-small)); }
+}
 
 /* ---- list options: a small panel beside the list's •••, or a dialog from the planet's ••• */
 .lm-pop-title { margin-bottom: var(--space-16); font: var(--type-lead); font-weight: 700; color: var(--ink); }

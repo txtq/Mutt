@@ -164,7 +164,7 @@ from datetime import datetime; from mutt import when
 w = datetime(2026, 11, 16, 10, 0)
 for t in ['Dentist Thursday 3pm', 'Rae birthday 24 Nov', 'flight 2 Dec 07:40', 'call the vet tomorrow at 4:30pm', 'today 4pm haircut',
           'Sat 10am parkrun', 'meeting Mon 23 Nov 9:30', 'renew passport by 3/2/2027', 'in 2 weeks: seedlings', 'Mum b-day 3 Jan',
-          'May 3 garden show', 'next Monday notes',
+          'May 3 garden show', 'next Monday notes', 'next Tuesday vet 10am', 'next Saturday market',
           'today I felt calm', 'Pilates every Tuesday 6pm', 'sat on the step in the sun', 'Sun cream', '16 Nov: ran 5k',
           '1/2 cup sugar, bake at 180', 'the light at 6pm on the bridge', 'Day 1: flour', 'Monday notes from the meeting', 'it may 3 times']:
     print(t + ' = ' + (', '.join(f['day'].isoformat() + (' ' + f['time'] if f['time'] else '') + (' yearly' if f['yearly'] else '') for f in when.read(t, w)) or '-'), end='; ')
@@ -177,6 +177,10 @@ LIST=$(mk '{"title":"Errands"}')
 CL=$(add "post the parcel tomorrow" $LIST)
 echo "a day alone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CL/comet -d '{"tz":60}' | j "(lambda c: (c['time'], (c['at'] - c['ahead']) // 3600000))(d['comet'])")"
 echo "comets: $(curl -s "${A[@]}" "$B/api/comets" | j "[(c['title'], c['planet'] == '$LIST') for c in d['comets']]")"
+# a list says which of its items are comets and which name a day and could be (each item's menu offers it)
+add "milk" $LIST >/dev/null; CB=$(add "return the books Friday" $LIST)
+echo "a list's comets: $(curl -s "${A[@]}" "$B/api/drawers/$LIST/comets?tz=0" | j "(list(d['comets']) == ['$CL'], d['could'] == ['$CB'])")"
+rule "someone saw which of another's list items are comets" "$(status "${U[@]}" "$B/api/drawers/$LIST/comets?tz=0")" "404"
 curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$LIST/check -d "{\"block\":\"$CL\",\"checked\":true}"
 echo "ticked off, its comet gone: $(curl -s "${A[@]}" "$B/api/comets" | j "[c['title'] for c in d['comets']]")"
 curl -s -o /dev/null "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$CN -d '{"content":"Dentist in 3 days 4pm, ask about the crown"}'

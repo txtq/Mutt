@@ -4,7 +4,7 @@ import { commentSection } from './comments.js';
 import { momentLine } from './moments.js';
 import { deleteBlock, editPicture, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
 import { downloadMenu, formatsOf } from './downloads.js';
-import { api } from './api.js';
+import { api, session } from './api.js';
 import { KIND_ONE, canEditPicture, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
 import { drawerHref } from './nav.js';
@@ -707,16 +707,47 @@ function metaRows(block) {
   if (block.meta?.pages) rows.push(['Pages', String(block.meta.pages)]);
   if (block.kind === 'text') rows.push(['Words', String((block.content.match(/\S+/g) || []).length)]);
   if (block.fileName) rows.push(['File', block.fileName]);
-  rows.push(['Added', fullDate(block.createdAt)]);
+  const story = block.story;
+  rows.push([story?.savedBy ? 'Saved' : 'Added', fullDate(block.createdAt)]);
   if (block.updatedAt - block.createdAt > 60000) rows.push(['Edited', fullDate(block.updatedAt)]);
   if (block.meta?.original && block.mine !== false) rows.push(['Original', `${block.meta.original.width} × ${block.meta.original.height}, kept`]);
-  const from = block.meta?.savedFrom;
-  if (from && block.mine !== false) {
-    rows.push(['From', h('a', { href: `/g/${from.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${from.username}`); } }, `@${from.username}`)]);
+  // A saved copy says who first made it and who saved it (and from whom, when
+  // that was someone in between), to everyone who can see it.
+  if (story?.savedBy) {
+    if (story.madeBy) rows.push(['Made by', personLink(story.madeBy)]);
+    const via = story.savedFrom && story.savedFrom.username !== story.madeBy?.username;
+    rows.push(['Saved by', via ? h('span', null, personLink(story.savedBy), ' from ', personLink(story.savedFrom)) : personLink(story.savedBy)]);
+  } else if (block.meta?.savedFrom) {
+    rows.push(['From', personLink(block.meta.savedFrom)]);
   }
   const source = block.kind === 'link' ? block.content : block.meta?.source;
   if (source) rows.push(['Source', h('a', { href: source, target: '_blank', rel: 'noopener noreferrer' }, block.meta?.domain || source)]);
   return h('dl', { class: 'vw-meta' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+}
+
+// Someone, as a file's story names them: the name they gave, else their handle; you are "you".
+const personName = (p) => (p.username === session.user?.username ? 'you' : p.name || `@${p.username}`);
+function personLink(p) {
+  return h('a', { href: `/g/${p.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${p.username}`); } }, personName(p));
+}
+
+// Copies of this same file (saved from it, or what it was saved from) on
+// other people's planets you can open, each row the planet and whose it is;
+// your own copy kept as a star says so.
+function elsewhere(block) {
+  const away = block.story?.elsewhere || [];
+  if (!away.length) return [];
+  const planets = away.filter((d) => !d.star);
+  const people = new Set(away.map((d) => d.by?.username));
+  const open = (d) => `${drawerHref(d)}?b=${d.file}`;
+  return [
+    h('section', { class: 'vw-conn-head' }, h('span', { class: 'vw-conn-label' },
+      people.size === 1 && people.has(session.user?.username) ? 'Your copy' : `In ${plural(people.size, 'other galaxy', 'other galaxies')}`)),
+    planets.length ? h('ul', { class: 'vw-conns' }, planets.map((d) => h('li', null, h('a', {
+      href: open(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(open(d)); },
+    }, planetDot(d), h('span', null, d.title || 'Untitled'), d.by ? h('span', { class: 'vw-conn-fact' }, personName(d.by)) : null)))) : null,
+    away.some((d) => d.star) ? h('div', { class: 'vw-conn-note' }, 'You kept a copy as a star.') : null,
+  ];
 }
 
 function saveButton(block) {
@@ -822,12 +853,13 @@ function renderSide() {
     fill(state.side,
       h('h2', { class: 'vw-title vw-title-static' }, displayTitle(block) || 'Untitled'),
       block.description ? h('p', { class: 'vw-desc vw-desc-static' }, block.description) : null,
-      h('a', { class: 'vw-owner', href: `/g/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${owner}`); } }, `@${owner}`),
+      h('a', { class: 'vw-owner', href: `/g/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${owner}`); } }, block.ownerName || `@${owner}`),
       actions,
       saveButton(block),
       metaRows(block),
       others?.length ? h('section', { class: 'vw-conn-head' }, h('span', { class: 'vw-conn-label' }, where)) : null,
       others?.length ? h('ul', { class: 'vw-conns' }, others.map((d) => h('li', null, planetLink(d)))) : null,
+      ...elsewhere(block),
       comments(block));
     return;
   }
@@ -856,6 +888,7 @@ function renderSide() {
       h('span', { class: 'vw-conn-label' }, where),
       connectBtn),
     list,
+    ...elsewhere(block),
     comments(block),
     h('div', { class: 'vw-danger' },
       drawer && connections?.some((d) => d.id === drawer.id)

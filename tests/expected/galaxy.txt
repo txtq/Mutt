@@ -76,3 +76,8 @@ also on, own: [('zine one', ['Diary', 'Gifts'])]  bo: [('zine one', ['Gifts'])] 
 galaxies sharing files, as cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}]
 after bo's planet goes private, cy: []  bo: [{'a': 'alma', 'b': 'bo', 'n': 1}]
 fresh kinds, cy: ['bloom', 'desert', 'gas', 'haze', 'ice', 'lagoon', 'lava', 'lava', 'ocean', 'ocean', 'pale', 'pearl', 'storm', 'terran']
+story, bo's copy as bo sees it: ('alma', 'bo', 'alma', [('alma', 'Gifts'), ('alma', 'Zines')])  as cy: ('alma', 'bo', 'alma', [('alma', 'Zines')])
+cy saves bo's copy as a star, made by: alma  story: ('alma', 'cy', 'bo', [('alma', 'Zines'), ('bo', 'Kept')])
+story, the first as alma sees it: (None, None, None, [('bo', 'Kept')])  as cy: (None, None, None, [('bo', 'Kept'), ('cy', 'star')])
+rule holds: someone else's copy kept as a star showed to others -> no
+threads after cy saves as a star, cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}, {'a': 'bo', 'b': 'cy', 'n': 1}]  alma: [{'a': 'alma', 'b': 'bo', 'n': 1}]

@@ -1135,40 +1135,124 @@ def planet_threads(req, owner_id, open_ids):
     return [{'a': a, 'b': b, 'n': len(files)} for (a, b), files in sorted(pairs.items())]
 
 
+def saved_copies(req):
+    """Every saved copy there is: {copy id: (the id it was saved from, the id
+    of the first one, who saved it, whom they saved it from)}. The first one
+    is `madeBy` when the copy carries it (saved since 2026-11-15); older copies
+    are followed back along `savedFrom`."""
+    rows = req.db.execute(
+        "SELECT id, user_id, deleted_at, json_extract(meta, '$.savedFrom.id') AS src, "
+        "json_extract(meta, '$.savedFrom.username') AS src_name, json_extract(meta, '$.madeBy.id') AS root "
+        "FROM blocks WHERE json_extract(meta, '$.savedFrom.id') IS NOT NULL").fetchall()
+    parent = {r['id']: r['src'] for r in rows}
+    out = {}
+    for r in rows:
+        root = r['root']
+        if not root:
+            root = r['src']
+            for _ in range(16):
+                if root not in parent:
+                    break
+                root = parent[root]
+        out[r['id']] = {'src': r['src'], 'root': root, 'by': r['user_id'], 'from': r['src_name'],
+                        'deleted': bool(r['deleted_at'])}
+    return out
+
+
+def first_of(copies, block_id):
+    """The id of the first file a copy (or a copy of a copy) came from."""
+    return copies[block_id]['root'] if block_id in copies else block_id
+
+
 def galaxy_links(req, open_ids):
     """Galaxies that share files, for the universe: a file on planets in two
-    galaxies (someone's file on a planet others can add to), or a copy one
-    person saved from another's planet, both where this person can see them.
+    galaxies (someone's file on a planet others can add to), a copy and the
+    file it came from both on planets this person can see, and always a copy
+    and the person it was saved from, wherever the copy sits, as long as this
+    person can see the copy (on a planet they can open, or it's their own).
     A copy of a copy leads back to the first. [{a, b, n}] by username."""
-    saved = dict(req.db.execute(
-        "SELECT id, json_extract(meta, '$.savedFrom.id') FROM blocks "
-        "WHERE json_extract(meta, '$.savedFrom.id') IS NOT NULL").fetchall())
-
-    def root(block_id):
-        for _ in range(8):
-            if block_id not in saved:
-                break
-            block_id = saved[block_id]
-        return block_id
-
+    copies = saved_copies(req)
+    ids = dict(req.db.execute('SELECT username, id FROM users').fetchall())
     rows = req.db.execute(
         'SELECT c.block_id, c.drawer_id, d.user_id AS planet_owner, b.user_id AS file_owner FROM connections c '
         'JOIN drawers d ON d.id = c.drawer_id JOIN blocks b ON b.id = c.block_id WHERE b.deleted_at IS NULL').fetchall()
-    owners = {}
+    owners, seen = {}, set()
     for r in rows:
         if r['drawer_id'] in open_ids:
-            owners.setdefault(root(r['block_id']), set()).update((r['planet_owner'], r['file_owner']))
-    pairs = {}
-    for files_root, people in owners.items():
+            owners.setdefault(first_of(copies, r['block_id']), set()).update((r['planet_owner'], r['file_owner']))
+            seen.add(r['block_id'])
+    files = {}
+    for people_root, people in owners.items():
         people = sorted(people)
         for i, a in enumerate(people):
             for b in people[i + 1:]:
-                pairs[(a, b)] = pairs.get((a, b), 0) + 1
-    if not pairs:
+                files.setdefault((a, b), set()).add(people_root)
+    for copy_id, c in copies.items():
+        source = ids.get(c['from'])
+        if c['deleted'] or not source or source == c['by']:
+            continue
+        if copy_id in seen or c['by'] == req.user['id']:
+            files.setdefault(tuple(sorted((c['by'], source))), set()).add(c['root'])
+    if not files:
         return []
-    names = dict(req.db.execute('SELECT id, username FROM users').fetchall())
-    return sorted(({'a': names[a], 'b': names[b], 'n': n} for (a, b), n in pairs.items() if a in names and b in names),
+    names = {v: k for k, v in ids.items()}
+    return sorted(({'a': names[a], 'b': names[b], 'n': len(n)} for (a, b), n in files.items() if a in names and b in names),
                   key=lambda l: (l['a'], l['b']))
+
+
+def person(row_or_none, username=None):
+    """Someone as a file's story shows them: their handle and the name they gave."""
+    if row_or_none:
+        return {'username': row_or_none['username'], 'name': row_or_none['display_name']}
+    return {'username': username, 'name': None} if username else None
+
+
+def file_story(req, row):
+    """Who made a file, who saved this copy and from whom, and every other
+    copy of it on planets this person can open, with whose planets they are.
+    A copy kept as a loose star (or on a planet you can't open) stays out,
+    unless it's your own."""
+    copies = saved_copies(req)
+    users = {r['id']: r for r in req.db.execute('SELECT id, username, display_name FROM users')}
+    by_name = {r['username']: r for r in users.values()}
+    meta = json.loads(row['meta'] or '{}')
+    root = first_of(copies, row['id'])
+    story = {}
+    if row['id'] in copies:
+        made = meta.get('madeBy') if isinstance(meta.get('madeBy'), dict) else {}
+        first = req.db.execute('SELECT user_id FROM blocks WHERE id = ?', (root,)).fetchone()
+        maker = users.get(first['user_id']) if first else by_name.get(made.get('username'))
+        source = (meta.get('savedFrom') or {}).get('username')
+        story['madeBy'] = person(maker, made.get('username') or (None if first else source))
+        story['savedBy'] = person(users.get(row['user_id']))
+        story['savedFrom'] = person(by_name.get(source), source)
+        story['savedAt'] = ms(row['created_at'])
+    family = [i for i, c in copies.items() if c['root'] == root and not c['deleted']]
+    if root not in copies:
+        family.append(root)
+    family = [i for i in family if i != row['id']]
+    elsewhere = []
+    if family:
+        marks = ','.join('?' * len(family))
+        found = req.db.execute(
+            f'SELECT d.*, c.block_id, b.user_id AS file_owner FROM connections c '
+            f'JOIN drawers d ON d.id = c.drawer_id JOIN blocks b ON b.id = c.block_id '
+            f'WHERE c.block_id IN ({marks}) AND b.deleted_at IS NULL ORDER BY d.user_id, c.connected_at',
+            family).fetchall()
+        for d in found:
+            if not drawer_visible(req, d):
+                continue
+            planet = drawer_json(d)
+            planet['file'] = d['block_id']
+            planet['by'] = person(users.get(d['user_id']))
+            planet['first'] = d['block_id'] == root
+            elsewhere.append(planet)
+        placed = {d['block_id'] for d in found}
+        for i in family:
+            if i in copies and copies[i]['by'] == req.user['id'] and i not in placed:
+                elsewhere.append({'file': i, 'star': True, 'by': person(users.get(req.user['id']))})
+    story['elsewhere'] = elsewhere
+    return story
 
 
 @route('GET', r'/api/galaxy')
@@ -2502,7 +2586,17 @@ def save_block(req, block_id):
         copy_id = existing['id']
     else:
         meta = json.loads(row['meta'] or '{}')
+        source = json.loads(row['meta'] or '{}')
         meta['savedFrom'] = {'id': row['id'], 'username': row['owner_name']}
+        # Who first made it travels with every copy, however many times it's saved on.
+        made = source.get('madeBy') if isinstance(source.get('madeBy'), dict) else None
+        if not made:
+            first = first_of(saved_copies(req), row['id'])
+            maker = req.db.execute('SELECT b.id, u.username FROM blocks b JOIN users u ON u.id = b.user_id '
+                                   'WHERE b.id = ?', (first,)).fetchone()
+            made = ({'id': maker['id'], 'username': maker['username']} if maker
+                    else {'id': first, 'username': (source.get('savedFrom') or {}).get('username') or row['owner_name']})
+        meta['madeBy'] = {'id': made.get('id'), 'username': made.get('username')}
         copy_id = insert_block(
             req, kind=row['kind'], title=row['title'], description=row['description'], content=row['content'],
             file_key=link_file(row['user_id'], req.user['id'], row['file_key']), file_name=row['file_name'],
@@ -2536,6 +2630,9 @@ def get_block(req, block_id):
     block = mark_saved(req, [block_json(row, mine, owner)])[0]
     if not mine and in_community_drawer(req, block_id):
         block['community'] = True
+    block['ownerName'] = None if mine else req.db.execute(
+        'SELECT display_name FROM users WHERE id = ?', (row['user_id'],)).fetchone()[0]
+    block['story'] = file_story(req, row)
     return json_response({'block': block, 'connections': connections})
 
 

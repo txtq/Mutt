@@ -124,3 +124,13 @@ echo "after bo's planet goes private, cy: $(curl -s "${W[@]}" $B/api/galaxies | 
 # a new planet is a kind its owner's galaxy doesn't show yet; only after all twelve does one repeat
 for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do curl -s -o /dev/null "${W[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"World $n\"}"; done
 echo "fresh kinds, cy: $(curl -s "${W[@]}" $B/api/galaxy | j "sorted([p['look'] for p in d['planets']])")"
+# who made a file, who saved it and from whom, and whose planets its copies are on; the thread follows a save even to a star
+curl -s -o /dev/null "${U[@]}" "${J[@]}" -X PATCH $B/api/drawers/$BOP -d '{"visibility":"public"}'
+BOC=$(curl -s "${U[@]}" "${J[@]}" -X POST $B/api/blocks/$NPUB/save -d '{}' | j "d['block']['id']")
+story() { j "(lambda s: (s.get('madeBy', {}).get('username'), s.get('savedBy', {}).get('username'), s.get('savedFrom', {}).get('username'), sorted((p['by']['username'], p.get('title') or 'star') for p in s['elsewhere'])))(d['block']['story'])"; }
+echo "story, bo's copy as bo sees it: $(curl -s "${U[@]}" $B/api/blocks/$BOC | story)  as cy: $(curl -s "${W[@]}" $B/api/blocks/$BOC | story)"
+CYC=$(curl -s "${W[@]}" "${J[@]}" -X POST $B/api/blocks/$BOC/save -d '{}' | j "d['block']['id']")
+echo "cy saves bo's copy as a star, made by: $(curl -s "${W[@]}" $B/api/blocks/$CYC | j "d['block']['meta']['madeBy']['username']")  story: $(curl -s "${W[@]}" $B/api/blocks/$CYC | story)"
+echo "story, the first as alma sees it: $(curl -s "${A[@]}" $B/api/blocks/$NPUB | story)  as cy: $(curl -s "${W[@]}" $B/api/blocks/$NPUB | story)"
+rule "someone else's copy kept as a star showed to others" "$(curl -s "${A[@]}" $B/api/blocks/$NPUB | j "'$CYC' in json.dumps(d['block']['story'])")" False
+echo "threads after cy saves as a star, cy sees: $(curl -s "${W[@]}" $B/api/galaxies | j "d['links']")  alma: $(curl -s "${A[@]}" $B/api/galaxies | j "d['links']")"

@@ -236,6 +236,8 @@ export function confirmDialog({ title, message, confirm = 'Confirm', danger = fa
 
 // Tab stays inside whatever is open on top (a dialog, a menu or small panel, a room, a sheet) until
 // it is closed; it never walks out into the page behind. A new kind of layer is added to `topLayer`.
+// Inside a layer Mutt moves to the next stop itself, every press: Safari's own Tab skips buttons
+// (unless "Press Tab to highlight each item" is on), so left to the browser it jumps straight out.
 const CAN_FOCUS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
 function topLayer() {
   // (the sample page draws parts that are not open layers: those don't count)
@@ -251,12 +253,19 @@ document.addEventListener('keydown', (e) => {
   if (at?.isContentEditable && layer.contains(at)) return;
   const stops = [...layer.querySelectorAll(CAN_FOCUS)].filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert]'));
   if (!stops.length) return;
-  const first = stops[0];
-  const end = stops[stops.length - 1];
-  if (!layer.contains(at) || at === (e.shiftKey ? first : end)) {
-    e.preventDefault();
-    (e.shiftKey ? end : first).focus();
+  e.preventDefault();
+  const back = e.shiftKey;
+  let next;
+  if (stops.includes(at)) {
+    next = stops[(stops.indexOf(at) + (back ? -1 : 1) + stops.length) % stops.length];
+  } else if (layer.contains(at)) {   // on something in the layer that isn't a stop: the nearest stop that way
+    const ahead = stops.filter((el) => at.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const behind = stops.filter((el) => !ahead.includes(el));
+    next = back ? behind[behind.length - 1] || stops[stops.length - 1] : ahead[0] || stops[0];
+  } else {
+    next = back ? stops[stops.length - 1] : stops[0];
   }
+  next.focus();
 }, true);
 
 // ---------------------------------------------------------------- popovers & menus

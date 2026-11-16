@@ -3,7 +3,7 @@
 
   tests/run.sh                 everything: the API suites, then the browser paths
   tests/run.sh api             only the API suites
-  tests/run.sh browser         only the browser paths (Safari)
+  tests/run.sh browser         only the browser paths (in Safari's engine, hidden; see browser.py)
   tests/run.sh browser undo    only that path (after signing in); --keep saves the pictures as "before"
   tests/run.sh galaxy docs     only those API suites
   tests/run.sh drift           only the count of hand-typed colours, sizes, corners, shadows and speeds

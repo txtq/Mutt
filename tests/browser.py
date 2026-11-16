@@ -2,11 +2,14 @@
 
 Run with `tests/run.sh browser` (or as part of `tests/run.sh`).
 
-Which browser: the hidden one if `python3 tests/get_browser.py` has been run once
-(Chrome's headless shell in ~/.cache/mutt-tests; nothing appears on screen), else
-Safari (a window opens and must be left alone; needs Settings > Developer >
-"Allow remote automation"). `MUTT_BROWSER=safari tests/run.sh browser` checks
-Safari on purpose. Both are driven over plain WebDriver with the standard library.
+Which browser: one, never two. Safari's engine, hidden (`SafariEngine`: WebKit as
+Playwright builds it, fetched once by `python3 tests/get_browser.py --webkit`;
+nothing appears on screen). Safari is what the owner uses and where plain web code
+breaks first, so one run there covers both. Without it, Chrome's headless shell
+(`python3 tests/get_browser.py`), else Safari itself (a window opens and must be
+left alone; needs Settings > Developer > "Allow remote automation").
+`MUTT_BROWSER=chrome` or `MUTT_BROWSER=safari tests/run.sh browser` picks one on
+purpose. Chrome and Safari are driven over plain WebDriver with the standard library.
 
 How it works: a fresh server with a made-up account (`seed`), then each function
 in PATHS walks one path and raises Fail("plain sentence") if something is wrong.
@@ -166,11 +169,20 @@ class Browser:
         if max(wide[0], wide[1]) > wide[2] + 1:
             raise Fail(f'{where} scrolls sideways at phone width ({max(wide[0], wide[1])}px of page in a {wide[2]}px screen)')
 
+    def press(self, key):
+        """One key on whatever has focus: 'Tab'."""
+        code = {'Tab': ''}[key]
+        self.call('POST', '/actions', {'actions': [{'type': 'key', 'id': 'kb', 'actions': [
+            {'type': 'keyDown', 'value': code}, {'type': 'keyUp', 'value': code}]}]})
+
+    def png(self):
+        return base64.b64decode(self.call('GET', '/screenshot'))
+
     def shot(self, name):
         self.n += 1
         png = os.path.join(SHOTS, f'{self.n:02d}-{name}.png')
         with open(png, 'wb') as f:
-            f.write(base64.b64decode(self.call('GET', '/screenshot')))
+            f.write(self.png())
         jpg = png[:-4] + '.jpg'   # a tenth of the size, plenty to look at
         done = subprocess.run(['sips', '-Z', '1400', '-s', 'format', 'jpeg', '-s', 'formatOptions', '70', png, '--out', jpg],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -179,6 +191,105 @@ class Browser:
 
     def sign_out(self):
         self.call('DELETE', '/cookie')
+        self.js('try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}')
+
+
+class SafariEngine(Browser):
+    """Safari's engine (WebKit as Playwright builds it), hidden: the browser paths' first choice.
+
+    Playwright speaks its own language, not WebDriver, so this gives the paths the
+    same moves as Browser: scripts are WebDriver-style bodies (`arguments`, `return`),
+    an element comes back as something to click or type into, and a click is a real
+    pointer press at the middle of the element, or a direct .click() when something
+    still gliding sits over it (as Browser does when WebDriver refuses).
+    """
+
+    def __init__(self):
+        import get_browser
+        site = get_browser.webkit()
+        if not site:
+            raise Fail("Safari's engine is not fetched (python3 tests/get_browser.py --webkit)")
+        os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', get_browser.WEBKIT_BROWSERS)
+        sys.path.insert(0, site)
+        from playwright.sync_api import sync_playwright, Error
+        self.Error, self.kind, self.hidden, self.n = Error, "Safari's engine", True, 0
+        self.pw = sync_playwright().start()
+        try:
+            self.browser = self.pw.webkit.launch(headless=True)
+            self.context = self.browser.new_context(viewport={'width': DESK[0], 'height': DESK[1]})
+        except Error as e:
+            self.pw.stop()
+            raise Fail(str(e).splitlines()[0])
+        self.page = self.context.new_page()
+        self.page.set_default_timeout(60000)
+
+    def quit(self):
+        for done in (self.context.close, self.browser.close, self.pw.stop):
+            try:
+                done()
+            except Exception:
+                pass
+
+    def size(self, wh):
+        self.page.set_viewport_size({'width': wh[0], 'height': wh[1]})
+
+    def go(self, path):
+        self.page.goto(SITE + path)
+
+    def js(self, script, *args):
+        try:
+            got = self.page.evaluate_handle(f'(args) => (function () {{ {script} \n}}).apply(null, args)', list(args))
+        except self.Error as e:
+            raise Fail(f'the browser said: {str(e).splitlines()[0]}')
+        el = got.as_element()
+        if el:
+            return el
+        value = got.json_value()
+        got.dispose()
+        return value
+
+    def fetch(self, path):
+        return self.page.evaluate('(p) => fetch(p).then((r) => r.json()).catch(() => null)', path)
+
+    def click(self, el):
+        for attempt in range(4):
+            target = self.see(el, f'nothing to click at {el}') if isinstance(el, str) else el
+            spot = self.js(
+                'const el = arguments[0]; if (!el.isConnected) return "gone";'
+                'let r = el.getBoundingClientRect();'
+                'if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) {'
+                '  el.scrollIntoView({ block: "center", inline: "center" }); r = el.getBoundingClientRect(); }'
+                'const x = r.left + r.width / 2, y = r.top + r.height / 2, top = document.elementFromPoint(x, y);'
+                'return top && (top === el || el.contains(top)) ? [x, y] : null;', target)
+            if spot == 'gone':
+                if isinstance(el, str) and attempt < 3:
+                    time.sleep(0.2)
+                    continue
+                raise Fail('the page redrew just as it was clicked')
+            if spot:
+                self.page.mouse.click(*spot)
+            else:
+                self.js('arguments[0].click()', target)
+            return
+
+    def type(self, el, text):
+        if isinstance(el, str):
+            el = self.see(el, f'nowhere to type at {el}')
+        el.focus()
+        for i, part in enumerate(text.split(ENTER)):
+            if i:
+                self.page.keyboard.press('Enter')
+            if part:
+                self.page.keyboard.type(part)
+
+    def press(self, key):
+        self.page.keyboard.press(key)
+
+    def png(self):
+        return self.page.screenshot()
+
+    def sign_out(self):
+        self.context.clear_cookies()
         self.js('try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}')
 
 
@@ -588,13 +699,17 @@ def keyboard(s, seeded):
     s.click('.sb-who')
     s.see('.sheet.is-open', 'the account sheet did not open')
     s.settle(0.6)
-    tab = {'actions': [{'type': 'key', 'id': 'kb', 'actions': [{'type': 'keyDown', 'value': '\ue004'}, {'type': 'keyUp', 'value': '\ue004'}]}]}
+    visited = set()
     for _ in range(24):
-        s.call('POST', '/actions', tab)
+        s.press('Tab')
         where = s.js('const a = document.activeElement; if (!a || a === document.body) return "nowhere";'
-                     'return a.closest(".sheet.is-open") ? "in" : (a.getAttribute("aria-label") || a.className || a.tagName);')
-        if where != 'in':
+                     'if (!a.closest(".sheet.is-open")) return a.getAttribute("aria-label") || a.className || a.tagName;'
+                     'return "in:" + [...document.querySelectorAll("*")].indexOf(a);')
+        if not where.startswith('in:'):
             raise Fail(f'with the account sheet open, Tab left it and landed on: {where}')
+        visited.add(where)
+    if len(visited) < 3:   # Safari's own Tab skips buttons; Mutt has to walk them itself
+        raise Fail(f'with the account sheet open, Tab only ever reached {len(visited)} control(s)')
     s.shot('keyboard-in-sheet')
 
 
@@ -642,6 +757,8 @@ PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_p
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):
     """-> (passed, [failures], why it could not run at all)"""
+    import get_browser
+    webkit = os.environ.get('MUTT_BROWSER') not in ('chrome', 'safari') and get_browser.webkit()
     work = tempfile.mkdtemp(prefix='mutt-browser-')
     shutil.rmtree(SHOTS, ignore_errors=True)
     os.makedirs(SHOTS)
@@ -650,7 +767,7 @@ def run(start_server, stop_server, verbose=False, keep=False, only=()):
     try:
         seeded = seed()
         try:
-            s = Browser()
+            s = SafariEngine() if webkit else Browser()
         except Fail as e:
             if 'remote automation' in str(e).lower():
                 return 0, [], ('Safari needs "Allow remote automation" switched on '

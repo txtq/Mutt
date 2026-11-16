@@ -3,10 +3,13 @@
 // that file (on its planet, or over the galaxy for a star) at its comments;
 // the close button waves it away. Either way the comments count as seen and
 // don't come back. Three at a time; the next steps in when one goes.
+// Pressing the clock (on any page) brings back the last three files people
+// commented on, seen or not, in the same column; pressing it again, Escape or
+// going elsewhere puts them away.
 
 import { api } from './api.js';
 import { nav } from './nav.js';
-import { exit } from './ui.js';
+import { exit, toast } from './ui.js';
 import { h, nameColor, timeAgo } from './util.js';
 import { icon } from './icons.js';
 import { KIND_ONE, displayTitle, imageSrc } from './kinds.js';
@@ -55,8 +58,11 @@ export function commentNotes() {
   let files = [];
   let fetchedAt = 0;
   let asking = null;
+  let past = false;        // the clock's last three are showing, in place of the new ones
+  let pastAsk = 0;         // which press of the clock an answer belongs to
   const shown = new Map(); // block id → its note
   const gone = new Set();  // seen here; not shown again even before the server is asked again
+  const changed = new Set(); // told whenever past opens or closes
 
   function done(f) {
     gone.add(f.block.id);
@@ -64,30 +70,66 @@ export function commentNotes() {
     const el = shown.get(f.block.id);
     shown.delete(f.block.id);
     if (el) exit(el);
-    fill();
+    if (past && !shown.size) setPast(false);
+    else fill();
+  }
+
+  function note(f, step) {
+    const el = commentNote(f, {
+      step,
+      onOpen: () => {
+        done(f);
+        showCommentsOf(f.block.id);
+        // On its planet, so closing the file leaves you there with it; a star opens over the galaxy.
+        if (f.planet) nav.go(`/p/${f.planet.id}?b=${f.block.id}`);
+        else nav.openBlock(f.block.id);
+      },
+      onClose: () => done(f),
+    });
+    shown.set(f.block.id, el);
+    host.append(el);
+  }
+
+  function clear() {
+    for (const el of shown.values()) exit(el);
+    shown.clear();
   }
 
   function fill() {
-    if (!wanted) return;
+    if (!wanted || past) return;
     let step = 0;
     for (const f of files) {
       if (shown.size >= AT_ONCE) break;
       if (shown.has(f.block.id) || gone.has(f.block.id)) continue;
-      const el = commentNote(f, {
-        step: step++,
-        onOpen: () => {
-          done(f);
-          showCommentsOf(f.block.id);
-          // On its planet, so closing the file leaves you there with it; a star opens over the galaxy.
-          if (f.planet) nav.go(`/p/${f.planet.id}?b=${f.block.id}`);
-          else nav.openBlock(f.block.id);
-        },
-        onClose: () => done(f),
-      });
-      shown.set(f.block.id, el);
-      host.append(el);
+      note(f, step++);
     }
     if (shown.size && !host.isConnected) document.body.append(host);
+  }
+
+  const onKey = (e) => { if (e.key === 'Escape' && past) setPast(false); };
+
+  async function setPast(on) {
+    if (on === past) return;
+    past = on;
+    const ask = ++pastAsk;
+    clear();
+    changed.forEach((fn) => fn(past));
+    if (!on) {
+      document.removeEventListener('keydown', onKey);
+      if (wanted) ask();
+      return;
+    }
+    document.addEventListener('keydown', onKey);
+    const res = await api.get('/api/comments/new?past=1').catch(() => null);
+    if (ask !== pastAsk) return;
+    const list = res?.files || [];
+    if (!list.length) {
+      setPast(false);
+      toast(res ? 'No one has commented on your files yet' : 'Couldn’t fetch your comments');
+      return;
+    }
+    list.slice(0, AT_ONCE).forEach((f, i) => note(f, i));
+    if (!host.isConnected) document.body.append(host);
   }
 
   async function ask() {
@@ -106,9 +148,13 @@ export function commentNotes() {
     set(on) {
       if (on === wanted) return;
       wanted = on;
+      if (past) return;
       if (on) { ask(); return; }
-      for (const el of shown.values()) exit(el);
-      shown.clear();
+      clear();
     },
+    // The clock: the last three, or back to the new ones.
+    togglePast() { setPast(!past); },
+    hidePast() { setPast(false); },
+    onPast(fn) { changed.add(fn); },
   };
 }

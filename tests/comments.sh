@@ -38,5 +38,6 @@ curl -s "${V[@]}" "${J[@]}" -X POST $B/api/blocks/$G/comments -d '{"body":"One m
 echo "a new one: $(curl -s "${A[@]}" $B/api/comments/new | j "$NEW")"
 curl -s "${A[@]}" "${J[@]}" -X POST $B/api/comments/seen -d "{\"block\":\"$G\"}" >/dev/null
 echo "waved away: $(curl -s "${A[@]}" $B/api/comments/new | j "$NEW")"
+echo "the clock's last three: $(curl -s "${A[@]}" "$B/api/comments/new?past=1" | j "$NEW")"
 curl -s "${A[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$F >/dev/null
 echo "file deleted: $(curl -s "${V[@]}" $B/api/blocks/$F/comments | j "d['error']")"

@@ -1051,7 +1051,7 @@ body.no-chrome .sb { display: none; }
 .sb-right { display: flex; align-items: center; justify-content: flex-end; gap: 14px; color: var(--ink); opacity: 0.88; }
 .sb .sb-btn { color: inherit; }
 .sb .sb-btn::after { content: ""; position: absolute; inset: calc((var(--h-small) - var(--bar)) / 2) -6px; }
-.sb-clock { font-variant-numeric: tabular-nums; font-weight: 500; }
+.sb-clock { padding: 0 var(--space-8); font-variant-numeric: tabular-nums; font-weight: 500; } /* a quiet small button: pressed, the last three comment notes */
 
 /* sheets that drop from the bar (account & settings, search) */
 .sheet-search-wrap { width: min(780px, calc(100vw - 20px)); }

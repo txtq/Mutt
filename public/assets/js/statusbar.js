@@ -262,7 +262,9 @@ export function createStatusbar() {
   const who = h('button', { type: 'button', class: 'btn btn-quiet btn-small sb-who', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' },
     whoName, icon('caret'));
   const searchBtn = h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small sb-btn', 'aria-label': 'Search', title: 'Search (/)' }, icon('search'));
-  const clock = h('span', { class: 'sb-clock' });
+  // The clock: pressed, the last three comments people left on your files.
+  const clock = h('button', { type: 'button', class: 'btn btn-quiet btn-small sb-btn sb-clock', title: 'Recent comments', 'aria-label': 'Recent comments', 'aria-expanded': 'false' },
+    h('time', { class: 'sb-time' }));
   const bar = h('header', { class: 'sb' },
     h('div', { class: 'sb-left' }, mark),
     who,
@@ -280,6 +282,8 @@ export function createStatusbar() {
   let out = false;
   // New comments on your files, under the clock, while you're on your own galaxy.
   const notes = commentNotes();
+  clock.addEventListener('click', () => { if (session.user) notes.togglePast(); });
+  notes.onPast((on) => clock.setAttribute('aria-expanded', String(on)));
   const showNotes = () => notes.set(!!session.user && current?.chrome === 'galaxy' && !!current?.who?.you && !out);
   const showHome = () => {
     home.hidden = !session.user || !current?.home;
@@ -302,7 +306,7 @@ export function createStatusbar() {
   searchBtn.addEventListener('click', () => search.toggle(searchBtn));
 
   const tick = () => {
-    clock.textContent = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date());
+    clock.firstChild.textContent = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date());
   };
   tick();
   setInterval(tick, 15000);
@@ -323,6 +327,7 @@ export function createStatusbar() {
       current = inst;
       paintWho();
       showHome();
+      notes.hidePast();
       showNotes();
       if (session.user && !glitched) {
         glitched = true;

@@ -3223,18 +3223,22 @@ def get_file_comments(req, block_id):
 @route('GET', r'/api/comments/new')
 def new_comments(req):
     """Comments other people left on your files that you haven't seen yet, one
-    entry per file, newest first: told about on your galaxy, under the clock."""
+    entry per file, newest first: told about on your galaxy, under the clock.
+    With ?past=1, the last three files people commented on, seen or not
+    (pressing the clock brings them back)."""
+    past = req.arg('past') == '1'
+    unseen = '' if past else 'AND c.seen = 0 '
     rows = req.db.execute(
         'SELECT c.block_id, COUNT(*) AS n, MAX(c.created_at) AS latest FROM file_comments c '
         'JOIN blocks b ON b.id = c.block_id '
-        'WHERE b.user_id = ? AND b.deleted_at IS NULL AND c.seen = 0 AND c.user_id != b.user_id '
-        'GROUP BY c.block_id ORDER BY latest DESC LIMIT 12', (req.user['id'],)).fetchall()
+        f'WHERE b.user_id = ? AND b.deleted_at IS NULL {unseen}AND c.user_id != b.user_id '
+        'GROUP BY c.block_id ORDER BY latest DESC LIMIT ?', (req.user['id'], 3 if past else 12)).fetchall()
     files = []
     for r in rows:
         block = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.id = ?', (r['block_id'],)).fetchone()
         last = req.db.execute(
             'SELECT c.body, c.created_at, u.username FROM file_comments c JOIN users u ON u.id = c.user_id '
-            'JOIN blocks b ON b.id = c.block_id WHERE c.block_id = ? AND c.seen = 0 AND c.user_id != b.user_id '
+            f'JOIN blocks b ON b.id = c.block_id WHERE c.block_id = ? {unseen}AND c.user_id != b.user_id '
             'ORDER BY c.created_at DESC', (r['block_id'],)).fetchall()
         people = list(dict.fromkeys(x['username'] for x in last))
         # The planet to open it on: the first it was put on (a star opens on the galaxy).

@@ -18,4 +18,5 @@ not yours to mark: That file does not exist.
 opened, seen: []
 a new one: [('Sunset', 'Photos', ['visitor'], 1, 'One more')]
 waved away: []
+the clock's last three: [('Sunset', 'Photos', ['visitor', 'other'], 4, 'One more')]
 file deleted: That file does not exist.

@@ -471,6 +471,14 @@ def comment_notes(s, seeded):
     s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
     s.settle(1)
     s.gone('.cn-note', 'a comment already seen was told again')
+    s.click('.sb-clock')
+    s.wait('return /neighbour/.test(document.querySelector(".cn-note")?.textContent || "")',
+           'pressing the clock did not bring back the last comments')
+    s.settle(1)
+    s.shot('clock-past-comments')
+    s.click('.sb-clock')
+    s.settle(1)
+    s.gone('.cn-note', 'pressing the clock again did not put the comments away')
 
 
 def note_history(s, seeded):

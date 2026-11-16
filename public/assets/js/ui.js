@@ -382,6 +382,17 @@ document.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- popovers & menus
 
+// On a phone a menu is a sheet at the foot of the screen, over the page dimmed (DESIGN.md "Menu"):
+// where the thumb is, with rows a fingertip tall, and nothing of the page showing through its words.
+// Tapping the dimmed page puts it away. Small panels (Share, Aa) still open by their button.
+const phoneQuery = matchMedia('(max-width: 720px) and (pointer: coarse)');
+const asSheet = (el) => {
+  el.classList.add('is-sheet');
+  const shade = h('div', { class: 'pop-shade', 'aria-hidden': 'true' });
+  el.before(shade);
+  return shade;
+};
+
 export function openPopover(anchor, content, { align = 'start', className = '', onClose, width } = {}) {
   // Pressed again while its own menu or panel is open, a button closes it: it never opens a second.
   const mine = [...openPopovers].find((p) => p.anchor === anchor);
@@ -390,9 +401,12 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
   const el = h('div', { class: `pop ${className}` }, content);
   if (width) el.style.width = `${width}px`;
   document.body.append(el);
-  if (content?.classList?.contains('menu') && !content.classList.contains('ctx-menu')) glideLight(content);
+  const isMenu = content?.classList?.contains('menu');
+  const shade = isMenu && phoneQuery.matches ? asSheet(el) : null;
+  if (isMenu && !content.classList.contains('ctx-menu')) glideLight(content);
   const place = () => {
     if (!anchor.isConnected) { close(); return; }
+    if (shade) return; // a sheet keeps to the foot of the screen
     const a = anchor.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     let left = align === 'end' ? a.right - r.width : a.left;
@@ -425,6 +439,7 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
       else document.activeElement.blur();
     }
     exit(el, 'is-leaving', DUR.change + 60);
+    if (shade) exit(shade, 'is-leaving', DUR.change + 60);
     anchor.setAttribute?.('aria-expanded', 'false');
     onClose?.();
   };
@@ -553,17 +568,20 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     }));
   const el = h('div', { class: 'pop pop-ctx' }, list);
   document.body.append(el);
+  const shade = phoneQuery.matches ? asSheet(el) : null;
 
   // Open toward the room there is, growing from the corner at the pointer.
   // Its own size, not the bounding box: that is still shrunk by the opening animation.
-  const r = { width: el.offsetWidth, height: el.offsetHeight };
-  const right = x + r.width + 8 <= innerWidth - 8;
-  const down = y + r.height + 8 <= innerHeight - 8;
-  const left = right ? x + 2 : Math.max(8, x - r.width - 2);
-  const top = down ? y + 2 : Math.max(8, Math.min(y - r.height - 2, innerHeight - r.height - 8));
-  el.style.left = `${left}px`;
-  el.style.top = `${top}px`;
-  el.style.setProperty('--origin', `${x - left}px ${y - top}px`);
+  if (!shade) {
+    const r = { width: el.offsetWidth, height: el.offsetHeight };
+    const right = x + r.width + 8 <= innerWidth - 8;
+    const down = y + r.height + 8 <= innerHeight - 8;
+    const left = right ? x + 2 : Math.max(8, x - r.width - 2);
+    const top = down ? y + 2 : Math.max(8, Math.min(y - r.height - 2, innerHeight - r.height - 8));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.setProperty('--origin', `${x - left}px ${y - top}px`);
+  }
 
   // The highlight follows the row under the pointer (or the keyboard).
   const glide = glideLight(list);
@@ -630,6 +648,7 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
       else document.activeElement.blur();
     }
     exit(el, 'is-leaving', DUR.change + 60);
+    if (shade) exit(shade, 'is-leaving', DUR.change + 60);
     target?.classList.remove('is-ctx');
     onClose?.();
   }

@@ -3,15 +3,18 @@
 // over it, it is .is-over and its edge lights like any text box being typed in.
 
 import { h } from './util.js';
+import { icon } from './icons.js';
 
 export function entryCell({ onText, onFiles } = {}) {
-  const textarea = h('textarea', { placeholder: 'Type, paste or drop', rows: 1, 'aria-label': 'Add a file', spellcheck: 'true' });
+  // nothing is dropped on a touch screen
+  const touch = matchMedia('(pointer: coarse)').matches;
+  const textarea = h('textarea', { placeholder: touch ? 'Type or paste' : 'Type, paste or drop', rows: 1, 'aria-label': 'Add a file', spellcheck: 'true' });
   const picker = h('input', { type: 'file', multiple: true, hidden: true });
   const add = h('button', { type: 'button', class: 'btn btn-main btn-small entry-add' }, 'Add');
   const box = h('div', { class: 'entry' },
     textarea,
     h('div', { class: 'entry-foot' },
-      h('button', { type: 'button', class: 'entry-files btn btn-quiet btn-small', onclick: () => picker.click() }, 'Upload'),
+      h('button', { type: 'button', class: 'entry-files btn btn-quiet btn-small', onclick: () => picker.click() }, touch ? icon('upload') : null, 'Upload'),
       add),
     picker);
   const cell = h('div', { class: 'cell cell-entry' }, h('div', { class: 'cell-box' }, h('div', { class: 'cell-fill' }, box)));

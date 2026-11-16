@@ -6,14 +6,13 @@
 //
 // The cells are a texture built once; the strands are drawn fresh each frame
 // from a handful of rings on a sphere, as smooth curves. It is painted at the
-// screen's own sharpness (up to SHARP pixels a point), and its dots are laid
+// screen's own sharpness (sharpness() in util.js: up to 2 pixels a point, 3 on a phone), and its dots are laid
 // evenly and sized for the screen, like a stippled print (DESIGN.md, "Print: the void"). Opening the void widens the light
 // until it holds the add box, burning through the strands behind it.
 
-import { DUR, covered, h, reducedMotion, seeded } from './util.js';
+import { DUR, covered, h, reducedMotion, seeded, sharpness } from './util.js';
 import { TEX, drawStipple, shellPixels, tileSize } from './voidmake.js';
 
-const SHARP = 2;       // pixels a point, at most
 // The print's dots, in points: how far apart they sit, and their smallest and largest radius.
 const TAU = Math.PI * 2;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
@@ -25,7 +24,7 @@ const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 // How big the light is for a page this size (its radius, in CSS pixels).
 export function voidRadius(width, viewH) {
   const narrow = width < 640;
-  return Math.round(clamp(Math.min(viewH * 0.095, width * (narrow ? 0.12 : 0.08)), narrow ? 40 : 50, 92));
+  return Math.round(clamp(Math.min(viewH * 0.095, width * (narrow ? 0.14 : 0.08)), narrow ? 44 : 50, 92));
 }
 // How far out the cage reaches, in multiples of that radius.
 export const REACH = { x: 3.1, y: 3.3 };
@@ -598,7 +597,7 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
       R = r;
       W = Math.round(w);
       H = Math.round(hgt);
-      dpr = Math.min(devicePixelRatio || 1, SHARP);
+      dpr = sharpness();
       prepare(dpr);
       if (!same || !el.style.width) {
         el.style.width = `${W}px`;

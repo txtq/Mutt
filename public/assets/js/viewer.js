@@ -7,6 +7,7 @@ import { downloadMenu, formatsOf } from './downloads.js';
 import { api, session } from './api.js';
 import { KIND_ONE, canEditPicture, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
+import { briefNote } from './cells.js';
 import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
@@ -314,7 +315,7 @@ function linkStage(block) {
 // Your own text: click it to edit right there. Saves when you click away.
 function textStage(block) {
   const body = h('div', { class: 'vw-text-body md', html: markdown(block.content) });
-  const wrap = h('div', { class: 'vw-media vw-text' }, body);
+  const wrap = h('div', { class: `vw-media vw-text${briefNote(block.content) ? ' is-brief' : ''}` }, body);
   if (block.mine === false) return wrap;
   body.classList.add('is-editable');
   wrap.classList.add('is-editable');

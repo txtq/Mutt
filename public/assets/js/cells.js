@@ -50,7 +50,9 @@ function shaped(block, inner, kind = '') {
   inner.classList.remove('face', kind || 'face');
   const ratio = block.width / block.height;
   return h('span', {
-    class: `face face-shape ${ratio >= BOX ? 'is-wide' : 'is-tall'} ${kind}`.trim(),
+    // wide: held by its width in any box; tall: by its height in any; mid (between a square and
+    // the frame's own shape): by its width in the frame, by its height in a phone's square box
+    class: `face face-shape ${ratio >= 1 ? 'is-wide' : ratio >= BOX ? 'is-mid' : 'is-tall'} ${kind}`.trim(),
     style: { '--ar': `${block.width} / ${block.height}` },
   }, inner, kind === 'is-book' ? h('i', { class: 'face-spine' }) : null);
 }
@@ -88,8 +90,12 @@ function fileFace(block, { excerpt: wanted = true } = {}) {
     text || length ? h('div', { class: 'face-sub' }, extLabel(block)) : null);
 }
 
+// A short note of one line (a word or a few) is "brief": on a phone its words are set larger,
+// in their square and in the file view.
+const BRIEF = 48;
+export const briefNote = (text) => { const words = (text || '').trim(); return words.length <= BRIEF && !words.includes('\n'); };
 function textFace(block) {
-  return h('div', { class: 'face face-text' },
+  return h('div', { class: `face face-text${briefNote(block.content) ? ' is-brief' : ''}` },
     h('div', { class: 'face-text-body md', html: markdown(block.content.slice(0, 2400)) }));
 }
 

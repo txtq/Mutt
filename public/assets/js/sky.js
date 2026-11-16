@@ -12,7 +12,7 @@
 //      times a second to twinkle, and every frame only while something pushes
 //      them about (the pointer, a scroll, the void).
 
-import { DUR, h, onMotionChange, reducedMotion } from './util.js';
+import { DUR, h, onMotionChange, reducedMotion, sharpness } from './util.js';
 
 const DUST_FPS = 8;
 const STAR_FPS = 4;
@@ -412,7 +412,7 @@ export function createSky() {
   }
 
   function measure() {
-    dpr = Math.min(devicePixelRatio || 1, 2);
+    dpr = sharpness();
     dustDpr = Math.min(devicePixelRatio || 1, DUST_DPR);
     width = innerWidth;
     height = innerHeight;

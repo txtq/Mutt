@@ -13,7 +13,7 @@
 import { api } from './api.js';
 import { modeOffer } from './offers.js';
 import { openMenu, openPopover, toast } from './ui.js';
-import { DUR, EASE_GLIDE, EASE_LEAVE, h, plural, reducedMotion, seeded } from './util.js';
+import { DUR, EASE_GLIDE, EASE_LEAVE, h, plural, reducedMotion, seeded, sharpness } from './util.js';
 import { wisp } from './uvweb.js';
 
 export const ENOUGH = 4;            // stars before it offers to become a planet (the user's pick)
@@ -157,7 +157,7 @@ export class Sky {
     const pad = 12;
     const W = shape.w + pad * 2;
     const H = shape.h + pad * 2;
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = sharpness();
     const canvas = fig.canvas;
     const pw = Math.round(W * dpr);
     const ph = Math.round(H * dpr);

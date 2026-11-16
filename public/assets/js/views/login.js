@@ -10,7 +10,6 @@
 // asking whoever runs Mutt for a reset (they send a one-time link, which opens
 // this page as /login?reset=…, asking only for a new code).
 
-import { phoneNote } from '../phonenote.js';
 import { askForLongerCode } from '../account.js';
 import { api, session } from '../api.js';
 import { shockwave } from '../fx.js';
@@ -596,7 +595,6 @@ export const loginView = {
         const next = url.searchParams.get('next') || '';
         // The light stays until the galaxy is in place underneath it.
         await nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
-        phoneNote();
         askForLongerCode();
         // A new account, or a new code without the old one: here is the key that gets you back in next time.
         if (res.recoveryKey) import('../account.js').then((m) => m.showRecoveryKey(res.recoveryKey, res.user?.username));

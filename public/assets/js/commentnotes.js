@@ -10,12 +10,15 @@
 import { api } from './api.js';
 import { nav } from './nav.js';
 import { exit, toast } from './ui.js';
-import { h, nameColor, personLabel, timeAgo } from './util.js';
+import { bus, h, nameColor, personLabel, timeAgo } from './util.js';
 import { icon } from './icons.js';
 import { KIND_ONE, displayTitle, imageSrc } from './kinds.js';
 import { showCommentsOf } from './comments.js';
 
 const AT_ONCE = 3;
+// A phone shows one at a time, on one line across the top, and its galaxy makes room for it.
+const phone = matchMedia('(max-width: 720px)');
+const atOnce = () => (phone.matches ? 1 : AT_ONCE);
 const FRESH = 60000; // asked again on coming back to the galaxy after this long
 
 const nameOf = (block) => {
@@ -29,7 +32,11 @@ const nameOf = (block) => {
 // each person by the name they gave with their username, if they gave one ("Sam Ray (@sam) commented on").
 function who(f) {
   const [first, second] = f.people;
-  const at = (name) => h('span', { class: 'cn-at' }, personLabel(name, f.names?.[name]));
+  // (a phone's one line keeps only the name they gave: .cn-handle is hidden there)
+  const at = (name) => {
+    const given = f.names?.[name];
+    return h('span', { class: 'cn-at' }, given ? [given, h('span', { class: 'cn-handle' }, ` (@${name})`)] : personLabel(name));
+  };
   if (f.people.length === 1) return [at(first), f.count > 1 ? ` left ${f.count} comments on ` : ' commented on '];
   if (f.people.length === 2) return [at(first), ' and ', at(second), ' commented on '];
   return [at(first), ` and ${f.people.length - 1} others commented on `];
@@ -73,6 +80,7 @@ export function commentNotes() {
     if (el) exit(el);
     if (past && !shown.size) setPast(false);
     else fill();
+    room();
   }
 
   function note(f, step) {
@@ -89,18 +97,30 @@ export function commentNotes() {
     });
     shown.set(f.block.id, el);
     host.append(el);
+    room();
+  }
+
+  // How much of the top the notes take on a phone (0 on a computer, where they sit to the side).
+  let roomFrame = 0;
+  function room() {
+    cancelAnimationFrame(roomFrame);
+    roomFrame = requestAnimationFrame(() => {
+      const live = [...shown.values()].filter((el) => el.isConnected && !el.classList.contains('is-leaving'));
+      bus.emit('notes:room', phone.matches && wanted && live.length ? live.reduce((t, el) => t + el.offsetHeight + 8, 0) : 0);
+    });
   }
 
   function clear() {
     for (const el of shown.values()) exit(el);
     shown.clear();
+    room();
   }
 
   function fill() {
     if (!wanted || past) return;
     let step = 0;
     for (const f of files) {
-      if (shown.size >= AT_ONCE) break;
+      if (shown.size >= atOnce()) break;
       if (shown.has(f.block.id) || gone.has(f.block.id)) continue;
       note(f, step++);
     }
@@ -129,7 +149,7 @@ export function commentNotes() {
       toast(res ? 'No one has commented on your files yet' : 'Couldn’t fetch your comments');
       return;
     }
-    list.slice(0, AT_ONCE).forEach((f, i) => note(f, i));
+    list.slice(0, atOnce()).forEach((f, i) => note(f, i));
     if (!host.isConnected) document.body.append(host);
   }
 

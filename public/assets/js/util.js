@@ -91,6 +91,11 @@ export function onMotionChange(fn) {
 // A finger rather than a mouse: things are tapped, not clicked.
 const touchQuery = matchMedia('(pointer: coarse)');
 export const touchScreen = () => touchQuery.matches;
+// How many pixels a point a drawn picture (a planet, the void, the stars, a thread) is painted at:
+// the screen's own, up to 2 on a computer and 3 on a phone. A phone's pictures are small, so its
+// third pixel costs about what a computer's second does, and anything less shows as soft edges
+// on a phone's sharper screen.
+export const sharpness = () => Math.min(devicePixelRatio || 1, innerWidth < 640 ? 3 : 2);
 
 // The colours planets (and a few touches like toasts) are picked from.
 export const PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240'];

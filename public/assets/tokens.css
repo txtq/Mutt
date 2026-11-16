@@ -285,6 +285,37 @@
 
 }
 
+/* ================================================================ the phone scale
+   A phone is held a hand's length away, not an arm's: the same roles one step
+   larger, and controls a fingertip can hit (DESIGN.md "The phone scale"). Every
+   part that reads the names grows with them; nothing else changes. */
+@media (max-width: 720px) {
+  :root {
+    --text-page: 28px;
+    --text-title: 22px;
+    --text-lead: 17px;
+    --text-body: 16px;
+    --text-label: 15px;
+    --text-caption: 13px;
+    --text-fact: 12px;
+    --text-small: 11px;
+    --type-page: 700 var(--text-page) / 34px var(--sans);
+    --type-title: 700 var(--text-title) / 28px var(--sans);
+    --type-lead: 500 var(--text-lead) / 24px var(--sans);
+    --type-body: 400 var(--text-body) / 24px var(--sans);
+    --type-label: 500 var(--text-label) / 20px var(--sans);
+    --type-caption: 400 var(--text-caption) / 18px var(--sans);
+    --type-fact: 400 var(--text-fact) / 16px var(--mono);
+    --h-small: 32px;
+    --h-regular: 40px;
+    --h-large: 44px;
+    --h-inner: 34px;
+    --bar: 52px;
+    --icon: 18px;
+    --icon-large: 22px;
+  }
+}
+
 /* The other three skies. A sky is only its four colours; every other part of the sky's recipe is
    shared (DESIGN.md, "The sky"). Each step is exactly as light as Vita's, so words read the same on all four. */
 html[data-sky="nebula"] { --sky-top: #0b0425; --sky-deep: #16093b; --sky-mid: #2e0d74; --sky-low: #7732dd; }

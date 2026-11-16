@@ -24,7 +24,7 @@ import { docTitle } from './docs.js';
 import { DocSpelling, autocorrectOn, setAutocorrect } from './docspell.js';
 import { exportDocx, exportMarkdown, exportPdf, exportText, pdfMissing, printDoc } from './docexport.js';
 import { confirmDialog, openDialog, openMenu, openPopover, segmented, toast } from './ui.js';
-import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, EASE_SPRING, STAGGER, bus, debounce, h, paperFaces, plural, reducedMotion, styles, timeAgo } from './util.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, EASE_SPRING, STAGGER, bus, debounce, h, paperFaces, plural, reducedMotion, styles, timeAgo, touchScreen } from './util.js';
 import { icon as draw } from './icons.js';
 
 // The editor's look comes with its code (a document can open on a planet that
@@ -352,8 +352,10 @@ class DocEditor {
       this.loading.hidden = true;
       this.arrive(card);
       this.settled = true;
-      if (this.mine) {
-        const end = this.fresh || !this.block.content?.trim();
+      // On a touch screen the keyboard would cover half the page, so only a new, empty document
+      // takes the caret at once; any other waits to be tapped where you want to write.
+      const end = this.fresh || !this.block.content?.trim();
+      if (this.mine && (end || !touchScreen())) {
         this.flow.focus({ preventScroll: true });
         if (end) this.placeCaret(posOf(this.flow, this.flow, this.flow.childNodes.length));
         else this.placeCaret(0);

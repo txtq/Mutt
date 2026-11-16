@@ -6,7 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded } from './util.js';
+import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness } from './util.js';
 import { icon } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -788,9 +788,9 @@ function makeGlobe(canvas, rand, rate = 1) {
     born: performance.now(),
     setSize(css) {
       cssSize = css;
-      // As sharp as the screen, up to 2 pixels a point; the painter's picture is a
+      // As sharp as the screen (sharpness(): up to 2 pixels a point, 3 on a phone); the painter's picture is a
       // little larger than the ball, for the air round its edge.
-      const next = live ? Math.max(32, Math.min(660, Math.round(css * AIR * Math.min(devicePixelRatio || 1, 2))))
+      const next = live ? Math.max(32, Math.min(660, Math.round(css * AIR * sharpness())))
         : Math.max(32, Math.min(300, Math.round(css * Math.min(devicePixelRatio || 1, 1.5))));
       if (next === size) return;
       size = next;
@@ -1317,7 +1317,7 @@ export function worldDot(planet, color, size) {
   const offset = rand() * period;
   const seed = [rand() * 97, rand() * 97, rand() * 97];
   const look = lookOf(planet);
-  const px = Math.round(size * AIR * Math.min(devicePixelRatio || 1, 2));
+  const px = Math.round(size * AIR * sharpness());
   const canvas = h('canvas', { class: 'world-dot', width: px, height: px, 'aria-hidden': 'true' });
   const ok = paint(canvas.getContext('2d'), px, {
     source: blankTexture(), look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: worldColors({ ...planet, icon: { c: color } }, look).colors.map(rgb),

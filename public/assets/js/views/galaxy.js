@@ -17,7 +17,7 @@ import { updatePrefs } from '../theme.js';
 import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
 import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, personLabel, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
@@ -25,6 +25,9 @@ import { Sky } from '../constellations.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
+// A phone shows the newest stars round its void and keeps the rest behind "+N":
+// three dozen cards in the dust would bury it.
+const STAR_CAP_PHONE = 18;
 // Set by /universe, so the page opens already scrolled out.
 let startOut = false;
 // Set when the camera dived in from the universe, so the page doesn't play
@@ -49,18 +52,21 @@ const starTitle = (b) => b.title || (b.kind === 'text' ? excerpt(b.content || ''
 function metrics(width, viewH, z = 1) {
   const narrow = width < 640;
   const mid = width < 1000;
-  const hole = Math.round(voidRadius(width, viewH) * z); // radius of the dark itself
+  // radius of the dark itself; on a phone it shrinks less than the planets, being the heart of the page
+  const hole = Math.round(voidRadius(width, viewH) * (narrow ? Math.max(z, 0.8 * shortness(viewH)) : z));
   return {
     narrow,
     z,
     viewH,
-    scale: (narrow ? 0.72 : mid ? 0.86 : 1) * z,
+    // a phone's planets are a little smaller than a computer's, not much: they are what you came for
+    scale: (narrow ? 0.86 : mid ? 0.86 : 1) * z,
     hole,
     // The glow round it: a tall oval.
     rx: hole * REACH.x,
     ry: hole * REACH.y,
-    chip: Math.round((narrow ? 30 : 38) * Math.max(z, 0.75)),
-    cell: Math.round((narrow ? 37 : 47) * Math.max(z, 0.75)),
+    // a star is something to tap on a phone, so it keeps a fingertip's size
+    chip: narrow ? 36 : Math.round(38 * Math.max(z, 0.8)),
+    cell: narrow ? 44 : Math.round(47 * Math.max(z, 0.8)),
     // Room round each planet, and across for its name, which stays one size.
     gap: Math.round((narrow ? 10 : 22) * z),
     wide: Math.round((narrow ? 104 : 140) * Math.max(z, 0.8)),
@@ -73,6 +79,12 @@ function metrics(width, viewH, z = 1) {
 // how tall it came out. Past the smallest size, the page scrolls. `hold`
 // keeps a size as it is (while you arrange your planets).
 const Z_MIN = 0.42;
+// A phone stops shrinking sooner and scrolls instead: past this its planets
+// would be too small to see or tap. A shorter phone (an SE) may go a little
+// smaller, so a galaxy of a few rows still fits its screen.
+const Z_PHONE = 0.66;
+const shortness = (viewH) => clamp(viewH / 800, 0.62, 1);
+const phoneLeast = (viewH) => Z_PHONE * shortness(viewH);
 
 // Out in the universe each void draws this much smaller beside its planets.
 const VOID_UV = 0.5;
@@ -93,9 +105,10 @@ function fitted(width, viewH, place, hold = 0) {
   // Step down until it fits (a phone's rows reflow as things shrink, so it
   // steps gently)...
   let over = 1;
-  for (let i = 0; i < 30 && !fits(out) && m.z > Z_MIN; i++) {
+  const least = m.narrow ? phoneLeast(viewH) : Z_MIN;
+  for (let i = 0; i < 30 && !fits(out) && m.z > least; i++) {
     over = m.z;
-    m = metrics(width, viewH, Math.max(Z_MIN, m.z * (m.narrow ? 0.97 : Math.min(0.96, (viewH / out.content) ** 1.2))));
+    m = metrics(width, viewH, Math.max(least, m.z * (m.narrow ? 0.97 : Math.min(0.96, (viewH / out.content) ** 1.2))));
     out = place(m);
   }
   if (!fits(out)) return { m, ...out };
@@ -493,9 +506,10 @@ function scatter(planets, width, inner, m) {
 }
 
 // Room kept above and below a galaxy: on a phone the bottom keeps clear of
-// the "Universe" button.
+// the "Universe" button, and the top of a new comment's note (`m.room`, your
+// own galaxy only: commentnotes.js says how tall it is).
 function pads(m) {
-  if (m.narrow) return { top: Math.round(20 * Math.max(m.z, 0.6)), bottom: 64 };
+  if (m.narrow) return { top: Math.round(20 * Math.max(m.z, 0.6)) + (m.room || 0), bottom: 64 };
   const pad = Math.round(56 * Math.max(m.z, 0.6));
   return { top: pad, bottom: pad };
 }
@@ -536,9 +550,20 @@ function rows(planets, sizes, width, inner, m) {
     }
     return out;
   };
+  const height = (row) => tall(Math.max(...row.map((i) => sizes[i])));
+  const stack = (list) => list.reduce((t, r) => t + height(r) + m.gap, 0);
+  const p = pads(m);
+  // A galaxy taller than the screen keeps its void on the first screen: only
+  // as many rows above it as leave its dust in sight. The rest come just
+  // below it, in the same order.
+  if (stack(pack(sides.top)) + stack(pack(sides.bottom)) + inner.ry * 2 + p.top + p.bottom > m.viewH) {
+    const room = m.viewH - p.top - inner.ry * 2 - p.bottom;
+    let k = 0;
+    while (k < sides.top.length && stack(pack(sides.top.slice(k))) > room) k++;
+    sides.bottom.unshift(...sides.top.splice(0, k));
+  }
   const top = pack(sides.top);
   const bottom = pack(sides.bottom);
-  const height = (row) => tall(Math.max(...row.map((i) => sizes[i])));
   const spots = [];
   // A row's planets spread across the width, its top edge at y0.
   const lay = (row, y0, k) => {
@@ -570,7 +595,6 @@ function rows(planets, sizes, width, inner, m) {
   const sinkTop = top.length ? sink(top[top.length - 1], -inner.ry - height(top[top.length - 1]), 1, 0) : 0;
   const sinkBottom = bottom.length ? sink(bottom[0], inner.ry, -1, top.length) : 0;
   // Spare height goes evenly between the rows and the void, up to a point.
-  const p = pads(m);
   const used = [...top, ...bottom].reduce((t, r) => t + height(r), 0) + inner.ry * 2 - sinkTop - sinkBottom;
   const gaps = top.length + bottom.length;
   const spare = gaps ? clamp((m.viewH - p.top - p.bottom - used) / gaps, m.gap, m.viewH * 0.07) : 0;
@@ -1283,7 +1307,9 @@ class Galaxy {
     const held = this.held;
     const hold = held && held.width === width && held.viewH === viewH && this.data.planets.every(placed) ? held.z : 0;
     if (!hold) this.held = null;
+    this.laidRoom = this.mine ? this.notesRoom || 0 : 0;
     const { m, starAt, inner, figs, spots, fx, stretch, shape, ...home } = fitted(width, viewH, (m) => {
+      m.room = this.laidRoom;
       const { spots: starAt, outer } = starSpots([...this.starsEl.children].filter((el) => !this.sky?.has(el.dataset.id)).length, m, width);
       // Planets keep clear of the dust and of the stars caught in it. The
       // dust fades out well before its edge, so they may sit on its rim.
@@ -1543,7 +1569,7 @@ class Galaxy {
     x0 = Math.floor(x0 - pad); y0 = Math.floor(y0 - pad);
     const W = Math.ceil(x1 + pad) - x0;
     const H = Math.ceil(y1 + pad) - y0;
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = sharpness();
     const pw = Math.round(W * dpr);
     const ph = Math.round(H * dpr);
     if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
@@ -1599,7 +1625,8 @@ class Galaxy {
   // ------------------------------------------------------------ stars
 
   shownStars() {
-    return this.showAll || this.stars.length <= STAR_CAP ? this.stars : this.stars.slice(0, STAR_CAP - 1);
+    const cap = innerWidth < 640 ? STAR_CAP_PHONE : STAR_CAP;
+    return this.showAll || this.stars.length <= cap ? this.stars : this.stars.slice(0, cap - 1);
   }
 
   // With a mouse, stars rest as points of light and open into their cards as
@@ -2019,6 +2046,12 @@ class Galaxy {
         if (i >= 0) this.stars[i] = { ...this.stars[i], ...b };
       }),
       bus.on('drawer:changed', () => this.refresh()),
+      // A phone's comment note: the planets make room under it, and close up when it goes
+      // (not while out in the universe; the next layout catches up).
+      bus.on('notes:room', (px) => {
+        this.notesRoom = px;
+        if (this.size?.width < 640 && px !== this.laidRoom && this.p < 0.02) this.layout();
+      }),
     );
   }
 
@@ -2038,7 +2071,7 @@ class Galaxy {
       return;
     }
     if (!parseFloat(this.void.art.style.width)) return;
-    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = sharpness();
     const r = m.hole * REACH.y * 1.05;
     const key = `${r}×${dpr}`;
     if (key === this.voidKey) return;
@@ -2265,8 +2298,11 @@ class Galaxy {
     this.uvStage.style.setProperty('--head', smooth(clamp((e - 0.55) / 0.3)).toFixed(3));
     if (lab) this.uvStage.style.setProperty('--ik', (1 / k).toFixed(3));
     this.el.classList.toggle('is-far', k < 0.55);
-    this.cue.style.opacity = String(1 - clamp(p * 5));
-    this.cue.style.pointerEvents = p > 0.1 ? 'none' : '';
+    // On a galaxy taller than the screen it waits for the end, not over the planets.
+    const below = this.size ? this.size.height - this.size.viewH - scrollY : 0;
+    const cue = (1 - clamp(p * 5)) * (1 - clamp((below - 8) / 40));
+    this.cue.style.opacity = cue.toFixed(3);
+    this.cue.style.pointerEvents = cue < 0.5 ? 'none' : '';
     const out = p > 0.5;
     if (out !== this.out) {
       this.out = out;

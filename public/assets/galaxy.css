@@ -763,6 +763,25 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   /* a menu taller than the screen scrolls */
   .pop { max-height: calc(var(--seen, 100svh) - 24px); overflow-y: auto; }
 }
+/* On a phone a menu is a sheet at the foot of the screen, over the page dimmed (.pop-shade; ui.js asSheet):
+   it rises from below and leaves the way everything leaves. */
+.pop.is-sheet {
+  top: auto;
+  left: max(var(--space-8), env(safe-area-inset-left));
+  right: max(var(--space-8), env(safe-area-inset-right));
+  bottom: calc(env(safe-area-inset-bottom) + var(--space-8));
+  min-width: 0;
+  max-width: none;
+  padding: var(--space-8);
+  border-radius: var(--r-panel);
+  animation: sheet-up var(--dur-arrive) var(--ease-settle) backwards;
+}
+.pop.is-sheet.is-leaving { animation: sheet-down var(--dur-change) var(--ease-leave) both; }
+@keyframes sheet-up { from { opacity: 0; transform: translateY(var(--space-24)); } }
+@keyframes sheet-down { to { opacity: 0; transform: translateY(var(--space-16)); } }
+.pop-shade { position: fixed; inset: 0; z-index: var(--z-pop); background: var(--scrim); touch-action: none; animation: fade-in var(--dur-move) ease backwards; }
+.pop-shade.is-leaving { animation: fade-out var(--dur-change) ease both; }
+.pop.is-sheet .ctx-title { padding-inline: var(--space-12); }
 /* small panel: a menu that holds controls instead of rows (Share, a list's settings, the editor's Aa) */
 .pop-panel { padding: var(--space-16); border-radius: var(--r-panel); }
 
@@ -934,6 +953,9 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   animation-delay: calc(var(--i, 0) * var(--stagger));
 }
 .cn-note.is-leaving { animation: cn-out var(--dur-change) var(--ease-leave) both; }
+/* the account sheet or search drops over where they sit: they step aside until it closes */
+.cn-notes { transition: opacity var(--dur-change) ease; }
+body:has(> .sheet.is-open) .cn-notes { opacity: 0; visibility: hidden; transition: opacity var(--dur-change) ease, visibility 0s var(--dur-change); }
 @keyframes cn-in { from { opacity: 0; transform: translateY(-12px) scale(0.97); } }
 @keyframes cn-out { to { opacity: 0; transform: translateX(12px) scale(0.98); } }
 .cn-open {
@@ -958,8 +980,16 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .cn-file { font-weight: 500; color: var(--ink); }
 .cn-when { flex: none; font: var(--type-fact); color: var(--ink-3); }
 .cn-said { font: var(--type-caption); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* On a phone: one at a time, one line across the top, a fingertip tall; the galaxy makes room under it (views/galaxy.js pads) */
+@media (max-width: 720px) {
+  .cn-notes { left: var(--space-16); right: var(--space-16); width: auto; }
+  .cn-open { min-height: var(--h-large); padding-right: var(--h-large); }
+  .cn-what { -webkit-line-clamp: 1; }
+  .cn-said, .cn-when, .cn-handle { display: none; }
+  .cn-x { top: 50%; right: var(--space-4); translate: 0 -50%; }
+}
 
-/* ---- tip: Mutt speaking once (the sharing tip, the phone note, the recovery key ask). .tip > .tip-title, .tip-text, .tip-btns */
+/* ---- tip: Mutt speaking once (the sharing tip, the recovery key ask). .tip > .tip-title, .tip-text, .tip-btns */
 .tip { width: min(300px, calc(100vw - 32px)); padding: var(--space-16); border-radius: var(--r-panel); }
 .tip-title { font: var(--type-label); color: var(--ink); }
 .tip-text { margin-top: var(--space-4); font: 400 var(--text-label)/18px var(--sans); color: var(--ink-2); }
@@ -1016,7 +1046,11 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .lm-offer-note { margin-top: var(--space-4); font: var(--type-caption); color: var(--ink-3); }
 .lm-offer-btns { display: flex; gap: var(--space-8); }
 @media (max-width: 720px) {
+  /* on a phone the drawing sits beside the title alone, and what was noticed runs the full width under them */
   .lm-offer { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-12); padding: var(--space-16); }
+  .lm-offer-text { display: contents; }
+  .lm-offer-title { grid-column: 2; }
+  .lm-offer-signs, .lm-offer-note { grid-column: 1 / -1; margin-top: calc(var(--space-4) * -1); }
   .lm-offer-btns { grid-column: 1 / -1; justify-content: flex-end; }
 }
 
@@ -1586,6 +1620,19 @@ body.no-chrome #view { padding: 0; }
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) .ff-text::after,
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible)::after { opacity: 0; transition-duration: var(--dur-change); }
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible)::before { opacity: calc(0.35 + var(--near, 1) * 0.65); }
+}
+/* "+N": the stars kept back (a phone shows 18, views/galaxy.js STAR_CAP_PHONE), a round of glass in the ring */
+.star.star-more {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-full);
+  background: var(--gloss-clear), var(--clear-fill);
+  background-origin: border-box;
+  box-shadow: var(--gloss-light);
+  color: var(--ink-2);
+  font: 500 var(--text-caption)/1 var(--sans);
+  cursor: pointer;
 }
 .star.is-new { animation: star-in var(--dur-arrive) var(--ease-settle) backwards; }
 .star.is-leaving { animation: star-out var(--dur-change) var(--ease-leave) forwards; pointer-events: none; }
@@ -2566,18 +2613,20 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 /* ------------------------------------------------------------------ smaller screens */
 
 @media (max-width: 720px) {
-  /* As tall, for a phone, as the Vita's bar is for its screen, with room to tap. */
-  :root { --bar: 44px; }
+  /* The bar's height is the phone scale's (tokens.css): 52, with a fingertip's room for each control. */
   /* a long name shortens (…) before anything at the sides gives way */
   .sb { grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); gap: var(--space-4); padding: 0 max(6px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); font-size: var(--text-label); }
-  .sb .logo { font-size: var(--text-lead); }
-  .sb-who { min-width: 0; max-width: 100%; height: 36px; padding: 0 10px 0 12px; }
+  .sb .logo { font-size: var(--text-title); }
+  .sb-who { min-width: 0; max-width: 100%; height: var(--h-large); padding: 0 10px 0 12px; font: var(--type-label); }
+  /* the icons' line keeps its thickness at the phone scale's larger icons */
+  .ic { stroke-width: calc(var(--icon-line) * 16 / 18); }
+  .ic-large { stroke-width: calc(var(--icon-line) * 16 / 22); }
   .sb-who-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sb-right { gap: var(--space-2); }
   .sb-clock { padding: 0 6px; }
   /* The way home sits in the bar, where a phone's own back button would be. */
-  .home-back { top: calc((var(--bar) - 40px) / 2); left: max(4px, env(safe-area-inset-left)); z-index: 41; color: var(--ink); opacity: 0.8; }
-  body.has-home .sb-left { padding-left: 36px; } /* the logo moves over, and the name stays in the middle */
+  .home-back { top: calc((var(--bar) - var(--h-large)) / 2); left: max(4px, env(safe-area-inset-left)); width: var(--h-large); height: var(--h-large); z-index: 41; color: var(--ink); opacity: 0.8; }
+  body.has-home .sb-left { padding-left: var(--h-large); } /* the logo moves over, and the name stays in the middle */
   .planet-name { font-size: var(--text-caption); }
   .planet-label { width: max(104px, calc(var(--s) + 16px)); top: calc(100% + 8px); }
   .liv-head { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-12); margin-bottom: var(--space-24); }
@@ -3216,13 +3265,13 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   box-shadow: 0 0 0 1px var(--box-edge), var(--shadow-rest);
   transition: transform var(--dur-arrive) var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
 }
-.face-shape.is-wide { width: 100%; }
+.face-shape:is(.is-wide, .is-mid) { width: 100%; }
 .face-shape.is-tall { height: 100%; }
 .face-shape > .face-img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; box-shadow: none; }
 .cell[data-id]:hover .face-shape, .cell[data-id]:hover .cell-fill > .face-img { transform: scale(1.015); box-shadow: 0 0 0 1px var(--pic-edge-on), var(--shadow-raised); }
 /* a page is paper and a book is its cover: square corners, paper's shadow, a little air round them */
 .cell-fill > :is(.is-page, .is-book) { max-width: 94%; max-height: 94%; border-radius: var(--r-mark); box-shadow: var(--paper-shadow); }
-.cell-fill > .face-shape:is(.is-page, .is-book).is-wide { width: 94%; }
+.cell-fill > .face-shape:is(.is-page, .is-book):is(.is-wide, .is-mid) { width: 94%; }
 .cell-fill > .face-shape:is(.is-page, .is-book).is-tall { height: 94%; }
 .cell-fill > .face-shape.is-book { border-radius: var(--space-2) var(--r-mark) var(--r-mark) var(--space-2); }
 .cell[data-id]:hover .cell-fill > :is(.is-page, .is-book) { box-shadow: var(--paper-shadow); }
@@ -3450,17 +3499,36 @@ html:is([data-motion="calm"], [data-motion="off"]) body[data-page="planet"] .gri
   body[data-page="planet"] .grid > .cell :is(.cell-box, .cell-fill) { animation: none !important; transform: none; }
 }
 
-/* ---- on a phone: two boxes to a row, a little less room inside each */
+/* ---- on a phone: two boxes to a row, each square (a phone's photos and short notes leave
+   less empty glass in a square than in a box five tall), a little less room inside each */
 @media (max-width: 720px) {
   .grid { gap: var(--space-16) var(--space-12); }
   .grid-empty { grid-column: 1 / -1; }
+  .cell-box { aspect-ratio: 1; }
+  /* a picture between square and four wide to five tall is held by its height here, not its width */
+  .face-shape.is-mid { width: auto; height: 100%; }
+  .cell-fill > .face-shape:is(.is-page, .is-book).is-mid { width: auto; height: 94%; }
   .face-text, .face-file, .face-link { padding: var(--space-12); }
-  .face-text-body { font-size: calc(var(--text-label) * var(--t)); line-height: 20px; }
+  .face-text-body { font: var(--type-body); font-size: calc(var(--text-body) * var(--t)); line-height: 22px; }
+  /* a few words on one line (cells.js textFace) are written larger, so they hold their square */
+  .face-text.is-brief .face-text-body { font: var(--type-title); font-weight: 500; font-size: calc(var(--text-title) * var(--t)); }
   .face-link-pic { margin: calc(var(--space-12) * -1) calc(var(--space-12) * -1) var(--space-8); }
-  .face-link-title { font-size: var(--text-body); line-height: 20px; }
-  .cell-cap { margin-top: var(--space-8); }
-  .entry textarea { padding: var(--space-12) var(--space-12) 0; }
-  .entry-foot { min-height: 40px; padding: var(--space-4); }
+  .face-link-title { font: var(--type-lead); font-size: var(--text-body); line-height: 22px; }
+  .cell-cap { height: 18px; margin-top: var(--space-8); }
+
+  /* The add box is a slim bar across the row, not a box of its own: one line to type in and
+     Upload beside it. Tapped (or holding words) it opens to a few lines, with Add under them. */
+  .cell-entry { grid-column: 1 / -1; }
+  .cell-entry .cell-box { aspect-ratio: auto; }
+  .cell-entry .cell-fill, .qw-add .entry { position: relative; inset: auto; }
+  .entry { position: relative; width: 100%; flex-direction: row; align-items: center; min-height: 56px; transition: border-color var(--dur-change), box-shadow var(--dur-change); }
+  .entry textarea { flex: 1; min-width: 0; height: 54px; padding: 15px var(--space-12) 15px var(--space-16); line-height: 24px; }
+  .entry-foot { min-height: 0; padding: 0 var(--space-8) 0 0; }
+  .entry .entry-add { display: none; }
+  .entry:is(:focus-within, .has-text) { flex-direction: column; align-items: stretch; }
+  .entry:is(:focus-within, .has-text) textarea { flex: none; height: calc(24px * 4 + 30px); padding-right: var(--space-16); }
+  .entry:is(:focus-within, .has-text) .entry-foot { padding: 0 var(--space-8) var(--space-8); }
+  .entry:is(:focus-within, .has-text) .entry-add { display: inline-flex; }
 }
 /* ================================================================== end of the file box */
 
@@ -3637,6 +3705,10 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   .vw-top { position: sticky; top: 0; z-index: 3; height: 56px; padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); background: var(--bar-fill); -webkit-backdrop-filter: var(--glass-frost); backdrop-filter: var(--glass-frost); }
   .vw-close { position: static; }
   .vw-stage { min-height: 62svh; padding: var(--space-8) var(--space-16) var(--space-24); }
+  /* a note's words take the room they need, not a picture's: its details follow close under it */
+  .vw-stage:has(> .vw-text) { min-height: 34svh; align-items: flex-start; }
+  .vw-text { padding-bottom: var(--space-24); }
+  .vw-text.is-brief .vw-text-body { font: var(--type-page); font-weight: 500; font-size: calc(var(--text-page) * var(--t)); }
   .vw-side { padding: var(--space-8) var(--space-24) 64px; overflow: visible; }
   .vw-img, .vw-video { max-height: 70svh; }
   .vw-pdf, .vw-doc { height: 76svh; }
@@ -3997,24 +4069,16 @@ html[data-motion="off"] .cb-steam { display: none; }
   text-decoration-skip-ink: none;
 }
 
-/* On a phone: a quiet note that Mutt is in testing and works best on a computer (phonenote.js) */
-/* It sits at the foot, where toasts sit, so it covers nothing you came to read (session 8); a toast that arrives meanwhile stands above it. */
-.phone-note { position: fixed; left: var(--space-16); right: var(--space-16); bottom: calc(env(safe-area-inset-bottom) + var(--space-16)); z-index: var(--z-sheet); display: flex; align-items: flex-start; gap: 6px; width: auto; padding: var(--space-12) var(--space-8) var(--space-12) var(--space-16); }
-.phone-note > * { animation: phone-note-in var(--dur-arrive) var(--ease-settle) both; }
-.phone-note.is-leaving > * { animation: phone-note-out var(--dur-change) var(--ease-leave) both; }
-.phone-note-text { flex: 1; margin: 0; }
-.phone-note .phone-note-x { flex: none; margin: -4px 0; font-size: var(--text-title); }
-@keyframes phone-note-in { from { opacity: 0; translate: 0 6px; filter: blur(6px); } }
-@keyframes phone-note-out { to { opacity: 0; translate: 0 6px; } }
-body:has(> .phone-note) .toasts { bottom: calc(env(safe-area-inset-bottom) + 104px); }
-.phone-note.is-leaving { pointer-events: none; }
+/* How a tip arrives and leaves (the recovery key ask, the name ask): it rises a little into focus. */
+@keyframes tip-in { from { opacity: 0; translate: 0 6px; filter: blur(6px); } }
+@keyframes tip-out { to { opacity: 0; translate: 0 6px; } }
 
 /* Asking for a recovery key (askForKey in account.js): Mutt speaking once, on your own galaxy. At the foot on
-   the left, clear of the Universe cue and of toasts; on a phone across the foot like the phone note, toasts above it. */
+   the left, clear of the Universe cue and of toasts; on a phone across the foot, toasts above it. */
 .key-tip { position: fixed; left: var(--space-24); bottom: calc(env(safe-area-inset-bottom) + var(--space-24)); z-index: var(--z-sheet); }
-.key-tip > * { animation: phone-note-in var(--dur-arrive) var(--ease-settle) both; }
+.key-tip > * { animation: tip-in var(--dur-arrive) var(--ease-settle) both; }
 .key-tip.is-leaving { pointer-events: none; }
-.key-tip.is-leaving > * { animation: phone-note-out var(--dur-change) var(--ease-leave) both; }
+.key-tip.is-leaving > * { animation: tip-out var(--dur-change) var(--ease-leave) both; }
 @media (max-width: 720px) {
   .key-tip { left: var(--space-16); right: var(--space-16); bottom: calc(env(safe-area-inset-bottom) + var(--space-16)); width: auto; }
   body:has(> .key-tip) .toasts { bottom: calc(env(safe-area-inset-bottom) + var(--key-tip-room, var(--space-48))); }
@@ -4023,9 +4087,9 @@ body:has(> .phone-note) .toasts { bottom: calc(env(safe-area-inset-bottom) + 104
 /* Asking for a name (askForName in account.js): each time someone with none goes out into the universe.
    At the top right under the bar, where the comment notes sit on your own galaxy; a text box, then Save / Not now. */
 .name-tip { position: fixed; top: calc(var(--bar) + var(--space-8)); right: max(var(--space-16), env(safe-area-inset-right)); z-index: var(--z-bar); }
-.name-tip > * { animation: phone-note-in var(--dur-arrive) var(--ease-settle) both; }
+.name-tip > * { animation: tip-in var(--dur-arrive) var(--ease-settle) both; }
 .name-tip.is-leaving { pointer-events: none; }
-.name-tip.is-leaving > * { animation: phone-note-out var(--dur-change) var(--ease-leave) both; }
+.name-tip.is-leaving > * { animation: tip-out var(--dur-change) var(--ease-leave) both; }
 .name-tip-field { width: 100%; margin-top: var(--space-12); }
 
 /* ------------------------------------------------------------------ documents, before the desk loads

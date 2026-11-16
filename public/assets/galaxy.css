@@ -1086,6 +1086,8 @@ body.no-chrome .sb { display: none; }
 .sb-who[aria-expanded="true"] .ic { transform: rotate(180deg); }
 .sb-at { color: var(--blue-ink); }
 .sb-who.is-other .sb-at { color: #e9b860; }
+.sb-who.is-place { pointer-events: none; opacity: 1; filter: none; } /* out in the universe: a title, not a button */
+.sb-who.is-place .ic { display: none; }
 .sb-right { display: flex; align-items: center; justify-content: flex-end; gap: 14px; color: var(--ink); opacity: 0.88; }
 .sb .sb-btn { color: inherit; }
 .sb .sb-btn::after { content: ""; position: absolute; inset: calc((var(--h-small) - var(--bar)) / 2) -6px; }
@@ -2141,8 +2143,7 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   opacity: var(--head);
   transform: translateY(calc((1 - var(--head)) * 8px));
 }
-.uv-title { font: 500 var(--text-caption)/1 var(--mono); letter-spacing: 0.4em; text-transform: uppercase; color: rgba(225, 232, 250, 0.82); }
-.uv-sub { margin-top: var(--space-8); font-size: 12.5px; color: rgba(200, 210, 235, 0.45); }
+.uv-sub { font-size: 12.5px; color: rgba(200, 210, 235, 0.45); }
 
 /* the cosmic web, far behind */
 .uv-web-layer { position: fixed; left: 0; right: 0; top: var(--bar); bottom: 0; z-index: 0; overflow: hidden; opacity: 0; pointer-events: none; }

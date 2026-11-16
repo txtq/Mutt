@@ -401,7 +401,8 @@ export function createStatusbar() {
   const settings = sheet('sheet-settings', settingsBody);
   // Search belongs to a galaxy: what it finds gathers round that galaxy's void (gravity.js).
   const search = sheet('sheet-search-wrap', (close) => searchBody(close, { here: current, sheetEl: search.el }));
-  who.addEventListener('click', () => settings.toggle(who));
+  // Your account sheet opens from your galaxy's name; out in the universe the bar only says where you are.
+  who.addEventListener('click', () => { if (!out) settings.toggle(who); });
   // Opened anywhere else, it first takes you to the galaxy it searches: from a planet, that planet's
   // galaxy (someone else's searches their files); from the universe or any other page, your own.
   let wantSearch = false;
@@ -435,6 +436,17 @@ export function createStatusbar() {
     if (out) whoName.append('Universe');
     else whoName.append(h('span', { class: 'sb-at' }, name || `@${w.username}`), '’s Galaxy');
     who.classList.toggle('is-other', !out && !w.you);
+    // Out in the universe it's a plain title: no arrow, nothing to press, not a Tab stop.
+    who.classList.toggle('is-place', out);
+    who.tabIndex = out ? -1 : 0;
+    if (out) {
+      who.setAttribute('aria-disabled', 'true');
+      who.removeAttribute('aria-haspopup');
+      settings.close();
+    } else {
+      who.removeAttribute('aria-disabled');
+      who.setAttribute('aria-haspopup', 'dialog');
+    }
   }
   paintWhoBar = paintWho;
 

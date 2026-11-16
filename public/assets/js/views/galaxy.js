@@ -994,8 +994,8 @@ class Galaxy {
     this.uvScene = h('div', { class: 'uv-scene' }, this.uvField);
     this.uvNear = h('div', { class: 'uv-near' });
     this.uvStage = h('section', { class: 'uv-stage', 'aria-label': 'Universe' },
+      // The bar already says "Universe", so the page doesn't say it again.
       h('header', { class: 'uv-head' },
-        h('h2', { class: 'uv-title' }, 'Universe'),
         h('p', { class: 'uv-sub' }, 'Everyone’s galaxies. Open one to look around.')),
       this.uvScene, this.uvNear);
     // The cosmic web, far behind everything.

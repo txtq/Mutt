@@ -121,3 +121,6 @@ curl -s -o /dev/null "${U[@]}" "${J[@]}" -X POST $B/api/blocks/$NPUB/save -d "{\
 echo "galaxies sharing files, as cy sees: $(curl -s "${W[@]}" $B/api/galaxies | j "d['links']")"
 curl -s -o /dev/null "${U[@]}" "${J[@]}" -X PATCH $B/api/drawers/$BOP -d '{"visibility":"private"}'
 echo "after bo's planet goes private, cy: $(curl -s "${W[@]}" $B/api/galaxies | j "d['links']")  bo: $(curl -s "${U[@]}" $B/api/galaxies | j "d['links']")"
+# a new planet is a kind its owner's galaxy doesn't show yet; only after all twelve does one repeat
+for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do curl -s -o /dev/null "${W[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"World $n\"}"; done
+echo "fresh kinds, cy: $(curl -s "${W[@]}" $B/api/galaxy | j "sorted([p['look'] for p in d['planets']])")"

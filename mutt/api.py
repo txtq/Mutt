@@ -44,6 +44,53 @@ TWELVE_SINCE = 1795132800   # 2026-11-20: safely after the day the twelve kinds 
 def twelve(row):
     return row['created_at'] >= TWELVE_SINCE
 MOON_LOOKS = ('luna', 'io', 'europa', 'titan', 'enceladus', 'triton', 'phobos', 'hyperion', 'iapetus', 'callisto')
+# What a planet with no kind of its own draws from (planets.js FIRST_KINDS; same order).
+FIRST_LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'pearl', 'storm')
+# A new planet or moon is given a kind its owner's galaxy doesn't show yet; once every
+# kind is shown, the one shown least. Ties go in this order, so neighbours differ.
+FRESH_PLANETS = ('ocean', 'lava', 'ice', 'gas', 'bloom', 'desert', 'terran', 'storm', 'pearl', 'lagoon', 'haze', 'pale')
+FRESH_MOONS = ('luna', 'io', 'europa', 'titan', 'triton', 'callisto', 'enceladus', 'phobos', 'iapetus', 'hyperion')
+
+
+def first_draw(text):
+    """The first number util.js `seeded(text)` gives, so the server knows which kind an id draws."""
+    m = 0xFFFFFFFF
+    seed = 2166136261
+    for ch in text:
+        seed = ((seed ^ ord(ch)) * 16777619) & m
+    seed = (seed + 0x6D2B79F5) & m
+    t = ((seed ^ (seed >> 15)) * (1 | seed)) & m
+    t = ((t + (((t ^ (t >> 7)) * (61 | t)) & m)) & m) ^ t
+    return ((t ^ (t >> 14)) & m) / 4294967296
+
+
+def shown_look(row):
+    """The kind a planet or moon is drawn as: its own, or the one its id gives (planets.js lookOf)."""
+    if row['parent_id']:
+        if row['look'] in MOON_LOOKS:
+            return row['look']
+        return MOON_LOOKS[int(first_draw(f"moon:{row['id']}") * len(MOON_LOOKS))]
+    if row['look'] in PLANET_LOOKS:
+        return row['look']
+    pool = PLANET_LOOKS if twelve(row) else FIRST_LOOKS
+    return pool[int(first_draw(f"look:{row['id']}") * len(pool))]
+
+
+def fresh_look(conn, user_id, parent_id=None):
+    """A kind for a new planet (or a moon of `parent_id`) that the galaxy shows least."""
+    moon = parent_id is not None
+    rows = conn.execute('SELECT id, look, created_at, parent_id FROM drawers WHERE user_id = ? AND parent_id IS '
+                        + ('NOT NULL' if moon else 'NULL'), (user_id,)).fetchall()
+    shown = {}
+    here = {}
+    for r in rows:
+        look = shown_look(r)
+        shown[look] = shown.get(look, 0) + 1
+        if moon and r['parent_id'] == parent_id:
+            here[look] = here.get(look, 0) + 1
+    order = FRESH_MOONS if moon else FRESH_PLANETS
+    # A moon first differs from the moons beside it, then from every moon in the galaxy.
+    return min(order, key=lambda k: (here.get(k, 0), shown.get(k, 0), order.index(k)))
 MAX_MOONS = 8
 LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
 
@@ -1369,10 +1416,10 @@ def create_drawer(req):
     with db.transaction(req.db):
         req.db.execute(
             'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, '
-            'parent_id, modes, own_sharing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'parent_id, modes, own_sharing, look) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp,
              1 if body.get('community') else 0, visibility, parent_id, json.dumps(modes),
-             1 if parent_id and 'visibility' in body else 0))
+             1 if parent_id and 'visibility' in body else 0, fresh_look(req.db, req.user['id'], parent_id)))
         for user_id in people:
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
         position = 0
@@ -1953,9 +2000,10 @@ def autosort(req, block_id, icon=None, text=None):
         drawer_id = new_id()
         stamp = now()
         req.db.execute(
-            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, modes) '
-            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'public', '{\"shareTip\": true}')",
-            (drawer_id, req.user['id'], title, json.dumps(icon or default_icon()), stamp, stamp))
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, modes, look) '
+            "VALUES (?, ?, ?, '', ?, ?, ?, 0, 'public', '{\"shareTip\": true}', ?)",
+            (drawer_id, req.user['id'], title, json.dumps(icon or default_icon()), stamp, stamp,
+             fresh_look(req.db, req.user['id'])))
     connect(req.db, block_id, drawer_id)
     row = own_drawer(req, drawer_id)
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]

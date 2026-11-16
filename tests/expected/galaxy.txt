@@ -55,9 +55,9 @@ look set: lava
 look bad: 400
 look auto: None
 layout save: 200
-own layout: [('Diary', None, None, None), ('Recipes', 2000.0, -12.0, None), ('Zines', -320.4, 180.0, 'lava'), ('Gifts', None, None, None), ('Ideas', None, None, None), ('Travel', None, None, None)]
+own layout: [('Diary', None, None, 'ocean'), ('Recipes', 2000.0, -12.0, None), ('Zines', -320.4, 180.0, 'lava'), ('Gifts', None, None, 'gas'), ('Ideas', None, None, 'bloom'), ('Travel', None, None, 'desert')]
 bo sees layout: [('', None, None), ('Recipes', 2000.0, -12.0), ('Zines', -320.4, 180.0), ('Gifts', None, None), ('Ideas', None, None), ('Travel', None, None)]
-universe layout: [(None, None, None), (2000.0, -12.0, None), (-320.4, 180.0, 'lava'), (None, None, None), (None, None, None), (None, None, None)]
+universe layout: [(None, None, 'ocean'), (2000.0, -12.0, None), (-320.4, 180.0, 'lava'), (None, None, 'gas'), (None, None, 'bloom'), (None, None, 'desert')]
 use, own: [1.0]
 use for a visitor, as locked then told: [[False, True], [False, True], [False, True], [False, True], [False, True], [True, False]]
 bo moves alma's: 404
@@ -75,3 +75,4 @@ rule holds: a thread led to a private planet a visitor can't see -> no
 also on, own: [('zine one', ['Diary', 'Gifts'])]  bo: [('zine one', ['Gifts'])]  cy: []
 galaxies sharing files, as cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}]
 after bo's planet goes private, cy: []  bo: [{'a': 'alma', 'b': 'bo', 'n': 1}]
+fresh kinds, cy: ['bloom', 'desert', 'gas', 'haze', 'ice', 'lagoon', 'lava', 'lava', 'ocean', 'ocean', 'pale', 'pearl', 'storm', 'terran']

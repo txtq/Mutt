@@ -6,13 +6,13 @@ oto can't add moon to mira's: 404
 moon look io: io
 moon look lava (planet kind): That kind of moon does not exist.
 planet look io: That kind of planet does not exist.
-own galaxy: [('Japan trip', 1, [('Food', 1, 'io', False), ('Temples', 0, None, False), ('Trains', 0, None, False), ('Words', 0, None, False)])] [] {'files': 2, 'drawers': 1, 'stars': 0}
+own galaxy: [('Japan trip', 1, [('Food', 1, 'io', False), ('Temples', 0, 'io', False), ('Trains', 0, 'europa', False), ('Words', 0, 'titan', False)])] [] {'files': 2, 'drawers': 1, 'stars': 0}
 drawers list: ['Japan trip']
 moon page: Food Japan trip ['ramen in Fukuoka'] False
 planet page moons: ['Food', 'Temples', 'Trains', 'Words'] ['Kyoto itinerary']
 oto sees: [('Japan trip', [('Food', False), ('Trains', True), ('Words', False)])]
 oto reads: public moon 200 private moon 404 pin moon 403 file 200
-universe: [(None, [{'id': '<id>', 'look': 'io'}, {'id': '<id>', 'look': None}, {'id': '<id>', 'look': None}])]
+universe: [('ocean', [{'id': '<id>', 'look': 'io'}, {'id': '<id>', 'look': 'europa'}, {'id': '<id>', 'look': 'titan'}])]
 planet made private, oto reads public moon: 404 file 404 galaxy 1
 moons follow it to private: [('Food', 'private'), ('Temples', 'private'), ('Trains', 'pin'), ('Words', 'private')]
 moons follow it to people, unless set by hand: [('Food', 'people'), ('Temples', 'private'), ('Trains', 'pin'), ('Words', 'private')] oto reads Food 200

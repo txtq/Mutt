@@ -17,6 +17,7 @@ deleted file shows to its owner, can't be edited: 200 404
 restore puts it back: 1 ['code', 'text'] 0
 delete it again from recently deleted: True 0 404
 download everything: mutt-export=t1; ["tester's galaxy/Read me.txt", "tester's galaxy/Stars/Example Domain.url", "tester's galaxy/Stuff/hello world.txt", "tester's galaxy/Your data.json"] tester signed out 401
+download, a constellation: ['Stars/Example Domain.url', 'Stars/Trip/comet.txt', 'Stars/Trip/night sky.txt'] [('Trip', 'Stars/Trip', 2)]
 edit a picture, original kept: (True, {'file_name': 'p.png', 'ext': 'png', 'size': 73, 'width': None, 'height': None})
 the original shows to its owner only: 200 401
 start over brings the original back: (False, False, None)

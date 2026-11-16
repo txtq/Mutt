@@ -134,3 +134,26 @@ echo "cy saves bo's copy as a star, made by: $(curl -s "${W[@]}" $B/api/blocks/$
 echo "story, the first as alma sees it: $(curl -s "${A[@]}" $B/api/blocks/$NPUB | story)  as cy: $(curl -s "${W[@]}" $B/api/blocks/$NPUB | story)"
 rule "someone else's copy kept as a star showed to others" "$(curl -s "${A[@]}" $B/api/blocks/$NPUB | j "'$CYC' in json.dumps(d['block']['story'])")" False
 echo "threads after cy saves as a star, cy sees: $(curl -s "${W[@]}" $B/api/galaxies | j "d['links']")  alma: $(curl -s "${A[@]}" $B/api/galaxies | j "d['links']")"
+# constellations: a few stars joined in your sky, only ever yours; the files stay stars
+st() { curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"$1\"}" | j "d['block']['id']"; }
+S1=$(st "sky one"); S2=$(st "sky two"); S3=$(st "sky three"); S4=$(st "sky four")
+cons() { curl -s "${A[@]}" $B/api/galaxy | j "[(c['title'], len(c['stars']), c['dismissed']) for c in d['constellations']]"; }
+C=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"$S1\",\"$S2\"],\"title\":\"  \"}" | j "d['constellation']['id']")
+echo "constellation made, empty name: $(cons)  stars still stars: $(curl -s "${A[@]}" $B/api/galaxy | j "sorted(s['content'] for s in d['stars'] if s['content'].startswith('sky'))")"
+echo "renamed: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/constellations/$C -d '{"title":"Sailing"}' | j "d['constellation']['title']")  stars added: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations/$C/stars -d "{\"block\":\"$S3\"}" | j "len(d['constellation']['stars'])")"
+echo "a planet's file can't join: $(status "${A[@]}" "${J[@]}" -X POST $B/api/constellations/$C/stars -d "{\"block\":\"$NPUB\"}")  one star alone: $(status "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"$S4\"]}")"
+rule "someone else could add to a constellation" "$(status "${U[@]}" "${J[@]}" -X POST $B/api/constellations/$C/stars -d "{\"block\":\"$S4\"}")" 404
+rule "a visitor's view of a galaxy showed its constellations" "$(curl -s "${U[@]}" $B/api/galaxy/alma | j "'constellations' in d or 'Sailing' in json.dumps(d)")" False
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X DELETE $B/api/blocks/$S3
+echo "a deleted star leaves: $(cons)"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$S3/restore
+echo "restored, it's back: $(cons)  stats count them as stars: $(curl -s "${A[@]}" $B/api/galaxy | j "d['stats']['stars']")"
+echo "one taken out: $(curl -s "${A[@]}" "${J[@]}" -X DELETE $B/api/constellations/$C/stars/$S3 | j "[len(c['stars']) for c in d['constellations']]")  waved the offer away: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/constellations/$C -d '{"dismissed":true}' | j "d['constellation']['dismissed']")"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$S2/connections -d "{\"drawer\":\"$PUB\"}"
+echo "a star put on a planet leaves, and one left alone ends it: $(cons)"
+C=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"$S1\",\"$S3\",\"$S4\"],\"title\":\"Boats\"}" | j "d['constellation']['id']")
+P=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations/$C/planet -d '{}')
+echo "became a planet: $(echo "$P" | j "d['drawer']['title'], d['drawer']['count'], d['drawer']['visibility'], d['constellations']")  its files, in order: $(curl -s "${A[@]}" $B/api/drawers/$(echo "$P" | j "d['drawer']['id']") | j "[b['content'] for b in d['blocks']]")"
+echo "no longer stars: $(curl -s "${A[@]}" $B/api/galaxy | j "[s['content'] for s in d['stars'] if s['content'].startswith('sky')]")"
+C=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"$(st "x one")\",\"$(st "x two")\"]}" | j "d['constellation']['id']")
+echo "broken up: $(curl -s "${A[@]}" "${J[@]}" -X DELETE $B/api/constellations/$C | j "d['constellations']")"

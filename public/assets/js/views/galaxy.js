@@ -21,6 +21,7 @@ import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditabl
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
+import { Sky } from '../constellations.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
@@ -142,7 +143,7 @@ const overlaps = (a, b, pad) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 <
 const placed = (p) => p.x != null && p.y != null;
 // A planet with moons needs room for their orbits too.
 // A full planet's rings reach well past its sides.
-const footprint = (s, m, p) => Math.max(s * ((p?.count || 0) >= 10 ? 1.6 : 1), m.wide, p ? orbitReach(p, s) * 2 : 0);
+const footprint = (s, m, p) => (p?.shape ? Math.max(p.shape.w, m.wide) : Math.max(s * ((p?.count || 0) >= 10 ? 1.6 : 1), m.wide, p ? orbitReach(p, s) * 2 : 0));
 // The room a planet and its name take up, round (x, y).
 const box = (x, y, s, w) => ({ x0: x - w / 2, x1: x + w / 2, y0: y - s / 2 - 8, y1: y + s / 2 + 50 });
 
@@ -421,7 +422,8 @@ function scatter(planets, width, inner, m) {
   const ax = m.narrow ? 1 : 1.32;
   const ay = m.narrow ? 1 : 0.78;
   const pad = m.gap;
-  const sizes = planets.map((p) => planetSize(p.count, m.scale));
+  // a constellation (constellations.js) is laid out as a small planet as tall as its figure
+  const sizes = planets.map((p) => (p.shape ? p.shape.h : planetSize(p.count, m.scale)));
   let fx = 1;
   planets.forEach((p, i) => {
     if (!placed(p) || !p.x) return;
@@ -943,6 +945,8 @@ class Galaxy {
     // ------------------------------------------------------------ the galaxy
     this.field = h('div', { class: 'gx-field' });
     this.starsEl = h('div', { class: 'gx-stars', 'aria-label': 'Stars' });
+    // Constellations: stars joined in your sky (only on your own galaxy, like the stars).
+    this.sky = this.mine ? new Sky(this, data.constellations) : null;
     if (this.mine) {
       this.hole = blackHole({
         planets: () => this.data.planets,
@@ -960,7 +964,7 @@ class Galaxy {
     }
     this.coreEl = this.void.el;
     this.art = h('div', { class: 'gx-art' }, this.void.art);
-    this.coreWrap = h('div', { class: 'gx-core' }, this.starsEl, this.coreEl);
+    this.coreWrap = h('div', { class: 'gx-core' }, this.sky?.el, this.starsEl, this.coreEl);
     this.hint = h('p', { class: 'gx-hint' });
     // While you move a planet: the orbit it will land on, and where.
     this.guide = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1279,14 +1283,15 @@ class Galaxy {
     const held = this.held;
     const hold = held && held.width === width && held.viewH === viewH && this.data.planets.every(placed) ? held.z : 0;
     if (!hold) this.held = null;
-    const { m, starAt, inner, spots, fx, stretch, shape, ...home } = fitted(width, viewH, (m) => {
-      const { spots: starAt, outer } = starSpots(this.starsEl.children.length, m, width);
+    const { m, starAt, inner, figs, spots, fx, stretch, shape, ...home } = fitted(width, viewH, (m) => {
+      const { spots: starAt, outer } = starSpots([...this.starsEl.children].filter((el) => !this.sky?.has(el.dataset.id)).length, m, width);
       // Planets keep clear of the dust and of the stars caught in it. The
       // dust fades out well before its edge, so they may sit on its rim.
       const gap = m.narrow ? 10 : 18;
       const inner = { rx: Math.max(outer.x, m.rx * 0.72) + gap, ry: Math.max(outer.y, m.ry * 0.72) + gap };
-      const laid = scatter(this.data.planets, width, inner, m);
-      return { starAt, inner, ...laid, ...extent(laid.rects, inner, viewH, m) };
+      const figs = this.sky ? this.sky.items(m, width) : [];
+      const laid = scatter(figs.length ? [...this.data.planets, ...figs] : this.data.planets, width, inner, m);
+      return { starAt, inner, figs, ...laid, ...extent(laid.rects, inner, viewH, m) };
     }, hold);
     this.m = m;
     this.shape = shape;
@@ -1294,6 +1299,9 @@ class Galaxy {
     this.fx = fx;
     this.stretch = stretch;
     this.spots = new Map(this.data.planets.map((p, i) => [p.id, spots[i]]));
+    // a constellation's place is kept with the planets', so a planet being moved keeps clear of it
+    const figSpots = spots.slice(this.data.planets.length);
+    figs.forEach((f, i) => this.spots.set(f.id, figSpots[i]));
 
     const { height, cy } = home;
     const cx = width / 2;
@@ -1314,13 +1322,21 @@ class Galaxy {
       if (el.classList.contains('is-moving')) return;
       el.style.transform = `translate(${cx + spot.x}px, ${cy + spot.y}px)`;
     }));
+    const inFig = this.sky ? this.sky.place(figs, figSpots) : new Map();
+    let loose = 0;
+    const els = [...this.starsEl.children];
+    const ats = els.map((el) => (this.sky?.of.get(el.dataset.id) ? inFig.get(el.dataset.id) : starAt[loose++]));
     // Each star is lit from the void (--out: the way away from it), dimmer
     // further out (--near), and tilted a little, always the same way for the same file.
-    const reach = starAt.map((at) => Math.hypot(at.x, at.y));
-    const lo = Math.min(...reach), span = Math.max(...reach) - lo || 1;
-    [...this.starsEl.children].forEach((el, i) => {
-      const at = starAt[i];
+    const reach = ats.map((at) => (at ? Math.hypot(at.x, at.y) : 0));
+    const shownAt = reach.filter((r, i) => ats[i]);
+    const lo = Math.min(...shownAt), span = Math.max(...shownAt) - lo || 1;
+    els.forEach((el, i) => {
+      const sky = this.sky?.of.get(el.dataset.id);
+      const at = ats[i];
       el.at = at;
+      if (sky) el.setAttribute('aria-description', `In the constellation ${sky.title}`);
+      else el.removeAttribute('aria-description');
       if (!at) return;
       el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
       el.style.setProperty('--near', (1 - (reach[i] - lo) / span).toFixed(2));
@@ -1328,6 +1344,7 @@ class Galaxy {
       if (el.block) el.style.setProperty('--tilt', `${((seeded(el.block.id)() - 0.5) * 18).toFixed(1)}deg`);
     });
     this.nearStars(this.pointer);
+
     this.starsEl.style.setProperty('--chip', `${m.chip}px`);
 
     // The runway below: how far you scroll to get out to the universe.
@@ -1373,6 +1390,7 @@ class Galaxy {
     }
     if (this.mine) {
       this.stars = data.stars;
+      this.sky?.set(data.constellations);
       this.renderStars();
       if (data.stats) session.stats = data.stats;
       bus.emit('stats:changed', session.stats);
@@ -1594,15 +1612,17 @@ class Galaxy {
     el.addEventListener('click', () => nav.openBlock(block.id));
     el.addEventListener('contextmenu', (e) => {
       if (document.body.classList.contains('is-carrying')) return;
-      blockContextMenu(e, el, el.block, { open: () => nav.openBlock(block.id) });
+      blockContextMenu(e, el, el.block, { open: () => nav.openBlock(block.id), extra: this.skyItems(el.block) });
     });
     el.addEventListener('keydown', (e) => {
       if (e.key === 'm' || (e.key === 'Enter' && e.shiftKey)) { e.preventDefault(); openConnect(el, el.block); }
     });
     draggable(el, {
       ghost: () => h('div', { class: 'star-ghost' }, fileFace(el.block)),
-      targets: () => this.targets(),
+      targets: () => this.targets(el.block),
       onDrop: (target, ghost) => this.dropStar(el.block, target, ghost),
+      // let go in the open sky, a star in a constellation leaves it
+      onLoose: (ghost) => this.sky?.has(el.block.id) && this.looseStar(el.block, ghost),
     });
     return el;
   }
@@ -1637,8 +1657,20 @@ class Galaxy {
     this.starsEl.replaceChildren(...next);
   }
 
-  targets() {
+  targets(carried = null) {
     const list = [];
+    // Another star: the two join into a constellation (constellations.js).
+    if (carried && this.sky) {
+      for (const el of this.starsEl.querySelectorAll('.star[data-id]')) {
+        const id = el.dataset.id;
+        if (id === carried.id) continue;
+        list.push({
+          kind: 'star', id, el, reach: 8,
+          measure: () => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 }; },
+          onHover: (on) => this.joinLabel(on ? el : null, on ? this.sky.joinWords(carried.id, id) : null),
+        });
+      }
+    }
     for (const [id, el] of this.planetEls) {
       if (el.planet.locked) continue;
       list.push({ kind: 'planet', id, el, measure: () => el.center() });
@@ -1654,6 +1686,12 @@ class Galaxy {
 
   async dropStar(block, target, ghost) {
     const at = target.measure();
+    if (target.kind === 'star') {
+      const done = await this.sky.join(block.id, target.id, this.local(ghost));
+      ghost.remove();
+      if (!done) this.layout();
+      return;
+    }
     if (target.kind === 'hole') {
       await spiralInto(ghost, center(ghost.getBoundingClientRect()), at, { duration: DUR.scene });
       this.hole.gulp();
@@ -1683,6 +1721,62 @@ class Galaxy {
     } catch (err) {
       toast(err.message);
     }
+  }
+
+  // ------------------------------------------------------------ constellations (constellations.js)
+
+  // The menu rows a star gets for its constellation.
+  skyItems(block) {
+    if (!this.sky) return [];
+    const c = this.sky.of.get(block.id);
+    return [
+      { icon: 'star', label: 'Join with another star', run: () => this.sky.pick(block.id) },
+      c ? { icon: 'minus', label: `Take out of ${c.title}`, run: () => this.sky.takeOut(block.id) } : null,
+    ].filter(Boolean);
+  }
+
+  async looseStar(block, ghost) {
+    const at = this.local(ghost);
+    if (this.sky.inFigure(block.id, at)) return false;
+    await this.sky.takeOut(block.id, at);
+    ghost.remove();
+    return true;
+  }
+
+  // Where something on screen is, in the galaxy's own pixels round the void.
+  local(node) {
+    const r = node.getBoundingClientRect();
+    const c = this.coreWrap.getBoundingClientRect();
+    return { x: r.left + r.width / 2 - c.left, y: r.top + r.height / 2 - c.top };
+  }
+
+  // A star put down at `at` at once, to glide from there to where the layout puts it.
+  holdStar(id, at) {
+    const el = this.starsEl.querySelector(`.star[data-id="${CSS.escape(id)}"]`);
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+    void el.offsetWidth;
+    el.style.transition = '';
+  }
+
+  isStar(id) { return this.stars.some((b) => b.id === id); }
+
+  // A place in the galaxy as a planet's saved place (see place()).
+  layoutPoint(spot) {
+    return { x: Math.round((spot.x / (this.m.scale * this.fx)) * 10) / 10, y: Math.round((spot.y / (this.m.scale * this.stretch)) * 10) / 10 };
+  }
+
+  // What will happen if the carried star is let go here: the shared tooltip's label, over the star.
+  joinLabel(el, words) {
+    if (!el || !words) { this.joinTip?.classList.remove('is-on'); return; }
+    this.joinTip ||= document.body.appendChild(h('div', { class: 'tooltip gx-join-tip', role: 'status' }));
+    this.joinTip.replaceChildren(h('span', { class: 'tooltip-text' }, words));
+    const r = el.getBoundingClientRect();
+    const w = this.joinTip.offsetWidth;
+    const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    this.joinTip.style.transform = `translate(${Math.round(x)}px, ${Math.round(r.top - 14 - this.joinTip.offsetHeight)}px)`;
+    this.joinTip.classList.add('is-on');
   }
 
   forgetStar(id) {
@@ -2312,6 +2406,7 @@ class Galaxy {
     this.void.art.animate([{ transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }],
       { duration: DUR.grand, easing: EASE });
     this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.change, fill: 'backwards' });
+    this.sky?.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.change, fill: 'backwards' });
     this.threadsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.move + Math.min(this.planetEls.size, 14) * STAGGER, fill: 'backwards' });
     [...this.planetEls.values()].forEach((p, i) => {
       p.body.animate([
@@ -2353,6 +2448,8 @@ class Galaxy {
         } else if (!moved) this.entrance();
         arriving = false;
         if (!this.mine) this.fetchMine();
+        // A constellation that holds enough offers to become a planet, once the page is up.
+        if (this.sky) setTimeout(() => { if (this.live && this.p < 0.02) this.sky.maybeOffer(); }, DUR.move);
         if (!this.uvLoading) {
           if (window.requestIdleCallback) requestIdleCallback(() => this.loadUniverse(), { timeout: 2000 });
           else setTimeout(() => this.loadUniverse(), 800);
@@ -2370,6 +2467,8 @@ class Galaxy {
         this.off.forEach((off) => off());
         this.diving = false;
         this.live = false;
+        this.sky?.destroy();
+        this.joinTip?.remove();
         theSky()?.setLens(null);
         this.void.destroy();
         theSky()?.setNight(0);

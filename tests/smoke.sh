@@ -24,6 +24,11 @@ curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$FID
 echo "delete it again from recently deleted: $(curl -s "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$FID | j "d['ok']") $(curl -s "${C[@]}" $B/api/deleted | j "len(d['blocks'])") $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' "$B${F##* }")"
 curl -s "${C[@]}" -D "$SP/exp.h" -o "$SP/exp.zip" "$B/api/me/export?mark=t1"
 echo "download everything: $(grep -o 'mutt-export=t1;' "$SP/exp.h") $(python3 -c "import zipfile,sys,json; z=zipfile.ZipFile(sys.argv[1]); n=sorted(z.namelist()); print(n, json.loads(z.read(\"tester's galaxy/Your data.json\"))['account']['username'])" "$SP/exp.zip") signed out $(curl -s -o /dev/null -w "%{http_code}" $B/api/me/export)"
+# a constellation's stars go in a folder of its name inside Stars, and it's listed in Your data.json
+CS=$(for t in "night sky" "comet"; do curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"$t\"}" | j "d['block']['id']"; done | python3 -c "import sys,json; print(json.dumps({'stars': sys.stdin.read().split(), 'title': 'Trip'}))")
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/constellations -d "$CS"
+curl -s "${C[@]}" -o "$SP/exp2.zip" "$B/api/me/export"
+echo "download, a constellation: $(python3 -c "import zipfile,sys,json; z=zipfile.ZipFile(sys.argv[1]); r=\"tester's galaxy/\"; print(sorted(n[len(r):] for n in z.namelist() if n.startswith(r+'Stars/')), [(c['name'], c['folder'], len(c['stars'])) for c in json.loads(z.read(r+'Your data.json'))['constellations']])" "$SP/exp2.zip")"
 python3 -c "
 import struct, sys, zlib
 def png(w, h, path):

@@ -12,7 +12,8 @@ import { renderCell } from '../cells.js';
 import { entryCell } from '../entry.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, slider, stepper, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
-import { ICON_NAMES, icon } from '../icons.js';
+import { DRAWING_NAMES, ICON_NAMES, drawing, icon } from '../icons.js';
+import { modeOffer } from '../offers.js';
 import { commentNote } from '../commentnotes.js';
 
 const held = (el, ...states) => { el.classList.add(...states.map((s) => `is-${s}`)); el.tabIndex = -1; return el; };
@@ -180,6 +181,11 @@ function overlays() {
     section('Tip', 'Mutt speaking once: the sharing tip, the phone note.', tip),
     section('Tooltip', 'What an icon button or a cut-off name is called. Point at the round buttons at the top for the real one.',
       row(null, tooltip('Search', '/'), tooltip('Planet options'))),
+    section('Offer', 'What a planet (or a constellation) says once it is used a certain way. Its small drawing is a pane in front of a pane, with a few marks: a list, a shelf, cards, a desk, and a constellation (sky).',
+      row(null, ...DRAWING_NAMES.map((name) => h('span', { title: name }, drawing(name)))),
+      modeOffer({ drawing: 'sky', title: 'This constellation could be a planet', signs: ['4 stars joined as Sailing.'],
+        note: 'Its files go onto a new planet of the same name, where this constellation is. Nothing is lost.',
+        accept: 'Make it a planet', busy: 'Making a planet…', onAccept: () => { toast('Only a sample'); return false; }, onDecline: () => toast('Only a sample') })),
     section('Drop hint', 'While files are dragged over the window the thing that will take them lights up, and one label sits where toasts sit.',
       row(null, h('div', { class: 'parts-box fglass is-drop' }, 'The add box'), h('span', { class: 'btn btn-main' }, 'Drop to add to Postcards'),
         h('span', { class: 'btn btn-main drop-word is-on is-hint' }, 'Open a planet to add files'))),

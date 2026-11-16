@@ -1124,6 +1124,7 @@ def galaxy_of(req, owner):
             '(SELECT 1 FROM connections c WHERE c.block_id = b.id) ORDER BY b.created_at DESC LIMIT 3000',
             (owner['id'],)).fetchall()
         data['stars'] = [block_json(r) for r in stars]
+        data['constellations'] = constellations_of(req.db, owner['id'])
         data['stats'] = user_stats(req.db, owner['id'])
     return data
 
@@ -1360,6 +1361,179 @@ def save_layout(req):
             if not req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ? AND parent_id IS NULL', row).rowcount:
                 raise HttpError(404, 'One of those planets is not yours.')
     return json_response({'ok': True})
+
+
+# ---------------------------------------------------------------- constellations
+
+# A few of your stars joined in your sky, with a name (DESIGN.md "Constellations").
+# Only their owner ever sees them, like the stars themselves. The files stay
+# stars: nothing here makes a connection until one becomes a planet.
+CONSTELLATION_MAX = 12        # stars in one; past this it should be a planet (the figure gets crowded)
+CONSTELLATION_NAME = 'Constellation'
+
+
+def tidy_constellations(conn, user_id):
+    """A constellation needs two stars (counting deleted ones, which may come back)."""
+    conn.execute('DELETE FROM constellations WHERE user_id = ? AND '
+                 '(SELECT COUNT(*) FROM constellation_stars s WHERE s.constellation_id = constellations.id) < 2',
+                 (user_id,))
+
+
+def constellation_members(conn, constellation_id):
+    """Its stars as they show: not deleted, still on no planet, in order."""
+    return [r[0] for r in conn.execute(
+        'SELECT s.block_id FROM constellation_stars s JOIN blocks b ON b.id = s.block_id '
+        'WHERE s.constellation_id = ? AND b.deleted_at IS NULL AND NOT EXISTS '
+        '(SELECT 1 FROM connections c WHERE c.block_id = b.id) ORDER BY s.position, s.added_at', (constellation_id,))]
+
+
+def constellation_json(conn, row):
+    return {'id': row['id'], 'title': row['title'], 'stars': constellation_members(conn, row['id']),
+            'dismissed': bool(row['dismissed'])}
+
+
+def constellations_of(conn, user_id):
+    """Your constellations that show: two stars or more left in your sky."""
+    tidy_constellations(conn, user_id)
+    rows = conn.execute('SELECT * FROM constellations WHERE user_id = ? ORDER BY created_at', (user_id,)).fetchall()
+    return [c for c in (constellation_json(conn, r) for r in rows) if len(c['stars']) >= 2]
+
+
+def own_constellation(req, constellation_id):
+    row = req.db.execute('SELECT * FROM constellations WHERE id = ? AND user_id = ?',
+                         (constellation_id, req.user['id'])).fetchone()
+    if not row:
+        raise HttpError(404, 'That constellation does not exist.')
+    return row
+
+
+def own_star(req, block_id):
+    """One of your files that is a star (on no planet)."""
+    row = own_block(req, str(block_id or ''))
+    if req.db.execute('SELECT 1 FROM connections WHERE block_id = ?', (row['id'],)).fetchone():
+        raise HttpError(400, 'Only stars can join a constellation.')
+    return row
+
+
+def constellation_name(body):
+    title = text_field(body, 'title', 80, 'Name')
+    return title or CONSTELLATION_NAME
+
+
+def join_star(conn, constellation_id, block_id):
+    """Put a star at the end of a constellation (leaving any other it was in)."""
+    if conn.execute('SELECT 1 FROM constellation_stars WHERE block_id = ? AND constellation_id = ?',
+                    (block_id, constellation_id)).fetchone():
+        return
+    have = len(constellation_members(conn, constellation_id))
+    if have >= CONSTELLATION_MAX:
+        raise HttpError(400, f'A constellation holds up to {CONSTELLATION_MAX} stars. Make it a planet to keep going.')
+    last = conn.execute('SELECT COALESCE(MAX(position), -1) FROM constellation_stars WHERE constellation_id = ?',
+                        (constellation_id,)).fetchone()[0]
+    conn.execute('INSERT OR REPLACE INTO constellation_stars (block_id, constellation_id, position, added_at) '
+                 'VALUES (?, ?, ?, ?)', (block_id, constellation_id, last + 1, now()))
+    conn.execute('UPDATE constellations SET updated_at = ? WHERE id = ?', (now(), constellation_id))
+
+
+@route('POST', r'/api/constellations')
+def create_constellation(req):
+    """Two (or more) stars joined into a new constellation."""
+    body = req.json()
+    ids = body.get('stars')
+    if not isinstance(ids, list) or not 2 <= len(ids) <= CONSTELLATION_MAX or len(set(map(str, ids))) != len(ids):
+        raise HttpError(400, 'A constellation is two stars or more.')
+    title = constellation_name(body)
+    stars = [own_star(req, i)['id'] for i in ids]
+    cid, stamp = new_id(), now()
+    with db.transaction(req.db):
+        req.db.execute('INSERT INTO constellations (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                       (cid, req.user['id'], title, stamp, stamp))
+        for block_id in stars:
+            join_star(req.db, cid, block_id)
+        tidy_constellations(req.db, req.user['id'])   # one they left may be down to a single star
+    return json_response({'constellation': constellation_json(req.db, own_constellation(req, cid)),
+                          'constellations': constellations_of(req.db, req.user['id'])}, status=201)
+
+
+@route('PATCH', r'/api/constellations/(?P<cid>[\w-]+)')
+def update_constellation(req, cid):
+    """A new name, or the offer to become a planet waved away (`dismissed`)."""
+    row = own_constellation(req, cid)
+    body = req.json()
+    sets, params = [], []
+    if 'title' in body:
+        sets.append('title = ?')
+        params.append(constellation_name(body))
+    if 'dismissed' in body:
+        sets.append('dismissed = ?')
+        params.append(1 if body.get('dismissed') else 0)
+    if sets:
+        req.db.execute(f"UPDATE constellations SET {', '.join(sets)}, updated_at = ? WHERE id = ?", (*params, now(), row['id']))
+    return json_response({'constellation': constellation_json(req.db, own_constellation(req, cid))})
+
+
+@route('POST', r'/api/constellations/(?P<cid>[\w-]+)/stars')
+def add_to_constellation(req, cid):
+    """One more star (taken out of any other constellation it was in)."""
+    row = own_constellation(req, cid)
+    star = own_star(req, req.json().get('block'))
+    with db.transaction(req.db):
+        join_star(req.db, row['id'], star['id'])
+        tidy_constellations(req.db, req.user['id'])
+    return json_response({'constellation': constellation_json(req.db, row),
+                          'constellations': constellations_of(req.db, req.user['id'])})
+
+
+@route('DELETE', r'/api/constellations/(?P<cid>[\w-]+)/stars/(?P<block_id>[\w-]+)')
+def take_from_constellation(req, cid, block_id):
+    """A star back to being loose. Left with one star, the constellation ends."""
+    row = own_constellation(req, cid)
+    with db.transaction(req.db):
+        req.db.execute('DELETE FROM constellation_stars WHERE constellation_id = ? AND block_id = ?', (row['id'], block_id))
+        tidy_constellations(req.db, req.user['id'])
+    return json_response({'constellations': constellations_of(req.db, req.user['id'])})
+
+
+@route('DELETE', r'/api/constellations/(?P<cid>[\w-]+)')
+def break_constellation(req, cid):
+    """Broken up: its stars are loose again."""
+    row = own_constellation(req, cid)
+    req.db.execute('DELETE FROM constellations WHERE id = ?', (row['id'],))
+    return json_response({'constellations': constellations_of(req.db, req.user['id'])})
+
+
+@route('POST', r'/api/constellations/(?P<cid>[\w-]+)/planet')
+def constellation_to_planet(req, cid):
+    """It becomes a planet of the same name, holding its stars in order (they
+    stop being stars). `x`/`y` put the planet where the constellation was, on a
+    galaxy arranged by hand."""
+    row = own_constellation(req, cid)
+    body = req.json()
+    stars = constellation_members(req.db, row['id'])
+    if len(stars) < 2:
+        raise HttpError(400, 'That constellation has no stars left.')
+    xy = [None, None]
+    for k, (key, reach) in enumerate(zip(('x', 'y'), LAYOUT_REACH)):
+        n = body.get(key)
+        if isinstance(n, (int, float)) and not isinstance(n, bool) and n == n and abs(n) != float('inf'):
+            xy[k] = round(max(-reach, min(reach, float(n))), 1)
+    if None in xy:
+        xy = [None, None]
+    drawer_id, stamp = new_id(), now()
+    with db.transaction(req.db):
+        # A new planet as POST /api/drawers makes one: public, look don't add, with the sharing tip.
+        req.db.execute(
+            'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, '
+            "modes, x, y) VALUES (?, ?, ?, '', ?, ?, ?, 0, 'public', ?, ?, ?)",
+            (drawer_id, req.user['id'], row['title'][:80], json.dumps(default_icon()), stamp, stamp,
+             json.dumps({'shareTip': True}), *xy))
+        for position, block_id in enumerate(stars):
+            req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at) '
+                           'VALUES (?, ?, ?, ?)', (block_id, drawer_id, position, stamp))
+        req.db.execute('DELETE FROM constellations WHERE id = ?', (row['id'],))
+    drawer = own_drawer(req, drawer_id)
+    return json_response({'drawer': planet_json(req, drawer, len(stars), drawer_previews(req, drawer_id, limit=12)),
+                          'constellations': constellations_of(req.db, req.user['id'])}, status=201)
 
 
 @route('GET', r'/api/users')

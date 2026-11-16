@@ -81,3 +81,15 @@ cy saves bo's copy as a star, made by: alma  story: ('alma', 'cy', 'bo', [('alma
 story, the first as alma sees it: (None, None, None, [('bo', 'Kept')])  as cy: (None, None, None, [('bo', 'Kept'), ('cy', 'star')])
 rule holds: someone else's copy kept as a star showed to others -> no
 threads after cy saves as a star, cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}, {'a': 'bo', 'b': 'cy', 'n': 1}]  alma: [{'a': 'alma', 'b': 'bo', 'n': 1}]
+constellation made, empty name: [('Constellation', 2, False)]  stars still stars: ['sky four', 'sky one', 'sky three', 'sky two']
+renamed: Sailing  stars added: 3
+a planet's file can't join: 400  one star alone: 400
+rule holds: someone else could add to a constellation -> no
+rule holds: a visitor's view of a galaxy showed its constellations -> no
+a deleted star leaves: [('Sailing', 2, False)]
+restored, it's back: [('Sailing', 3, False)]  stats count them as stars: 5
+one taken out: [2]  waved the offer away: True
+a star put on a planet leaves, and one left alone ends it: []
+became a planet: Boats 3 public []  its files, in order: ['sky one', 'sky three', 'sky four']
+no longer stars: []
+broken up: []

@@ -8,9 +8,12 @@ import { DUR, EASE_SPRING, reducedMotion } from './util.js';
 const HOLD_MS = 260;
 const EDGE = 72;
 
-// targets(): [{ el, measure() → { x, y, r }, onHover? }]; onDrop gets the
-// target, the ghost element and where it is. Returns a function that detaches.
-export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
+// targets(): [{ el, measure() → { x, y, r }, onHover?, reach? }]; onDrop gets the
+// target, the ghost element and where it is. `reach` (pixels past its edge)
+// makes a small target take only what is let go right on it. onLoose, if it
+// says true, takes something let go over no target (it then owns the ghost).
+// Returns a function that detaches.
+export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd }) {
   let blockClick = false;
 
   const down = (e) => {
@@ -60,7 +63,7 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
           if (d < t.center.r * 1.3 + 10 && d < moonD) { moon = t; moonD = d; }
           continue;
         }
-        const reach = t.center.r * 1.3 + 22;
+        const reach = t.reach != null ? t.center.r + t.reach : t.center.r * 1.3 + 22;
         if (d < reach && d < bestD) { best = t; bestD = d; }
       }
       return moon || best;
@@ -118,6 +121,8 @@ export function draggable(el, { ghost, targets, onDrop, onStart, onEnd }) {
       if (!wasDragging) return; // a plain click; the click handler opens it
       if (target && ev.type === 'pointerup') {
         await onDrop(target, ghostEl, at);
+      } else if (ev.type === 'pointerup' && onLoose && await onLoose(ghostEl, at)) {
+        // taken where it was let go
       } else {
         // Nowhere to land: float back home.
         const r = el.getBoundingClientRect();

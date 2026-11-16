@@ -168,6 +168,8 @@ const DRAWINGS = {
   cards: `M5 8.5V6.25a1 1 0 0 1 1-1h4.25l1.25 1.5H18a1 1 0 0 1 1 1V8.5|g:${R(3, 8.5, 18, 11, 1.5)}|p:M4.75 8.5h14.5|M6.75 12.75h7.5M6.75 15.75h4.5`,
   desk: `M8 6V4.5a1 1 0 0 1 1-1h9.5a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1h-2|g:${R(4.5, 6, 12, 15, 1.5)}|p:M6 6h9|M7.5 10.5h6M7.5 13.5h6M7.5 16.5h3.5`,
   moons: `M8 6V4.5a1 1 0 0 1 1-1h9.5a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1h-2|g:${R(4.5, 6, 12, 15, 1.5)}|p:M6 6h9|${C(9.5, 14.75, 2.75)}|${C(14, 9.75, 1.25)}`,
+  // a constellation: three stars and the two short wisps between them, on a pane with one behind
+  sky: `M5 8.5V6.25a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1V8.5|g:${R(3, 8.5, 18, 11, 1.5)}|p:M4.75 8.5h14.5|M6 16a1 1 0 1 0 2 0a1 1 0 1 0-2 0M10 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0M15.5 14.5a1 1 0 1 0 2 0a1 1 0 1 0-2 0|M7.9 15.1l2.2-2.2M12.4 12.6l2.6 1.2`,
 };
 export const DRAWING_NAMES = Object.keys(DRAWINGS);
 

@@ -304,6 +304,8 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Moons | bob on the rest beat; born over scene (several at once, from a split, one step apart); plumes on the slow beat; a split's Undo fades the moons it made away (change, leaves) as the files glide back |
 | Stars (loose files) arriving, leaving | arrive; leaves |
 | A star opening from a point into its card as the pointer comes near; lifting when pointed at; back to a point | move on the settle curve; move; leaves |
+| A constellation: its stars gathering into it, moving with it | scene, as stars do; a new figure's name arrives, its wisps come in over move once the stars have landed |
+| A constellation becoming a planet | its stars draw together into one point over scene on the glide, its name leaves; the planet is born as a new planet is |
 | Threads between planets | still at rest; they arrive over scene after the planets, follow the planets while they glide or are carried (repainted only then), brighten in one step when a planet at one end is pointed at, and their counts fade in over move and out over change |
 | *The void* | |
 | Turning | painted (rule 10): about 30 pictures a second, every picture when it is big (sign-in); rests while the screen is changing; fades in over move once its pictures are worked out |
@@ -524,6 +526,23 @@ A star is a file on no planet, kept round the void on its owner's own galaxy (`r
 - **Out towards the universe**, and while something is being carried, they all rest.
 - Opening is `--dur-move` on `--ease-settle`; going back to a point is leaving (`--dur-change` on `--ease-leave`). Nothing moves at rest.
 - The "+N" button for more stars is left as it was.
+### Constellations
+
+A few of your stars joined in your sky, with a name: a light way to group files without making a planet (`js/constellations.js`, the rules headed "constellations" in `galaxy.css`). Decided with the user on 2026-11-16.
+
+- **What it is.** Two to twelve stars that leave the cluster round the void and sit together as one figure out in the sky, laid out among the planets as if it were a small planet (it takes a place on the orbits, or a row on a phone, and planets being moved keep clear of it). Its stars stay the stars they were (the same small boxes, opened, right-clicked and carried the same way), and its files stay stars everywhere else: counts, search, the Download's `Stars` folder (in a folder of the constellation's name).
+- **Its figure.** A chain that bends and now and then branches, as constellations are drawn, from the constellation's own seed, so a star added leaves the others where they were. Stars about two and a half boxes apart (2.9 × the star box; drawn closer when a big one would not fit, never closer than 2.2).
+- **Its lines are wisps**, the same print as the threads between planets (`wisp()` in `uvweb.js`), finer: three strands, from the edge of one star to the edge of the next, with the faintest of bows. Faint at rest (`--thread`), stronger (`--thread-on`) while its name or one of its stars is pointed at or focused, and while it is being offered as a planet. Brighter is more dots, never a glow.
+- **Its name** sits under it as a planet's does (Label, `--ink`, `--sky-shadow`) with its count as a Fact (`3 stars`). Pressing it opens its menu: Rename, Make it a planet, Break up.
+- **Joining.** Carry a star over another: the one under it wears the dashed ring of a thing being dropped onto, and the tooltip above it says what letting go does ("New constellation", or "Join Sailing"); the carried star's own name waits meanwhile. A star needs to be let go right on another to join (8 past its edge), so a star carried across the cluster to a planet doesn't join on the way. Two loose stars make a new constellation; a star let go on a constellation's star joins that one (leaving any other it was in).
+- **Naming.** When two stars first join, a small panel opens under the new name with an empty text box ("Name this constellation", Name it). Left empty, or closed, it is called "Constellation".
+- **Taking one out.** Carry it away from its figure and let go in the open sky (let go on its own figure, it stays), or "Take out of …" in its menu; a toast says so with Undo. A constellation left with one star ends. Break up (with Undo) lets all its stars loose.
+- **Becoming a planet.** At four stars (the user's number), the offer box (`modeOffer`, its drawing `sky`) comes once, at the foot of the screen above "Universe", with the constellation's wisps lit so it's plain which one: "This constellation could be a planet" / Not now / Make it a planet. Not now is remembered; the menu keeps "Make it a planet". Accepted, its stars draw together into a point over `--dur-scene` on the glide and a planet of the same name is born there (on a galaxy arranged by hand it takes that place), holding the files in the constellation's order.
+- **Who sees it.** Only its owner, on their own galaxy, as with the stars themselves. Nothing about it is sent to anyone else.
+- **Keyboard.** A star's menu has "Join with another star": it wears a plain ring, a toast says how, the arrow keys go to the nearest star that way (dashed ring, focused), Enter joins, Escape stops. A click on a star while picking joins too. Screen readers hear "In the constellation …" on each of its stars and its name and count on the name.
+- **Phone.** Hold a star to pick it up, as before. On a phone the figure keeps inside the width (it is drawn closer together first).
+- **Still.** Nothing moves; the figure, its wisps and its name are simply there.
+- **Cost.** One small canvas per constellation, only as big as its figure, painted when its shape changes and when it is lit or dimmed (under a thousandth of a second to repaint). Nothing runs at rest; nothing is copied from one canvas to another.
 
 ### The logo
 
@@ -649,7 +668,7 @@ An offer (a mode's "This planet looks like …") is box glass with corners 20 an
 
 - **Split into moons** is offered in the same box, though it acts once instead of showing the planet another way: "This planet holds two things" (three, four…), the signs with numbers ("4 files are about pottery and 4 about climbing.", "1 other fits neither."), and the note says which move to a moon of their own and which stay, then "Nothing is lost, and it can be undone." Its button and its ••• row (icon `moon`) say `Split into moons`. Accepting brings the new moons in beside the world one step apart, the files that went leave the grid in one glide, and a toast says `Split into 2 moons` with Undo. It is offered last of the offers, only while the planet shows as plain files, and never on a moon.
 
-**An offer's drawing** is one of five in `icons.js` (`drawing(name)`: `list`, `shelf`, `cards`, `desk`, `moons`), and they are all made the same way: a pane of glass in front (an outline in the icons' line, faintly filled) with the planet's paled colour along its top edge, another pane behind it, and a few marks that say which mode it is. A list is two strips with ticks, a bookshelf two covers, a cookbook a card behind its tab, a desk two pages, a split (`moons`) a planet with its small moon on the front pane (chosen by the user from three, 2026-11-16). Drawn on a 24 grid, shown at 28 in a 40 well with corners 11. A new mode's drawing is made this way and no other: add it to `DRAWINGS` in `icons.js`, name it in the mode's page entry (`drawing: '…'` in `modes.js`), and show the user first.
+**An offer's drawing** is one of six in `icons.js` (`drawing(name)`: `list`, `shelf`, `cards`, `desk`, `moons`, `sky`), and they are all made the same way: a pane of glass in front (an outline in the icons' line, faintly filled) with the planet's paled colour along its top edge, another pane behind it, and a few marks that say which mode it is. A list is two strips with ticks, a bookshelf two covers, a cookbook a card behind its tab, a desk two pages, a split (`moons`) a planet with its small moon on the front pane (chosen by the user from three, 2026-11-16). Drawn on a 24 grid, shown at 28 in a 40 well with corners 11. A new mode's drawing is made this way and no other: add it to `DRAWINGS` in `icons.js`, name it in the mode's page entry (`drawing: '…'` in `modes.js`), and show the user first.
 
 ### Room
 
@@ -940,5 +959,12 @@ Decided by the user, 2026-11-13 (design session 8; the page with the alternative
 Decided by the user, 2026-11-16 (the drawings are in `/Users/edan/Mutt-notes/design/stars-2026-11-16/`):
 
 - Stars (loose files) stuck out: flat, bright, rounded squares like app icons over a painted scene. They are now points of light that open into cards lit from the void as the pointer comes near ("Stars" in section 3). A stippled print, points alone, Vita bubbles and lit cards alone were offered.
+Decided by the user, 2026-11-16 (Constellations; the choices were put as questions in the session):
+
+- A constellation sits out in the sky as its own figure among the planets (staying inside the cluster round the void was offered).
+- Its lines are wisps of dust like the threads (fine straight hairlines were offered).
+- It offers to become a planet at 4 stars (my pick of 6, and 8, were offered).
+- Its name box starts empty, and an unnamed one is called "Constellation" (my pick of a name suggested from its files was turned down).
+- Not yet seen by the user: the `sky` drawing on `/parts`.
 
 Still open: whether every move feels right at real speed (the user's eye: the watch list on session 8's page); the three things under "Not finished, and known" in section 2, "Motion".

@@ -32,6 +32,11 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   peek at what's on it; drag a file from your computer, or a star, onto a
   planet to put it there. Open a planet to see and edit everything in it,
   and use **Share** there to choose who can see it.
+- **Constellations**: drag a star onto another star and the two join into a
+  constellation, a light group out in your sky with a name and faint lines
+  between its stars; drag more on to grow it, or one away to take it out.
+  Its files stay stars. Once it holds four it offers (once) to become a
+  planet of the same name. Only you see your constellations.
 - **Kinds of planet**: every planet is one of eight worlds (ocean, green,
   gas giant, lava, ice, desert, moon rock, storm), each with its own ground
   and weather: drifting clouds, sliding bands, slowly glowing lava seams,

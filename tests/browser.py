@@ -393,6 +393,9 @@ def seed(work):
     send('PATCH', f'/api/blocks/{wish}', {'content': 'wish you were here, love from the coast'})
     ids['wish'] = wish
 
+    # two stars (files on no planet), for the constellation path to join
+    ids['stars'] = [send('POST', '/api/blocks', {'content': text})['block']['id'] for text in ('sea glass', 'a smooth pebble')]
+
     # the seed itself is checked: each planet must be offered the mode its path expects
     for title, mode in (('Shopping', 'list'), ('Recipes to try', 'cookbook'), ('Essays', 'documents'), ('Shelf', 'reading')):
         if not send('GET', f'/api/drawers/{ids[title]}/modes')[mode].get('fits'):
@@ -778,6 +781,34 @@ def keyboard(s, seeded):
     s.shot('keyboard-in-sheet')
 
 
+def constellation(s, seeded):
+    """Carry one star onto another: they join into a constellation, which asks for its name."""
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7 && arguments[0].every((id) => document.querySelector(`.star[data-id="${id}"]`))',
+           'the galaxy (or its two stars) did not load', args=(seeded['stars'],))
+    s.settle(1)
+    # a pointer pressed on the first star and carried over the second, as a mouse does it
+    s.js('''const [a, b] = arguments[0].map((id) => document.querySelector(`.star[data-id="${id}"]`));
+      const mid = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+      const p = mid(a); window.__over = mid(b);
+      const ev = (type, at, el = document) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: 'mouse', isPrimary: true, button: 0, buttons: 1, clientX: at.x, clientY: at.y }));
+      ev('pointerdown', p, a); ev('pointermove', { x: p.x + 24, y: p.y }); ev('pointermove', window.__over);''', seeded['stars'])
+    s.wait('return document.querySelector(".star.is-target") && /constellation/i.test(document.querySelector(".gx-join-tip")?.textContent || "")',
+           'carrying a star over another did not light it with "New constellation"', 4)
+    s.shot('constellation-joining')
+    s.js('document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7, pointerType: "mouse", isPrimary: true, button: 0, clientX: window.__over.x, clientY: window.__over.y }))')
+    s.see('.gx-fig-namer input', 'two stars joined, but nothing asked for the constellation\'s name')
+    s.type('.gx-fig-namer input', 'Beachcombing' + ENTER)
+    end = time.time() + 6
+    while [c['title'] for c in s.fetch('/api/galaxy').get('constellations', [])] != ['Beachcombing']:
+        if time.time() > end:
+            raise Fail(f'the constellation should be called Beachcombing, the server has {s.fetch("/api/galaxy").get("constellations")}')
+        time.sleep(0.2)
+    s.named('.gx-fig .planet-name', 'Beachcombing', 'the constellation\'s name did not show under it')
+    s.settle(1)
+    s.shot('constellation-named')
+
+
 def send_to_top(s, seeded):
     # a planet of its own, made here, so the others stay as seeded; last in PATHS for the same reason
     made = s.js('''return (async () => {
@@ -928,8 +959,8 @@ def split_moons(s, seeded):
         raise Fail(f'the page had errors while splitting: {errors[:3]}')
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top, split_moons,
-         forgot_code, key_nudge]
+         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
+         split_moons, forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

@@ -324,6 +324,25 @@ def migrate(conn):
     conn.execute('CREATE TABLE IF NOT EXISTS planet_attention ('
                  'drawer_id TEXT PRIMARY KEY REFERENCES drawers(id) ON DELETE CASCADE, '
                  "weights TEXT NOT NULL DEFAULT '{}', lessons INTEGER NOT NULL DEFAULT 0, updated_at REAL NOT NULL)")
+    # Constellations: a few of your stars (files on no planet) joined in your
+    # sky, with a name. Never connections: the files stay stars until the
+    # constellation becomes a planet. A star is in one constellation at most.
+    # A deleted star keeps its row (it comes back if restored); `dismissed`
+    # is the offer to become a planet, waved away.
+    conn.execute('CREATE TABLE IF NOT EXISTS constellations ('
+                 'id TEXT PRIMARY KEY, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 "title TEXT NOT NULL DEFAULT 'Constellation', dismissed INTEGER NOT NULL DEFAULT 0, "
+                 'created_at REAL NOT NULL, updated_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_constellations_user ON constellations(user_id)')
+    conn.execute('CREATE TABLE IF NOT EXISTS constellation_stars ('
+                 'block_id TEXT PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'constellation_id TEXT NOT NULL REFERENCES constellations(id) ON DELETE CASCADE, '
+                 'position INTEGER NOT NULL, added_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_constellation_stars ON constellation_stars(constellation_id, position)')
+    # A star put on a planet, by any route, leaves its constellation.
+    conn.execute('CREATE TRIGGER IF NOT EXISTS constellation_star_leaves AFTER INSERT ON connections BEGIN '
+                 'DELETE FROM constellation_stars WHERE block_id = NEW.block_id; END')
 
 
 @contextmanager

@@ -100,6 +100,12 @@ def build(conn, user_id):
             folder_of[d['id']] = Folder(parent.name(safe_name(d['title'], 'Untitled moon'), folder=True))
     others = {}   # someone else's planet you put files on: its folder, made when first needed
     stars = Folder(f'{root}/{STARS}')
+    # Stars joined in a constellation sit in a folder of its name inside Stars.
+    skies = conn.execute('SELECT * FROM constellations WHERE user_id = ? ORDER BY created_at', (uid,)).fetchall()
+    sky_folder = {c['id']: Folder(stars.name(safe_name(c['title'], 'Constellation'), folder=True)) for c in skies}
+    sky_of = {r['block_id']: r['constellation_id'] for r in conn.execute(
+        'SELECT s.block_id, s.constellation_id FROM constellation_stars s JOIN constellations c ON c.id = s.constellation_id '
+        'WHERE c.user_id = ?', (uid,))}
     deleted = Folder(f'{root}/{DELETED}')
     other_root = Folder(f'{root}/{OTHERS}')
 
@@ -130,7 +136,7 @@ def build(conn, user_id):
                 if b['deleted_at']:
                     homes = [deleted]
                 elif not where:
-                    homes = [stars]
+                    homes = [sky_folder.get(sky_of.get(b['id'])) or stars]
                 else:
                     homes = []
                     for c in where:
@@ -147,7 +153,7 @@ def build(conn, user_id):
                 data_files.append(file_data(conn, b, where, folder_of, others, paths, root))
 
             put_bytes(f'{root}/{DATA}', json.dumps(
-                everything(conn, user, drawers, folder_of, data_files, root),
+                everything(conn, user, drawers, folder_of, data_files, root, skies, sky_folder),
                 ensure_ascii=False, indent=2).encode('utf-8'))
             put_bytes(f'{root}/{README}', readme(user, len(planets), sum(1 for b in blocks if not b['deleted_at'])).encode('utf-8'))
         size = tmp.tell()
@@ -248,7 +254,7 @@ def file_data(conn, b, where, folder_of, others, paths, root):
     return item
 
 
-def everything(conn, user, drawers, folder_of, files, root):
+def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder=None):
     uid = user['id']
     names = {d['id']: d['title'] for d in drawers}
     people = {}
@@ -300,6 +306,14 @@ def everything(conn, user, drawers, folder_of, files, root):
             'settings': loads(user['prefs'], {}),
         },
         'planets': planets,
+        'constellations': [{
+            'id': c['id'],
+            'name': c['title'],
+            'folder': sky_folder[c['id']].path[len(root) + 1:] if sky_folder else None,
+            'stars': [r[0] for r in conn.execute(
+                'SELECT block_id FROM constellation_stars WHERE constellation_id = ? ORDER BY position', (c['id'],))],
+            'made': iso(c['created_at']),
+        } for c in skies],
         'files': files,
         'commentsYouLeftOnOthersFiles': [
             {'on': r['title'] or r['kind'], 'owner': r['username'], 'said': r['body'], 'when': iso(r['created_at'])}
@@ -325,7 +339,8 @@ Each folder here is one of your planets, holding the files on it. A planet's
 moons are folders inside it. A file that sits on more than one planet is in
 each of their folders.
 
-  {STARS}                       files that aren't on any planet
+  {STARS}                       files that aren't on any planet; a
+                                constellation's are in a folder of its name
   {OTHERS}   files you put on someone else's planet
   {DELETED}             files you deleted in the last week
   {DATA}               everything else Mutt keeps about you: your

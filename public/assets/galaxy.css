@@ -1569,6 +1569,51 @@ body.no-chrome #view { padding: 0; }
 @keyframes star-in { from { opacity: 0; } }
 @keyframes star-out { to { opacity: 0; scale: 0.3; } }
 
+/* ---- constellations (js/constellations.js; DESIGN.md "Constellations"): stars joined in your sky.
+   A figure sits among the planets: its stars are the stars above, its wisps one small canvas behind
+   them, its name and count a planet's, under it. Nothing moves at rest. */
+.gx-sky { position: absolute; left: 0; top: 0; z-index: 0; width: 0; height: 0; }
+.gx-fig { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.gx-scene.is-live .gx-fig { transition: transform var(--dur-scene) var(--ease-settle); }
+.gx-fig.is-new { animation: star-in var(--dur-arrive) var(--ease-settle) backwards; }
+.gx-fig-lines { position: absolute; display: block; pointer-events: none; }
+.gx-fig-name {
+  position: absolute;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 140px;
+  max-width: 60vw;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-row);
+  transform: translateX(-50%);
+  text-align: center;
+}
+.gx-fig-name .planet-name { max-width: 100%; }
+.gx-fig-name .planet-meta { margin-top: var(--space-2); }
+/* what letting go of a carried star here does, in the shared tooltip (the star's own name waits) */
+body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
+/* a star something is about to join: the ring round a thing you are dragging onto */
+.star.is-target::after, .star.is-picking::after {
+  content: "";
+  position: absolute;
+  inset: -22%;
+  border-radius: var(--r-full);
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 60%, transparent);
+  animation: spin var(--beat-rest) linear infinite;
+  pointer-events: none;
+}
+.star.is-picking::after { border-style: solid; animation: none; }
+/* the offer to become a planet: at the foot of the screen, over the galaxy (the figure's wisps light meanwhile) */
+.gx-fig-offer { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--space-48) + var(--space-24)); z-index: 7; width: min(560px, calc(100vw - 2 * var(--space-16))); transform: translateX(-50%); }
+.gx-fig-offer .lm-offer { margin: 0; }
+.gx-fig-namer-btns { display: flex; justify-content: flex-end; }
+.gx.is-adding .gx-sky { opacity: 0; pointer-events: none; }
+.gx-sky { transition: opacity var(--dur-arrive) var(--ease-settle); }
+.world.is-far .gx-fig-name, .world.is-far .gx-fig-offer { opacity: 0; pointer-events: none; }
+.gx-fig-name, .gx-fig-offer { transition: opacity var(--dur-move) var(--ease-settle); }
+
 /* ------------------------------------------------------------------ planets */
 
 .planet {

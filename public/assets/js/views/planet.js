@@ -340,13 +340,15 @@ export const planetView = {
       if (drawer.keepers) return h('span', { class: 'liv-vis' }, icon('pair', 12), drawer.keepers.map(shortName).join(' and '));
       return null;
     };
+    // Who can see it, as one icon and a word: the Fact line and the Share button both show it.
+    const visIcon = () => (drawer.community ? 'plus' : VISIBILITY[drawer.visibility]?.icon || 'people');
+    const visWord = () => (drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility]?.label || '');
     const setMeta = (count) => {
-      const vis = drawer.community ? 'community' : drawer.visibility;
       const moons = drawer.moons?.length ? plural(drawer.moons.length, 'moon') : null;
       // (replaceChildren would write a left-out piece as the word "null")
       meta.replaceChildren(...[
         h('span', null, [plural(count, 'file'), moons, timeAgo(drawer.updatedAt)].filter(Boolean).join(' · ')),
-        mine && vis ? h('span', { class: 'liv-vis' }, icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12), drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility].label) : null,
+        mine && visWord() ? h('span', { class: 'liv-vis' }, icon(visIcon(), 12), visWord()) : null,
         keptLine(),
       ].filter(Boolean));
     };
@@ -568,6 +570,15 @@ export const planetView = {
 
     let sharing = null;
     let sharePop = null;
+    // Its icon is who can see the planet now (lock, key, people, globe; plus when others can add).
+    const shareBtn = mine ? h('button', { type: 'button', class: 'btn liv-share-btn', 'aria-haspopup': 'dialog' }, icon(visIcon()), h('span', null, 'Share')) : null;
+    const paintShareBtn = () => {
+      if (!shareBtn) return;
+      const was = shareBtn.querySelector('.ic');
+      if (!was.classList.contains(`ic-${visIcon()}`)) was.replaceWith(icon(visIcon()));
+      shareBtn.title = `Share · ${visWord()}`;
+    };
+    paintShareBtn();
     if (mine) {
       const hint = h('p', { class: 'liv-share-hint' });
       const people = h('div', { class: 'liv-people' });
@@ -603,6 +614,7 @@ export const planetView = {
         codeBtn.textContent = drawer.hasCode ? 'Change code' : 'Pick a code';
         world.update({ ...drawer, previews: world.planet?.previews });
         setMeta(drawer.count);
+        paintShareBtn();
         sharePop?.place();
       };
       const seg = segmented(Object.entries(VISIBILITY).map(([value, v]) => ({ value, label: v.label })), drawer.visibility, async (value) => {
@@ -694,7 +706,6 @@ export const planetView = {
         h('p', { class: 'liv-label' }, 'Who can see it'),
         seg.el, hint, codeRow, people, openRow, keepBox);
     }
-    const shareBtn = mine ? h('button', { type: 'button', class: 'btn liv-share-btn', 'aria-haspopup': 'dialog' }, icon('people'), h('span', null, 'Share')) : null;
     // A new planet's first visit: a quiet note by Share saying who can see it
     // now and that it can be changed. Put away for good once read or used.
     let shareTip = null;

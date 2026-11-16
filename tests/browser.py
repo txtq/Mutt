@@ -675,6 +675,15 @@ def open_planet(s, seeded):
            'Postcards should show 3 files')
     s.settle(1)
     s.shot('planet')
+    # The Share button's icon is who can see the planet, and follows a change.
+    icon = 'return document.querySelector(".liv-share-btn .ic").getAttribute("class")'
+    if 'ic-globe' not in s.js(icon):
+        raise Fail(f'a public planet\'s Share button should show the globe, got {s.js(icon)}')
+    s.click(s.see('.liv-share-btn', 'the planet has no Share button'))
+    s.click(s.named('.liv-seg [role=tab]', 'Private', 'the Share panel has no Private choice'))
+    s.wait('return document.querySelector(".liv-share-btn .ic-lock")', 'Share kept its icon after making the planet private')
+    s.click(s.named('.liv-seg [role=tab]', 'Public', 'the Share panel has no Public choice'))
+    s.wait('return document.querySelector(".liv-share-btn .ic-globe")', 'Share kept the lock after making the planet public again')
 
 
 def offer_then(s, seeded, title, yes, view, sorry):

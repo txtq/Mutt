@@ -254,6 +254,16 @@ class SafariEngine(Browser):
     def click(self, el):
         for attempt in range(4):
             target = self.see(el, f'nothing to click at {el}') if isinstance(el, str) else el
+            # A real click lands where the thing was measured, so wait until it stops
+            # moving (a menu still growing open would put the click on the next row).
+            where = 'const r = arguments[0].isConnected && arguments[0].getBoundingClientRect(); return r ? [r.x, r.y, r.width, r.height] : null;'
+            last = self.js(where, target)
+            for _ in range(20):
+                time.sleep(0.05)
+                now = self.js(where, target)
+                if now == last:
+                    break
+                last = now
             spot = self.js(
                 'const el = arguments[0]; if (!el.isConnected) return "gone";'
                 'let r = el.getBoundingClientRect();'

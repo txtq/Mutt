@@ -15,7 +15,7 @@ import { DUR, EASE, EASE_GLIDE, STAGGER, autosize, bus, h, plural, reducedMotion
 import { icon } from './icons.js';
 import { sound } from './sound.js';
 import { momentLine } from './moments.js';
-import { cometRows, cometWhen, makeComet, stopComet, tell } from './remind.js';
+import { cometRows, cometWhen, makeComet, tell } from './remind.js';
 
 export const LIST_TYPES = [
   { value: 'check', label: 'Checklist' },
@@ -733,8 +733,6 @@ export class ListView {
     const extra = [
       this.ticking() && { icon: block.checked ? 'untick' : 'tick', label: block.checked ? 'Untick' : 'Tick off', run: () => this.toggle(id) },
       text && { icon: 'edit', label: 'Edit', run: () => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); } },
-      this.could.has(id) && !block.checked && { icon: 'date', label: 'Make it a comet', run: () => makeComet(id) },
-      this.comets[id] && { icon: 'close', label: 'Stop the comet', run: () => stopComet(this.comets[id]) },
     ].filter(Boolean);
     const worlds = (this.targets?.() || []).map((t) => ({ title: t.title, dot: t.dot, planet: t.planet, move: () => this.moveTo(t, id) }));
     const only = this.leaving(block).only;

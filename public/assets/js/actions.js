@@ -9,6 +9,7 @@ import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './
 import { bus, h, plural, styles, wait } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
+import { cometFor } from './remind.js';
 
 // ---------------------------------------------------------------- connect picker
 
@@ -405,6 +406,8 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     // Beaming one to someone (beams.js, fetched when pressed): once you've crossed paths with anyone.
     block.mine !== false && session.user?.canBeam && { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo(block, { form: beamAs })) },
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
+    // any file of yours can be a comet that reminds you (remind.js): from a day in its words, or one you pick
+    block.mine !== false && session.user && { icon: 'date', label: 'Make it a comet…', run: () => cometFor(anchor, block) },
     canEditPicture(block) && { icon: 'edit', label: 'Edit picture', run: () => editPicture(block) },
     canDownload(block) && { icon: 'download', label: formatsOf(block).length ? 'Download as…' : 'Download', run: () => downloadMenu(anchor, block) },
     block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => { sound('copy'); toast('Link copied'); }) },

@@ -2506,9 +2506,17 @@ def ticked(db_, block_id):
     return bool(rows) and all(r['checked'] for r in rows)
 
 
+def comet_title(r):
+    """What a comet is called: a file's name, or a note's first line."""
+    if r['title']:
+        return r['title']
+    if r['kind'] == 'text':
+        return (r['content'] or '').strip().split('\n', 1)[0] or 'A note'
+    return r['file_name'] or (r['content'] if r['kind'] == 'link' else '') or 'A file'
+
+
 def comet_json(r, planet=None):
-    first = (r['content'] or '').strip().split('\n', 1)[0]
-    return {'id': r['block_id'], 'title': first[:80] or 'A note', 'planet': planet, 'day': r['day'], 'time': r['time'],
+    return {'id': r['block_id'], 'title': comet_title(r)[:80], 'planet': planet, 'day': r['day'], 'time': r['time'],
             'said': r['said'] or '', 'yearly': bool(r['yearly']), 'at': ms(r['at']), 'ahead': ms(r['ahead']),
             'from': ms(r['made_at']), 'done': ms(r['done_at']) if r['done_at'] else None,
             'due': r['at'] <= now() and not r['done_at'], 'soon': r['ahead'] <= now() < r['at'] and r['closed'] != r['at']}
@@ -2530,7 +2538,7 @@ def roll_yearly(db_, user_id=None):
 def live_comets(db_, user_id):
     """Your comets still in the sky, nearest first, with the planet each is on."""
     roll_yearly(db_, user_id)
-    rows = db_.execute('SELECT r.*, b.content FROM reminders r JOIN blocks b ON b.id = r.block_id '
+    rows = db_.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id '
                        'WHERE r.user_id = ? AND b.deleted_at IS NULL AND (r.done_at IS NULL OR r.done_at > ?) '
                        'ORDER BY r.at', (user_id, now() - COMET_LEAVING * 86400)).fetchall()
     out = []
@@ -2577,26 +2585,38 @@ def comets_due(req):
 
 def _own_comet(req, block_id):
     own_block(req, block_id)
-    r = req.db.execute('SELECT r.*, b.content FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
+    r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
                        (block_id,)).fetchone()
     if not r:
-        raise HttpError(404, 'That note isn’t a comet.')
+        raise HttpError(404, 'That file isn’t a comet.')
     return r
 
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
 def make_comet(req, block_id):
-    """Make one of your notes a comet: {tz} (the page's minutes east of UTC). It reminds you of the first
-    day its words name that is still to come; made again, it starts over."""
+    """Make one of your files a comet: {tz} (the page's minutes east of UTC), and {day, time} when you
+    picked when (any file). Without them it reminds you of the first day a note's words name that is
+    still to come. Made again, it starts over."""
     row = own_block(req, block_id)
-    if row['kind'] != 'text':
-        raise HttpError(400, 'Only a note can be a comet.')
-    tz = _tz_arg(req.json().get('tz'))
-    got = first_day(row['content'], tz)
-    if not got:
-        raise HttpError(400, 'That note doesn’t name a day or time still to come.')
-    f, day = got
+    body = req.json()
+    tz = _tz_arg(body.get('tz'))
+    if body.get('day'):
+        try:
+            day = date.fromisoformat(str(body['day']))
+        except ValueError:
+            raise HttpError(400, 'That isn’t a day.')
+        clock = body.get('time') or None
+        if clock is not None and not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', str(clock)):
+            raise HttpError(400, 'That isn’t a time.')
+        f = {'time': clock, 'said': '', 'yearly': False}
+    else:
+        got = first_day(row['content'], tz) if row['kind'] == 'text' else None
+        if not got:
+            raise HttpError(400, 'Pick a day for the comet to remind you.')
+        f, day = got
     at, ahead = comet_times(day, f['time'], tz)
+    if at <= now():
+        raise HttpError(400, 'That time has already gone.')
     req.db.execute('INSERT OR REPLACE INTO reminders (block_id, user_id, day, time, said, yearly, tz, at, ahead, made_at, '
                    'sent_ahead, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
                    (block_id, req.user['id'], day.isoformat(), f['time'], f['said'][:80], int(f['yearly']), tz, at, ahead, now(),
@@ -2608,7 +2628,7 @@ def make_comet(req, block_id):
 def get_comet(req, block_id):
     """A note's comet, or {comet: null}; with `tz`, also what day its words name now (`could`), for the offer."""
     row = own_block(req, block_id)
-    r = req.db.execute('SELECT r.*, b.content FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
+    r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
                        (block_id,)).fetchone()
     could = None
     if row['kind'] == 'text' and req.arg('tz') is not None:
@@ -2686,7 +2706,7 @@ def _ics_text(text):
 def comet_calendar(req, block_id):
     """The comet as a calendar entry with its two alarms, so a phone's own Calendar can remind you too."""
     r = _own_comet(req, block_id)
-    first = (r['content'] or '').strip().split('\n', 1)[0][:120] or 'A note'
+    first = comet_title(r)[:120]
     stamp = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     day = date.fromisoformat(r['day'])
     if r['time']:

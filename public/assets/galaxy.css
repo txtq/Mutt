@@ -993,6 +993,11 @@ body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes {
   .cn-x { top: 50%; right: var(--space-4); translate: 0 -50%; }
 }
 
+/* "Make it a comet…" for a file whose words name no day (remind.js askWhen): a dialog with a day and a time side by side */
+.cm-ask-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); margin-top: var(--space-16); }
+.cm-ask-field { display: flex; flex-direction: column; min-width: 0; }
+.cm-ask-note { margin-top: var(--space-8); font: var(--type-caption); color: var(--ink-3); }
+
 /* A comet that has come (or is an hour off), on any page: the same note, over the comment notes until
    it's dealt with. Its mark is the comet's ember; under the words, Done and Later (remind.js). */
 body.has-comet-note .cn-notes:not(.cm-notes) { display: none; }

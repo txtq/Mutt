@@ -104,6 +104,7 @@ ticked off, its comet gone: ['Dentist tomorrow 3pm, ask about the crown']
 follows its words: ('16:00', 'in 3 days 4pm')
 snoozed: True  done: True  back: (None, '16:00')
 calendar: 1 2 True
+a day picked by hand: ('18:30', '', 'the light on the bridge')  gone already: 400  not a time: 400
 no day, no comet: 400  a made-up device: 400  a real push service: 200
 rule holds: someone else's comets were shown -> no
 rule holds: someone could make another's note a comet -> no

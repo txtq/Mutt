@@ -7,7 +7,7 @@
 
 import { api, session } from './api.js';
 import { nav } from './nav.js';
-import { exit, openMenu, toast } from './ui.js';
+import { exit, openDialog, openMenu, toast } from './ui.js';
 import { DUR, bus, h } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
@@ -58,11 +58,12 @@ const changed = () => { bus.emit('comet:changed'); notes?.look(); };
 
 // Make a note a comet. Asking the device to tell you comes first, in the same press (Safari asks only then).
 // A caller that waits for something first (saving the note) calls tell() itself, in the press, and says `told`.
-export async function makeComet(blockId, { quiet = false, told = false } = {}) {
+// `when` ({day, time}) is a day picked by hand, for a file whose words name none.
+export async function makeComet(blockId, { quiet = false, told = false, when = null } = {}) {
   if (!told) tell();
   let c;
   try {
-    ({ comet: c } = await api.post(`/api/blocks/${blockId}/comet`, { tz: tz() }));
+    ({ comet: c } = await api.post(`/api/blocks/${blockId}/comet`, { tz: tz(), ...(when || {}) }));
   } catch (err) {
     toast(err.message);
     return null;
@@ -111,6 +112,50 @@ export function cometRows(c, { open = true } = {}) {
     { label: 'Add to Calendar', icon: 'download', run: () => calendarFile(c) },
     { label: 'Stop the comet', icon: 'close', run: () => stopComet(c) },
   ];
+}
+
+// "Make it a comet…" in any file's menu (actions.js): a comet already opens its own menu; a note that
+// names a day becomes one at once; anything else asks when it should remind you.
+export async function cometFor(anchor, block) {
+  tell();
+  let got;
+  try {
+    got = await api.get(`/api/blocks/${block.id}/comet?tz=${tz()}`);
+  } catch (err) { toast(err.message); return; }
+  if (got.comet) {
+    openMenu(anchor, [{ heading: `A comet will remind you ${cometWhen(got.comet).split(' · ')[0]}` }, ...cometRows(got.comet, { open: false })], { align: 'end' });
+  } else if (got.could) {
+    makeComet(block.id, { told: true });
+  } else {
+    askWhen(block);
+  }
+}
+
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// The small box that asks when: a day (tomorrow to start) and, if wanted, a time.
+function askWhen(block) {
+  const today = new Date();
+  const day = h('input', { class: 'field', type: 'date', min: iso(today), value: iso(new Date(today.getTime() + DAY)), 'aria-label': 'Day', required: true });
+  const time = h('input', { class: 'field', type: 'time', 'aria-label': 'Time (if any)' });
+  const go = h('button', { type: 'submit', class: 'btn btn-main' }, 'Make it a comet');
+  const form = h('form', { class: 'cm-ask' },
+    h('p', { class: 'dialog-text' }, 'Pick when it should remind you. Until then its comet crosses your sky.'),
+    h('div', { class: 'cm-ask-fields' },
+      h('label', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Day'), day),
+      h('label', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Time'), time)),
+    h('p', { class: 'cm-ask-note' }, 'With no time: 9 in the morning, with a heads-up the evening before.'),
+    h('div', { class: 'dialog-actions' },
+      h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'), go));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!day.value) return;
+    go.disabled = true;
+    const c = await makeComet(block.id, { told: true, when: { day: day.value, time: time.value || null } });
+    if (c) dialog.close();
+    else go.disabled = false;
+  });
+  const dialog = openDialog({ title: 'Make it a comet', body: form });
 }
 
 export function openComet(c) {

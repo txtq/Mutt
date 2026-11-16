@@ -130,7 +130,7 @@ The user kept the spaced capitals for small labels on purpose; don't turn them i
 
 - **Space** (`--space-2` … `--space-48`): 2, 4, 8, 12, 16, 24, 32, 48. 4 inside a control, 8 between related things, 16 inside a box, 24 between boxes, 48 between parts of a page.
 - **Reach** (`--h-reach` 52): a button pressed at arm's length, with messy hands: Back and Next while cooking. Only a room made to be used from a distance may use it.
-- **Control heights** (`--h-small` 24, `--h-regular` 32, `--h-large` 40): small on tiles and in rows; regular everywhere; large for the one main action. On touch screens regular controls become 40 high; a small control keeps its 24 look and gets an unseen 40-high area to tap (decided in session 3: a 40-high button on a file box is a third of the box). The top bar is 36 (`--bar`; 44 on a phone). Inside a well that holds choices (segmented bar, stepper) the padding is `--inset` 3 and a choice or round button is `--h-inner` 26. The ring round a text box being typed in, and round a place files can be dropped, is `--ring` 3 wide.
+- **Control heights** (`--h-small` 24, `--h-regular` 32, `--h-large` 40): small on tiles and in rows; regular everywhere; large for the one main action. On touch screens regular controls become 40 high; a small control keeps its 24 look and gets an unseen 40-high area to tap (decided in session 3: a 40-high button on a file box is a third of the box). The top bar is 36 (`--bar`; 44 on a phone). Inside a well that holds choices (segmented bar, stepper) the padding is `--inset` 3 and a choice or round button is `--h-inner` 26. The ring round a text box being typed in, and round a place files can be dropped (the add box), is `--ring` 3 wide.
 - **The page** (`--max` 1360, `--gutter` 40, `--cols` 4): how wide a page may grow, the space at its sides (28 under 1100 wide, 16 under 720), and how many file boxes sit in a row (2 under 720). A planet's page adds `--space-48` at each side above 720 wide, so its one column clears the back arrow in the corner.
 - **Corners** (`--r-mark` 4, `--r-row` 8, `--r-box` 12, `--r-panel` 20, `--r-full` 999px): 4 tick boxes, tags, paper; 8 rows and text boxes; 12 file boxes and menus; 20 sheets, dialogs, a planet's header; full for buttons, switches, segmented bars, toasts. A thing inside a rounded thing has the outer corner minus the padding (menu 12, padding 4, rows 8).
 
@@ -352,7 +352,7 @@ Pick by what the thing is, not by how it should look.
 | **Gloss** | Things you press: main and plain buttons, a switch that is on, the chosen segment. | Anything you don't press. |
 | **Well** | Sunken tracks you type in or slide along: text boxes, the switch's track, the segmented bar's channel. | Decoration. |
 | **Paper** | Writing: documents, book pages, the small pages on planets. | Panels and controls. |
-| **Print** | The void, the sky's dust, and the threads between planets and galaxies that share files. | Anything else. |
+| **Print** | The void, the sky's dust, the threads between planets and galaxies that share files, and the drop ring. | Anything else. |
 
 Glass on glass can't frost and goes muddy: never put box glass inside a sheet or menu. Inside bar glass, rows are washes (`--tint`), not boxes.
 
@@ -502,7 +502,7 @@ Built in session 7 (`public/assets/js/planets.js`, painted by `planetgl.js`). Th
 
 **Use.** A planet shows how used it is, to everyone who can open it. What counts: a file added to it or changed on it (`planet_use` in `mutt/api.py`, from times Mutt already keeps). The scale: busy for a day (1), calm by a week (0.5), the first dust at a month (under 0.385), all of it at three (0). Busy is more weather, faster, and brighter light of its own; forgotten is no weather, thin air, drained colour and a coat of dust over ground and files. When something lands on a dusty world the dust lifts as weather does (2.5 seconds, once): a wind gets up, the coat breaks into patches and streams off as dust in the air, and the weather comes back behind it (`wakeUp`). Still shows the state without the movement.
 
-**Moving planets.** A planet is carried by its name to a free place on an orbit (the ghost and the guide show where). Carried over another planet, the two change places when you let go: the other one lights as a planet does when something is about to land on it, and the ghost sits on its place (`planetOver`, `place(…, also)` in `views/galaxy.js`).
+**Moving planets.** A planet is carried by its name to a free place on an orbit (the guide and the ghost show where: the ghost is the drop ring, still and faint, the planet's size). Carried over another planet, the two change places when you let go: the other one wears the drop ring as a planet does when something is about to land on it, and the ghost sits on its place (`planetOver`, `place(…, also)` in `views/galaxy.js`).
 
 **Threads: planets that share files.** When a file is on two planets, a wisp joins them, so a galaxy shows how its planets are tied together. Decided with the user on 2026-11-15: "spacey wispy connections, not digital lines".
 
@@ -546,15 +546,24 @@ A few of your stars joined in your sky, with a name: a light way to group files 
 - **Its figure.** A chain that bends and now and then branches, as constellations are drawn, from the constellation's own seed, so a star added leaves the others where they were. Stars about two and a half boxes apart (2.9 × the star box; drawn closer when a big one would not fit, never closer than 2.2).
 - **Its lines are wisps**, the same print as the threads between planets (`wisp()` in `uvweb.js`), finer: three strands, from the edge of one star to the edge of the next, with the faintest of bows. Faint at rest (`--thread`), stronger (`--thread-on`) while its name or one of its stars is pointed at or focused, and while it is being offered as a planet. Brighter is more dots, never a glow.
 - **Its name** sits under it as a planet's does (Label, `--ink`, `--sky-shadow`) with its count as a Fact (`3 stars`). Pressing it opens its menu: Rename, Make it a planet, Break up.
-- **Joining.** Carry a star over another: the one under it wears the dashed ring of a thing being dropped onto, and the tooltip above it says what letting go does ("New constellation", or "Join Sailing"); the carried star's own name waits meanwhile. A star needs to be let go right on another to join (8 past its edge), so a star carried across the cluster to a planet doesn't join on the way. Two loose stars make a new constellation; a star let go on a constellation's star joins that one (leaving any other it was in).
+- **Joining.** Carry a star over another: the one under it wears the drop ring, and the tooltip above it says what letting go does ("New constellation", or "Join Sailing"); the carried star's own name waits meanwhile. A star needs to be let go right on another to join (8 past its edge), so a star carried across the cluster to a planet doesn't join on the way. Two loose stars make a new constellation; a star let go on a constellation's star joins that one (leaving any other it was in).
 - **Naming.** When two stars first join, a small panel opens under the new name with an empty text box ("Name this constellation", Name it). Left empty, or closed, it is called "Constellation".
 - **Taking one out.** Carry it away from its figure and let go in the open sky (let go on its own figure, it stays), or "Take out of …" in its menu; a toast says so with Undo. A constellation left with one star ends. Break up (with Undo) lets all its stars loose.
 - **Becoming a planet.** At four stars (the user's number), the offer box (`modeOffer`, its drawing `sky`) comes once, at the foot of the screen above "Universe", with the constellation's wisps lit so it's plain which one: "This constellation could be a planet" / Not now / Make it a planet. Not now is remembered; the menu keeps "Make it a planet". Accepted, its stars draw together into a point over `--dur-scene` on the glide and a planet of the same name is born there (on a galaxy arranged by hand it takes that place), holding the files in the constellation's order.
 - **Who sees it.** Only its owner, on their own galaxy, as with the stars themselves. Nothing about it is sent to anyone else.
-- **Keyboard.** A star's menu has "Join with another star": it wears a plain ring, a toast says how, the arrow keys go to the nearest star that way (dashed ring, focused), Enter joins, Escape stops. A click on a star while picking joins too. Screen readers hear "In the constellation …" on each of its stars and its name and count on the name.
+- **Keyboard.** A star's menu has "Join with another star": it wears the drop ring, still and fainter, a toast says how, the arrow keys go to the nearest star that way (the drop ring, turning, and focused), Enter joins, Escape stops. A click on a star while picking joins too. Screen readers hear "In the constellation …" on each of its stars and its name and count on the name.
 - **Phone.** Hold a star to pick it up, as before. On a phone the figure keeps inside the width (it is drawn closer together first).
 - **Still.** Nothing moves; the figure, its wisps and its name are simply there.
 - **Cost.** One small canvas per constellation, only as big as its figure, painted when its shape changes and when it is lit or dimmed (under a thousandth of a second to repaint). Nothing runs at rest; nothing is copied from one canvas to another.
+
+### Drop ring
+
+What shows round a planet, a moon or a star while you carry something onto it, where a moved planet will land, and round the void while files are carried in from the computer. Chosen by the user on 2026-11-16, who found the dashed circles "too perfect": **a loop of dust**, the threads' print bent into a circle.
+
+- **What it is: print.** Three strands of dust that twist round each other a whole number of times on the way round, part and gather in two or three places, wander in width, with a haze and a few loose motes round them (`dustLoop` in `uvweb.js`, beside `wisp()`). Never a ruled or dashed line, never a glow.
+- **How it is drawn.** Once, a moment after the page starts (`dropring.js`, `makeDropRing` from `main.js`): the loop's soft strands as one picture, and a small tile of evenly laid dots, the void's own spacing and sizes (`evenPoints`, `DOT`). The stylesheet uses the two as a mask over `--thread-on`: the loop stretched to each ring, the dots never stretched, so a star's small ring and a planet's large one are dotted alike, and 7% shows between the dots as in the void. Until both pictures are in, no ring shows (`html.has-dust`). One rule in `galaxy.css` (headed THE DROP RING); each part sets only how far it reaches (planet −23%, moon −43%, star −32%, the ghost −7%, so the loop's middle lies where the old circle did; the void −55%, clear of its own dotted edge, which swells while files are over it).
+- **Moves.** Waiting to be dropped onto, it turns once every `--beat-rest`. The ghost and the star you are joining from with the keyboard wear it still: the ghost at half strength, that star at 0.6.
+- **Round the void** (`.drop-ring`, put there by `ring()` in `blackhole.js` while files from the computer are over the window) it grows in from 0.9 over `--dur-arrive` and fades over `--dur-change`, and turns like the rest. It was a blue ring with a glow until 2026-11-16, matched at the user's word. The orbit's dotted guide is a path, not a ring, and stays.
 
 ### The logo
 
@@ -816,7 +825,8 @@ Every part above is one set of classes in the section of `galaxy.css` headed **S
 | Tip | `.tip` > `.tip-title`, `.tip-text`, `.tip-btns` | markup |
 | Comment note | `.cn-notes` > `.cn-note` > `.cn-open` (`.cn-lead`, `.cn-text` > `.cn-line` > `.cn-what` (`.cn-at`, `.cn-file`), `.cn-when`; `.cn-said`) + `.cn-x` | `commentNote()`, `commentNotes()` in `commentnotes.js` |
 | Tooltip | `.tooltip` > `.tooltip-text`, `.tooltip-key` | `tooltip.js`, for anything with a `title` or `data-tip` |
-| Drop hint | `.drop-word`, `.is-drop` on what takes the files, `.drop-ring` round the void | `main.js` |
+| Drop hint | `.drop-word`, `.is-drop` on what takes the files, `.drop-ring` round the void (the drop ring) | `main.js` |
+| Drop ring | `.is-target` on a planet, moon or star, `.is-picking` on a star, `.gx-ghost`; shows under `html.has-dust` | `dropring.js` |
 | Section heading | `.sec-head` > `.sec-name`, `.sec-fact`, `.sec-tools` | `sectionHead()` in `ui.js` |
 | File box | `.cell` > `.cell-box` > `.cell-fill` > a face (`.face-shape` > `.face-img`, or `.face-text`, `.face-link`, `.face-file`), `.cell-tag`, `.cell-actions`; then `.cell-cap` > `.cell-title`, `.cell-fact`. In its own section of `galaxy.css`, THE FILE BOX | `renderCell()` in `cells.js` |
 | Add box | `.cell.cell-entry` > `.entry` | `entryCell()` in `entry.js` |
@@ -1007,5 +1017,9 @@ Decided by the user, 2026-11-16 (Constellations; the choices were put as questio
 - It offers to become a planet at 4 stars (my pick of 6, and 8, were offered).
 - Its name box starts empty, and an unnamed one is called "Constellation" (my pick of a name suggested from its files was turned down).
 - Not yet seen by the user: the `sky` drawing on `/parts`.
+
+Decided by the user, 2026-11-16 (the drop ring; three drawings were shown in the session):
+
+- The dashed circles round a thing being dropped onto were "too perfect". They are now a loop of dust ("Drop ring" in section 3), and so is the void's blue ring for files from the computer ("Yes, match it"). Dust drawn in toward the thing, and its air lighting up in dots, were offered.
 
 Still open: whether every move feels right at real speed (the user's eye: the watch list on session 8's page); the three things under "Not finished, and known" in section 2, "Motion".

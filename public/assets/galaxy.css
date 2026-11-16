@@ -991,8 +991,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .drop-word.is-on { opacity: 1; transform: translate(-50%, 0); }
 .drop-word.is-hint { border-color: var(--edge); background: var(--gloss-clear), var(--glass-fill); color: var(--ink-2); text-shadow: none; }
 .is-drop { border-color: var(--blue-ink) !important; box-shadow: 0 0 0 var(--ring) color-mix(in srgb, var(--accent) 32%, transparent), 0 0 30px -4px color-mix(in srgb, var(--blue-ink) 50%, transparent) !important; }
-.drop-ring { position: absolute; left: 50%; top: 50%; width: 132%; aspect-ratio: 1; border: 1.5px solid var(--blue-ink); border-radius: var(--r-full); box-shadow: 0 0 0 var(--ring) color-mix(in srgb, var(--blue) 28%, transparent), 0 0 28px color-mix(in srgb, var(--blue-ink) 45%, transparent); transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; transition: opacity var(--dur-change), transform var(--dur-arrive) var(--ease-settle); }
-.drop-ring.is-on { opacity: 1; transform: translate(-50%, -50%); }
+/* the ring round the void (.drop-ring) is the drop ring: see THE DROP RING */
 
 /* ---- section heading: the name of a group of files and one fact, straight on the sky. One for every mode.
    sectionHead() in ui.js (.sec-head > .sec-name, .sec-fact [, .sec-tools]). A page with one group has none. */
@@ -1615,17 +1614,32 @@ body.no-chrome #view { padding: 0; }
 .gx-fig-name .planet-meta { margin-top: var(--space-2); }
 /* what letting go of a carried star here does, in the shared tooltip (the star's own name waits) */
 body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
-/* a star something is about to join: the ring round a thing you are dragging onto */
-.star.is-target::after, .star.is-picking::after {
+/* THE DROP RING (DESIGN.md "Drop ring"): round a planet, moon or star you are carrying something
+   onto, and where a moved planet will land. A loop of the threads' dust, painted once by
+   dropring.js: its soft strands stretched to the ring, punched with a tile of dots that never
+   stretches, so every ring is dotted alike. It turns slowly while it waits. */
+.has-dust .planet.is-target .planet-body::after, .has-dust .moon.is-target::after,
+.has-dust .star.is-target::after, .has-dust .star.is-picking::after, .has-dust .gx-ghost::before, .has-dust .drop-ring {
   content: "";
   position: absolute;
-  inset: -22%;
-  border-radius: var(--r-full);
-  border: 1.5px dashed color-mix(in srgb, var(--ink) 60%, transparent);
+  border-radius: 0;
+  background: var(--thread-on);
+  mix-blend-mode: normal;
+  opacity: 1;
+  -webkit-mask: var(--dust-dots) 0 0 / var(--dust-tile) var(--dust-tile) repeat, var(--dust-loop) center / 100% 100% no-repeat;
+  -webkit-mask-composite: source-in;
+  mask: var(--dust-dots) 0 0 / var(--dust-tile) var(--dust-tile) repeat, var(--dust-loop) center / 100% 100% no-repeat;
+  mask-composite: intersect;
   animation: spin var(--beat-rest) linear infinite;
   pointer-events: none;
 }
-.star.is-picking::after { border-style: solid; animation: none; }
+/* round the void while files are carried in from the computer: it grows in with the drop hint */
+.has-dust .drop-ring { inset: -55%; transition: opacity var(--dur-change), scale var(--dur-arrive) var(--ease-settle); }
+.has-dust .drop-ring:not(.is-on) { opacity: 0; scale: 0.9; }
+/* a star something is about to join: the drop ring (DESIGN.md "Drop ring"); the star you are
+   joining from, with the keyboard, wears it still and fainter */
+.has-dust .star.is-target::after, .has-dust .star.is-picking::after { inset: -32%; }
+.has-dust .star.is-picking::after { animation: none; opacity: 0.6; }
 /* the offer to become a planet: at the foot of the screen, over the galaxy (the figure's wisps light meanwhile) */
 .gx-fig-offer { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--space-48) + var(--space-24)); z-index: 7; width: min(560px, calc(100vw - 2 * var(--space-16))); transform: translateX(-50%); }
 .gx-fig-offer .lm-offer { margin: 0; }
@@ -1678,11 +1692,11 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .gx-guide path { fill: none; stroke: rgba(236, 231, 247, 0.22); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 0.1 9; }
 .gx-ghost {
   z-index: 2;
-  border-radius: 50%;
-  border: 1.5px dashed rgba(236, 231, 247, 0.4);
   transition: opacity var(--dur-change) var(--ease-settle), transform var(--dur-change) var(--ease-settle), width var(--dur-change) var(--ease-settle), height var(--dur-change) var(--ease-settle);
 }
 .gx-guide.is-on, .gx-ghost.is-on { opacity: 1; }
+/* where it will land wears the drop ring, still and faint, the size of the planet */
+.has-dust .gx-ghost::before { inset: -7%; animation: none; opacity: 0.5; }
 /* Threads: planets that share files are joined by a wisp of print (dust in
    two or three strands that twist and part, like the universe's web), painted
    by views/galaxy.js on a canvas only as big as the wisps, behind the void and
@@ -1775,15 +1789,7 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   transition: filter var(--dur-move);
 }
 .planet:focus-visible .planet-ball { box-shadow: 0 0 0 2px var(--blue-ink), 0 6px 18px -6px rgba(0, 0, 10, 0.55); }   /* the keyboard's outline, as a ring round the globe */
-.planet.is-target .planet-body::after {
-  content: "";
-  position: absolute;
-  inset: -14%;
-  border-radius: 50%;
-  border: 1.5px dashed color-mix(in srgb, var(--ink) 55%, transparent);
-  animation: spin var(--beat-rest) linear infinite;
-  pointer-events: none;
-}
+.has-dust .planet.is-target .planet-body::after { inset: -23%; }   /* the drop ring */
 .planet-lock { display: none; }
 
 /* thin rings, on any kind of planet once it holds ten files: the back half behind, the front in
@@ -1854,15 +1860,7 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .moon[role="link"] { cursor: pointer; }
 .moon:focus-visible .moon-ball { box-shadow: 0 0 0 2px var(--blue-ink); }
 .moon.is-locked { opacity: 0.55; filter: saturate(0.4); }
-.moon.is-target::after {
-  content: "";
-  position: absolute;
-  inset: -32%;
-  border-radius: 50%;
-  border: 1.5px dashed color-mix(in srgb, var(--ink) 60%, transparent);
-  animation: spin var(--beat-rest) linear infinite;
-  pointer-events: none;
-}
+.has-dust .moon.is-target::after { inset: -43%; }   /* the drop ring */
 .moon.is-gulping .moon-ball { animation: moon-gulp var(--dur-scene) var(--ease-settle); }
 @keyframes moon-gulp { 25% { filter: brightness(1.7); } }
 .moon-name {

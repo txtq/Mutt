@@ -18,6 +18,7 @@ import { watchSpelling } from './spellfield.js';
 import { phoneNote } from './phonenote.js';
 import { askForLongerCode } from './account.js';
 import { tooltips } from './tooltip.js';
+import { makeDropRing } from './dropring.js';
 
 bootPrefs();
 startMusic();
@@ -48,6 +49,7 @@ const view = h('main', { id: 'view' });
 const dropWord = h('span', { class: 'btn btn-main drop-word', 'aria-hidden': 'true' });
 document.getElementById('app').append(sky.el, bar.el, view, dropWord);
 tooltips();
+requestAnimationFrame(() => makeDropRing());
 
 // ---------------------------------------------------------------- files dragged in from your computer
 

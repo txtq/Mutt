@@ -97,7 +97,7 @@ export function shellPixels() {
 
 // Evenly spaced points on a tile that repeats (Bridson's method, wrapped round
 // its edges): no clumps and no bald patches, as a hand stipples a print.
-function evenPoints(size, gap, rand) {
+export function evenPoints(size, gap, rand) {
   const cell = gap / Math.SQRT2;
   const n = Math.ceil(size / cell);
   const grid = new Int32Array(n * n).fill(-1);

@@ -217,6 +217,53 @@ export function wisp(dot, rand, from, c, to, { strands = 3, width = 1.6, spread 
   }
 }
 
+// The same print bent into a loop of radius `r` round `c`: the ring round a thing
+// you are carrying something onto (dropring.js, DESIGN.md "Drop ring"). Its strands
+// twist round each other a whole number of times on the way round, so the loop
+// meets itself without a seam, and part and gather in a few places along it, so
+// it is never a ruled circle.
+export function dustLoop(dot, rand, c, r, { strands = 3, width = 1.6, spread = 6, bright = 1, haze = 0.5 } = {}) {
+  const gauss = () => {
+    const u = Math.max(1e-6, rand());
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * rand());
+  };
+  const twist = Array.from({ length: strands }, (_, k) => ({
+    f: 2 + Math.floor(rand() * 3), phase: rand() * TAU + (k * TAU) / strands, amp: 0.35 + rand() * 0.75, thin: 0.5 + rand() * 0.6,
+  }));
+  const waves = 2 + Math.floor(rand() * 2);
+  const wavePhase = rand() * TAU;
+  const lobes = 2 + Math.floor(rand() * 2);
+  const lobePhase = rand() * TAU;
+  const steps = Math.ceil((TAU * r) / 1.1);
+  for (let s = 0; s < steps; s++) {
+    const a = (s / steps) * TAU;
+    const nx = Math.cos(a);
+    const ny = Math.sin(a);
+    const x = c.x + nx * r;
+    const y = c.y + ny * r;
+    // where the strands part and where they gather, a few times round
+    const apart = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(a * lobes + lobePhase));
+    const w = width * (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(a * waves + wavePhase)));
+    for (const { f, phase, amp, thin } of twist) {
+      const o = spread * amp * apart * Math.sin(a * f + phase);
+      const there = 0.5 + 0.5 * Math.sin(a * (f * 2 - 1) + phase * 2);
+      for (let n = 0.1 + w * 0.3 * thin * (0.35 + there) + rand(); n >= 1; n--) {
+        const g = gauss();
+        const off = o + g * w * (0.6 + apart * 0.6);
+        dot(x + nx * off + (rand() - 0.5) * 0.5, y + ny * off + (rand() - 0.5) * 0.5, bright * (1 - Math.min(0.85, Math.abs(g) / 2.6)));
+      }
+    }
+    for (let n = haze * (0.4 + apart) + rand(); n >= 1; n--) {
+      const off = gauss() * (spread + w) * (0.9 + apart * 0.6);
+      dot(x + nx * off + (rand() - 0.5) * 2, y + ny * off + (rand() - 0.5) * 2, bright * (0.15 + 0.3 * rand()));
+    }
+    if (rand() < 0.08) {
+      const off = gauss() * (spread + w) * 2.4;
+      dot(x + nx * off, y + ny * off, bright * 0.5 * rand());
+    }
+  }
+}
+
 // Beads of light for the threads that reach a galaxy: one small bead each (at
 // most MAX_BEADS, the threads between galaxies that share files first, then
 // the longest), travelling slowly from end to end and fading at both. They

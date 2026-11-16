@@ -55,4 +55,9 @@ cy beams again (looks sent, never arrives): 201 0
 sam lets cy back: True
 sender deleted it: 0
 rule holds: where a photo was taken travelled with a beamed copy -> no
-sam's download lists what he beamed: 200 [('rae', 'the celadon one'), ('rae', None), ('cy', None)] False
+a card arrives as a card: [('Miso soup', 2, True)]  its dish photo, rae: 200 cy: 404
+kept as a card with its own photo: Miso soup True True  stars: True False
+a document arrives as its page: [(True, False, None)]
+kept with its pages and picture: True own 200
+beamed as a list (expect it plain): True [(False, False)]
+sam's download lists what he beamed: 200 [('rae', 'the celadon one'), ('rae', None), ('cy', None), ('rae', None), ('rae', None), ('rae', None)] False

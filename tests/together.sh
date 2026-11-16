@@ -108,6 +108,28 @@ import json, sqlite3, sys; c = sqlite3.connect(sys.argv[1]); c.execute('UPDATE b
 B4=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$NOTE/beam -d '{"to":"cy"}' | j "d['beam']['id']")
 C4=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/beams/$B4 -d '{"answer":"keep"}' | j "d['block']['id']")
 rule "where a photo was taken travelled with a beamed copy" "$(curl -s "${C[@]}" $B/api/blocks/$C4 | j "sorted(d['block']['meta'].get('media', {}))")" "['kind']"
+# ---- beamed as it was sent: a recipe card arrives as a card (its dish photo with it), a document as its pages
+python3 -c "import zlib,struct,sys
+c=lambda t,d: struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d))
+open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+c(b'IHDR',struct.pack('>IIBBBBB',2,2,8,2,0,0,0))+c(b'IDAT',zlib.compress(b'\0'+b'\xc0\x80\x40'*2+b'\0'+b'\xc0\x80\x40'*2))+c(b'IEND',b''))" "$SP/dish.png"
+REC=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"Miso soup\nServes 2\n\nIngredients\n- 1 tbsp miso\n- 500 ml dashi\n\nMethod\n1. Warm the dashi.\n2. Stir in the miso."}' | j "d['block']['id']")
+DISH=$(curl -s "${S[@]}" -H X-Mutt:1 -H 'Content-Type: image/png' --data-binary @"$SP/dish.png" "$B/api/upload?name=dish.png" | j "d['block']['id']")
+curl -s -o /dev/null "${S[@]}" "${J[@]}" -X PUT $B/api/blocks/$REC/recipe -d "{\"title\":\"Miso soup\",\"photo\":\"$DISH\"}"
+RB=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$REC/beam -d '{"to":"rae","form":"recipe"}' | j "d['beam']['id']")
+echo "a card arrives as a card: $(curl -s "${R[@]}" $B/api/beams | j "[(b['card']['title'], len(b['card']['ingredients']), bool(b['card']['photo'])) for b in d['beams'] if b['id'] == '$RB']")  its dish photo, rae: $(status "${R[@]}" $B/f/$DISH/dish.png) cy: $(status "${C[@]}" $B/f/$DISH/dish.png)"
+RC=$(curl -s "${R[@]}" "${J[@]}" -X POST $B/api/beams/$RB -d '{"answer":"keep"}' | j "d['block']['id']")
+RD=$(curl -s "${R[@]}" $B/api/blocks/$RC | j "d['block']['meta']['recipe']['photo']")
+echo "kept as a card with its own photo: $(curl -s "${R[@]}" $B/api/blocks/$RC | j "d['block']['meta']['recipe']['title']") $(curl -s "${R[@]}" $B/api/blocks/$RD | j "d['block']['mine'], d['block']['meta']['dishOf'] == '$RC'")  stars: $(curl -s "${R[@]}" $B/api/galaxy | j "'$RC' in [b['id'] for b in d['stars']], '$RD' in [b['id'] for b in d['stars']]")"
+DOC=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"Dear Rae"}' | j "d['block']['id']")
+python3 -c "import base64,sys; open(sys.argv[1],'wb').write(open(sys.argv[2],'rb').read())" "$SP/page.png" "$SP/dish.png"
+SRC=$(curl -s "${S[@]}" -H X-Mutt:1 -H Content-Type:image/png --data-binary @"$SP/page.png" $B/api/docs/$DOC/img | j "d['src']")
+curl -s -o /dev/null "${S[@]}" "${J[@]}" -X PUT $B/api/docs/$DOC -d "{\"html\":\"<h2>A letter</h2><p>Dear Rae</p><p><img src=\\\"$SRC\\\"></p>\",\"text\":\"## A letter\n\nDear Rae\",\"title\":\"\"}"
+DB=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$DOC/beam -d '{"to":"rae"}' | j "d['beam']['id']")
+echo "a document arrives as its page: $(curl -s "${R[@]}" $B/api/beams | j "[('A letter' in b['page']['html'], '<img' in b['page']['html'], b['page']['kind']) for b in d['beams'] if b['id'] == '$DB']")"
+DC=$(curl -s "${R[@]}" "${J[@]}" -X POST $B/api/beams/$DB -d '{"answer":"keep"}' | j "d['block']['id']")
+IMG=$(curl -s "${R[@]}" $B/api/docs/$DC | j "__import__('re').search(r'/api/docs/[\w-]+/img/[\w-]+', d['doc']['html']).group(0)")
+echo "kept with its pages and picture: $(curl -s "${R[@]}" $B/api/docs/$DC | j "'A letter' in d['doc']['html']") $([[ $IMG == /api/docs/$DC/* ]] && echo own) $(status "${R[@]}" $B$IMG)"
+echo "beamed as a list (expect it plain): $(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$B2/beam -d '{"to":"rae","form":"list"}' | j "bool(d['beam']['id'])") $(curl -s "${R[@]}" $B/api/beams | j "[('card' in b, 'page' in b) for b in d['beams'] if b['block']['id'] == '$B2']")"
 echo "sam's download lists what he beamed: $(curl -s "${S[@]}" -o "$SP/sam.zip" -w '%{http_code}' $B/api/me/export) $(python3 -c "
 import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); d=json.loads(z.read([n for n in z.namelist() if n.endswith('Your data.json')][0]))
 print([(b['to'], b['words']) for b in d['beamedOut']], 'answer' in json.dumps(d['beamedOut']))" "$SP/sam.zip")"

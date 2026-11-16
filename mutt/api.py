@@ -459,6 +459,12 @@ def readable_block(req, block_id, deleted=False, beamed=True):
     if beamed and req.db.execute('SELECT 1 FROM beams WHERE block_id = ? AND to_id = ? AND answer IS NULL',
                                  (block_id, req.user['id'])).fetchone():
         return row, False
+    # the dish photo of a recipe card beamed to you comes with the card
+    if beamed and req.db.execute(
+            'SELECT 1 FROM beams bm JOIN blocks r ON r.id = bm.block_id WHERE bm.to_id = ? AND bm.answer IS NULL '
+            "AND r.user_id = ? AND json_extract(r.meta, '$.recipe.photo') = ?",
+            (req.user['id'], row['user_id'], block_id)).fetchone():
+        return row, False
     raise HttpError(404, 'That file does not exist.')
 
 
@@ -559,12 +565,18 @@ def link_file(from_user, to_user, key):
     return new_key
 
 
+# A recipe card's dish photo, copied with the card (saved or beamed, `copy_block`), goes where its
+# card goes and is no star of its own while the card is there (`meta.dishOf`).
+DISH_KEPT = ("AND NOT EXISTS (SELECT 1 FROM blocks r WHERE r.id = json_extract(b.meta, '$.dishOf') "
+             'AND r.deleted_at IS NULL) ')
+
+
 def user_stats(conn, user_id):
     files = conn.execute('SELECT COUNT(*) FROM blocks WHERE user_id = ? AND deleted_at IS NULL', (user_id,)).fetchone()[0]
     drawers = conn.execute('SELECT COUNT(*) FROM drawers WHERE user_id = ? AND parent_id IS NULL', (user_id,)).fetchone()[0]
     stars = conn.execute(
         'SELECT COUNT(*) FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL AND NOT EXISTS '
-        '(SELECT 1 FROM connections c WHERE c.block_id = b.id)', (user_id,)).fetchone()[0]
+        f'(SELECT 1 FROM connections c WHERE c.block_id = b.id) {DISH_KEPT}', (user_id,)).fetchone()[0]
     return {'files': files, 'drawers': drawers, 'stars': stars}
 
 
@@ -1176,7 +1188,7 @@ def galaxy_of(req, owner):
     if mine:
         stars = req.db.execute(
             f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL AND NOT EXISTS '
-            '(SELECT 1 FROM connections c WHERE c.block_id = b.id) ORDER BY b.created_at DESC LIMIT 3000',
+            f'(SELECT 1 FROM connections c WHERE c.block_id = b.id) {DISH_KEPT}ORDER BY b.created_at DESC LIMIT 3000',
             (owner['id'],)).fetchall()
         data['stars'] = [block_json(r) for r in stars]
         data['constellations'] = constellations_of(req.db, owner['id'])
@@ -1998,6 +2010,27 @@ def beam_people(req):
     return json_response({'people': [t[3] for t in out[:12]]})
 
 
+BEAM_FORMS = ('recipe', 'document')
+
+
+def beam_form(conn, row, asked):
+    """The form a file is beamed in, so it arrives as it was sent: what the
+    page it was beamed from showed it as (a cookbook's card, a desk's page),
+    else what it is (a recipe card, a note with a document's pages)."""
+    meta = json.loads(row['meta'] or '{}')
+    recipe = isinstance(meta.get('recipe'), dict)
+    if asked == 'recipe' and recipe:
+        return 'recipe'
+    if asked == 'document' and row['kind'] == 'text':
+        return 'document'
+    if recipe:
+        return 'recipe'
+    doc = conn.execute('SELECT synced_at FROM docs WHERE block_id = ?', (row['id'],)).fetchone()
+    if doc and row['kind'] == 'text' and doc['synced_at'] >= row['updated_at'] - 0.001:
+        return 'document'
+    return None
+
+
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/beam')
 def beam_block(req, block_id):
     """Beam one of your files to someone: {to: username, words}."""
@@ -2015,6 +2048,7 @@ def beam_block(req, block_id):
         raise HttpError(429, 'That’s a lot of beaming for one day. Try again tomorrow.')
     if req.db.execute('SELECT 1 FROM beams WHERE block_id = ? AND to_id = ? AND answer IS NULL', (block_id, other['id'])).fetchone():
         raise HttpError(400, f'That file is already on its way to {other["display_name"] or "@" + other["username"]}.')
+    form = beam_form(req.db, row, body.get('form'))
     quiet = not crossed(req.db, me, other['id'])
     waiting = req.db.execute('SELECT COUNT(*) FROM beams WHERE from_id = ? AND to_id = ? AND answer IS NULL',
                              (me, other['id'])).fetchone()[0]
@@ -2023,8 +2057,8 @@ def beam_block(req, block_id):
     beam_id = new_id()
     if not stopped(req.db, other['id'], me):
         # Someone who stopped your beams never gets them, and you're not told.
-        req.db.execute('INSERT INTO beams (id, block_id, from_id, to_id, words, sent_at, quiet) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                       (beam_id, block_id, me, other['id'], words, now(), 1 if quiet else 0))
+        req.db.execute('INSERT INTO beams (id, block_id, from_id, to_id, words, sent_at, quiet, form) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                       (beam_id, block_id, me, other['id'], words, now(), 1 if quiet else 0, form))
     return json_response({'beam': {'id': beam_id, 'to': person(other)}}, status=201)
 
 
@@ -2043,7 +2077,7 @@ def beams_waiting(req):
     req.db.execute("UPDATE beams SET answer = 'gone', answered_at = ? WHERE to_id = ? AND answer IS NULL AND quiet = 1 "
                    'AND sent_at < ?', (now(), me, now() - BEAM_QUIET_DAYS * 86400))
     rows = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS}, bm.id AS beam_id, bm.words, bm.sent_at, bm.quiet, bm.noted, '
+        f'SELECT {BLOCK_COLUMNS}, bm.id AS beam_id, bm.words, bm.sent_at, bm.quiet, bm.noted, bm.form, '
         'u.username AS from_name, u.display_name AS from_display FROM beams bm JOIN blocks b ON b.id = bm.block_id '
         'JOIN users u ON u.id = bm.from_id WHERE bm.to_id = ? AND bm.answer IS NULL AND b.deleted_at IS NULL '
         'ORDER BY bm.sent_at', (me,)).fetchall()
@@ -2053,8 +2087,20 @@ def beams_waiting(req):
         block['beam'] = r['beam_id']
         if r['from_display']:
             block['ownerName'] = r['from_display']
-        out.append({'id': r['beam_id'], 'block': block, 'from': {'username': r['from_name'], 'name': r['from_display']},
-                    'words': r['words'], 'sentAt': ms(r['sent_at']), 'quiet': bool(r['quiet']), 'noted': bool(r['noted'])})
+        one = {'id': r['beam_id'], 'block': block, 'from': {'username': r['from_name'], 'name': r['from_display']},
+               'words': r['words'], 'sentAt': ms(r['sent_at']), 'quiet': bool(r['quiet']), 'noted': bool(r['noted'])}
+        # as it was sent: a recipe card, or a document's first page
+        meta = json.loads(r['meta'] or '{}')
+        if r['form'] == 'recipe' and isinstance(meta.get('recipe'), dict):
+            one['card'] = card_json(req, r, meta, meta['recipe'])
+        elif r['form'] == 'document':
+            doc = req.db.execute('SELECT html, settings, synced_at FROM docs WHERE block_id = ?', (r['id'],)).fetchone()
+            settings = documents.settings_of(doc['settings'] if doc else None)
+            layout = settings['layout'] if settings['layout'] != 'auto' else documents.reads_as(r['content'])
+            fresh = doc and doc['synced_at'] >= r['updated_at'] - 0.001
+            one['page'] = {'html': doc_preview(doc['html']) if fresh else None, 'kind': layout, 'font': settings['font'],
+                           'words': documents.word_count(r['content'])}
+        out.append(one)
     return json_response({'beams': out})
 
 
@@ -3871,7 +3917,31 @@ def copy_block(conn, row, to_user_id, from_name, extra=None):
     columns = ['id', 'user_id', 'created_at', 'updated_at', *fields]
     conn.execute(f'INSERT INTO blocks ({", ".join(columns)}) VALUES ({", ".join("?" * len(columns))})',
                  [block_id, to_user_id, stamp, stamp, *fields.values()])
+    copy_form(conn, row, block_id, to_user_id, from_name, meta, stamp)
     return block_id
+
+
+def copy_form(conn, row, block_id, to_user_id, from_name, meta, stamp):
+    """A copy keeps the form it had: a document its pages (the editor's HTML,
+    its pictures under the copy's own address) while they are the note's
+    latest words, a recipe card its dish photo (copied too, `dishOf`)."""
+    doc = conn.execute('SELECT * FROM docs WHERE block_id = ?', (row['id'],)).fetchone()
+    if doc and doc['synced_at'] >= row['updated_at'] - 0.001:
+        html = doc['html']
+        for img in conn.execute('SELECT * FROM doc_images WHERE block_id = ?', (row['id'],)).fetchall():
+            new_img = new_id()
+            conn.execute('INSERT INTO doc_images (id, block_id, mime, data, created_at, unplaced) VALUES (?, ?, ?, ?, ?, ?)',
+                         (new_img, block_id, img['mime'], img['data'], stamp, img['unplaced']))
+            html = html.replace(f'/api/docs/{row["id"]}/img/{img["id"]}', f'/api/docs/{block_id}/img/{new_img}')
+        conn.execute('INSERT INTO docs (block_id, html, settings, synced_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                     (block_id, html, doc['settings'], stamp, stamp))
+    rec = meta.get('recipe') if isinstance(meta.get('recipe'), dict) else None
+    if rec and rec.get('photo'):
+        photo = conn.execute('SELECT * FROM blocks WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+                             (rec['photo'], row['user_id'])).fetchone()
+        dish = copy_block(conn, photo, to_user_id, from_name, {'dishOf': block_id}) if photo and photo['id'] != row['id'] else None
+        conn.execute('UPDATE blocks SET meta = ? WHERE id = ?',
+                     (json.dumps({**meta, 'recipe': {**rec, 'photo': dish}}, ensure_ascii=False), block_id))
 
 
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/save')

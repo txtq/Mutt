@@ -392,7 +392,8 @@ export function takeHistoryWish(id) {
 // planet) it can move to straight away: [{ id, title, dot, move() }].
 // `remove` and `del` replace the usual take-off and delete (list mode has its own).
 // `history: false` where Open doesn't lead to the file view (a desk opens the editor, which has its own).
-function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [], history = true } = {}) {
+// `beamAs` is the form it's shown in here, so it arrives the same ('document' on a desk).
+function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [], history = true, beamAs = null } = {}) {
   return [
     open && { icon: 'open', label: 'Open', run: open },
     ...extra,
@@ -402,7 +403,7 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     worlds.length ? '-' : null,
     { icon: 'move', label: worlds.length ? 'Other planets…' : 'Add to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
     // Beaming one to someone (beams.js, fetched when pressed): once you've crossed paths with anyone.
-    block.mine !== false && session.user?.canBeam && { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo(block)) },
+    block.mine !== false && session.user?.canBeam && { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo(block, { form: beamAs })) },
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
     canEditPicture(block) && { icon: 'edit', label: 'Edit picture', run: () => editPicture(block) },
     canDownload(block) && { icon: 'download', label: formatsOf(block).length ? 'Download as…' : 'Download', run: () => downloadMenu(anchor, block) },

@@ -222,7 +222,51 @@ export function wisp(dot, rand, from, c, to, { strands = 3, width = 1.6, spread 
 // twist round each other a whole number of times on the way round, so the loop
 // meets itself without a seam, and part and gather in a few places along it, so
 // it is never a ruled circle.
-export function dustLoop(dot, rand, c, r, { strands = 3, width = 1.6, spread = 6, bright = 1, haze = 0.5 } = {}) {
+export function dustLoop(dot, rand, c, r, opts = {}) {
+  const steps = Math.ceil((TAU * r) / 1.1);
+  dustAround(dot, rand, steps, (a) => {
+    const nx = Math.cos(a);
+    const ny = Math.sin(a);
+    return { x: c.x + nx * r, y: c.y + ny * r, nx, ny };
+  }, opts);
+}
+
+// The same loop laid round a box with rounded corners (`x`, `y`, `w`, `h`, corner `r`): the
+// border of dust round what a beam brought you (beams.js, DESIGN.md "Kept together and beaming").
+// Its waves come about as often along the edge as on a ring a few hundred points round.
+export function dustFrame(dot, rand, { x, y, w, h, r }, opts = {}) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  const sides = [w - 2 * r, h - 2 * r, w - 2 * r, h - 2 * r];
+  const arc = (TAU / 4) * r;
+  const length = sides.reduce((a, b) => a + b, 0) + 4 * arc;
+  // corners' centres, clockwise from the top left, and the way each straight side runs
+  const corners = [[x + r, y + r], [x + w - r, y + r], [x + w - r, y + h - r], [x + r, y + h - r]];
+  const runs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  dustAround(dot, rand, Math.ceil(length / 1.1), (a) => {
+    let u = (a / TAU) * length;
+    for (let k = 0; k < 4; k++) {
+      // the straight side from the end of corner k's arc, then the arc into corner k + 1
+      const [cx, cy] = corners[k];
+      const [dx, dy] = runs[k];
+      const nx = dy;
+      const ny = -dx;
+      if (u <= sides[k]) return { x: cx + nx * r + dx * u, y: cy + ny * r + dy * u, nx, ny };
+      u -= sides[k];
+      if (u <= arc || k === 3) {
+        const [ex, ey] = corners[(k + 1) % 4];
+        const start = Math.atan2(ny, nx);
+        const t = start + Math.min(u, arc) / (r || 1);
+        return { x: ex + Math.cos(t) * r, y: ey + Math.sin(t) * r, nx: Math.cos(t), ny: Math.sin(t) };
+      }
+      u -= arc;
+    }
+    return { x, y, nx: 0, ny: -1 };
+  }, { ...opts, turns: Math.max(1, Math.round(length / 700)) });
+}
+
+// A loop of dust along any closed line: `at(a)` gives the point and its outward normal for `a`
+// from 0 to a whole turn. `turns` makes the strands twist and the waves come that many times more.
+function dustAround(dot, rand, steps, at, { strands = 3, width = 1.6, spread = 6, bright = 1, haze = 0.5, turns = 1 } = {}) {
   const gauss = () => {
     const u = Math.max(1e-6, rand());
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * rand());
@@ -234,13 +278,10 @@ export function dustLoop(dot, rand, c, r, { strands = 3, width = 1.6, spread = 6
   const wavePhase = rand() * TAU;
   const lobes = 2 + Math.floor(rand() * 2);
   const lobePhase = rand() * TAU;
-  const steps = Math.ceil((TAU * r) / 1.1);
   for (let s = 0; s < steps; s++) {
-    const a = (s / steps) * TAU;
-    const nx = Math.cos(a);
-    const ny = Math.sin(a);
-    const x = c.x + nx * r;
-    const y = c.y + ny * r;
+    const turn = (s / steps) * TAU;
+    const { x, y, nx, ny } = at(turn);
+    const a = turn * turns;
     // where the strands part and where they gather, a few times round
     const apart = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(a * lobes + lobePhase));
     const w = width * (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(a * waves + wavePhase)));

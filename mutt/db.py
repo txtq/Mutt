@@ -395,6 +395,10 @@ def migrate(conn):
                  'to_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  "words TEXT NOT NULL DEFAULT '', sent_at REAL NOT NULL, quiet INTEGER NOT NULL DEFAULT 0, "
                  'noted INTEGER NOT NULL DEFAULT 0, answer TEXT, answered_at REAL, copy_id TEXT)')
+    if 'form' not in {row[1] for row in conn.execute('PRAGMA table_info(beams)')}:
+        # the form it was beamed in, so it arrives looking as it was sent: 'recipe' (a cookbook's card),
+        # 'document' (a desk's page), or empty for a plain file
+        conn.execute('ALTER TABLE beams ADD COLUMN form TEXT')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_beams_to ON beams(to_id, answer)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_beams_from ON beams(from_id, sent_at)')
     # People someone has stopped beams (and asks to keep a planet together) from.

@@ -12,7 +12,7 @@
 
 import { deleteBlock } from './actions.js';
 import { convertible, convertText, fraction, showLine, splitLine, systemOf } from './amounts.js';
-import { api } from './api.js';
+import { api, session } from './api.js';
 import { nav } from './nav.js';
 import { icon } from './icons.js';
 import { canTransition, transition } from './transitions.js';
@@ -55,6 +55,20 @@ function detailsText(r) {
 // ------------------------------------------------------------ the box
 
 // "Bananas, butter, sugar, egg…": what goes in, for the card's face.
+// A recipe's card as the box shows it: its name, details, what goes in, the dish photo.
+// Without `onclick` it is only a picture of the card (a beamed card, beams.js).
+export function recipeCard(r, { label, onclick } = {}) {
+  const pic = r.photo?.thumb || r.cover;
+  return h(onclick ? 'button' : 'div', { type: onclick ? 'button' : null, class: 'cb-top-btn fglass', 'aria-label': label || null, onclick },
+    h('span', { class: 'cb-top-text' },
+      h('span', { class: 'cb-top-title' }, r.title),
+      h('span', { class: 'cb-top-meta' }, detailsText(r) || (r.kind === 'link' && r.site ? `From ${r.site}` : ' ')),
+      h('span', { class: 'cb-top-ings' }, ingredientNames(r))),
+    pic ? h('span', { class: 'cb-top-pic' },
+      h('img', { src: pic, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' }),
+      steam()) : null);
+}
+
 function ingredientNames(r) {
   const names = (r.ingredients || []).filter((l) => !isHeading(l))
     .map((l) => splitLine(l)[1].replace(/^(?:of\s+)/i, '').split(/[,(;]/)[0].trim()).filter(Boolean);
@@ -214,16 +228,8 @@ export class RecipeBoxView {
   }
 
   top(r) {
-    const pic = r.photo?.thumb || r.cover;
     const el = h('div', { class: 'cb-top', role: 'listitem', dataset: { id: r.id } },
-      h('button', { type: 'button', class: 'cb-top-btn fglass', 'aria-label': `Open ${r.title}`, onclick: () => this.open(r.id) },
-        h('span', { class: 'cb-top-text' },
-          h('span', { class: 'cb-top-title' }, r.title),
-          h('span', { class: 'cb-top-meta' }, detailsText(r) || (r.kind === 'link' && r.site ? `From ${r.site}` : ' ')),
-          h('span', { class: 'cb-top-ings' }, ingredientNames(r))),
-        pic ? h('span', { class: 'cb-top-pic' },
-          h('img', { src: pic, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' }),
-          steam()) : null));
+      recipeCard(r, { label: `Open ${r.title}`, onclick: () => this.open(r.id) }));
     el.addEventListener('contextmenu', (e) => this.context(e, el, r));
     return el;
   }
@@ -243,6 +249,7 @@ export class RecipeBoxView {
       items.push('-', { icon: 'edit', label: 'Edit card', run: () => this.open(r.id, { edit: true }) },
         { icon: 'chapter', label: 'Move to chapter…', run: () => this.moveMenu(el, r) },
         { icon: 'files', label: 'Open as a file', run: () => nav.openBlock(r.id) },
+        beamRow(r),
         '-', { icon: 'trash', label: r.kind === 'link' ? 'Delete link…' : 'Delete recipe…', danger: true, run: () => this.remove(r) });
     } else {
       items.push({ icon: 'files', label: 'Open as a file', run: () => nav.openBlock(r.id) });
@@ -366,6 +373,11 @@ export class RecipeBoxView {
 }
 
 let closeCooking = null;
+
+// Beaming a card to someone: it arrives as a card (beams.js), once you've crossed paths with anyone.
+const beamRow = (r) => session.user?.canBeam
+  ? { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo({ id: r.id, kind: r.kind, title: r.title }, { form: 'recipe' })) }
+  : null;
 
 function askName(title, value, confirm) {
   return new Promise((resolve) => {
@@ -754,6 +766,7 @@ class CardView {
     openMenu(anchor, [
       { icon: 'chapter', label: 'Move to chapter…', run: () => this.box.moveMenu(anchor, r) },
       { icon: 'files', label: 'Open as a file', run: () => { this.close({ instant: true }); nav.openBlock(r.id); } },
+      r.mine ? beamRow(r) : null,
       '-',
       { icon: 'trash', label: r.kind === 'link' ? 'Delete link…' : 'Delete recipe…', danger: true, run: () => this.box.remove(r) },
     ], { align: 'end' });

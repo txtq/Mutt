@@ -41,6 +41,17 @@ const wordsIn = (text) => ((text || '').match(/\S+/g) || []).length;
 // The width, in pixels, of the page a preview draws before it's scaled to its card.
 const PRINT_W = 440;
 
+// A document's first page, as the desk shows it. `i` is what the desk was told about it
+// (html, kind, font, poem). Its card sets `--k`, the page's width over PRINT_W (`fitPaper`).
+export function docPaper(b, i = {}) {
+  const poem = i.poem ?? i.kind === 'poem';
+  let html = i.html || fromMarkdown((b.content || '').slice(0, 4000));
+  if (poem && b.title && !/^\s*<(h[1-3]|p class="title")/.test(html)) html = `<h2>${escapeHtml(b.title)}</h2>${html}`;
+  return h('span', { class: `dk-paper${poem ? ' is-poem' : ''}${i.kind && i.kind !== 'poem' && i.kind !== 'prose' ? ` is-${i.kind}` : ''}`, dataset: { font: i.font || 'serif' }, 'aria-hidden': 'true' },
+    h('span', { class: 'dk-print', html: cleanHtml(html, { own: true }) }));
+}
+export const fitPaper = (holder, paper) => holder.style.setProperty('--k', String(paper.clientWidth / PRINT_W));
+
 // Ways to order the desk. The owner's choice is kept with the planet.
 const SORTS = {
   edited: { label: 'Last edited', by: (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0) },
@@ -180,13 +191,7 @@ export class DeskView {
     if (big) this.now.style.setProperty('--k', String(big.clientWidth / PRINT_W));
   }
 
-  paper(b) {
-    const i = this.info.get(b.id) || {};
-    let html = i.html || fromMarkdown((b.content || '').slice(0, 4000));
-    if (i.poem && b.title && !/^\s*<(h[1-3]|p class="title")/.test(html)) html = `<h2>${escapeHtml(b.title)}</h2>${html}`;
-    return h('span', { class: `dk-paper${i.poem ? ' is-poem' : ''}${i.kind && i.kind !== 'poem' && i.kind !== 'prose' ? ` is-${i.kind}` : ''}`, dataset: { font: i.font || 'serif' }, 'aria-hidden': 'true' },
-      h('span', { class: 'dk-print', html: cleanHtml(html, { own: true }) }));
-  }
+  paper(b) { return docPaper(b, this.info.get(b.id)); }
 
   render({ entrance = false, born = null, reorder = false } = {}) {
     const docs = this.sorted();
@@ -252,7 +257,7 @@ export class DeskView {
   context(e, el, b) {
     e.preventDefault();
     const open = () => this.onOpen(b.id);
-    if (b.mine !== false) blockContextMenu(e, el, b, { drawer: this.drawer, open, history: false });
+    if (b.mine !== false) blockContextMenu(e, el, b, { drawer: this.drawer, open, history: false, beamAs: 'document' });
     else openContextMenu(e, [{ icon: 'open', label: 'Open', run: open }], { title: titleOf(b), target: el });
   }
 

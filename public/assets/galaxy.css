@@ -4347,7 +4347,7 @@ html[data-motion="off"] .cb-steam { display: none; }
 }
 .bm-star.is-quiet .bm-tag { color: var(--ink-3); }
 /* landing: the drop ring once, growing out and fading (Still: it is already gone) */
-.has-dust .bm-star.is-new::after {
+.has-dust .bm-star.is-new::after, .has-dust .bm-landing {
   content: "";
   position: absolute;
   inset: -70%;
@@ -4361,6 +4361,29 @@ html[data-motion="off"] .cb-steam { display: none; }
 }
 .bm-star.is-new .bm-face { animation: star-in var(--dur-arrive) var(--ease-settle) backwards; }
 @keyframes bm-ring { from { opacity: 0; scale: 0.45; } 30% { opacity: 1; } to { opacity: 0; scale: 1.15; } }
+/* still on its way: the light is crossing the sky to it (beams.js comeIn) */
+.bm-star.is-coming { visibility: hidden; }
+
+/* a beam on its way (beams.js flyLight): a bright point like the web's beads, a little larger, with a
+   short trail of dust behind it; where it lands, the drop ring once (round a galaxy's void, --r) */
+.bm-flight { position: fixed; inset: 0; z-index: var(--z-fx); pointer-events: none; }
+.bm-light, .bm-trail { position: absolute; left: 0; top: 0; border-radius: var(--r-full); opacity: 0; }
+.bm-light { width: var(--space-32); height: var(--space-32); margin: calc(var(--space-32) / -2);
+  background: radial-gradient(circle, var(--white) 0 12%, color-mix(in srgb, var(--blue-ink) 70%, transparent) 22%, color-mix(in srgb, var(--blue) 22%, transparent) 42%, transparent 70%); }
+.bm-trail { width: var(--space-8); height: var(--space-8); margin: calc(var(--space-8) / -2);
+  background: radial-gradient(circle, var(--white) 0 30%, color-mix(in srgb, var(--blue-ink) 50%, transparent) 50%, transparent 72%); }
+.has-dust .bm-landing { inset: auto; width: calc(var(--r) * 2.8); height: calc(var(--r) * 2.8); translate: -50% -50%; }
+
+/* what came wears a border of dust: the drop ring's print laid round the box's edge (beams.js dustBorder),
+   beside the box in the scrim; it arrives with the box */
+.bm-frame { position: absolute; pointer-events: none; opacity: 0.8; animation: dialog-in var(--dur-arrive) var(--ease-settle) backwards; }
+.has-dust .bm-frame {
+  background: var(--thread-on);
+  -webkit-mask: var(--dust-dots) 0 0 / var(--dust-tile) var(--dust-tile) repeat, var(--dust-frame) 0 0 / 100% 100% no-repeat;
+  -webkit-mask-composite: source-in;
+  mask: var(--dust-dots) 0 0 / var(--dust-tile) var(--dust-tile) repeat, var(--dust-frame) 0 0 / 100% 100% no-repeat;
+  mask-composite: intersect;
+}
 
 /* the dialogs: beaming out (a person, a few words) and what came (the file box, their words, the answers) */
 .bm-dialog { width: min(420px, calc(100vw - 2 * var(--space-16))); }
@@ -4370,6 +4393,11 @@ html[data-motion="off"] .cb-steam { display: none; }
 .bm-words { min-height: 64px; resize: none; }
 .bm-handle { color: var(--ink-3); }
 .bm-in { display: flex; flex-direction: column; gap: var(--space-12); }
+/* what came, as it was sent: a recipe card as the cookbook shows it, a document as its first page */
+.bm-card { width: min(100%, 320px); margin: 0 auto; }
+.bm-page { width: 200px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: var(--space-8); }
+.bm-page .dk-paper { width: 100%; }
+.bm-page-words { font: var(--type-caption); color: var(--ink-3); }
 .bm-head { display: flex; align-items: center; gap: var(--space-8); font: var(--type-body); color: var(--ink-2); }
 .bm-head b { font-weight: 600; color: var(--ink); }
 .bm-lead { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-full); background: color-mix(in srgb, var(--who) 26%, transparent); color: var(--who); }

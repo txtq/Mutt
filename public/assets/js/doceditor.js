@@ -2223,6 +2223,8 @@ class DocEditor {
       this.mine ? { icon: 'replace', label: 'Find and replace', hint: '⌘⇧H', run: () => this.openFind(true) } : null,
       { icon: 'count', label: 'Word count', run: () => this.countDetails() },
       this.mine ? { icon: 'history', label: 'Version history', run: () => this.togglePanel('history') } : null,
+      // beamed as a document, so it arrives as one (beams.js); saved first, so what arrives is what's on the page
+      this.mine && session.user?.canBeam ? { icon: 'beam', label: 'Beam to…', run: async () => { await this.save(); const m = await import('./beams.js'); m.beamTo(this.block, { form: 'document' }); } } : null,
       this.mine && !this.spelling?.dead ? { icon: 'spell', label: autocorrectOn() ? 'Turn off autocorrect' : 'Turn on autocorrect', run: () => { setAutocorrect(!autocorrectOn()); toast(autocorrectOn() ? 'Autocorrect is on' : 'Autocorrect is off'); } } : null,
     ].filter(Boolean), { align: 'end', className: 'de-menu' });
   }

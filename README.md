@@ -44,7 +44,9 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
 - **Beaming**: "Beam to…" in a file's menu sends it to one person with a few
   words. It waits by their void (and in a note) until they keep it, put it on
   a planet or let it go. From someone they've never crossed paths with it
-  waits quietly, and anyone's beams can be stopped.
+  waits quietly, and anyone's beams can be stopped. A light carries it across
+  the universe from your galaxy to theirs, and it arrives as it was sent: a
+  recipe card as a card, a document as a document.
 - **Kinds of planet**: every planet is one of eight worlds (ocean, green,
   gas giant, lava, ice, desert, moon rock, storm), each with its own ground
   and weather: drifting clouds, sliding bands, slowly glowing lava seams,

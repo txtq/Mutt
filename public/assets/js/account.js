@@ -148,7 +148,7 @@ export function askForName({ onSaved } = {}) {
   let timer = 0;
   let here = false;
   const due = () => !!session.user && !session.user.name;
-  const busy = () => !!document.querySelector('.scrim, .pop, .sheet.is-open, .room');
+  const busy = () => !!document.querySelector('.scrim, .pop, .sheet.is-open, .room, html.is-beaming');
   const away = () => {
     if (!tip) return;
     const el = tip;

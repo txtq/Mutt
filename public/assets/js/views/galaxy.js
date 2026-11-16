@@ -18,7 +18,7 @@ import { updatePrefs } from '../theme.js';
 import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
 import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, fmtDuration, h, isEditable, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
+import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, covered, debounce, fmtDuration, h, isEditable, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
@@ -39,6 +39,9 @@ let arriving = false;
 // Your galaxy and the universe, already fetched, for when someone else's
 // page hands the universe over to yours (see toMine()).
 let handoff = null;
+// The galaxy page on screen, and a beam's journey waiting for the universe to open (beamJourney).
+let shown = null;
+let flight = null;
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 // How far each galaxy's ring was turned on a phone, so coming back from a planet finds it as you left it.
@@ -1770,6 +1773,54 @@ class Galaxy {
   }
 
   // Files beamed to you rest by the void until you answer (beams.js, fetched only when some wait).
+  // A beam's journey (beams.js, DESIGN.md "Beaming"): out into the universe, a light from your galaxy
+  // to theirs, and back. `away`: the page came out here for it, and goes back once it lands.
+  // Anything you do meanwhile (a scroll, a click, a key) ends it where it is: you stay, the light lands.
+  async journey(to, away) {
+    let stopped = false;
+    const stop = () => { stopped = true; };
+    const ways = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    ways.forEach((w) => addEventListener(w, stop, { capture: true, passive: true }));
+    const going = () => !stopped && this.live && this.el.isConnected;
+    const until = async (fn) => { while (going() && !fn()) await new Promise(requestAnimationFrame); };
+    try {
+      await this.loadUniverse();
+      await until(() => this.uv && this.uvEls?.length === this.list.length && !document.documentElement.dataset.vt);
+      const at = (username) => this.uvEls[this.list.findIndex((g) => (username ? g.username === username : g.you))];
+      const from = at(null);
+      const there = at(to);
+      if (!going() || !from || !there || from === there) return false;
+      const out = this.p > 0.99;
+      if (!out) { this.goOut(); await until(() => this.p >= 0.995); }
+      if (!going()) return false;
+      const spot = (el) => {
+        const r = el.querySelector('.uvg-center').getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      };
+      const core = there.querySelector('.uvg-core')?.getBoundingClientRect();
+      const { flyLight } = await import('../beams.js');
+      await flyLight(spot(from), spot(there), { ring: core ? core.width / 2 : 0 });
+      if (!going()) return false;
+      if (!out && !away) this.goHome();
+      return true;
+    } finally {
+      ways.forEach((w) => removeEventListener(w, stop, { capture: true }));
+    }
+  }
+
+  // Which way someone's galaxy lies from yours in the universe, as a direction on screen (the
+  // universe is laid out round you, the same map from every page): where their beam comes in from.
+  async towards(username) {
+    await this.loadUniverse();
+    if (!this.uv || !this.list) return null;
+    const i = this.list.findIndex((g) => g.username === username);
+    const you = this.list.findIndex((g) => g.you);
+    if (i < 0 || you < 0) return null;
+    const d = { x: this.uv.spots[i].x - this.uv.spots[you].x, y: this.uv.spots[i].y - this.uv.spots[you].y };
+    const len = Math.hypot(d.x, d.y);
+    return len ? { x: d.x / len, y: d.y / len } : null;
+  }
+
   beamsWaiting() {
     if (!this.mine) return;
     if (this.beams) { this.beams.then((pile) => pile.refresh()); return; }
@@ -3182,6 +3233,16 @@ class Galaxy {
         // Straight out, before anything is drawn, so a handover from
         // someone else's universe doesn't flash your galaxy up close.
         if (startOut) { startOut = false; this.goOut(true); this.track(true); }
+        shown = this;
+        // came out to the universe for a beam's journey: it travels, then the page goes back where it was
+        if (flight && this.mine && location.pathname === '/universe') {
+          const { to, resolve } = flight;
+          flight = null;
+          this.journey(to, true).then((ok) => {
+            if (ok && this.live && location.pathname === '/universe') history.back();
+            resolve(ok);
+          });
+        }
         // Only now does the scroll say where you are on this page (before,
         // it was the old page's, then the top while it was put in place).
         this.live = true;
@@ -3222,6 +3283,7 @@ class Galaxy {
         this.off.forEach((off) => off());
         this.diving = false;
         this.live = false;
+        if (shown === this) shown = null;
         this.sky?.destroy();
         this.comets?.destroy();
         this.joinTip?.remove();
@@ -3238,6 +3300,28 @@ class Galaxy {
       },
     };
   }
+}
+
+// A beam's journey from wherever you beamed it (beams.js): on a galaxy's page the page itself goes
+// out to the universe and back; from anywhere else it opens the universe and goes back after. Not
+// under Still, and not over a room of a galaxy's own. Resolves once the light has landed.
+export function beamJourney(to) {
+  if (reducedMotion()) return Promise.resolve(false);
+  // while it travels, tips that come with the universe (your name) wait: `html.is-beaming`
+  const root = document.documentElement;
+  root.classList.add('is-beaming');
+  return travel(to).finally(() => root.classList.remove('is-beaming'));
+}
+
+function travel(to) {
+  // (someone else's galaxy hands over to yours once it is out, so from there it goes as from any page)
+  if (shown?.live && shown.mine) return covered() ? Promise.resolve(false) : shown.journey(to, false);
+  return new Promise((resolve) => {
+    flight = { to, resolve };
+    nav.go('/universe');
+    // the universe didn't open (a slow answer, signed out): nothing waits on it
+    setTimeout(() => { if (flight?.resolve === resolve) { flight = null; resolve(false); } }, BEAT.rest);
+  });
 }
 
 // The galaxy on this page, as the universe lists it.

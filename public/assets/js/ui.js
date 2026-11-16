@@ -4,6 +4,7 @@
 import { DUR, EASE, EASE_LEAVE, h, reducedMotion, touchScreen } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
+import { whenMoving } from './transitions.js';
 
 // ---------------------------------------------------------------- segmented bar, tabs
 
@@ -15,14 +16,14 @@ let rooms = 0;
 let leaving = 0;
 export function enterRoom() {
   rooms += 1;
-  sound('open');
+  whenMoving(() => sound('open'));
   clearTimeout(leaving);
   document.documentElement.classList.remove('leaving-room');
   document.documentElement.classList.add('in-room');
 }
 export function leaveRoom() {
   rooms = Math.max(0, rooms - 1);
-  sound('close');
+  whenMoving(() => sound('close'));
   if (rooms) return;
   document.documentElement.classList.add('leaving-room');
   document.documentElement.classList.remove('in-room');
@@ -286,7 +287,6 @@ export function toast(message, { action, duration } = {}) {
     el.append(button);
   }
   toastHost.append(el);
-  sound('toast');
   // Keep at most three. Plain notes make way first, so a newer message
   // doesn't push an Undo off the screen before you can reach it.
   // The uploads toast isn't one of the three and never makes way.
@@ -619,7 +619,6 @@ export function openContextMenu(e, items, { title, target, onClose, keepFocus = 
     else if (ev.key === 'Tab') { ev.preventDefault(); close(); return; }
     if (!next) return;
     ev.preventDefault();
-    sound('focus');
     light(next);
     if (!keepFocus) next.focus({ preventScroll: true });
   };

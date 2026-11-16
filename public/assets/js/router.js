@@ -191,9 +191,9 @@ export async function render({ pop = false, motion = 'page' } = {}) {
       document.documentElement.style.setProperty('--dive-y', `${(r.top + r.height / 2).toFixed(1)}px`);
     };
     if (type === 'dive') aim(world);
-    if (type !== 'page') sound(type === 'dive' ? 'dive' : 'surface');
     await transition(swap, {
       type,
+      moving: type === 'page' ? null : () => sound(type === 'dive' ? 'dive' : 'surface'),
       before: () => pairs,
       after: () => {
         const now = visibleShared().filter(([, n]) => names.has(n));

@@ -128,14 +128,12 @@ function fetchBank() {
   fetching ||= import('./soundbank.js').then((m) => { made = m; if (ctx) wake(); }).catch(() => { fetching = null; });
 }
 
-// A plain press of anything pressable makes the `press` sound, and a touch of a file box, a planet,
-// a star or a link the softer `touch`, unless what it did asked for a sound of its own (that one
-// wins: one press, one sound). Asked a moment later, so the press's own sound has been asked first.
+// A plain press of a button, menu row, tab or door makes the soft `press`, unless what it did
+// asked for a sound of its own (that one wins: one press, one sound). Asked a moment later, so the
+// press's own sound has been asked for first. Touching a file or a planet makes none of its own:
+// what it opens says it (DESIGN.md "Sound").
 const PRESSABLE = 'button, [role="button"], [role="menuitem"], [role="tab"], [role="option"], a.btn, summary';
-const TOUCHABLE = '.cell, .planet, .star, a[href]:not(.btn)';
-const TYPED = 'textarea, [contenteditable="true"], input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="number"]';
-let pressed = 0;   // when a pointer last went down
-let tabbed = 0;    // when Tab was last pressed
+const ITS_OWN = '.cell, .planet, .star';
 
 export function startSound() {
   if (driven) addEventListener('play', (e) => { e.target.hushed = true; e.target.muted = true; }, { capture: true });
@@ -147,20 +145,10 @@ export function startSound() {
   // on each, cheaply, so it is running by the time anything a tap started asks for a sound.
   addEventListener('pointerdown', wake, { capture: true });
   addEventListener('keydown', wake, { capture: true });
-  addEventListener('pointerdown', () => { pressed = performance.now(); }, { capture: true });
-  addEventListener('keydown', (e) => { if (e.key === 'Tab') tabbed = performance.now(); }, { capture: true });
   addEventListener('click', (e) => {
-    const el = e.target.closest?.(`${PRESSABLE}, ${TOUCHABLE}`);
-    if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true' || el.closest('[data-quiet]')) return;
-    const name = el.matches(TOUCHABLE) ? 'touch' : 'press';
-    setTimeout(() => sound(name), 0);
-  }, { capture: true });
-  // Tab moving on ticks; a text box taken with a tap seats with a small click (never while typing).
-  addEventListener('focusin', (e) => {
-    const el = e.target;
-    const now = performance.now();
-    if (now - tabbed < 150) sound('focus');
-    else if (now - pressed < 600 && el.matches?.(TYPED) && !el.classList.contains('pin-input')) sound('field');
+    const el = e.target.closest?.(PRESSABLE);
+    if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true' || el.closest('[data-quiet]') || el.closest(ITS_OWN)) return;
+    setTimeout(() => sound('press'), 0);
   }, { capture: true });
   // A switch or tick box (plain boxes in the page: DESIGN.md "Switch", "Tick box").
   addEventListener('change', (e) => {

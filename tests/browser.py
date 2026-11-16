@@ -493,8 +493,8 @@ def loudest(s):
 
 
 def sounds(s, seeded):
-    """Sound is on from the start: signing in, a sheet and a choice in it, diving into a planet and taking
-    a text box each make their own sound, and once it's switched off nothing more plays."""
+    """Sound is on from the start: signing in, a sheet and a choice in it, and diving into a planet each make
+    their own sound, and once it's switched off nothing more plays."""
     s.go('/')
     s.sign_out()
     s.go('/')
@@ -529,12 +529,6 @@ def sounds(s, seeded):
     s.settle(1)
     if 'dive' not in heard(s):
         raise Fail(f'opening a planet made no sound (heard {heard(s)})')
-    # A text box taken with a tap seats with its own small click.
-    s.click(s.see('textarea[aria-label="Add a file"]', 'the planet has no add box'))
-    s.settle(0.4)
-    if heard(s)[-1:] != ['field']:
-        raise Fail(f'taking the add box made no "field" sound (heard {heard(s)})')
-    s.press('Escape')
     # Switched off in the account sheet: after a reload nothing plays and the sounds aren't even fetched.
     s.click(s.see('.sb-who', 'the account button is missing'))
     s.see('.sheet-settings.is-open', 'the account sheet did not open')

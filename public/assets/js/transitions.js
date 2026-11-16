@@ -44,8 +44,18 @@ async function settleImages(pairs, timeout = 180) {
 }
 
 // `before` / `after` return [element, name] pairs to morph between.
-export async function transition(update, { type = 'page', before = visibleShared, after = visibleShared } = {}) {
+// Something that should happen as the movement itself starts (a sound, DESIGN.md "Sound"): during
+// a page change that is when the new page is ready and begins to move, which can be a while after
+// it was asked for; otherwise it is now.
+let starting = null;
+export function whenMoving(fn) {
+  if (starting) starting.push(fn);
+  else fn();
+}
+
+export async function transition(update, { type = 'page', before = visibleShared, after = visibleShared, moving } = {}) {
   if (!canTransition()) {
+    moving?.();
     await update();
     return;
   }
@@ -54,6 +64,8 @@ export async function transition(update, { type = 'page', before = visibleShared
   applyNames(before());
   root.dataset.vt = type;
   let vt;
+  const waiting = (starting = moving ? [moving] : []);
+  const go = () => { if (starting === waiting) starting = null; waiting.splice(0).forEach((fn) => fn()); };
   try {
     vt = document.startViewTransition(async () => {
       clearNames();
@@ -62,10 +74,11 @@ export async function transition(update, { type = 'page', before = visibleShared
       applyNames(pairs);
       await settleImages(pairs);
     });
-    vt.ready.catch(() => {});
+    vt.ready.then(go, go);
     await vt.updateCallbackDone.catch(() => {});
     await vt.finished.catch(() => {});
   } finally {
+    go();
     clearNames();
     if (root.dataset.vt === type) delete root.dataset.vt;
   }

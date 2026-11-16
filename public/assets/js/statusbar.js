@@ -380,7 +380,6 @@ export function createStatusbar() {
   document.body.append(home);
   let current = null;
   home.addEventListener('click', () => {
-    sound('back');
     if (current?.goHome) current.goHome();
     else nav.go('/');
   });

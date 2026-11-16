@@ -165,7 +165,7 @@ export class Gravity {
 
   // Lifting off its planet and gliding to the void on a gentle curve.
   arrive(face, delay) {
-    setTimeout(() => sound('found'), delay + (reducedMotion() ? 0 : DUR.scene * 0.8));   // a glass note as each settles
+    setTimeout(() => sound('found'), delay + (reducedMotion() ? 0 : DUR.scene * 0.8));   // a faint tick as each settles
     const d = this.away(face);
     if (!d) {
       face.animate([{ opacity: 0, transform: `scale(${SMALL})` }, { opacity: 1, transform: 'none' }],

@@ -377,26 +377,33 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 
 ### Sound
 
-Settled with the user on 2026-11-16 (design idea 20, three rounds on a listening board): **dry little clicks, like a games console's menus.** Tactile and mechanical: switches, knocks, snaps, a flick of paper, a puff of air. No tunes, no chords, no pitch slides (they sound "poppy"); only a few things done carry **one glint of glass**, a single short note in the music's key (D E F G A). Nearly everything you touch has a sound of its own. Sound is kept as strictly as Motion: a sound is a name from this list and nothing else.
+Settled with the user on 2026-11-16 (design idea 20). Three rounds on a listening board gave the character: tactile, "kind of like Nintendo", textured rather than chords. A fourth, the same day, gave the rule that matters most: **less distracting, and a sound is the movement it goes with.** "If it is a sweeping action it should sweep or whoosh." So:
+- A sound lasts as long as its movement (a length from `DUR`) and is shaped by its curve: arriving comes fast and settles, leaving starts slow and is gone, gliding swells and falls, popping rises quickly.
+- It rises in pitch when something opens or comes nearer, and falls when it closes or goes.
+- Only what really clicks clicks: a switch, a tick, a key, a stepper, a dial's notch. A landing is a soft pat, never a knock.
+- One glint of glass (a single short note in the music's key, D E F G A, never two at once) marks a few things done.
+- A sound starts when its movement starts: a page change's sound waits for the new page to begin moving (`moving` in `transition`, `whenMoving` in `transitions.js`), not for the press.
+
+Sound is kept as strictly as Motion: a sound is a name from this list and nothing else.
 
 **One way in.** `sound(name, opts)` from `sound.js` (always loaded, small); the sounds themselves are made in `soundbank.js` (`SOUNDS`, each with when it plays and how it is made; fetched once the page is up while Sounds is on, never with it off). A feature never makes a sound of its own, never loads a recording, and never starts its own sound clock: there is one, `audio()`, shared with the music. The one sound that lasts is `holdSound('wind', level)`. The sample page (`/parts`) plays every one.
 
-**The parts every sound is built from**: a *click* (a burst of noise a few thousandths long, the edge of a press), a *knock* (noise ringing in a narrow band with a faint tone at its middle, the plastic or wooden body), a *thud* (a low dull knock, weight), *grain* (uneven tiny clicks: a ratchet, paper), *air* (noise sweeping up or down: movement) and the *glint*. Every part is a hair different each time. Its inner timings (a few thousandths) belong to the sound; its overall length comes from `DUR`.
+**The parts every sound is built from**: *air* (noise swept in pitch and shaped like the motion, `swell`: a sheet, a menu, a dive, a page), a *click* (a burst of noise a few thousandths long, the edge of a switch or key), a *knock* (noise ringing in a narrow band with a faint tone, the body of a click), a *pat* (a soft low touch: set down, arriving), *grain* (a few uneven tiny clicks: paper, a crumple) and the *glint*. Every part is a hair different each time.
 
-**Ranks and loudness** (measured in Safari's engine, the loudest 50 ms, against the music's loudest at −19 dB; each sound's `TRIM` brings it there):
+**Ranks and loudness** (measured in Safari's engine, the loudest 50 ms, against the music's loudest at −19 dB; each sound's `TRIM` brings it there, a long sweep a little under):
 
 | Rank | Loudness | Sounds |
 | --- | --- | --- |
-| 0, a touch or press | −30 dB (the faintest ticks lower) | `press` (any button, menu row, tab, door), `touch` (a file box, planet, star, link), `key` (a code digit, computer only), `field` (a text box taken with a tap), `focus` (Tab or arrows moving), `on`/`off` (a switch or tick box), `select` (segmented bar), `step` (stepper), `slide` (a slider's notch), `detent` (the phone ring passing a planet), `pick` (a menu row chosen), `over` (something carried lights a place that takes it) |
-| 1, moving about | −27 dB | `pop`/`unpop` (menu, panel), `sheet`/`unsheet` (sheet, dialog), `turn` (a page, a sheet's door, the next file), `open`/`close` (a room), `dive`/`surface`, `lift` (picking something up), `back`, `toast` (shy), `search`, `found` (a tick per find), `wind` (out in the universe, rising with the scroll) |
-| 2, something done | −23 dB | `take` (the void takes a file), `land` (on a planet, with a glint of its note), `drop`, `tick`/`untick`, `undo`, `bin`, `copy`, `no` (two dull knocks, never a buzz), `news` (a comment, once a visit, a tap on glass) |
-| 3, rare | −21 dB | `save`, `join` (a constellation), `born` (a planet or moon, a glint of its note), `hello` (signing in) |
+| 0, a press | −36 dB (the faintest ticks lower) | `press` (a button, menu row, tab or door with no sound of its own), `key` (a code digit, computer only), `on`/`off` (a switch's knob sliding and landing), `select` (a segmented bar's highlight gliding), `step` (stepper), `slide` (a slider's notch), `detent` (the phone ring passing a planet), `pick` (a menu row chosen), `over` (a faint breath as a place lights to take what you carry) |
+| 1, moving about | −31 dB | `pop`/`unpop` (menu, panel), `sheet`/`unsheet` (sheet, dialog), `turn` (a page sliding: the reader, a sheet's door, the next file), `open`/`close` (a room), `dive`/`surface` (long whooshes over the scene), `lift`, `search`, `found` (a faint tick per find), `wind` (out in the universe, rising with the scroll) |
+| 2, something done | −27 dB | `take` (the void swallows a file: a pat and air drawn down), `land` (on a planet: a pat and a glint of its note), `drop`, `tick`/`untick`, `undo` (a sweep the other way), `bin` (a crumple falling away), `copy`, `no` (two soft dull knocks with the shake, never a buzz), `news` (a comment or a beamed file, once a visit, a tap on glass) |
+| 3, rare | −25 dB | `save`, `join` (a constellation), `born` (a planet or moon, a glint of its note), `hello` (signing in: one long breath) |
 
 **Every planet has its note**, its glint when a file lands or it is born: gas A4, lava D5, desert E5, terran F5, ocean G5, storm A5, haze D6, bloom E6, lagoon F6, pale G6, pearl A6, ice D7; a star and the void D6.
 
-**The rules for many at once** (in `soundbank.js`, so no feature has to think about it): what is asked in the same moment is weighed together, rarest first; a plain `press` or `touch` says nothing if anything else spoke with it or in the last `--dur-quick` (one press, one sound); a shy sound (a toast) nothing if anything sounded in the last `--dur-arrive`; the same sound again while it sounds is nothing, or for `land` (3) and `found` (8) one more small tick; at most four at once (the least steps aside for a rarer one), sixteen starts a second; a rarer sound quietens the lower ones still playing; everything goes through one limiter, so many are never louder than one.
+**The rules for many at once** (in `soundbank.js`, so no feature has to think about it): what is asked in the same moment is weighed together, rarest first; a plain `press` says nothing if anything else spoke with it or in the last `--dur-quick` (one press, one sound); the same sound again while it sounds is nothing, or for `land` (3) and `found` (6) one more faint tick; at most four at once (the least steps aside for a rarer one), sixteen starts a second; a rarer sound quietens the lower ones still playing; everything goes through one limiter, so many are never louder than one.
 
-**Never a sound:** pointing, scrolling, dragging along (only `over` as a place lights); typing in a box (only the code pad, and not on a phone, whose keyboard clicks for itself); what happens by itself (a slideshow moving on, saving, loading); while a song or video plays in Mutt; in a tab not showing; in the first second of a page; with Sounds off (nothing is even fetched).
+**Never a sound:** pointing, scrolling, dragging along (only `over` as a place lights); touching a file, planet or star (what it opens says it); Tab and the arrow keys; taking a text box, and typing in one (only the code pad, and not on a phone); a toast (it repeats what a sound already said); the corner back arrow (the pull away says it); what happens by itself (a slideshow moving on, saving, loading); while a song or video plays in Mutt; in a tab not showing; in the first second of a page; with Sounds off (nothing is even fetched).
 
 **On Apple devices** the clock is an "ambient" sound (`navigator.audioSession`): it mixes with the person's own music, and the silent switch silences it. Browsers allow sound only after a tap, so the clock wakes on every pointer-down and key, rests after 15 quiet seconds when no music or wind needs it, and stops when the tab is hidden.
 
@@ -404,7 +411,7 @@ Settled with the user on 2026-11-16 (design idea 20, three rounds on a listening
 
 **The switch:** `Sounds`, its own row under `Music` in the account sheet, On from the start (`sound` pref, `data-sound` on the page).
 
-**How to add a sound:** say which existing sound it is most like, and use that one if it fits (another chat's throw is a `land`). If it is truly new, add it to `SOUNDS` with a rank, `when` and `made`, build it from the parts above in `MAKE` (no tones held, no chords, at most one glint), measure it (the board's tool, `Mutt-notes/design/sound/`) and set its `TRIM` to its rank's loudness, add it to the table here, and play it to the user first.
+**How to add a sound:** say which existing sound it is most like, and use that one if it fits (a throw is a `lift` then a `land`; beaming out a `take`). If it is truly new, add it to `SOUNDS` with a rank, `when` and `made`, build it in `MAKE` from the parts above as its movement (its length, its curve, its direction; no tones held, no chords, at most one glint), measure it (the board's tool, `Mutt-notes/design/sound/`) and set its `TRIM`, add it to the table here, and play it to the user first.
 
 ## 3. Materials
 

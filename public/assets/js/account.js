@@ -269,7 +269,7 @@ export function askForKey() {
     return !before || (before.times < 2 && Date.now() - before.at >= WEEK);
   };
   // Something else is speaking or open: a dialog, a menu, a sheet, a room, the phone note, a toast with a button.
-  const busy = () => !!document.querySelector('.scrim, .pop, .sheet.is-open, .room, .toast.has-action');
+  const busy = () => !!document.querySelector('.scrim, .pop, .sheet.is-open, .room, .toast.has-action, .keep-tip');
   const away = () => {
     if (!tip) return;
     const el = tip;

@@ -2182,6 +2182,8 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .world.is-zooming .uv-stage { will-change: opacity; }
 .uv-scene { position: absolute; inset: 0; will-change: transform; }
 .uv-field { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+/* a planet two people keep together, drawn once in the gap between their galaxies (keptBetween) */
+.uv-kept { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
 /* the few that pass close by the camera on the way out */
 .uv-near { position: absolute; inset: 0; pointer-events: none; }
 .uv-near .uvg { will-change: transform; }
@@ -2383,6 +2385,12 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 .liv-code-btn { flex: none; }
 .liv-code[hidden] { display: none; }
 .liv-open { margin-top: var(--space-12); }
+/* Keeping a planet together, at the foot of Share (DESIGN.md "Keeping a planet together") */
+.liv-keep { margin-top: var(--space-16); padding-top: var(--space-12); border-top: 1px solid var(--line); }
+.liv-keep[hidden] { display: none; }
+.liv-keep-text { font: var(--type-caption); color: var(--ink-3); }
+.liv-keep-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--h-regular); margin-top: var(--space-8); }
+.liv-keep-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--type-label); color: var(--ink); }
 .liv-hint { margin-bottom: var(--space-12); color: var(--ink-2); }
 .liv-unlock { margin-top: var(--space-16); }
 .liv-locked .liv-head { grid-template-columns: auto minmax(0, 1fr); }
@@ -4123,3 +4131,106 @@ html[data-motion="off"] .cb-steam { display: none; }
 /* waving a moment's line away */
 .dk-hint-x { margin-left: auto; padding: 0 var(--space-4); border: 0; background: none; color: var(--ink-4); font: 400 15px/1 var(--sans); cursor: pointer; }
 .dk-hint-x:hover { color: var(--ink-2); }
+
+/* ======== BEAMING (beams.js; DESIGN.md "Beaming"): a file sent to someone, and the files sent to you.
+   What waits for you rests by the void as a star card, one pile per sender, tagged "from Sam"; a new
+   pile wears the drop ring once as it lands. From someone you never crossed paths with: one quiet
+   pile, dimmer, no ring. */
+.bm-piles { position: absolute; left: 0; top: 0; z-index: 2; width: 0; height: 0; }
+.bm-star {
+  position: absolute;
+  left: -19px;
+  top: -19px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--r-row);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-scene) var(--ease-settle), opacity var(--dur-change);
+}
+.bm-star.is-leaving { opacity: 0; pointer-events: none; }
+.bm-face { position: absolute; inset: 0; }
+.bm-face .ff {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-mark);
+  box-shadow: var(--shadow-rest), var(--star-halo);
+  transform: rotate(-6deg);
+  transition: transform var(--dur-move) var(--ease-spring), box-shadow var(--dur-move), filter var(--dur-move);
+}
+.bm-star:focus-visible .ff { transform: scale(1.3); box-shadow: var(--paper-shadow); }
+@media (hover: hover) { .bm-star:hover .ff { transform: scale(1.3); box-shadow: var(--paper-shadow); } }
+.bm-star.is-quiet .ff { filter: brightness(0.66) saturate(0.6); box-shadow: var(--shadow-rest); }
+.bm-count {
+  position: absolute;
+  right: -7px;
+  top: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--gloss-on), var(--accent);
+  box-shadow: var(--star-halo);
+  font: 600 var(--text-fact)/18px var(--sans);
+  text-align: center;
+  color: var(--white);
+}
+.bm-star.is-quiet .bm-count { background: var(--well); color: var(--ink-2); }
+.bm-tag {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + var(--space-4));
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font: var(--type-caption);
+  color: var(--ink-2);
+  text-shadow: var(--sky-shadow);
+  pointer-events: none;
+}
+.bm-star.is-quiet .bm-tag { color: var(--ink-3); }
+/* landing: the drop ring once, growing out and fading (Still: it is already gone) */
+.has-dust .bm-star.is-new::after {
+  content: "";
+  position: absolute;
+  inset: -70%;
+  background: var(--thread-on);
+  -webkit-mask: var(--dust-dots) 0 0 / var(--dust-tile) var(--dust-tile) repeat, var(--dust-loop) center / 100% 100% no-repeat;
+  -webkit-mask-composite: source-in;
+  mask: var(--dust-dots) 0 0 / var(--dust-tile) var(--dust-tile) repeat, var(--dust-loop) center / 100% 100% no-repeat;
+  mask-composite: intersect;
+  pointer-events: none;
+  animation: bm-ring var(--dur-scene) var(--ease-settle) both;
+}
+.bm-star.is-new .bm-face { animation: star-in var(--dur-arrive) var(--ease-settle) backwards; }
+@keyframes bm-ring { from { opacity: 0; scale: 0.45; } 30% { opacity: 1; } to { opacity: 0; scale: 1.15; } }
+
+/* the dialogs: beaming out (a person, a few words) and what came (the file box, their words, the answers) */
+.bm-dialog { width: min(420px, calc(100vw - 2 * var(--space-16))); }
+.bm-out { display: flex; flex-direction: column; gap: var(--space-8); }
+.bm-out .dialog-text { margin-bottom: var(--space-4); }
+.bm-out .pp-list { margin-top: 0; }
+.bm-words { min-height: 64px; resize: none; }
+.bm-handle { color: var(--ink-3); }
+.bm-in { display: flex; flex-direction: column; gap: var(--space-12); }
+.bm-head { display: flex; align-items: center; gap: var(--space-8); font: var(--type-body); color: var(--ink-2); }
+.bm-head b { font-weight: 600; color: var(--ink); }
+.bm-lead { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-full); background: color-mix(in srgb, var(--who) 26%, transparent); color: var(--who); }
+.bm-quiet { margin: calc(var(--space-4) * -1) 0 0; font: var(--type-caption); color: var(--ink-3); }
+.bm-quiet[hidden] { display: none; }
+.bm-when { margin-left: auto; flex: none; font: var(--type-fact); color: var(--ink-3); }
+.bm-file { display: grid; justify-items: center; }
+.bm-file .cell { width: min(200px, 100%); animation: none; }
+.bm-said { margin: 0; font: var(--type-body); font-style: italic; color: var(--ink); text-align: center; }
+.bm-said[hidden], .bm-nav[hidden] { display: none; }
+.bm-nav { display: flex; align-items: center; justify-content: center; gap: var(--space-8); }
+.bm-step { min-width: 56px; text-align: center; font: var(--type-fact); color: var(--ink-3); }
+.bm-actions { flex-wrap: wrap; }
+.bm-foot { display: flex; justify-content: center; }
+.bm-stop { color: var(--ink-3); }
+.bm-stops { display: flex; flex-direction: column; gap: var(--space-4); }
+.bm-stop-row { display: flex; align-items: center; gap: 9px; min-height: var(--h-regular); font: var(--type-label); color: var(--ink-2); }
+@media (max-width: 720px) {
+  .bm-actions { justify-content: stretch; }
+  .bm-actions .btn { flex: 1 1 auto; }
+}

@@ -594,6 +594,27 @@ A few of your stars joined in your sky, with a name: a light way to group files 
 - **Still.** Nothing moves; the figure, its wisps and its name are simply there.
 - **Cost.** One small canvas per constellation, only as big as its figure, painted when its shape changes and when it is lit or dimmed (under a thousandth of a second to repaint). Nothing runs at rest; nothing is copied from one canvas to another.
 
+### Kept together and beaming
+
+Two ways of sharing with one person (2026-11-16, built from `design/concepts/10-binary-planets.html` and `11-transmissions.html`; never call the second "transmissions").
+
+**A planet kept together** (`drawer_keepers`; `pair` icon). It is in both people's galaxies, each placing it where they like, and looks like any planet; the only marks are words and the `pair` icon at 12:
+- *On a galaxy*: `pair` among the caption's icons, before the count; pointed at, "Kept with Rae" (on someone else's galaxy, "Kept by Sam and Rae").
+- *On its page*: after the sharing fact in the header, `pair` and "with Rae Okafor" (a visitor: "Sam Ray and Rae Okafor").
+- *Share panel*: under who can see it, a section like its others: "Kept together with Rae" once kept; before that, for anyone who already shares it (added files, or named under People), "Keep it together" and a row per person with a small `Ask` button; once asked, "Asked Rae" and a quiet "Take back".
+- *The ask* reaches the other person on their own galaxy as a tip, the same tip and place as the recovery key's (`.tip.key-tip.keep-tip`, `keeping.js`), one at a time, never over another tip: "Sam asks you to keep “Japan trip” together" / "It will be in both your galaxies, and you’ll both be able to add to it, arrange it and share it." / main **Keep it together**, quiet **Not now** (put away; asked again only if Sam asks again after a week).
+- *News* (they joined, left, changed who can see it, deleted their account) is a toast with "See it", once, on the next visit to your galaxy.
+- *Leaving* is "Leave planet…" (`takeoff`) in its ••• menu, where Delete would be (a kept planet can't be deleted). Both keep everything: the one who leaves gets a private planet of the same name with their files and copies of the other's.
+- *The universe*: the two galaxies sit side by side (what they keep joins them strongly), and the planet is drawn once, in the gap between them (`.uv-kept`, `keptBetween` in `views/galaxy.js`); when one of them is the galaxy whose page it is, it stays on that page and only leaves the other. Someone who can't open it sees each galaxy's own blurred stand-in, as for any planet they can't open: nothing says two people share it.
+
+**Beaming a file** (`beams`; `beam` icon). One of your files, sent to one person with a few words; it stays yours until they answer, and you are never told which answer.
+- *Out*: "Beam to…" in a file's menu (only once you've crossed paths with anyone). A dialog: "Beam “name” to…", the line "It waits for them until they keep it or let it go.", a search box, the people rows of People sharing (`.pp-row`: those you've crossed paths with nearest first, anyone found by typing), a two-line box "A few words, if you like" (140), Cancel / **Beam to Rae**. Then a toast "Beamed to Rae" with Undo.
+- *In, by the void*: a pile per sender rests just outside the void where the stars begin, up and to the right (on a phone, in a row below it): the first file's face as a star card (38, corners `--r-mark`, turned 6°, `--shadow-rest` with the star's halo), a count in the planet bubble's blue when there are several, and under it "from Sam" in caption type on the sky's shadow. A new pile lands with the drop ring once (below). From someone never met here: one quiet pile, dimmer, its count in a well, tagged "waiting quietly", no ring and no note.
+- *In, under the clock*: a note like a comment's, "Sam Ray beamed you <name>" (or "2 files") and their words; pressing it opens the box, × only puts the note away.
+- *The box* (a dialog): "**Sam Ray** beamed you a file" with the time; for a stranger, a caption line "You haven’t crossed paths here before. If you leave it, it goes in a month."; the file box (200 wide, no buttons); their words in italic, centred; `1 of 3` between small round `chevron-left` and `chevron-right` buttons when the pile has more; quiet **Let go** (toast with Undo), **Put on a planet** (`move`, a planet list like Add to planets), main **Keep** (a star; toast with Open); under them a quiet "Stop beams from Sam" (a confirm, red, then "Sam can’t beam you any more"). On a phone the three answers wrap, Keep full width.
+- *Stopped people* are a door in the account sheet, "Beams you stopped", shown only once there is someone, each with "Let them beam".
+- *A kept copy's* file view says "Beamed by Sam Ray (@sam)" and "Their words" to its owner; to anyone else it is any saved copy.
+
 ### Drop ring
 
 What shows round a planet, a moon or a star while you carry something onto it, where a moved planet will land, and round the void while files are carried in from the computer. Chosen by the user on 2026-11-16, who found the dashed circles "too perfect": **a loop of dust**, the threads' print bent into a circle.
@@ -601,6 +622,7 @@ What shows round a planet, a moon or a star while you carry something onto it, w
 - **What it is: print.** Three strands of dust that twist round each other a whole number of times on the way round, part and gather in two or three places, wander in width, with a haze and a few loose motes round them (`dustLoop` in `uvweb.js`, beside `wisp()`). Never a ruled or dashed line, never a glow.
 - **How it is drawn.** Once, a moment after the page starts (`dropring.js`, `makeDropRing` from `main.js`): the loop's soft strands as one picture, and a small tile of evenly laid dots, the void's own spacing and sizes (`evenPoints`, `DOT`). The stylesheet uses the two as a mask over `--thread-on`: the loop stretched to each ring, the dots never stretched, so a star's small ring and a planet's large one are dotted alike, and 7% shows between the dots as in the void. Until both pictures are in, no ring shows (`html.has-dust`). One rule in `galaxy.css` (headed THE DROP RING); each part sets only how far it reaches (planet −23%, moon −43%, star −32%, the ghost −7%, so the loop's middle lies where the old circle did; the void −55%, clear of its own dotted edge, which swells while files are over it).
 - **Moves.** Waiting to be dropped onto, it turns once every `--beat-rest`. The ghost and the star you are joining from with the keyboard wear it still: the ghost at half strength, that star at 0.6.
+- **A beamed file landing** (`.bm-star.is-new`, beams.js) wears it once: from 45% to 115% of its size over `--dur-scene`, rising in and fading out, never turning. Under Still it is already gone.
 - **Round the void** (`.drop-ring`, put there by `ring()` in `blackhole.js` while files from the computer are over the window) it grows in from 0.9 over `--dur-arrive` and fades over `--dur-change`, and turns like the rest. It was a blue ring with a glow until 2026-11-16, matched at the user's word. The orbit's dotted guide is a path, not a ring, and stays.
 
 ### The logo
@@ -914,11 +936,11 @@ One set, in one file: `public/assets/js/icons.js`. `icon(name)` is the only way 
 - **A tail to leave, a chevron to step.** `back` (an arrow with a tail) takes you somewhere else: to the galaxy, out of the editor. `chevron-left` and `chevron-right` step to the next thing of the same kind: the next file, the next recipe card. `chevron-up` and `chevron-down` step through matches. `caret` only ever means "this opens a menu".
 - **It lights when pointed at.** A part of an icon marked as its body (the inside of a lock, a page, a speech bubble) is empty at rest and fills with `--icon-lit` of its own colour when its button or menu row is pointed at, and stays filled while the button is held on (`.is-on`, `aria-pressed`, `aria-expanded`). This is automatic; a feature writes nothing for it.
 
-**The names** (103)
+**The names** (105)
 
 - *Everyday:* `plus` `minus` `close` `check` `more` `grip` `caret` `chevron-left` `chevron-right` `chevron-up` `chevron-down` `back` `forward` `up` `down` `out` `search` `zoom` `undo` `redo` `upload` `download` `sort` `link` `copy` `trash` `edit` `open` `play` `pause` `shuffle`
 - *Pictures:* `turn-left` `turn-right` `mirror` (side to side) `mirror-down` (top to bottom)
-- *Mutt's own things:* `planet` `moon` `star` (a file on no planet) `lock` (private, locked) `key` (opened with a code) `people` `globe` (public) `comment` `move` (to a planet) `onto` (put on a planet, save) `takeoff` (take off a planet) `files` (show as files) `board` (a board: cards laid loosely, and words) `page` `book` `bookmark` `note` `pot` `chapter` `camera` `picture` `colour` `tick` `untick`
+- *Mutt's own things:* `planet` `moon` `star` (a file on no planet) `lock` (private, locked) `key` (opened with a code) `people` `globe` (public) `comment` `move` (to a planet) `onto` (put on a planet, save) `takeoff` (take off a planet, leave a planet kept together) `beam` (send a file to someone: a small star leaving on two trails) `pair` (a planet two people keep together: two rings overlapping) `files` (show as files) `board` (a board: cards laid loosely, and words) `page` `book` `bookmark` `note` `pot` `chapter` `camera` `picture` `colour` `tick` `untick`
 - *In menus:* `history` `print` `setup` (options) `replace` `count` `spell`
 - *Writing:* `side` `bold` `italic` `underline` `strike` `align-left` `align-center` `align-right` `justify` `bullets` `dashes` `numbers` `letters` `roman` `checklist` `outdent` `indent` `spacing` `clear` `type` `highlight` `heading` `quote` `table` `rule` `pagebreak` `code` `auto` `prose` `poem` `script` `journal` `letter` `scene` `sign` `date` `pen` (draw by hand) `textbox` (a box of words placed on a page)
 
@@ -1089,5 +1111,15 @@ Decided by the user, 2026-11-16 (the board; asked as questions in the session, f
 - A board's own words are in Mutt's face, Red Hat Text (the serif, and the mono, were offered).
 - Of the extras, lines between files only (frames round a group were offered and left out).
 - The ground is faint dots that move with the board (plain sky, and a grid of lines, were offered).
+
+Decided by the user, 2026-11-16 (a planet kept together and beaming, asked in the session; "Kept together and beaming" in section 3):
+
+- Anyone can beam anyone; from someone never met here it waits quietly (a pile with no ring and no note) and goes after a month.
+- A beamed file arrives as a star by the void with one ring of dust, tagged "from Sam", plus a note under the clock. It isn't yours until Keep, Put on a planet or Let go.
+- "Keep it together" is offered only for people who already share the planet.
+- Leaving, and deleting an account, leave both people with everything.
+- In the universe the two galaxies sit side by side and the kept planet is drawn once between them.
+- Autosort never puts a file on a kept planet.
+- The `beam` and `pair` icons ("Both are fine"; the first `pair` looked like ♋ and was redrawn).
 
 Still open: whether every move feels right at real speed (the user's eye: the watch list on session 8's page); the three things under "Not finished, and known" in section 2, "Motion".

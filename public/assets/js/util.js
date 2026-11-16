@@ -240,6 +240,8 @@ export function nameMatch(name, q) {
 // planet") or a tight label (the universe, the void, the top bar) the name alone,
 // `name || @username`, is used instead (DESIGN.md "Names").
 export const personLabel = (username, name) => (name ? `${name} (@${username})` : `@${username}`);
+// A person in a tight label or a possessive: the name they gave, else @username. Takes {username, name}.
+export const shortName = (p) => (p?.name || `@${p?.username}`);
 
 // A username's own colour, the same everywhere it's shown.
 export function nameColor(name) {

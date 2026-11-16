@@ -363,6 +363,45 @@ def migrate(conn):
     conn.execute('CREATE TABLE IF NOT EXISTS board_lines ('
                  'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
                  'a TEXT NOT NULL, b TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY (drawer_id, a, b))')
+    # A planet kept together: its owner (drawers.user_id) and one other keeper,
+    # who can do all its owner can except delete it. `x`/`y` are where it sits
+    # in the keeper's own galaxy (the owner's place is drawers.x/y).
+    conn.execute('CREATE TABLE IF NOT EXISTS drawer_keepers ('
+                 'drawer_id TEXT PRIMARY KEY REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'since REAL NOT NULL, x REAL, y REAL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_drawer_keepers_user ON drawer_keepers(user_id)')
+    # Asking someone to keep a planet together: one ask per planet at a time.
+    # `waved` = they said Not now (the ask can be made again a week after `asked_at`).
+    conn.execute('CREATE TABLE IF NOT EXISTS keep_asks ('
+                 'drawer_id TEXT PRIMARY KEY REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'to_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'asked_at REAL NOT NULL, waved INTEGER NOT NULL DEFAULT 0)')
+    # What one keeper should hear about once: the other left, or changed who can see it.
+    conn.execute('CREATE TABLE IF NOT EXISTS keep_news ('
+                 'id TEXT PRIMARY KEY, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'drawer_id TEXT REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'what TEXT NOT NULL, by_name TEXT, title TEXT, at REAL NOT NULL)')
+    # Beaming a file to someone. The file stays the sender's until the
+    # receiver answers: kept (a copy is made, `copy_id`) or let go. `quiet`:
+    # from someone they had never crossed paths with. `noted`: the note under
+    # the clock was waved away (the star still waits).
+    conn.execute('CREATE TABLE IF NOT EXISTS beams ('
+                 'id TEXT PRIMARY KEY, '
+                 'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'from_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'to_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 "words TEXT NOT NULL DEFAULT '', sent_at REAL NOT NULL, quiet INTEGER NOT NULL DEFAULT 0, "
+                 'noted INTEGER NOT NULL DEFAULT 0, answer TEXT, answered_at REAL, copy_id TEXT)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_beams_to ON beams(to_id, answer)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_beams_from ON beams(from_id, sent_at)')
+    # People someone has stopped beams (and asks to keep a planet together) from.
+    conn.execute('CREATE TABLE IF NOT EXISTS beam_stops ('
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'at REAL NOT NULL, PRIMARY KEY (user_id, other_id))')
 
 
 @contextmanager

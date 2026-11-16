@@ -408,7 +408,8 @@ export function openPopover(anchor, content, { align = 'start', className = '', 
     if (!anchor.isConnected) { close(); return; }
     if (shade) return; // a sheet keeps to the foot of the screen
     const a = anchor.getBoundingClientRect();
-    const r = el.getBoundingClientRect();
+    // its own size, not as it looks while it grows in (smaller: it would be placed too far over)
+    const r = { width: el.offsetWidth, height: el.offsetHeight };
     let left = align === 'end' ? a.right - r.width : a.left;
     left = Math.max(12, Math.min(left, innerWidth - r.width - 12));
     let top = a.bottom + 8;

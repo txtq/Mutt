@@ -6,7 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness } from './util.js';
+import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
 import { icon } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -1096,8 +1096,10 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const title = next.private ? 'Private' : next.title;
     if (name.textContent !== title) name.textContent = title;
     const vis = next.community ? 'community' : next.visibility;
-    const metaKey = next.private ? 'private' : `${next.mine !== false && vis !== 'pin' && vis}|${!!next.locked}|${next.count || 0}`;
-    const label = next.private ? 'A private planet' : `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}`;
+    // A planet two people keep together: whom with (yours), or whose it is (someone else's).
+    const pair = next.private || !next.keepers ? '' : next.keptWith ? `kept with ${shortName(next.keptWith)}` : `kept by ${next.keepers.map(shortName).join(' and ')}`;
+    const metaKey = next.private ? 'private' : `${next.mine !== false && vis !== 'pin' && vis}|${!!next.locked}|${next.count || 0}|${pair}`;
+    const label = next.private ? 'A private planet' : `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}${pair ? `, ${pair}` : ''}`;
     if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
     if (metaKey === shownMeta) return;
     shownMeta = metaKey;
@@ -1108,6 +1110,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const bits = [];
     if (next.mine !== false && vis && vis !== 'pin') bits.push(icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12));
     if (next.locked) bits.push(icon('lock', 12));
+    if (pair) bits.push(h('span', { class: 'planet-pair', title: pair[0].toUpperCase() + pair.slice(1) }, icon('pair', 12)));
     bits.push(h('span', null, next.count ? plural(next.count, 'file') : 'empty'));
     meta.replaceChildren(...bits);
   };

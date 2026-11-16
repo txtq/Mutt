@@ -21,7 +21,7 @@ from ports import answering, free_ports
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 API = ['smoke', 'galaxy', 'preview', 'lockout', 'search', 'autosort', 'moons',
-       'books', 'docs', 'cookbook', 'comments', 'modes']
+       'books', 'docs', 'cookbook', 'comments', 'modes', 'together']
 PORT = free_ports(1)[0]          # this run's own, so two worktrees testing at once never meet
 os.environ['MUTT_TEST_PORT'] = str(PORT)   # the suites read it (B=localhost:$MUTT_TEST_PORT)
 MAX_SHOWN = 12   # failures printed per suite, so a broken run stays cheap to read

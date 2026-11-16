@@ -786,6 +786,7 @@ function miniGalaxy(g, plan, here) {
     const dot = worldPicture(w, sp.size, res);
     dot.style.transform = `translate(${sp.x.toFixed(1)}px, ${sp.y.toFixed(1)}px)`;
     dot.at = sp;
+    dot.world = w;
     return dot;
   });
   const meta = [h('span', null, plural(g.planets, 'planet'))];
@@ -1543,6 +1544,7 @@ class Galaxy {
 
     this.starsEl.style.setProperty('--chip', `${m.chip}px`);
     this.found?.place();
+    this.beams?.then((pile) => pile.place(m));
 
     // The runway below: how far you scroll to get out to the universe.
     this.travel = Math.round(Math.max(1000, viewH * 2.2));
@@ -1752,8 +1754,21 @@ class Galaxy {
   async reload() {
     try {
       const data = await api.get(this.mine ? '/api/galaxy' : `/api/galaxy/${encodeURIComponent(this.owner)}`);
-      if (this.el.isConnected) this.apply(data);
+      if (this.el.isConnected) { this.apply(data); this.beamsWaiting(); }
     } catch { /* the next change will try again */ }
+  }
+
+  // Files beamed to you rest by the void until you answer (beams.js, fetched only when some wait).
+  beamsWaiting() {
+    if (!this.mine) return;
+    if (this.beams) { this.beams.then((pile) => pile.refresh()); return; }
+    if (!this.data.beams) return;
+    this.beams = import('../beams.js').then((m) => {
+      const pile = m.beamPile(this);
+      if (!this.el.isConnected) pile.destroy();
+      else if (this.m) pile.place(this.m);
+      return pile;
+    });
   }
 
   setPlanet(planet) {
@@ -2489,6 +2504,7 @@ class Galaxy {
     this.uvEls.forEach((el, i) => {
       el.style.transform = `translate(${spots[i].x.toFixed(1)}px, ${spots[i].y.toFixed(1)}px)`;
     });
+    this.keptBetween(spots, pairs);
 
     // The nearest few start out between you and the camera, just past the
     // edges of the screen, big and out of focus, and settle into their
@@ -2531,6 +2547,41 @@ class Galaxy {
       this.webBeads.dataset.run = this.p > 0.02 ? 'yes' : 'no';
       beads(this.webBeads, threads, reducedMotion());
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
+    }
+  }
+
+  // A planet two people keep together is drawn once, in the gap between their
+  // two galaxies (which sit side by side: what they keep joins them strongly).
+  // When one of them is this page's galaxy, it stays where it is on the page
+  // and only leaves the other galaxy.
+  keptBetween(spots, pairs) {
+    for (const el of this.keptEls || []) el.remove();
+    this.keptEls = [];
+    const index = new Map(this.list.map((g, i) => [g.username, i]));
+    const near = new Set(pairs.map((p) => `${Math.min(p.i, p.j)}-${Math.max(p.i, p.j)}`));
+    for (const link of this.links || []) {
+      const i = index.get(link.a);
+      const j = index.get(link.b);
+      if (i == null || j == null || !link.kept || !near.has(`${Math.min(i, j)}-${Math.max(i, j)}`)) continue;
+      for (const id of link.kept) {
+        const dots = [i, j].map((n) => this.uvEls[n].worlds.find((d) => d.world.id === id));
+        dots.forEach((d) => { if (d) d.hidden = true; });
+        if (i === this.homeAt || j === this.homeAt) continue;
+        const shown = dots.find(Boolean);
+        if (!shown) continue;
+        // the middle of the gap between the two, along the line joining them
+        const [a, b] = [spots[i], spots[j]];
+        const [pa, pb] = [this.uvEls[i].plan, this.uvEls[j].plan];
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+        const ux = dx / d, uy = dy / d;
+        const edge = (p) => 1 / Math.hypot(ux / p.ex, uy / p.ey);
+        const ra = edge(pa), rb = edge(pb);
+        const t = d > ra + rb ? ra + (d - ra - rb) / 2 : d / 2;
+        const el = h('span', { class: 'uv-kept', 'aria-hidden': 'true', style: { transform: `translate(${(a.x + ux * t).toFixed(1)}px, ${(a.y + uy * t).toFixed(1)}px)` } },
+          worldPicture(shown.world, shown.at.size, Math.min(1, (devicePixelRatio || 1) * 0.6)));
+        this.uvField.append(el);
+        this.keptEls.push(el);
+      }
     }
   }
 
@@ -2870,6 +2921,7 @@ class Galaxy {
         } else if (!moved) this.entrance();
         arriving = false;
         if (!this.mine) this.fetchMine();
+        this.beamsWaiting();
         // A constellation that holds enough offers to become a planet, once the page is up.
         if (this.sky) setTimeout(() => { if (this.live && this.p < 0.02) this.sky.maybeOffer(); }, DUR.move);
         if (!this.uvLoading) {
@@ -2894,6 +2946,7 @@ class Galaxy {
         theSky()?.setLens(null);
         this.void.destroy();
         this.found?.destroy();
+        this.beams?.then((pile) => pile.destroy());
         theSky()?.setNight(0);
         holdPlanets(false);
         bus.emit('universe', false);

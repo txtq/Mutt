@@ -81,7 +81,11 @@ def build(conn, user_id):
     root = f"{user['username']}'s galaxy"
     files_dir = db.user_files_dir(uid)
 
-    drawers = conn.execute('SELECT * FROM drawers WHERE user_id = ? ORDER BY created_at', (uid,)).fetchall()
+    # Your planets, and those you keep together with someone (each keeper's download holds their own files).
+    drawers = conn.execute(
+        'SELECT * FROM drawers WHERE user_id = ? OR id IN (SELECT drawer_id FROM drawer_keepers WHERE user_id = ?) '
+        'OR parent_id IN (SELECT drawer_id FROM drawer_keepers WHERE user_id = ?) ORDER BY created_at',
+        (uid, uid, uid)).fetchall()
     blocks = conn.execute('SELECT * FROM blocks WHERE user_id = ? ORDER BY created_at', (uid,)).fetchall()
     links = conn.execute(
         'SELECT c.block_id, c.drawer_id, c.position, c.checked, c.placed, d.title, d.user_id, d.parent_id, u.username '
@@ -279,9 +283,21 @@ def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder
         boards.setdefault(r['drawer_id'], {'things': [], 'lines': []})['things'].append(place)
     for r in conn.execute('SELECT l.* FROM board_lines l JOIN drawers d ON d.id = l.drawer_id WHERE d.user_id = ?', (uid,)):
         boards.setdefault(r['drawer_id'], {'things': [], 'lines': []})['lines'].append([r['a'], r['b']])
+    # Planets kept together: the other keeper, and the files of theirs on it (listed, not in the download).
+    kept = {}
+    for r in conn.execute('SELECT k.drawer_id, k.since, ou.username AS owner, ku.username AS keeper FROM drawer_keepers k '
+                          'JOIN drawers d ON d.id = k.drawer_id JOIN users ou ON ou.id = d.user_id '
+                          'JOIN users ku ON ku.id = k.user_id WHERE k.user_id = ? OR d.user_id = ?', (uid, uid)):
+        other = r['keeper'] if r['owner'] == user['username'] else r['owner']
+        theirs = [{'title': f['title'] or f['kind'], 'kind': f['kind']} for f in conn.execute(
+            'SELECT b.title, b.kind FROM connections c JOIN blocks b ON b.id = c.block_id JOIN drawers d ON d.id = c.drawer_id '
+            'JOIN users u ON u.id = b.user_id WHERE (d.id = ? OR d.parent_id = ?) AND u.username = ? AND b.deleted_at IS NULL',
+            (r['drawer_id'], r['drawer_id'], other))]
+        kept[r['drawer_id']] = {'with': other, 'since': iso(r['since']), 'theirFiles': theirs}
     planets = [{
         'id': d['id'],
         'name': d['title'],
+        'keptTogetherWith': kept.get(d['id']),
         'description': d['description'] or None,
         'folder': folder_of[d['id']].path[len(root) + 1:] if d['id'] in folder_of else None,
         'moonOf': names.get(d['parent_id']),
@@ -312,8 +328,26 @@ def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder
         'JOIN blocks b ON b.id = d.block_id JOIN users u ON u.id = b.user_id '
         'WHERE d.user_id = ? AND b.user_id != ? ORDER BY d.created_at', (uid, uid)).fetchall()
 
+    sent = conn.execute(
+        'SELECT bm.words, bm.sent_at, b.title, b.kind, u.username FROM beams bm JOIN blocks b ON b.id = bm.block_id '
+        'JOIN users u ON u.id = bm.to_id WHERE bm.from_id = ? ORDER BY bm.sent_at', (uid,)).fetchall()
+    got = conn.execute(
+        'SELECT bm.words, bm.sent_at, bm.answer, bm.answered_at, bm.copy_id, b.title, b.kind, u.username FROM beams bm '
+        'JOIN blocks b ON b.id = bm.block_id JOIN users u ON u.id = bm.from_id WHERE bm.to_id = ? ORDER BY bm.sent_at',
+        (uid,)).fetchall()
+    stops = conn.execute('SELECT u.username, s.at FROM beam_stops s JOIN users u ON u.id = s.other_id WHERE s.user_id = ?',
+                         (uid,)).fetchall()
+
     return {
         'about': 'Everything Mutt keeps about you, as of the time below.',
+        # Files you beamed to people (whether they kept them is theirs to know), and files beamed to you.
+        'beamedOut': [{'file': r['title'] or r['kind'], 'to': r['username'], 'words': r['words'] or None,
+                       'when': iso(r['sent_at'])} for r in sent],
+        'beamedIn': [{'file': r['title'] or r['kind'], 'from': r['username'], 'words': r['words'] or None,
+                      'when': iso(r['sent_at']),
+                      'answer': {'kept': 'kept', 'gone': 'let go'}.get(r['answer'], 'waiting'),
+                      'yourCopy': r['copy_id'], 'answered': iso(r['answered_at'])} for r in got],
+        'beamsStoppedFrom': [{'person': r['username'], 'since': iso(r['at'])} for r in stops],
         'downloaded': iso(time.time()),
         'account': {
             'username': user['username'],

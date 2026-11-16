@@ -1,0 +1,58 @@
+a new account has no beam row: False
+no one to ask yet: [] False
+shared by name, rae can be asked: ['rae']
+ask cy, who doesn't share it (expect 400): 400
+ask rae: {'username': 'rae', 'name': 'Rae Okafor'}
+asked again at once (expect 400): 400
+rae is asked: [('Japan trip', 'sam')]
+cy is not: []
+rule holds: someone answered an ask that wasn't theirs -> no
+rae says yes: True {'username': 'sam', 'name': None}
+sam hears: [('joined', 'Rae Okafor', 'Japan trip')]  once: []
+in rae's galaxy: [('Japan trip', True, 'sam', ['Kyoto'])]
+in rae's planet list (to add files to): ['Japan trip']
+keepers seen by a visitor: [('', True, True)]
+rae renames, sets kind, makes a moon: Japan bloom True
+rae can't delete it: You keep this planet with someone. Leave it instead.  nor can sam: 400
+rule holds: a keeper took the other keeper's file off their planet -> no
+rule holds: a keeper could change the other keeper's file -> no
+rae makes it private, sam hears: private [('sharing', 'Rae Okafor')]
+rule holds: a planet kept together and private showed to a visitor -> no
+rule holds: a private kept planet's name showed in a keeper's galaxy to a visitor -> no
+rae places it in her galaxy, sam's place stays: True [(120.0, -40.0)] [(None, None)]
+the two are joined in the universe (private: not for cy): [('sam', 'rae', 1)] cy: []
+public now, cy sees the pair and one kept world in each: [('sam', 'rae', 1)] [('cy', 0), ('dee', 0), ('rae', 1), ('sam', 1)]
+autosort never picks it (a note about the ryokan goes elsewhere): Travel
+download lists it for rae with sam's files: 200 [('Japan', 'sam', 1)] ['Japan/Kyoto/kiyomizu cups.txt', 'Japan/that udon place.txt']
+rae leaves: Japan private 2 None
+sam keeps it with copies of rae's: [('ryokan two nights', True, None), ('that udon place', True, 'rae')] None
+sam's moon too: [('kiyomizu cups', True)]
+rae's own planet and moons: [('Japan', 2, ['Kyoto', 'Nara'])]
+sam hears she left: [('sharing', 'Rae Okafor'), ('left', 'Rae Okafor')]
+rule holds: after leaving, the leaver could still open a planet made private again -> no
+dee's account gone, cy keeps the band: True None [('a riff', True), ('setlist', True)]
+once paths have crossed, it has: True
+people to beam to (crossed paths): [('rae', True)]  found by name: [('cy', False)]
+beamed twice (expect 400): 400  to yourself: 400
+rule holds: someone beamed a file that isn't theirs -> no
+rae sees it waiting: [('tea bowl, third firing', 'sam', 'the celadon one', False)]
+rule holds: a beamed file waiting could be read by someone else -> no
+rae can look at it: 200  not comment (expect 404): 404
+rae's galaxy counts it waiting: 1  a note under the clock: [('sam', 1, 'the celadon one')]
+rule holds: a waiting beam counted as one of the receiver's files -> no
+kept: tea bowl, third firing True sam the celadon one sam
+no longer waiting: []  answered twice: 404
+rule holds: a beamed file still readable by its receiver after it was answered (they have their copy) -> no
+let go, then undone: True True 1
+sam takes it back: True 0
+cy beams sam #1: 201
+cy beams sam #2: 201
+cy beams sam #3: 201
+cy beams sam #4: 429
+sam's are quiet: [('cy', True), ('cy', True), ('cy', True)]
+sam stops cy: True waiting: 0 stopped: ['cy']
+cy beams again (looks sent, never arrives): 201 0
+sam lets cy back: True
+sender deleted it: 0
+rule holds: where a photo was taken travelled with a beamed copy -> no
+sam's download lists what he beamed: 200 [('rae', 'the celadon one'), ('rae', None), ('cy', None)] False

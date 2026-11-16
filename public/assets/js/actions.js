@@ -1,6 +1,6 @@
 // Things you can do to a file from anywhere: put it on planets, take it off, delete it.
 
-import { api } from './api.js';
+import { api, session } from './api.js';
 import { canDownload, downloadMenu, formatsOf } from './downloads.js';
 import { canEditPicture, displayTitle } from './kinds.js';
 import { drawerHref, nav } from './nav.js';
@@ -397,6 +397,8 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     ...worlds.map((w) => ({ label: w.title, icon: w.dot, run: w.move })),
     worlds.length ? '-' : null,
     { icon: 'move', label: worlds.length ? 'Other planets…' : 'Add to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
+    // Beaming one to someone (beams.js, fetched when pressed): once you've crossed paths with anyone.
+    block.mine !== false && session.user?.canBeam && { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo(block)) },
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
     canEditPicture(block) && { icon: 'edit', label: 'Edit picture', run: () => editPicture(block) },
     canDownload(block) && { icon: 'download', label: formatsOf(block).length ? 'Download as…' : 'Download', run: () => downloadMenu(anchor, block) },

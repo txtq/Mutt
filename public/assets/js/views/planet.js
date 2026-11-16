@@ -11,7 +11,7 @@ import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, h, nameColor, nameMatch, personLabel, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
+import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, h, nameColor, nameMatch, personLabel, plural, reducedMotion, shortName, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
@@ -333,6 +333,12 @@ export const planetView = {
     const title = h('textarea', { class: 'field-bare liv-title', rows: 1, maxlength: '80', value: drawer.title, 'aria-label': 'Planet name', spellcheck: 'false' });
     const desc = h('textarea', { class: 'field-bare liv-desc', rows: 1, maxlength: '2000', value: drawer.description, placeholder: 'Add a note', 'aria-label': 'Note' });
     const meta = h('p', { class: 'liv-meta' });
+    // A planet kept together: its keepers see who they keep it with, a visitor sees both.
+    const keptLine = () => {
+      if (drawer.keptWith) return h('span', { class: 'liv-vis' }, icon('pair', 12), `with ${shortName(drawer.keptWith)}`);
+      if (drawer.keepers) return h('span', { class: 'liv-vis' }, icon('pair', 12), drawer.keepers.map(shortName).join(' and '));
+      return null;
+    };
     const setMeta = (count) => {
       const vis = drawer.community ? 'community' : drawer.visibility;
       const moons = drawer.moons?.length ? plural(drawer.moons.length, 'moon') : null;
@@ -340,6 +346,7 @@ export const planetView = {
       meta.replaceChildren(...[
         h('span', null, [plural(count, 'file'), moons, timeAgo(drawer.updatedAt)].filter(Boolean).join(' · ')),
         mine && vis ? h('span', { class: 'liv-vis' }, icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12), drawer.community ? 'Open to all' : VISIBILITY[drawer.visibility].label) : null,
+        keptLine(),
       ].filter(Boolean));
     };
     setMeta(drawer.count);
@@ -537,6 +544,25 @@ export const planetView = {
       }
     }
 
+    // Stop keeping a planet together: both end up with everything (the user's choice).
+    async function leave() {
+      const other = shortName(drawer.keptWith);
+      const ok = await confirmDialog({
+        title: `Leave “${drawer.title}”?`,
+        message: `You’ll get a planet of your own called “${drawer.title}”, with your files and copies of ${other}’s. ${other} keeps this one, with copies of yours.`,
+        confirm: 'Leave planet',
+      });
+      if (!ok) return;
+      try {
+        const res = await api.post(`/api/drawers/${id}/leave`);
+        toast(`You left “${drawer.title}”. This one is yours alone.`);
+        bus.emit('drawer:changed', null);
+        nav.go(`/p/${res.drawer.id}`, { replace: true });
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+
     // ------------------------------------------------------------ sharing
 
     let sharing = null;
@@ -561,7 +587,9 @@ export const planetView = {
         toast(`Give people the code to open “${drawer.title}”`);
       };
       codeBtn.addEventListener('click', chooseCode);
+      let paintKeep = () => {};
       const paint = () => {
+        paintKeep();
         hint.textContent = drawer.community ? 'Everyone can look inside and add to it.' : VISIBILITY[drawer.visibility].hint;
         // A moon is never more open than its planet.
         if (parent && drawer.visibility !== 'private' && parent.visibility !== 'public' && parent.visibility !== drawer.visibility) {
@@ -596,6 +624,7 @@ export const planetView = {
         try {
           ({ drawer } = await api.patch(`/api/drawers/${id}`, { people: names }));
           inst.drawer = drawer;
+          paintKeep();
           return true;
         } catch (err) {
           toast(err.message);
@@ -618,9 +647,51 @@ export const planetView = {
         }
       });
       paint();
+      // Keeping it together: offered for the people who already share it.
+      const keepBox = h('div', { class: 'liv-keep' });
+      paintKeep = () => {
+        const asked = drawer.keepAsk;
+        const rows = [];
+        if (drawer.keptWith) {
+          rows.push(h('p', { class: 'liv-label' }, 'Kept together'),
+            h('p', { class: 'liv-keep-text' }, `With ${personLabel(drawer.keptWith.username, drawer.keptWith.name)}. You both can add to it, arrange it and share it.`));
+        } else if (!isMoon && (asked || drawer.keepWith?.length)) {
+          rows.push(h('p', { class: 'liv-label' }, 'Keep it together'),
+            h('p', { class: 'liv-keep-text' }, 'It will sit in both your galaxies, and you’ll both look after it.'));
+          if (asked) {
+            const back = h('button', { type: 'button', class: 'btn btn-small btn-quiet' }, 'Take back');
+            back.addEventListener('click', async () => {
+              try { ({ drawer } = await api.del(`/api/drawers/${id}/keep`)); inst.drawer = drawer; paintKeep(); } catch (err) { toast(err.message); }
+            });
+            rows.push(h('div', { class: 'liv-keep-row' }, h('span', { class: 'liv-keep-who' }, `Asked ${shortName(asked.to)}`), back));
+          } else {
+            for (const p of drawer.keepWith) {
+              const ask = h('button', { type: 'button', class: 'btn btn-small' }, icon('pair'), 'Ask');
+              ask.addEventListener('click', async () => {
+                ask.classList.add('is-busy');
+                ask.textContent = 'Asking…';
+                try {
+                  ({ drawer } = await api.post(`/api/drawers/${id}/keep`, { with: p.username }));
+                  inst.drawer = drawer;
+                  toast(`Asked ${shortName(p)} to keep “${drawer.title}” together`);
+                  paintKeep();
+                } catch (err) {
+                  toast(err.message);
+                  paintKeep();
+                }
+              });
+              rows.push(h('div', { class: 'liv-keep-row' }, h('span', { class: 'liv-keep-who' }, personLabel(p.username, p.name)), ask));
+            }
+          }
+        }
+        keepBox.replaceChildren(...rows);
+        keepBox.hidden = !rows.length;
+        sharePop?.place();
+      };
+      paintKeep();
       sharing = h('div', { class: 'liv-share' },
         h('p', { class: 'liv-label' }, 'Who can see it'),
-        seg.el, hint, codeRow, people, openRow);
+        seg.el, hint, codeRow, people, openRow, keepBox);
     }
     const shareBtn = mine ? h('button', { type: 'button', class: 'btn liv-share-btn', 'aria-haspopup': 'dialog' }, icon('people'), h('span', null, 'Share')) : null;
     // A new planet's first visit: a quiet note by Share saying who can see it
@@ -688,7 +759,9 @@ export const planetView = {
       { icon: 'colour', label: 'Planet colour…', run: pickColor },
       (drawer.moons || []).length < 8 ? { icon: 'moon', label: 'Add a moon…', run: addMoon } : null,
       '-',
-      { icon: 'trash', label: 'Delete planet…', danger: true, run: remove },
+      drawer.keptWith
+        ? { icon: 'takeoff', label: 'Leave planet…', run: leave }
+        : { icon: 'trash', label: 'Delete planet…', danger: true, run: remove },
     ].filter(Boolean), { align: 'end' }));
 
     const community = !!drawer.community;

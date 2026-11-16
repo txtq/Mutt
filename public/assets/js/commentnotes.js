@@ -6,6 +6,9 @@
 // Pressing the clock (on any page) brings back the last three files people
 // commented on, seen or not, in the same column; pressing it again, Escape or
 // going elsewhere puts them away.
+// Files beamed to you by people you know get a note here too, one per sender
+// ("Sam beamed you a file"): pressing it opens what came (beams.js), the close
+// button only puts the note away (the file still waits by the void).
 
 import { api } from './api.js';
 import { nav } from './nav.js';
@@ -60,6 +63,27 @@ export function commentNote(f, { step = 0, onOpen = () => {}, onClose = () => {}
   return h('div', { class: 'cn-note', style: { '--i': step } }, open, close);
 }
 
+// A note for files beamed to you by one person.
+function beamNote(f, { step = 0, onOpen, onClose }) {
+  const thumb = imageSrc(f.block);
+  const who = f.from.name || `@${f.from.username}`;
+  const open = h('button', { type: 'button', class: 'cn-open', onclick: onOpen },
+    h('span', { class: 'cn-lead', style: { '--who': nameColor(f.from.username) } },
+      thumb ? h('img', { src: thumb, alt: '', loading: 'lazy', decoding: 'async' }) : icon('beam', 12)),
+    h('span', { class: 'cn-text' },
+      h('span', { class: 'cn-line' },
+        h('span', { class: 'cn-what' }, h('span', { class: 'cn-at' }, who),
+          f.count > 1 ? ` beamed you ${f.count} files` : [' beamed you ', h('span', { class: 'cn-file' }, nameOf(f.block))]),
+        h('time', { class: 'cn-when', datetime: new Date(f.sentAt).toISOString() }, timeAgo(f.sentAt))),
+      f.words ? h('span', { class: 'cn-said' }, f.words) : null));
+  const close = h('button', {
+    type: 'button', class: 'btn btn-quiet btn-round btn-small cn-x', 'aria-label': 'Dismiss', title: 'Dismiss', onclick: onClose,
+  }, icon('close', 12));
+  return h('div', { class: 'cn-note', style: { '--i': step } }, open, close);
+}
+
+const keyOf = (f) => (f.beam ? `beam:${f.from.username}` : f.block.id);
+
 export function commentNotes() {
   const host = h('div', { class: 'cn-notes', role: 'region', 'aria-label': 'New comments' });
   let wanted = false;
@@ -73,10 +97,12 @@ export function commentNotes() {
   const changed = new Set(); // told whenever past opens or closes
 
   function done(f) {
-    gone.add(f.block.id);
-    api.post('/api/comments/seen', { block: f.block.id }).catch(() => {});
-    const el = shown.get(f.block.id);
-    shown.delete(f.block.id);
+    const key = keyOf(f);
+    gone.add(key);
+    if (f.beam) f.ids.forEach((id) => api.post(`/api/beams/${id}`, { answer: 'noted' }).catch(() => {}));
+    else api.post('/api/comments/seen', { block: f.block.id }).catch(() => {});
+    const el = shown.get(key);
+    shown.delete(key);
     if (el) exit(el);
     if (past && !shown.size) setPast(false);
     else fill();
@@ -84,7 +110,14 @@ export function commentNotes() {
   }
 
   function note(f, step) {
-    const el = commentNote(f, {
+    const el = f.beam ? beamNote(f, {
+      step,
+      onOpen: () => {
+        done(f);
+        import('./beams.js').then((m) => m.openBeams(f.beam));
+      },
+      onClose: () => done(f),
+    }) : commentNote(f, {
       step,
       onOpen: () => {
         done(f);
@@ -95,7 +128,7 @@ export function commentNotes() {
       },
       onClose: () => done(f),
     });
-    shown.set(f.block.id, el);
+    shown.set(keyOf(f), el);
     host.append(el);
     room();
   }
@@ -121,11 +154,22 @@ export function commentNotes() {
     let step = 0;
     for (const f of files) {
       if (shown.size >= atOnce()) break;
-      if (shown.has(f.block.id) || gone.has(f.block.id)) continue;
+      if (shown.has(keyOf(f)) || gone.has(keyOf(f))) continue;
       note(f, step++);
     }
     if (shown.size && !host.isConnected) document.body.append(host);
   }
+
+  // A beamed file answered from its pile by the void: its note has nothing more to say.
+  bus.on('beam:answered', (id) => {
+    for (const f of files) {
+      if (!f.beam || !f.ids.includes(id)) continue;
+      f.ids = f.ids.filter((x) => x !== id);
+      f.count -= 1;
+      if (!f.ids.length && shown.has(keyOf(f))) done(f);
+      else if (!f.ids.length) gone.add(keyOf(f));
+    }
+  });
 
   const onKey = (e) => { if (e.key === 'Escape' && past) setPast(false); };
 
@@ -156,7 +200,8 @@ export function commentNotes() {
   async function ask() {
     if (Date.now() - fetchedAt < FRESH) { fill(); return; }
     asking ||= api.get('/api/comments/new').then((res) => {
-      files = res.files || [];
+      // what was beamed to you comes first, then the comments (each newest first)
+      files = [...(res.beams || []), ...(res.files || [])];
       fetchedAt = Date.now();
       gone.clear();
     }).catch(() => {}).finally(() => { asking = null; });

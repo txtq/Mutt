@@ -762,7 +762,11 @@ function metaRows(block) {
   if (story?.savedBy) {
     if (story.madeBy) rows.push(['Made by', personLink(story.madeBy)]);
     const via = story.savedFrom && story.savedFrom.username !== story.madeBy?.username;
-    rows.push(['Saved by', via ? h('span', null, personLink(story.savedBy), ' from ', personLink(story.savedFrom)) : personLink(story.savedBy)]);
+    const beamed = block.mine !== false && block.meta?.beamedBy;
+    // to its owner, a copy someone beamed them says so, with their words (others see who saved it, as for any copy)
+    if (beamed) rows.push(['Beamed by', personLink(beamed)]);
+    if (beamed?.words) rows.push(['Their words', `“${beamed.words}”`]);
+    if (!beamed) rows.push(['Saved by', via ? h('span', null, personLink(story.savedBy), ' from ', personLink(story.savedFrom)) : personLink(story.savedBy)]);
   } else if (block.meta?.savedFrom) {
     rows.push(['From', personLink(block.meta.savedFrom)]);
   }

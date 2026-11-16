@@ -378,6 +378,8 @@ def seed(work):
     other.open(urllib.request.Request(SITE + f'/api/blocks/{pier}/save', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
                                       data=json.dumps({'drawer': seaside}).encode()), timeout=20)
 
+    ids['neighbour'] = other   # (the beam_file path beams you a file as them)
+
     # someone who will forget their code; their recovery key is kept for the path that uses it
     ids['key'] = json.load(urllib.request.build_opener().open(urllib.request.Request(
         SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
@@ -1102,9 +1104,33 @@ def board_mode(s, seeded):
         raise Fail(f'under Still, {faint} thing(s) on the board were left faint')
 
 
+def beam_file(s, seeded):
+    """A file the neighbour beams you rests by the void; its box shows their words; Keep makes it your star."""
+    def as_them(method, path, body=None):
+        return json.load(seeded['neighbour'].open(urllib.request.Request(
+            SITE + path, method=method, headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+            data=json.dumps(body).encode() if body is not None else None), timeout=20))
+    note = as_them('POST', '/api/blocks', {'content': 'tide times for Saturday'})['block']['id']
+    as_them('POST', f'/api/blocks/{note}/beam', {'to': NAME, 'words': 'for the walk'})
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
+    s.see('.bm-star:not(.is-quiet)', 'a file beamed by someone you know did not rest by the void')
+    s.settle(1)
+    s.shot('beam-pile')
+    s.click('.bm-star')
+    said = s.see('.bm-dialog .bm-said', 'the box did not show their words')
+    if 'for the walk' not in s.js('return arguments[0].textContent', said):
+        raise Fail('the box shows the wrong words')
+    s.shot('beam-box')
+    s.click('.bm-actions .btn-main')
+    s.gone('.bm-star', 'the beamed file stayed by the void after Keep')
+    s.wait('return [...document.querySelectorAll(".star")].some((e) => /tide times/.test(e.textContent))',
+           'the kept file did not become one of your stars')
+
+
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
-         split_moons, board_mode, forgot_code, key_nudge]
+         split_moons, board_mode, beam_file, forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

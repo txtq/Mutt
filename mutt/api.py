@@ -142,7 +142,8 @@ def me_json(req, row, short=None):
     if short is None:
         short = bool(row['short_code']) if 'short_code' in row.keys() else False
     return {**user_json(row), 'hasKey': bool(row['recovery_hash']), 'admin': is_admin_name(row['username']),
-            'oldCode': short}
+            'oldCode': short, 'canBeam': crossed_anyone(req.db, row['id']),
+            'beamStops': req.db.execute('SELECT COUNT(*) FROM beam_stops WHERE user_id = ?', (row['id'],)).fetchone()[0]}
 
 
 def user_prefs(row):
@@ -195,6 +196,8 @@ def public_meta(raw, mine):
     original = meta.pop('original', None)
     if not mine:
         meta.pop('edit', None)
+        if isinstance(meta.get('beamedBy'), dict):   # who beamed it shows, as `savedFrom` does; their words are for the two of them
+            meta['beamedBy'] = {k: v for k, v in meta['beamedBy'].items() if k != 'words'}
     elif isinstance(original, dict):
         meta['original'] = {k: original.get(k) for k in ('file_name', 'ext', 'size', 'width', 'height')}
     return meta
@@ -348,10 +351,24 @@ def clean_look(value):
 
 # ---------------------------------------------------------------- lookups
 
-def own_drawer(req, drawer_id):
-    row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND user_id = ?',
-                         (drawer_id, req.user['id'])).fetchone()
-    if not row:
+def keeper_of(conn, drawer):
+    """The other keeper of a planet kept together (a moon asks its planet), or None."""
+    planet_id = (drawer['parent_id'] if 'parent_id' in drawer.keys() else None) or drawer['id']
+    row = conn.execute('SELECT user_id FROM drawer_keepers WHERE drawer_id = ?', (planet_id,)).fetchone()
+    return row['user_id'] if row else None
+
+
+def keeps(conn, drawer, user_id):
+    """Does this person keep this planet (or this moon's planet): its owner, or its other keeper?"""
+    return drawer['user_id'] == user_id or keeper_of(conn, drawer) == user_id
+
+
+def own_drawer(req, drawer_id, owner_only=False):
+    """A planet you keep: your own, or one kept together with you (both keepers
+    can do everything to it but delete it). `owner_only` for what only its
+    owner may do."""
+    row = req.db.execute('SELECT * FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    if not row or not (row['user_id'] == req.user['id'] if owner_only else keeps(req.db, row, req.user['id'])):
         raise HttpError(404, 'That planet does not exist.')
     return row
 
@@ -368,7 +385,7 @@ def own_block(req, block_id, deleted=False):
 
 def is_unlocked(req, row):
     """Has this session opened a Code planet with the planet's own code?"""
-    if row['user_id'] == req.user['id']:
+    if keeps(req.db, row, req.user['id']):
         return True
     if not row['share_hash']:
         return False
@@ -379,8 +396,9 @@ def is_unlocked(req, row):
 
 def drawer_visible(req, row):
     """Can the signed-in person look inside this drawer (planet)? A moon is
-    never more open than its planet: both have to let you in."""
-    if row['user_id'] == req.user['id']:
+    never more open than its planet: both have to let you in. Both keepers
+    of a planet kept together always can."""
+    if keeps(req.db, row, req.user['id']):
         return True
     parent_id = row['parent_id'] if 'parent_id' in row.keys() else None
     parent = None
@@ -403,9 +421,8 @@ def drawer_visible(req, row):
 
 
 def writable_drawer(req, drawer_id):
-    row = req.db.execute("SELECT * FROM drawers WHERE id = ? AND (user_id = ? OR (community = 1 AND visibility = 'public'))",
-                         (drawer_id, req.user['id'])).fetchone()
-    if not row:
+    row = req.db.execute('SELECT * FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    if not row or not (keeps(req.db, row, req.user['id']) or (row['community'] and row['visibility'] == 'public')):
         raise HttpError(404, 'That planet does not exist.')
     return row
 
@@ -416,8 +433,10 @@ def in_community_drawer(req, block_id):
         "WHERE c.block_id = ? AND d.community = 1 AND d.visibility = 'public' LIMIT 1", (block_id,)).fetchone())
 
 
-def readable_block(req, block_id, deleted=False):
-    """Your own file, a shared one, or one on a planet you're allowed to see.
+def readable_block(req, block_id, deleted=False, beamed=True):
+    """Your own file, a shared one, or one on a planet you're allowed to see,
+    or one beamed to you that waits for your answer (not with `beamed=False`:
+    such a file can be looked at, not commented on or saved).
     A deleted file is gone for everyone, except its owner when `deleted` asks
     (its picture in Recently deleted)."""
     row = req.db.execute(
@@ -434,6 +453,9 @@ def readable_block(req, block_id, deleted=False):
     drawers = req.db.execute('SELECT d.* FROM connections c JOIN drawers d ON d.id = c.drawer_id '
                              'WHERE c.block_id = ?', (block_id,)).fetchall()
     if any(drawer_visible(req, d) for d in drawers):
+        return row, False
+    if beamed and req.db.execute('SELECT 1 FROM beams WHERE block_id = ? AND to_id = ? AND answer IS NULL',
+                                 (block_id, req.user['id'])).fetchone():
         return row, False
     raise HttpError(404, 'That file does not exist.')
 
@@ -722,7 +744,15 @@ def delete_account(req):
         raise HttpError(429, 'Too many tries. Wait a few minutes.')
     require_pin(req, str(body.get('pin') or ''))
     user_id = req.user['id']
-    req.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    with db.transaction(req.db):
+        # Planets kept with someone stay with them, with a copy of every file this account had on them.
+        for planet in req.db.execute(
+                'SELECT d.* FROM drawers d WHERE d.parent_id IS NULL AND (d.id IN (SELECT drawer_id FROM drawer_keepers '
+                'WHERE user_id = ?) OR (d.user_id = ? AND d.id IN (SELECT drawer_id FROM drawer_keepers)))',
+                (user_id, user_id)).fetchall():
+            tell_other_keeper(req, planet, 'gone')
+            part_ways(req.db, planet, user_id, leaving=False)
+        req.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
     shutil.rmtree(os.path.join(db.FILES_DIR, str(int(user_id))), ignore_errors=True)
     return json_response({'ok': True}, headers=[auth.clear_cookie_header(req)])
 
@@ -1025,7 +1055,8 @@ def also_on(req, blocks, here_id):
 def drawers_of(req, user_id, with_previews, owner=None):
     rows = req.db.execute(
         'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-        'FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL ORDER BY d.updated_at DESC', (user_id,)).fetchall()
+        'FROM drawers d WHERE (d.user_id = ? OR d.id IN (SELECT drawer_id FROM drawer_keepers WHERE user_id = ?)) '
+        'AND d.parent_id IS NULL ORDER BY d.updated_at DESC', (user_id, user_id)).fetchall()
     return [drawer_json(r, r['n'], drawer_previews(req, r['id'], owner=owner) if with_previews else None)
             for r in rows]
 
@@ -1082,7 +1113,15 @@ def planet_json(req, row, count, previews=None, locked=False):
     if previews is not None:
         # The peek on hover shows what was put here last.
         data['recent'] = drawer_previews(req, row['id'], limit=4, newest=True) if previews else []
-    data['mine'] = row['user_id'] == req.user['id']
+    keeper = keeper_of(req.db, row)
+    data['mine'] = row['user_id'] == req.user['id'] or keeper == req.user['id']
+    if keeper:
+        # Kept together: both keepers, and for each of them the other one.
+        pair = {r['id']: r for r in req.db.execute('SELECT id, username, display_name FROM users WHERE id IN (?, ?)',
+                                                     (row['user_id'], keeper))}
+        data['keepers'] = [person(pair.get(row['user_id'])), person(pair.get(keeper))]
+        if data['mine']:
+            data['keptWith'] = person(pair.get(keeper if row['user_id'] == req.user['id'] else row['user_id']))
     if data['mine'] and row['visibility'] == 'people':
         data['people'] = planet_people(req, row['id'])
     if locked:
@@ -1097,28 +1136,40 @@ def private_planet(row):
             'mine': False, 'visibility': 'private', 'hasCode': False}
 
 
+def galaxy_rows(conn, user_id):
+    """The planets in someone's galaxy: their own, and those they keep together
+    with someone else's (`kept_here`, placed at `kx`/`ky`)."""
+    return conn.execute(
+        'SELECT * FROM (SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n, '
+        '0 AS kept_here, NULL AS kx, NULL AS ky FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL '
+        'UNION ALL SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n, '
+        '1 AS kept_here, k.x AS kx, k.y AS ky FROM drawers d JOIN drawer_keepers k ON k.drawer_id = d.id '
+        'WHERE k.user_id = ?) ORDER BY created_at', (user_id, user_id)).fetchall()
+
+
 def galaxy_of(req, owner):
     """Someone's planets as you're allowed to see them, plus your own loose stars."""
     mine = owner['id'] == req.user['id']
-    rows = req.db.execute(
-        'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-        'FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL ORDER BY d.created_at', (owner['id'],)).fetchall()
+    rows = galaxy_rows(req.db, owner['id'])
     planets = []
     for r in rows:
         if mine or drawer_visible(req, r):
-            planets.append(planet_json(req, r, r['n'], drawer_previews(req, r['id'], limit=12)))
+            p = planet_json(req, r, r['n'], drawer_previews(req, r['id'], limit=12))
         elif r['visibility'] == 'pin':
-            planets.append(planet_json(req, r, r['n'], locked=True))
+            p = planet_json(req, r, r['n'], locked=True)
         else:
             # Private planets, and people-only ones you're not on, show
             # blurred: where they are and what kind, never their name or files.
-            planets.append(private_planet(r))
+            p = private_planet(r)
+        if r['kept_here']:
+            p['x'], p['y'] = r['kx'], r['ky']   # where its other keeper put it in their own galaxy
+        planets.append(p)
     open_ids = {p['id'] for p in planets if not p.get('locked')}
     open_ids |= {m['id'] for p in planets for m in p.get('moons') or [] if not m.get('locked')}
     data = {
         'user': {**user_json(owner), 'you': mine},
         'planets': planets,
-        'threads': planet_threads(req, owner['id'], open_ids),
+        'threads': planet_threads(req, [p['id'] for p in planets], open_ids),
     }
     if mine:
         stars = req.db.execute(
@@ -1128,19 +1179,28 @@ def galaxy_of(req, owner):
         data['stars'] = [block_json(r) for r in stars]
         data['constellations'] = constellations_of(req.db, owner['id'])
         data['stats'] = user_stats(req.db, owner['id'])
+        # files beamed to you that wait for an answer (the galaxy fetches them only if there are some)
+        data['beams'] = req.db.execute(
+            'SELECT COUNT(*) FROM beams bm JOIN blocks b ON b.id = bm.block_id '
+            'WHERE bm.to_id = ? AND bm.answer IS NULL AND b.deleted_at IS NULL', (owner['id'],)).fetchone()[0]
     return data
 
 
-def planet_threads(req, owner_id, open_ids):
-    """The threads between someone's planets: each pair of planets that share
-    files, and how many. A moon counts as its planet. Only planets (and moons)
-    this person can open are counted, so a thread never gives away a private one."""
+def planet_threads(req, planet_ids, open_ids):
+    """The threads between the planets of one galaxy (`planet_ids`, kept
+    planets included): each pair of planets that share files, and how many.
+    A moon counts as its planet. Only planets (and moons) this person can
+    open are counted, so a thread never gives away a private one."""
+    if not planet_ids:
+        return []
+    marks = ','.join('?' * len(planet_ids))
     rows = req.db.execute(
         'SELECT c1.block_id, c1.drawer_id AS da, c2.drawer_id AS db, '
         'COALESCE(d1.parent_id, d1.id) AS a, COALESCE(d2.parent_id, d2.id) AS b '
         'FROM connections c1 JOIN connections c2 ON c2.block_id = c1.block_id AND c2.drawer_id > c1.drawer_id '
         'JOIN drawers d1 ON d1.id = c1.drawer_id JOIN drawers d2 ON d2.id = c2.drawer_id '
-        'WHERE d1.user_id = ? AND d2.user_id = ?', (owner_id, owner_id)).fetchall()
+        f'WHERE COALESCE(d1.parent_id, d1.id) IN ({marks}) AND COALESCE(d2.parent_id, d2.id) IN ({marks})',
+        (*planet_ids, *planet_ids)).fetchall()
     pairs = {}
     for r in rows:
         if r['a'] == r['b'] or r['da'] not in open_ids or r['db'] not in open_ids:
@@ -1150,11 +1210,15 @@ def planet_threads(req, owner_id, open_ids):
 
 
 def saved_copies(req):
+    return saved_copies_of(req.db)
+
+
+def saved_copies_of(conn):
     """Every saved copy there is: {copy id: (the id it was saved from, the id
     of the first one, who saved it, whom they saved it from)}. The first one
     is `madeBy` when the copy carries it (saved since 2026-11-15); older copies
     are followed back along `savedFrom`."""
-    rows = req.db.execute(
+    rows = conn.execute(
         "SELECT id, user_id, deleted_at, json_extract(meta, '$.savedFrom.id') AS src, "
         "json_extract(meta, '$.savedFrom.username') AS src_name, json_extract(meta, '$.madeBy.id') AS root "
         "FROM blocks WHERE json_extract(meta, '$.savedFrom.id') IS NOT NULL").fetchall()
@@ -1201,6 +1265,14 @@ def galaxy_links(req, open_ids):
         for i, a in enumerate(people):
             for b in people[i + 1:]:
                 files.setdefault((a, b), set()).add(people_root)
+    # Two people keeping a planet together are always joined, while this person can open it.
+    kept = {}
+    for r in req.db.execute('SELECT k.drawer_id, k.user_id, d.user_id AS owner FROM drawer_keepers k '
+                            'JOIN drawers d ON d.id = k.drawer_id').fetchall():
+        if r['drawer_id'] in open_ids:
+            pair = tuple(sorted((r['owner'], r['user_id'])))
+            files.setdefault(pair, set()).add('kept:' + r['drawer_id'])
+            kept.setdefault(pair, []).append(r['drawer_id'])
     for copy_id, c in copies.items():
         source = ids.get(c['from'])
         if c['deleted'] or not source or source == c['by']:
@@ -1210,8 +1282,14 @@ def galaxy_links(req, open_ids):
     if not files:
         return []
     names = {v: k for k, v in ids.items()}
-    return sorted(({'a': names[a], 'b': names[b], 'n': len(n)} for (a, b), n in files.items() if a in names and b in names),
-                  key=lambda l: (l['a'], l['b']))
+    links = []
+    for (a, b), n in files.items():
+        if a in names and b in names:
+            link = {'a': names[a], 'b': names[b], 'n': len(n)}
+            if (a, b) in kept:
+                link['kept'] = sorted(kept[(a, b)])   # the planets they keep together
+            links.append(link)
+    return sorted(links, key=lambda l: (l['a'], l['b']))
 
 
 def person(row_or_none, username=None):
@@ -1292,11 +1370,16 @@ def unlock_galaxy(req, username):
         body = req.json()
         code = str(body.get('pin') or body.get('code') or '')
         wanted = str(body.get('drawer') or '')
+        galaxy_owner = owner
         if wanted:
-            row = req.db.execute("SELECT share_hash FROM drawers WHERE id = ? AND user_id = ? AND visibility = 'pin'",
-                                 (wanted, owner['id'])).fetchone()
+            row = req.db.execute("SELECT share_hash, user_id FROM drawers WHERE id = ? AND visibility = 'pin' AND (user_id = ? "
+                                 'OR id IN (SELECT drawer_id FROM drawer_keepers WHERE user_id = ?))',
+                                 (wanted, owner['id'], owner['id'])).fetchone()
             if not row:
                 raise HttpError(404, 'That planet does not exist.')
+            if row['user_id'] != owner['id']:
+                # A planet kept together, seen in its other keeper's galaxy: its code is its owner's.
+                owner = req.db.execute('SELECT * FROM users WHERE id = ?', (row['user_id'],)).fetchone()
             if not row['share_hash']:
                 raise HttpError(403, f"@{owner['username']} hasn’t given this planet a code yet.", noCode=True)
         wait = auth.login_failures_by_ip.retry_after(req.client_ip)
@@ -1313,6 +1396,7 @@ def unlock_galaxy(req, username):
         for drawer_id in opened:
             req.db.execute('INSERT OR REPLACE INTO drawer_unlocks (session_hash, drawer_id, expires_at) '
                            'VALUES (?, ?, ?)', (session, drawer_id, now() + UNLOCK_TTL))
+        owner = galaxy_owner
     return json_response({**galaxy_of(req, owner), 'opened': opened})
 
 
@@ -1320,7 +1404,7 @@ def unlock_galaxy(req, username):
 def set_planet_code(req, drawer_id):
     """The owner picks the code people need to look inside a Code planet.
     Changing it closes the planet again to everyone who had the old one."""
-    own_drawer(req, drawer_id)
+    planet = own_drawer(req, drawer_id)
     code = str(req.json().get('code') or '')
     if not auth.CODE_RE.match(code):
         raise HttpError(400, 'The code needs to be 4 digits.')
@@ -1329,7 +1413,7 @@ def set_planet_code(req, drawer_id):
                              "doesn’t share your account.")
     with db.transaction(req.db):
         req.db.execute('UPDATE drawers SET share_hash = ?, updated_at = ? WHERE id = ?',
-                       (auth.share_hash(req.user['id'], code), now(), drawer_id))
+                       (auth.share_hash(planet['user_id'], code), now(), drawer_id))
         req.db.execute('DELETE FROM drawer_unlocks WHERE drawer_id = ?', (drawer_id,))
     row = own_drawer(req, drawer_id)
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
@@ -1343,6 +1427,7 @@ def save_layout(req):
     body = req.json()
     if body.get('reset'):
         req.db.execute('UPDATE drawers SET x = NULL, y = NULL WHERE user_id = ? AND parent_id IS NULL', (req.user['id'],))
+        req.db.execute('UPDATE drawer_keepers SET x = NULL, y = NULL WHERE user_id = ?', (req.user['id'],))
         return json_response({'ok': True})
     spots = body.get('planets')
     if not isinstance(spots, list) or not spots or len(spots) > 2000:
@@ -1360,7 +1445,8 @@ def save_layout(req):
         rows.append((*xy, str(spot.get('id') or ''), req.user['id']))
     with db.transaction(req.db):
         for row in rows:
-            if not req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ? AND parent_id IS NULL', row).rowcount:
+            if not (req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ? AND parent_id IS NULL', row).rowcount
+                    or req.db.execute('UPDATE drawer_keepers SET x = ?, y = ? WHERE drawer_id = ? AND user_id = ?', row).rowcount):
                 raise HttpError(404, 'One of those planets is not yours.')
     return json_response({'ok': True})
 
@@ -1595,9 +1681,7 @@ def list_galaxies(req):
     open_ids = set()
     for user in users:
         mine = user['id'] == req.user['id']
-        rows = req.db.execute(
-            'SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-            'FROM drawers d WHERE d.user_id = ? AND d.parent_id IS NULL ORDER BY d.created_at', (user['id'],)).fetchall()
+        rows = galaxy_rows(req.db, user['id'])
         worlds = []
         for r in rows:
             open_ = mine or drawer_visible(req, r)
@@ -1608,8 +1692,11 @@ def list_galaxies(req):
                 open_ids.update(m['id'] for m in moons if not m['locked'])
             worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': 0 if hidden else r['n'],
                            'locked': not open_, 'private': hidden,
-                           'look': r['look'], 'twelve': twelve(r), 'x': r['x'], 'y': r['y'],
+                           'look': r['look'], 'twelve': twelve(r),
+                           'x': r['kx'] if r['kept_here'] else r['x'], 'y': r['ky'] if r['kept_here'] else r['y'],
                            'moons': [{'id': m['id'], 'look': m['look']} for m in moons]})
+            if open_ and keeper_of(req.db, r):
+                worlds[-1]['kept'] = True   # kept together: the universe draws it once, between the two galaxies
         opened = [w for w in worlds if not w['locked']]
         private = sum(1 for w in worlds if w['private'])
         out.append({
@@ -1622,6 +1709,428 @@ def list_galaxies(req):
         })
     out.sort(key=lambda g: (not g['you'], g['username']))
     return json_response({'galaxies': out, 'links': galaxy_links(req, open_ids)})
+
+
+# ---------------------------------------------------------------- keeping a planet together
+
+# A binary planet: a planet two people keep together. It sits in both their
+# galaxies and both can do all its owner can, except delete it while the
+# other keeps it. Decided with the user on 2026-11-16: you can ask someone
+# who already shares it (has added files to it, or it's shared with them by
+# name); leaving (or deleting an account) leaves both with everything: the
+# leaver takes a planet of the same name with their files and copies of the
+# other's, and the one who stays keeps the planet with copies of the leaver's.
+KEEP_ASK_AGAIN = 7 * 86400   # an ask that was put away can be made again after a week
+NEAR_KEEP = 5.0              # keeping a planet together pulls two galaxies close
+
+
+def users_by_id(conn, *ids):
+    ids = [i for i in ids if i]
+    if not ids:
+        return {}
+    return {r['id']: r for r in conn.execute(
+        f'SELECT id, username, display_name FROM users WHERE id IN ({",".join("?" * len(ids))})', ids)}
+
+
+def stopped(conn, user_id, other_id):
+    """Has `user_id` stopped beams (and asks to keep planets together) from `other_id`?"""
+    return bool(conn.execute('SELECT 1 FROM beam_stops WHERE user_id = ? AND other_id = ?',
+                             (user_id, other_id)).fetchone())
+
+
+def keep_candidates(req, row):
+    """The people a planet's owner may ask to keep it together: those who
+    already share it. Someone who has added files to it (or its moons), and,
+    when it's shared by name, the people it's shared with."""
+    ids = [r[0] for r in req.db.execute(
+        'SELECT DISTINCT b.user_id FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'JOIN drawers d ON d.id = c.drawer_id WHERE (d.id = ? OR d.parent_id = ?) AND b.user_id != ? '
+        'AND b.deleted_at IS NULL', (row['id'], row['id'], row['user_id']))]
+    if row['visibility'] == 'people':
+        ids += [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (row['id'],))]
+    people = users_by_id(req.db, *dict.fromkeys(ids))
+    return sorted((person(p) for p in people.values()), key=lambda p: (p['name'] or p['username']).lower())[:6]
+
+
+def keep_state(req, row):
+    """What Share shows the owner of a planet not (yet) kept together:
+    `keepWith`, who they could ask; `keepAsk`, the ask waiting, if any."""
+    if row['parent_id'] or row['user_id'] != req.user['id'] or keeper_of(req.db, row):
+        return {}
+    ask = req.db.execute('SELECT * FROM keep_asks WHERE drawer_id = ?', (row['id'],)).fetchone()
+    out = {'keepWith': keep_candidates(req, row)}
+    if ask and now() - ask['asked_at'] < KEEP_ASK_AGAIN or ask and not ask['waved']:
+        to = users_by_id(req.db, ask['to_id']).get(ask['to_id'])
+        out['keepAsk'] = {'to': person(to), 'at': ms(ask['asked_at'])}
+    return out
+
+
+def tell_other_keeper(req, row, what):
+    """Leave the other keeper a note they'll see once on their galaxy."""
+    planet = row
+    if row['parent_id']:
+        planet = req.db.execute('SELECT * FROM drawers WHERE id = ?', (row['parent_id'],)).fetchone()
+    keeper = keeper_of(req.db, planet)
+    if not keeper:
+        return
+    other = keeper if req.user['id'] == planet['user_id'] else planet['user_id']
+    if other == req.user['id']:
+        return
+    req.db.execute('INSERT INTO keep_news (id, user_id, drawer_id, what, by_name, title, at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                   (new_id(), other, planet['id'], what, req.user['display_name'] or '@' + req.user['username'],
+                    row['title'], now()))
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/keep')
+def ask_to_keep(req, drawer_id):
+    """Ask someone who already shares this planet to keep it together."""
+    row = own_drawer(req, drawer_id, owner_only=True)
+    if row['parent_id']:
+        raise HttpError(400, 'A moon is kept with its planet.')
+    if keeper_of(req.db, row):
+        raise HttpError(400, 'You already keep this planet with someone.')
+    username = auth.normalize_username(str(req.json().get('with') or ''))
+    other = req.db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+    if not other or other['username'] not in {p['username'] for p in keep_candidates(req, row)}:
+        raise HttpError(400, 'You can ask someone who already shares this planet.')
+    ask = req.db.execute('SELECT * FROM keep_asks WHERE drawer_id = ?', (drawer_id,)).fetchone()
+    if ask and ask['to_id'] == other['id'] and now() - ask['asked_at'] < KEEP_ASK_AGAIN:
+        raise HttpError(400, 'You asked a little while ago. Give it a few days.')
+    # Someone who stopped hearing from you is asked as anyone is, but never sees it.
+    req.db.execute('INSERT OR REPLACE INTO keep_asks (drawer_id, from_id, to_id, asked_at, waved) VALUES (?, ?, ?, ?, ?)',
+                   (drawer_id, req.user['id'], other['id'], now(), 1 if stopped(req.db, other['id'], req.user['id']) else 0))
+    return json_response({'drawer': planet_json(req, row, None) | keep_state(req, row)})
+
+
+@route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)/keep')
+def take_back_ask(req, drawer_id):
+    row = own_drawer(req, drawer_id, owner_only=True)
+    req.db.execute('DELETE FROM keep_asks WHERE drawer_id = ? AND from_id = ?', (drawer_id, req.user['id']))
+    return json_response({'drawer': planet_json(req, row, None) | keep_state(req, row)})
+
+
+@route('GET', r'/api/keep')
+def keep_waiting(req):
+    """For your own galaxy: asks to keep a planet together that wait for you,
+    and news of planets you keep with someone (each said once, then gone)."""
+    asks = []
+    for a in req.db.execute(
+            'SELECT a.*, d.title, d.look, d.icon, u.username, u.display_name FROM keep_asks a '
+            'JOIN drawers d ON d.id = a.drawer_id JOIN users u ON u.id = a.from_id '
+            'WHERE a.to_id = ? AND a.waved = 0 ORDER BY a.asked_at', (req.user['id'],)).fetchall():
+        planet = req.db.execute('SELECT * FROM drawers WHERE id = ?', (a['drawer_id'],)).fetchone()
+        if planet['user_id'] != a['from_id'] or keeper_of(req.db, planet):
+            continue
+        asks.append({'drawer': {'id': a['drawer_id'], 'title': a['title'], 'look': a['look'],
+                                'icon': json.loads(a['icon'])}, 'from': person(a), 'at': ms(a['asked_at'])})
+    news = [{'what': r['what'], 'by': r['by_name'], 'title': r['title'], 'drawer': r['drawer_id'], 'at': ms(r['at'])}
+            for r in req.db.execute('SELECT * FROM keep_news WHERE user_id = ? ORDER BY at', (req.user['id'],))]
+    req.db.execute('DELETE FROM keep_news WHERE user_id = ?', (req.user['id'],))
+    return json_response({'asks': asks, 'news': news})
+
+
+@route('POST', r'/api/keep/(?P<drawer_id>[\w-]+)')
+def answer_ask(req, drawer_id):
+    """Say yes to keeping a planet together, or put the ask away (`wave`)."""
+    answer = req.json().get('answer')
+    ask = req.db.execute('SELECT * FROM keep_asks WHERE drawer_id = ? AND to_id = ? AND waved = 0',
+                         (drawer_id, req.user['id'])).fetchone()
+    if not ask:
+        raise HttpError(404, 'That ask is no longer waiting.')
+    if answer == 'wave':
+        req.db.execute('UPDATE keep_asks SET waved = 1 WHERE drawer_id = ?', (drawer_id,))
+        return json_response({'ok': True})
+    if answer != 'yes':
+        raise HttpError(400, 'Say yes or not now.')
+    planet = req.db.execute('SELECT * FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    if not planet or planet['user_id'] != ask['from_id'] or keeper_of(req.db, planet):
+        req.db.execute('DELETE FROM keep_asks WHERE drawer_id = ?', (drawer_id,))
+        raise HttpError(404, 'That planet can’t be kept together any more.')
+    with db.transaction(req.db):
+        req.db.execute('DELETE FROM keep_asks WHERE drawer_id = ?', (drawer_id,))
+        req.db.execute('INSERT INTO drawer_keepers (drawer_id, user_id, since) VALUES (?, ?, ?)',
+                       (drawer_id, req.user['id'], now()))
+        # They were sharing it already; whatever named them on it is no longer needed.
+        req.db.execute('DELETE FROM drawer_access WHERE user_id = ? AND drawer_id IN '
+                       '(SELECT id FROM drawers WHERE id = ? OR parent_id = ?)', (req.user['id'], drawer_id, drawer_id))
+    tell_other_keeper(req, planet, 'joined')
+    draw_near(req, planet['user_id'], NEAR_KEEP)
+    req.db.execute('INSERT INTO nearness (user_id, other_id, score, at) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, other_id) '
+                   'DO UPDATE SET score = score + excluded.score', (planet['user_id'], req.user['id'], NEAR_KEEP, now()))
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, planet, count, drawer_previews(req, drawer_id, limit=12))})
+
+
+def part_ways(conn, planet, leaver_id, leaving=True):
+    """One keeper goes: by leaving (`leaving`), or because their account is
+    being deleted. The one who stays keeps the planet and its moons, with a
+    copy of every file the leaver had on them, in the same places. Someone
+    leaving also takes a planet of the same name (and moons) of their own:
+    their files move there, beside copies of the other keeper's. Files other
+    people added stay where they are. Returns the leaver's new planet's id."""
+    keeper = keeper_of(conn, planet)
+    stayer = keeper if leaver_id == planet['user_id'] else planet['user_id']
+    names = {r['id']: r['username'] for r in conn.execute('SELECT id, username FROM users WHERE id IN (?, ?)',
+                                                          (leaver_id, stayer))}
+    stamp = now()
+    worlds = [planet] + conn.execute('SELECT * FROM drawers WHERE parent_id = ? ORDER BY created_at',
+                                     (planet['id'],)).fetchall()
+    new_planet = None
+    for world in worlds:
+        theirs = None
+        if leaving:
+            # The leaver's own world: same name, kind and colour, private until they say otherwise
+            # (it holds copies of the other keeper's files, which were shared only on this planet).
+            theirs = new_id()
+            conn.execute(
+                'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, '
+                "visibility, parent_id, modes, own_sharing, look) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'private', ?, ?, ?, ?)",
+                (theirs, leaver_id, world['title'], world['description'], world['icon'], stamp, stamp,
+                 new_planet if world['parent_id'] else None,
+                 json.dumps({k: v for k, v in drawer_modes(world).items() if k not in ('shareTip', 'split')}),
+                 1 if world['parent_id'] else 0, world['look']))
+            if not world['parent_id']:
+                new_planet = theirs
+        files = conn.execute(
+            f'SELECT {BLOCK_COLUMNS}, c.position, c.checked FROM connections c JOIN blocks b ON b.id = c.block_id '
+            'WHERE c.drawer_id = ? AND b.deleted_at IS NULL AND b.user_id IN (?, ?)',
+            (world['id'], leaver_id, stayer)).fetchall()
+        for f in files:
+            if f['user_id'] == leaver_id:
+                copy = copy_block(conn, f, stayer, names.get(leaver_id))
+                conn.execute('UPDATE connections SET block_id = ? WHERE drawer_id = ? AND block_id = ?',
+                             (copy, world['id'], f['id']))
+                if theirs:
+                    conn.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, checked, placed) '
+                                 "VALUES (?, ?, ?, ?, ?, 'hand')", (f['id'], theirs, f['position'], stamp, f['checked']))
+            elif theirs:
+                copy = copy_block(conn, f, leaver_id, names.get(stayer))
+                conn.execute('INSERT INTO connections (block_id, drawer_id, position, connected_at, checked, placed) '
+                             "VALUES (?, ?, ?, ?, ?, 'hand')", (copy, theirs, f['position'], stamp, f['checked']))
+    if leaver_id == planet['user_id']:
+        # The planet becomes the other keeper's, where they had put it in their galaxy.
+        spot = conn.execute('SELECT x, y FROM drawer_keepers WHERE drawer_id = ?', (planet['id'],)).fetchone()
+        conn.execute('UPDATE drawers SET user_id = ?, x = ?, y = ?, share_hash = NULL WHERE id = ?',
+                     (stayer, spot['x'], spot['y'], planet['id']))
+        conn.execute('UPDATE drawers SET user_id = ?, share_hash = NULL WHERE parent_id = ?', (stayer, planet['id']))
+    conn.execute('DELETE FROM drawer_keepers WHERE drawer_id = ?', (planet['id'],))
+    conn.execute('DELETE FROM drawer_unlocks WHERE drawer_id IN (SELECT id FROM drawers WHERE id = ? OR parent_id = ?)',
+                 (planet['id'], planet['id']))
+    conn.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, planet['id']))
+    return new_planet
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/leave')
+def leave_planet(req, drawer_id):
+    """Stop keeping a planet together (either keeper). See part_ways."""
+    planet = own_drawer(req, drawer_id)
+    if planet['parent_id']:
+        raise HttpError(400, 'Leave its planet instead.')
+    if not keeper_of(req.db, planet):
+        raise HttpError(400, 'You keep this planet on your own.')
+    tell_other_keeper(req, planet, 'left')
+    with db.transaction(req.db):
+        mine = part_ways(req.db, planet, req.user['id'])
+    row = own_drawer(req, mine)
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (mine,)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count, drawer_previews(req, mine, limit=12))})
+
+
+# ---------------------------------------------------------------- beaming out / beaming in
+
+# Beaming a file to someone (decided with the user on 2026-11-16): anyone can
+# beam anyone. It stays the sender's until the receiver answers, so nothing
+# lands in their galaxy uninvited: they Keep it (a copy, as saving makes one,
+# that also says who beamed it and their words), put it on a planet, or let
+# it go; the sender is never told which. From someone they had never crossed
+# paths with it waits quietly (no ring, no note) and is let go after a month.
+BEAM_WORDS = 140           # the few words that may go with a file
+BEAM_WAITING = 12          # files from one person waiting for someone at once
+BEAM_WAITING_QUIET = 3     # the same, from someone they never crossed paths with
+BEAM_DAY = 60              # files one person may beam in a day, to everyone
+BEAM_QUIET_DAYS = 30
+
+
+def crossed(conn, a, b):
+    """Have these two crossed paths: either visited or saved from the other,
+    they keep a planet together, or one kept a file the other beamed?"""
+    return bool(conn.execute(
+        'SELECT 1 FROM nearness WHERE (user_id = ? AND other_id = ?) OR (user_id = ? AND other_id = ?) '
+        'UNION SELECT 1 FROM drawer_keepers k JOIN drawers d ON d.id = k.drawer_id '
+        'WHERE (k.user_id = ? AND d.user_id = ?) OR (k.user_id = ? AND d.user_id = ?) '
+        "UNION SELECT 1 FROM beams WHERE answer = 'kept' AND ((from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)) LIMIT 1",
+        (a, b, b, a) * 3).fetchone())
+
+
+def crossed_anyone(conn, user_id):
+    """Has this person crossed paths with anyone yet? Until then a file's menu
+    has no Beam row (nothing extra for a brand new account)."""
+    return bool(conn.execute(
+        'SELECT 1 FROM nearness WHERE user_id = ? OR other_id = ? '
+        'UNION SELECT 1 FROM drawer_keepers k JOIN drawers d ON d.id = k.drawer_id WHERE k.user_id = ? OR d.user_id = ? '
+        'UNION SELECT 1 FROM beams WHERE from_id = ? OR to_id = ? LIMIT 1', (user_id,) * 6).fetchone())
+
+
+@route('GET', r'/api/beam/people')
+def beam_people(req):
+    """Who you might beam a file to: the people you've crossed paths with,
+    nearest first; with `q`, anyone whose name or @username starts with it."""
+    me = req.user['id']
+    near = nearness_of(req)
+    theirs = {r['user_id']: r['score'] for r in req.db.execute('SELECT user_id, score FROM nearness WHERE other_id = ?', (me,))}
+    q = (req.arg('q') or '').strip().lstrip('@').lower()[:40]
+    out = []
+    for u in req.db.execute('SELECT id, username, display_name FROM users WHERE id != ?', (me,)).fetchall():
+        if stopped(req.db, me, u['id']):
+            continue
+        pull = near.get(u['id'], 0) + theirs.get(u['id'], 0)
+        known = pull > 0 or crossed(req.db, me, u['id'])
+        if q:
+            words = [u['username'].lower(), *(u['display_name'] or '').lower().split()]
+            if not any(w.startswith(q) for w in words) and not (u['display_name'] or '').lower().startswith(q):
+                continue
+        elif not known:
+            continue
+        out.append((not known, -pull, (u['display_name'] or u['username']).lower(), {**person(u), 'known': known}))
+    out.sort(key=lambda t: t[:3])
+    return json_response({'people': [t[3] for t in out[:12]]})
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/beam')
+def beam_block(req, block_id):
+    """Beam one of your files to someone: {to: username, words}."""
+    row = own_block(req, block_id)
+    body = req.json()
+    username = auth.normalize_username(str(body.get('to') or ''))
+    other = req.db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+    if not other:
+        raise HttpError(400, f'No one here is called @{username}.')
+    if other['id'] == req.user['id']:
+        raise HttpError(400, 'That’s you.')
+    words = text_field(body, 'words', BEAM_WORDS, 'Your words') or ''
+    me = req.user['id']
+    if req.db.execute('SELECT COUNT(*) FROM beams WHERE from_id = ? AND sent_at > ?', (me, now() - 86400)).fetchone()[0] >= BEAM_DAY:
+        raise HttpError(429, 'That’s a lot of beaming for one day. Try again tomorrow.')
+    if req.db.execute('SELECT 1 FROM beams WHERE block_id = ? AND to_id = ? AND answer IS NULL', (block_id, other['id'])).fetchone():
+        raise HttpError(400, f'That file is already on its way to {other["display_name"] or "@" + other["username"]}.')
+    quiet = not crossed(req.db, me, other['id'])
+    waiting = req.db.execute('SELECT COUNT(*) FROM beams WHERE from_id = ? AND to_id = ? AND answer IS NULL',
+                             (me, other['id'])).fetchone()[0]
+    if waiting >= (BEAM_WAITING_QUIET if quiet else BEAM_WAITING):
+        raise HttpError(429, f'That’s plenty on its way to {other["display_name"] or "@" + other["username"]} for now.')
+    beam_id = new_id()
+    if not stopped(req.db, other['id'], me):
+        # Someone who stopped your beams never gets them, and you're not told.
+        req.db.execute('INSERT INTO beams (id, block_id, from_id, to_id, words, sent_at, quiet) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                       (beam_id, block_id, me, other['id'], words, now(), 1 if quiet else 0))
+    return json_response({'beam': {'id': beam_id, 'to': person(other)}}, status=201)
+
+
+@route('DELETE', r'/api/beams/(?P<beam_id>[\w-]+)')
+def take_back_beam(req, beam_id):
+    """The sender's Undo, while it still waits."""
+    req.db.execute('DELETE FROM beams WHERE id = ? AND from_id = ? AND answer IS NULL', (beam_id, req.user['id']))
+    return json_response({'ok': True})
+
+
+@route('GET', r'/api/beams')
+def beams_waiting(req):
+    """Files beamed to you that wait for an answer, oldest first. A file its
+    sender has since deleted waits no more."""
+    me = req.user['id']
+    req.db.execute("UPDATE beams SET answer = 'gone', answered_at = ? WHERE to_id = ? AND answer IS NULL AND quiet = 1 "
+                   'AND sent_at < ?', (now(), me, now() - BEAM_QUIET_DAYS * 86400))
+    rows = req.db.execute(
+        f'SELECT {BLOCK_COLUMNS}, bm.id AS beam_id, bm.words, bm.sent_at, bm.quiet, bm.noted, '
+        'u.username AS from_name, u.display_name AS from_display FROM beams bm JOIN blocks b ON b.id = bm.block_id '
+        'JOIN users u ON u.id = bm.from_id WHERE bm.to_id = ? AND bm.answer IS NULL AND b.deleted_at IS NULL '
+        'ORDER BY bm.sent_at', (me,)).fetchall()
+    out = []
+    for r in rows:
+        block = block_json(r, mine=False, owner=r['from_name'])
+        block['beam'] = r['beam_id']
+        if r['from_display']:
+            block['ownerName'] = r['from_display']
+        out.append({'id': r['beam_id'], 'block': block, 'from': {'username': r['from_name'], 'name': r['from_display']},
+                    'words': r['words'], 'sentAt': ms(r['sent_at']), 'quiet': bool(r['quiet']), 'noted': bool(r['noted'])})
+    return json_response({'beams': out})
+
+
+def waiting_beam(req, beam_id):
+    row = req.db.execute(
+        'SELECT bm.*, u.username AS from_name, u.display_name AS from_display FROM beams bm '
+        'JOIN users u ON u.id = bm.from_id JOIN blocks b ON b.id = bm.block_id '
+        'WHERE bm.id = ? AND bm.to_id = ? AND bm.answer IS NULL AND b.deleted_at IS NULL',
+        (beam_id, req.user['id'])).fetchone()
+    if not row:
+        raise HttpError(404, 'That file is no longer waiting.')
+    return row
+
+
+@route('POST', r'/api/beams/(?P<beam_id>[\w-]+)')
+def answer_beam(req, beam_id):
+    """Keep a beamed file ({answer: 'keep', drawer?: a planet to put it on}),
+    or let it go ({answer: 'gone'}). `noted` only puts its note away."""
+    beam = waiting_beam(req, beam_id)
+    body = req.json()
+    answer = body.get('answer')
+    if answer == 'noted':
+        req.db.execute('UPDATE beams SET noted = 1 WHERE id = ?', (beam_id,))
+        return json_response({'ok': True})
+    if answer == 'gone':
+        req.db.execute("UPDATE beams SET answer = 'gone', answered_at = ? WHERE id = ?", (now(), beam_id))
+        return json_response({'ok': True})
+    if answer != 'keep':
+        raise HttpError(400, 'Keep it or let it go.')
+    drawer_id = target_drawer(req, body.get('drawer'))
+    file = req.db.execute('SELECT * FROM blocks WHERE id = ?', (beam['block_id'],)).fetchone()
+    with db.transaction(req.db):
+        copy_id = copy_block(req.db, file, req.user['id'], beam['from_name'], {'beamedBy': {
+            'username': beam['from_name'], 'name': beam['from_display'], 'at': ms(beam['sent_at']), 'words': beam['words']}})
+        req.db.execute("UPDATE beams SET answer = 'kept', answered_at = ?, copy_id = ? WHERE id = ?", (now(), copy_id, beam_id))
+        if drawer_id:
+            connect(req.db, copy_id, drawer_id)
+    draw_near(req, beam['from_id'], NEAR_SAVE)
+    return json_response({'block': reload_block(req, copy_id), 'connections': block_connections(req, copy_id)}, status=201)
+
+
+@route('POST', r'/api/beams/(?P<beam_id>[\w-]+)/undo')
+def unanswer_beam(req, beam_id):
+    """Undo letting a beamed file go (the toast's Undo): it waits again."""
+    req.db.execute("UPDATE beams SET answer = NULL, answered_at = NULL WHERE id = ? AND to_id = ? AND answer = 'gone'",
+                   (beam_id, req.user['id']))
+    return json_response({'ok': True})
+
+
+@route('POST', r'/api/beam-stops')
+def stop_beams(req):
+    """Stop beams (and asks to keep a planet together) from someone: what
+    waits from them is let go. They aren't told."""
+    username = auth.normalize_username(str(req.json().get('username') or ''))
+    other = req.db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+    if not other or other['id'] == req.user['id']:
+        raise HttpError(404, 'No one here is called that.')
+    me = req.user['id']
+    with db.transaction(req.db):
+        req.db.execute('INSERT OR IGNORE INTO beam_stops (user_id, other_id, at) VALUES (?, ?, ?)', (me, other['id'], now()))
+        req.db.execute("UPDATE beams SET answer = 'gone', answered_at = ? WHERE to_id = ? AND from_id = ? AND answer IS NULL",
+                       (now(), me, other['id']))
+        req.db.execute('UPDATE keep_asks SET waved = 1 WHERE to_id = ? AND from_id = ?', (me, other['id']))
+    return json_response({'ok': True})
+
+
+@route('GET', r'/api/beam-stops')
+def stopped_people(req):
+    rows = req.db.execute('SELECT u.username, u.display_name, s.at FROM beam_stops s JOIN users u ON u.id = s.other_id '
+                          'WHERE s.user_id = ? ORDER BY s.at DESC', (req.user['id'],)).fetchall()
+    return json_response({'people': [{**person(r), 'at': ms(r['at'])} for r in rows]})
+
+
+@route('DELETE', r'/api/beam-stops/' + USERNAME_PATH)
+def unstop_beams(req, username):
+    other = find_user(req, username)
+    req.db.execute('DELETE FROM beam_stops WHERE user_id = ? AND other_id = ?', (req.user['id'], other['id']))
+    return json_response({'ok': True})
 
 
 # ---------------------------------------------------------------- drawers
@@ -1673,11 +2182,13 @@ def create_drawer(req):
         raise HttpError(400, 'That sharing setting could not be saved.')
     parent_id = body.get('parent') or None
     people = []
+    owner_id = req.user['id']
     # A new planet shows its owner a tip about sharing the first time they open it.
     modes = {'shareTip': True}
     if parent_id is not None:
         modes = {}
         parent = own_drawer(req, str(parent_id))
+        owner_id = parent['user_id']   # a moon of a planet kept together is its planet's owner's, kept by both
         if parent['parent_id']:
             raise HttpError(400, 'Moons can’t have moons.')
         moons = req.db.execute('SELECT COUNT(*) FROM drawers WHERE parent_id = ?', (parent['id'],)).fetchone()[0]
@@ -1699,9 +2210,9 @@ def create_drawer(req):
         req.db.execute(
             'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, visibility, '
             'parent_id, modes, own_sharing, look) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            (drawer_id, req.user['id'], title, description, json.dumps(icon), stamp, stamp,
+            (drawer_id, owner_id, title, description, json.dumps(icon), stamp, stamp,
              1 if body.get('community') else 0, visibility, parent_id, json.dumps(modes),
-             1 if parent_id and 'visibility' in body else 0, fresh_look(req.db, req.user['id'], parent_id)))
+             1 if parent_id and 'visibility' in body else 0, fresh_look(req.db, owner_id, parent_id)))
         for user_id in people:
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
         position = 0
@@ -1727,7 +2238,7 @@ def get_drawer(req, drawer_id):
                             drawer=planet_json(req, row, count, locked=True))
         raise HttpError(404, 'That planet does not exist.')
     blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
-    drawer = planet_json(req, row, len(blocks))
+    drawer = planet_json(req, row, len(blocks)) | keep_state(req, row)
     if not drawer['mine']:
         drawer['owner'] = row['owner_name']
         draw_near(req, row['user_id'], NEAR_VISIT, visit=True)
@@ -1783,9 +2294,10 @@ def update_drawer(req, drawer_id):
     if 'community' in body:
         updates['community'] = 1 if body['community'] else 0
         if not body['community']:
-            # Back to private: other people's files leave with them.
+            # Back to private: other people's files leave with them (a keeper's stay).
             req.db.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id IN '
-                           '(SELECT id FROM blocks WHERE user_id != ?)', (drawer_id, req.user['id']))
+                           '(SELECT id FROM blocks WHERE user_id NOT IN (?, ?))',
+                           (drawer_id, before['user_id'], keeper_of(req.db, before) or before['user_id']))
     sharing = 'visibility' in body or 'people' in body
     if sharing and moon:
         updates['own_sharing'] = 1  # the owner chose for this moon: it stops following its planet
@@ -1796,8 +2308,10 @@ def update_drawer(req, drawer_id):
     if sharing and not moon:
         follow_planet_sharing(req, drawer_id)
     row = own_drawer(req, drawer_id)
+    if (sharing or 'community' in body) and (row['visibility'], row['community']) != (before['visibility'], before['community']):
+        tell_other_keeper(req, row, 'sharing')
     count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
-    return json_response({'drawer': planet_json(req, row, count)})
+    return json_response({'drawer': planet_json(req, row, count) | keep_state(req, row)})
 
 
 def follow_planet_sharing(req, planet_id):
@@ -1825,6 +2339,8 @@ def set_planet_people(req, drawer_id, names):
             raise HttpError(400, f'No one here is called @{username or name}.')
         if user['id'] != req.user['id']:
             ids.add(user['id'])
+    planet = req.db.execute('SELECT * FROM drawers WHERE id = ?', (drawer_id,)).fetchone()
+    ids -= {planet['user_id'], keeper_of(req.db, planet)}   # its keepers always see it
     with db.transaction(req.db):
         req.db.execute('DELETE FROM drawer_access WHERE drawer_id = ?', (drawer_id,))
         for user_id in ids:
@@ -1859,7 +2375,10 @@ def drawer_mode_signs(req, drawer_id):
     """Features this planet could use, and the signs for each, in plain words.
     Every mode is read in one place (mutt/modes.py). Only its owner sees these."""
     row = own_drawer(req, drawer_id)
-    return json_response(modes_registry.signs(req.db, row, drawer_modes(row)))
+    found = modes_registry.signs(req.db, row, drawer_modes(row))
+    if keeper_of(req.db, row):
+        found.pop('split', None)   # a kept planet's files are two people's: it isn't split
+    return json_response(found)
 
 
 @route('POST', r'/api/moment')
@@ -2166,7 +2685,9 @@ def split_drawer(req, drawer_id):
     its files there (mutt/split.py says which). The planet keeps what fits no
     group, the group it's named after, and other people's files. What moved is
     kept on the planet (modes.split.last) so Undo can put it all back."""
-    row = own_drawer(req, drawer_id)
+    row = own_drawer(req, drawer_id, owner_only=True)
+    if keeper_of(req.db, row):
+        raise HttpError(400, 'A planet kept together isn’t split.')
     if row['parent_id']:
         raise HttpError(400, 'A moon can’t have moons.')
     plan = split_moons.plan(req.db, row, modes_registry.Reading(req.db, row).files, MAX_MOONS)
@@ -2316,6 +2837,8 @@ def check_item(req, drawer_id):
 @route('DELETE', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def delete_drawer(req, drawer_id):
     row = own_drawer(req, drawer_id)
+    if row['parent_id'] is None and keeper_of(req.db, row):
+        raise HttpError(400, 'You keep this planet with someone. Leave it instead.')
     if row['parent_id']:
         # A moon's files fall to its planet.
         with db.transaction(req.db):
@@ -3002,9 +3525,49 @@ def share_block(req, block_id):
     return json_response({'block': reload_block(req, block_id)})
 
 
+# What a file's owner keeps to themselves and a copy never carries: where and
+# when a photo was taken and with what (the copy's owner would see it as
+# their own), how a picture was edited and where its original is kept.
+PRIVATE_MEDIA = ('gps', 'location', 'taken', 'camera')
+
+
+def copy_block(conn, row, to_user_id, from_name, extra=None):
+    """A copy of someone's file for `to_user_id`, as saving makes one: it
+    remembers whom it came from (`savedFrom`) and who first made it (`madeBy`,
+    carried through copies of copies). `extra` goes into its meta too
+    (`beamedBy` for a beamed file). The stored bytes are shared, not copied."""
+    source = json.loads(row['meta'] or '{}')
+    meta = {k: v for k, v in source.items() if k not in ('original', 'edit', 'unplaced', 'beamedBy')}
+    if isinstance(meta.get('media'), dict):
+        meta['media'] = {k: v for k, v in meta['media'].items() if k not in PRIVATE_MEDIA}
+    meta['savedFrom'] = {'id': row['id'], 'username': from_name}
+    # Who first made it travels with every copy, however many times it's saved on.
+    made = source.get('madeBy') if isinstance(source.get('madeBy'), dict) else None
+    if not made:
+        first = first_of(saved_copies_of(conn), row['id'])
+        maker = conn.execute('SELECT b.id, u.username FROM blocks b JOIN users u ON u.id = b.user_id '
+                             'WHERE b.id = ?', (first,)).fetchone()
+        made = ({'id': maker['id'], 'username': maker['username']} if maker
+                else {'id': first, 'username': (source.get('savedFrom') or {}).get('username') or from_name})
+    meta['madeBy'] = {'id': made.get('id'), 'username': made.get('username')}
+    meta.update(extra or {})
+    block_id = new_id()
+    stamp = now()
+    fields = dict(kind=row['kind'], title=row['title'], description=row['description'], content=row['content'],
+                  file_key=link_file(row['user_id'], to_user_id, row['file_key']), file_name=row['file_name'],
+                  mime=row['mime'], ext=row['ext'], size=row['size'],
+                  thumb_key=link_file(row['user_id'], to_user_id, row['thumb_key']),
+                  width=row['width'], height=row['height'], duration=row['duration'],
+                  meta=json.dumps(meta, ensure_ascii=False))
+    columns = ['id', 'user_id', 'created_at', 'updated_at', *fields]
+    conn.execute(f'INSERT INTO blocks ({", ".join(columns)}) VALUES ({", ".join("?" * len(columns))})',
+                 [block_id, to_user_id, stamp, stamp, *fields.values()])
+    return block_id
+
+
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/save')
 def save_block(req, block_id):
-    row, mine = readable_block(req, block_id)
+    row, mine = readable_block(req, block_id, beamed=False)
     if mine:
         raise HttpError(400, 'That one is already yours.')
     drawer_id = target_drawer(req, req.json().get('drawer'))
@@ -3014,24 +3577,7 @@ def save_block(req, block_id):
     if existing:
         copy_id = existing['id']
     else:
-        meta = json.loads(row['meta'] or '{}')
-        source = json.loads(row['meta'] or '{}')
-        meta['savedFrom'] = {'id': row['id'], 'username': row['owner_name']}
-        # Who first made it travels with every copy, however many times it's saved on.
-        made = source.get('madeBy') if isinstance(source.get('madeBy'), dict) else None
-        if not made:
-            first = first_of(saved_copies(req), row['id'])
-            maker = req.db.execute('SELECT b.id, u.username FROM blocks b JOIN users u ON u.id = b.user_id '
-                                   'WHERE b.id = ?', (first,)).fetchone()
-            made = ({'id': maker['id'], 'username': maker['username']} if maker
-                    else {'id': first, 'username': (source.get('savedFrom') or {}).get('username') or row['owner_name']})
-        meta['madeBy'] = {'id': made.get('id'), 'username': made.get('username')}
-        copy_id = insert_block(
-            req, kind=row['kind'], title=row['title'], description=row['description'], content=row['content'],
-            file_key=link_file(row['user_id'], req.user['id'], row['file_key']), file_name=row['file_name'],
-            mime=row['mime'], ext=row['ext'], size=row['size'],
-            thumb_key=link_file(row['user_id'], req.user['id'], row['thumb_key']),
-            width=row['width'], height=row['height'], duration=row['duration'], meta=meta)
+        copy_id = copy_block(req.db, row, req.user['id'], row['owner_name'])
         draw_near(req, row['user_id'], NEAR_SAVE)
     if drawer_id:
         connect(req.db, copy_id, drawer_id)
@@ -3197,7 +3743,7 @@ def restore_block(req, block_id):
     with db.transaction(req.db):
         for spot in json.loads(row['deleted_from'] or '[]'):
             drawer = req.db.execute('SELECT * FROM drawers WHERE id = ?', (str(spot.get('drawer')),)).fetchone()
-            if not drawer or not (drawer['user_id'] == req.user['id'] or (drawer['community'] and drawer['visibility'] == 'public')):
+            if not drawer or not (keeps(req.db, drawer, req.user['id']) or (drawer['community'] and drawer['visibility'] == 'public')):
                 continue
             req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, checked) '
                            'VALUES (?, ?, ?, ?, ?)', (block_id, drawer['id'], spot.get('position'), now(), spot.get('checked')))
@@ -3248,13 +3794,15 @@ def remove_connection(req, block_id, drawer_id):
     drawer = writable_drawer(req, drawer_id)
     block = req.db.execute('SELECT user_id FROM blocks WHERE id = ?', (block_id,)).fetchone()
     mine = block and block['user_id'] == req.user['id']
-    moderating = block and drawer['community'] and drawer['user_id'] == req.user['id']
+    # The keepers of a planet open to others may take anyone's file off it, but never each other's.
+    keepers = {drawer['user_id'], keeper_of(req.db, drawer)}
+    moderating = block and drawer['community'] and req.user['id'] in keepers and block['user_id'] not in keepers
     if not (mine or moderating):
         raise HttpError(404, 'That file does not exist.')
     found = req.db.execute('SELECT position, placed FROM connections WHERE block_id = ? AND drawer_id = ?',
                            (block_id, drawer_id)).fetchone()
     req.db.execute('DELETE FROM connections WHERE block_id = ? AND drawer_id = ?', (block_id, drawer_id))
-    if mine and found and found['placed'] == 'auto' and drawer['user_id'] == req.user['id']:
+    if mine and found and found['placed'] == 'auto' and keeps(req.db, drawer, req.user['id']):
         learn_from_move(req, block_id, drawer_id)
     req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
     if not mine:
@@ -4097,7 +4645,7 @@ def comments_seen(req, block_id):
 def get_file_comments(req, block_id):
     """What people have said about a file, oldest first. Anyone who can see the file can read them.
     Its owner reading them has seen them."""
-    row, mine = readable_block(req, block_id)
+    row, mine = readable_block(req, block_id, beamed=False)
     if mine:
         comments_seen(req, block_id)
     return json_response({'comments': file_comments(req, block_id, row['user_id'])})
@@ -4136,7 +4684,26 @@ def new_comments(req):
             'latest': {'by': last[0]['username'], 'body': last[0]['body'][:140], 'createdAt': ms(last[0]['created_at'])},
             'planet': {'id': planet['id'], 'title': planet['title']} if planet else None,
         })
-    return json_response({'files': files})
+    if past:
+        return json_response({'files': files})
+    # Files beamed to you that you haven't been told of yet, one note per sender (a sender
+    # you never crossed paths with waits quietly: no note).
+    beams = {}
+    for r in req.db.execute(
+            f'SELECT {BLOCK_COLUMNS}, bm.id AS beam_id, bm.words, bm.sent_at, u.username AS from_name, '
+            'u.display_name AS from_display FROM beams bm JOIN blocks b ON b.id = bm.block_id JOIN users u ON u.id = bm.from_id '
+            'WHERE bm.to_id = ? AND bm.answer IS NULL AND bm.noted = 0 AND bm.quiet = 0 AND b.deleted_at IS NULL '
+            'ORDER BY bm.sent_at DESC', (req.user['id'],)).fetchall():
+        note = beams.get(r['from_name'])
+        if note:
+            note['count'] += 1
+            note['ids'].append(r['beam_id'])
+            continue
+        block = block_json(r, mine=False, owner=r['from_name'])
+        beams[r['from_name']] = {'beam': r['beam_id'], 'ids': [r['beam_id']], 'count': 1, 'block': block,
+                                 'from': {'username': r['from_name'], 'name': r['from_display']},
+                                 'words': r['words'][:140], 'sentAt': ms(r['sent_at'])}
+    return json_response({'files': files, 'beams': list(beams.values())[:6]})
 
 
 @route('POST', r'/api/comments/seen')
@@ -4151,7 +4718,7 @@ def mark_comments_seen(req):
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/comments')
 def add_file_comment(req, block_id):
     """Anyone who can see a file can leave a comment on it (its owner too, to answer)."""
-    row, _ = readable_block(req, block_id)
+    row, _ = readable_block(req, block_id, beamed=False)
     text = text_field(req.json(), 'body', COMMENT_LIMIT, 'Comment')
     if not text:
         raise HttpError(400, 'Write a comment first.')

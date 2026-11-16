@@ -1522,14 +1522,19 @@ MEMBER_SQL = ('SELECT * FROM (SELECT c.drawer_id, c.placed, b.id, b.kind, b.titl
               'JOIN drawers d ON d.id = c.drawer_id WHERE d.user_id = ? AND d.parent_id IS NULL AND b.id != ?) WHERE rn <= ?')
 
 
-def galaxy(conn, user_id, leave_out='', with_strengths=False):
+def galaxy(conn, user_id, leave_out='', with_strengths=False, skip_kept=False):
     """A person's planets (newest first) and the files on each, boiled down
-    (and, if asked, how strongly each is remembered: placed by hand or by autosort)."""
-    planets = conn.execute('SELECT id, title, description FROM drawers WHERE user_id = ? AND parent_id IS NULL '
-                           'ORDER BY updated_at DESC', (user_id,)).fetchall()
+    (and, if asked, how strongly each is remembered: placed by hand or by autosort).
+    `skip_kept` leaves out planets kept together with someone: autosort never
+    puts a file there (the user's choice, 2026-11-16)."""
+    kept = (' AND NOT EXISTS (SELECT 1 FROM drawer_keepers k WHERE k.drawer_id = drawers.id)' if skip_kept else '')
+    planets = conn.execute('SELECT id, title, description FROM drawers WHERE user_id = ? AND parent_id IS NULL'
+                           + kept + ' ORDER BY updated_at DESC', (user_id,)).fetchall()
     members = {p['id']: [] for p in planets}
     strengths = {p['id']: [] for p in planets}
     for r in conn.execute(MEMBER_SQL, (user_id, leave_out, PER_PLANET)):
+        if r['drawer_id'] not in members:
+            continue
         members[r['drawer_id']].append(member(r))
         strengths[r['drawer_id']].append(STRENGTH.get(r['placed'], STRENGTH[None]))
     return (planets, members, strengths) if with_strengths else (planets, members)
@@ -1551,7 +1556,7 @@ def pick(conn, user_id, row, extra='', explain=None):
     """Where a file belongs: (drawer id, None, other), or (None, title, None) for
     a new planet. other is a second planet when it's a close call between two."""
     doc = Doc(row, extra)
-    planets, members, strengths = galaxy(conn, user_id, row['id'], with_strengths=True)
+    planets, members, strengths = galaxy(conn, user_id, row['id'], with_strengths=True, skip_kept=True)
     learned = learned_weights(conn, [p['id'] for p in planets])
     docs = {m.id: m for ms in members.values() for m in ms}
     docs[doc.id] = doc

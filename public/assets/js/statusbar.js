@@ -15,6 +15,7 @@ import { restoreBlock } from './actions.js';
 import { askForKey, askForName, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
 import { dropHeldSearch, heldSearch, searchBody } from './search.js';
 import { icon } from './icons.js';
+import { askToKeep } from './keeping.js';
 import { commentNotes } from './commentnotes.js';
 
 const current = () => ({ ...DEFAULTS, ...session.prefs });
@@ -328,9 +329,19 @@ function settingsBody(close) {
   const pages = sheetPages(home);
   const deletedDoor = pages.door('Recently deleted', { page: () => deletedPage });
   deletedDoor.hidden = true;
+  // Whose beams you stopped (beams.js, fetched when opened): shown only once you have stopped someone's.
+  const stopsDoor = session.user.beamStops ? pages.door('Beams you stopped', {
+    fact: plural(session.user.beamStops, 'person', 'people'),
+    page: () => {
+      const slot = h('div');
+      import('./beams.js').then((m) => slot.replaceWith(m.stoppedPeople()));
+      return { title: 'Beams you stopped', body: [slot] };
+    },
+  }) : null;
   home.append(
     h('nav', { class: 'sheet-doors', 'aria-label': 'More settings' },
       deletedDoor,
+      stopsDoor,
       pages.door('Your files', { fact: 'Download, tidy', page: () => filesPage }),
       pages.door('Code and recovery key', { fact: session.user.hasKey ? 'Key kept' : 'No key yet', page: () => safe })),
     resets,
@@ -375,12 +386,15 @@ export function createStatusbar() {
   notes.onPast((on) => clock.setAttribute('aria-expanded', String(on)));
   // A recovery key, asked for once on your own galaxy if you have none.
   const keyTip = askForKey();
+  // Someone asking you to keep a planet together, and news of planets you keep with someone.
+  const keepTip = askToKeep();
   // A name, asked for each time you go out into the universe if you haven't given one.
   const nameTip = askForName({ onSaved: () => paintWho() });
   const showNotes = () => {
     const home = !!session.user && current?.chrome === 'galaxy' && !!current?.who?.you && !out;
     notes.set(home);
     keyTip.set(home);
+    keepTip.set(home);
     nameTip.set(!!session.user && current?.chrome === 'galaxy' && out);
   };
   const showHome = () => {

@@ -73,6 +73,10 @@ const ICONS = {
   comment: 'b:M3.75 3h8.5A1.75 1.75 0 0 1 14 4.75v5a1.75 1.75 0 0 1-1.75 1.75H8L5 14v-2.5H3.75A1.75 1.75 0 0 1 2 9.75v-5A1.75 1.75 0 0 1 3.75 3z',
   move: 'b:' + C(11.5, 8, 2.75) + '|M1.75 8h4.5M4 5.75 6.25 8 4 10.25',
   onto: 'b:' + C(8, 8, 5.75) + '|M8 5.5v5M5.5 8h5',
+  // a file beamed across the universe: a bead of light with its trail
+  beam: 'b:' + C(11.5, 4.5, 2.25) + '|M1.75 14.25c1.2-4 3.6-6.9 7.4-8.6|M5.25 14.25c.8-2.2 2.1-3.9 4-5.1',
+  // a planet kept together: two worlds overlapping
+  pair: 'b:' + C(5.75, 8, 4) + '|b:' + C(10.25, 8, 4),
   takeoff: 'b:' + C(8, 8, 5.75) + '|M5.5 8h5',
   // a board: things laid where they were put, at their own sizes, and a few words
   board: 'b:' + R(2.25, 2.5, 6, 5.25, 1.25) + '|b:' + R(10.25, 3.25, 3.5, 3.5, 1) + '|b:' + R(6.75, 9.25, 7, 4.25, 1.25) + '|M2.5 10.75h2.25M2.5 13h1.5',

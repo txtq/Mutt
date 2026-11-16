@@ -23,7 +23,7 @@
 
 /* ---- the crop: what is left out lies under the room's veil; thirds show while it moves */
 .pe-crop { position: absolute; inset: 0; display: none; overflow: hidden; border-radius: inherit; touch-action: none; user-select: none; -webkit-user-select: none; }
-.pe[data-tool="crop"]:not(.is-before) .pe-crop { display: block; }
+.pe[data-tool="crop"]:not(.is-before):not(.is-loading) .pe-crop { display: block; }
 .pe-crop-box { position: absolute; border: 1px solid var(--white); outline: 200vmax solid var(--room-veil); cursor: move; }
 .pe-third { position: absolute; background: var(--line-3); opacity: 0; transition: opacity var(--dur-change); }
 .pe-crop.is-dragging .pe-third { opacity: 1; }

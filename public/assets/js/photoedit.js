@@ -21,7 +21,7 @@
 
 import { api, sendFile } from './api.js';
 import { icon } from './icons.js';
-import { canEditPicture, displayTitle } from './kinds.js';
+import { canEditPicture, displayTitle, imageSrc } from './kinds.js';
 import { lookOfBlob } from './look.js';
 import { readPicture } from './see.js';
 import { makeThumb } from './thumbs.js';
@@ -224,13 +224,31 @@ class Finisher {
 
   // The picture on `source` (a canvas) with light, colour and detail applied; null without WebGL.
   run(source, r) {
+    const pic = this.upload(source);
+    if (!pic) return null;
+    const done = this.light(pic, r);
+    this.drop(pic);
+    return done;
+  }
+
+  // `source` handed to the graphics chip once, so the screen can light it again and
+  // again while a slider moves without sending the picture over each time.
+  upload(source) {
     const gl = this.gl;
     if (!gl || source.width > this.most || source.height > this.most) return null;
-    const w = source.width;
-    const h2 = source.height;
-    this.canvas.width = w;
-    this.canvas.height = h2;
-    const img = this.texture(w, h2, source);
+    return { tex: this.texture(source.width, source.height, source), w: source.width, h: source.height };
+  }
+
+  drop(pic) {
+    if (pic && this.gl) this.gl.deleteTexture(pic.tex);
+  }
+
+  light({ tex: img, w, h: h2 }, r) {
+    const gl = this.gl;
+    if (this.canvas.width !== w || this.canvas.height !== h2) {
+      this.canvas.width = w;
+      this.canvas.height = h2;
+    }
     const long = Math.max(w, h2);
     const soft = r.detail.sharpen ? this.softened(img, w, h2, Math.max(1, long * 0.0012), 0) : img;
     const wide = r.detail.blur ? this.softened(img, w, h2, long * 0.03 * (r.detail.blur / 100), 1) : img;
@@ -249,7 +267,6 @@ class Finisher {
     gl.uniform1f(u('mono'), C.mono ? 1 : 0);
     gl.uniform2f(u('aspect'), w / long, h2 / long);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.deleteTexture(img);
     return this.canvas;
   }
 
@@ -350,16 +367,33 @@ let open = null;
 export async function openPhotoEditor(block, { onSaved } = {}) {
   if (open || !canEditPicture(block)) return;
   open = 'opening';
+  // The room opens at once on the picture as it is shown now; the whole picture
+  // (often several megabytes, from the server) takes its place when it is in.
+  const coming = loadPicture(block);
+  coming.catch(() => {});
+  let editor = null;
   try {
-    const picture = await loadPicture(block);
-    const editor = new PhotoEditor(block, picture, onSaved);
+    editor = new PhotoEditor(block, standIn(block), onSaved);
     open = editor;
-    await transition(() => editor.mount(), { type: 'room', before: () => [], after: () => [] });
+    const shown = transition(() => editor.mount(), { type: 'room', before: () => [], after: () => [] });
+    const ready = coming.then((picture) => editor.arrived(picture));
+    ready.catch(() => {});
+    await shown;
     editor.mounted();
+    await ready;
   } catch (err) {
-    open = null;
-    toast(err?.message || 'This picture couldn’t be opened for editing.');
+    const waiting = open === 'opening' || (editor && open === editor);
+    if (editor && open === editor) editor.close();
+    else if (open === 'opening') open = null;
+    if (waiting) toast(err?.message || 'This picture couldn’t be opened for editing.');
   }
+}
+
+// What the room shows until the whole picture is in: the picture as it looks now,
+// at the size the original is (for the Fact).
+function standIn(block) {
+  const o = block.meta?.original;
+  return { full: null, small: null, f: 1, w: (o ? o.width : block.width) || 0, h: (o ? o.height : block.height) || 0, src: imageSrc(block) };
 }
 
 // The picture as it was uploaded, whole, and a smaller copy for the screen.
@@ -438,7 +472,7 @@ class PhotoEditor {
       h('div', { class: 'pe-foot' }, quiet('Start over', () => this.startOver(), 'btn-small'), this.fact));
     this.el = h('div', { class: 'pe room', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Edit picture' },
       h('div', { class: 'pe-top' }, this.undoBtn, this.redoBtn, this.beforeBtn),
-      h('div', { class: 'pe-acts' }, quiet('Cancel', () => this.cancel()), this.saveBtn),
+      h('div', { class: 'pe-acts' }, this.cancelBtn = quiet('Cancel', () => this.cancel()), this.saveBtn),
       this.stage, this.side);
     this.onKey = (e) => this.key(e);
     addEventListener('keydown', this.onKey, true);
@@ -449,10 +483,34 @@ class PhotoEditor {
     enterRoom();
     this.show(this.tab);
     this.update();
+    if (!this.pic.small) this.waiting(true);
   }
 
   mounted() {
-    this.saveBtn.focus({ preventScroll: true });
+    (this.pic.small ? this.saveBtn : this.cancelBtn).focus({ preventScroll: true });
+  }
+
+  // Until the whole picture is in, the tools wait and Save says so; Cancel still leaves.
+  waiting(on) {
+    this.el.classList.toggle('is-loading', on);
+    this.stage.inert = on;
+    this.side.inert = on;
+    this.beforeBtn.disabled = on;
+    this.busy(on, 'Opening it…');
+  }
+
+  // The whole picture is in: the stand-in steps aside and the tools wake.
+  arrived(picture) {
+    if (open !== this) { picture.full?.close?.(); return; }
+    this.pic = picture;
+    if (!this.el) return;   // in before the room was built: it is built with it
+    this.standIn?.remove();
+    this.standIn = null;
+    this.canvas.hidden = false;
+    this.waiting(false);
+    this.update();
+    this.paint();
+    if (!this.el.contains(document.activeElement) || document.activeElement === this.cancelBtn) this.saveBtn.focus({ preventScroll: true });
   }
 
   // ------------------------------------------------------------ the panel for each tool
@@ -583,6 +641,7 @@ class PhotoEditor {
   update() {
     this.undoBtn.disabled = !this.past.length;
     this.redoBtn.disabled = !this.future.length;
+    if (!(this.pic.w > 0 && this.pic.h > 0)) { this.fact.textContent = ''; return; }
     const [w, hh] = this.outSize();
     const kind = this.outType()[1].toUpperCase();
     this.fact.textContent = `${w} × ${hh} · ${kind === 'JPG' ? 'JPEG' : kind}${this.block.meta?.original ? ' · original kept' : ''}`;
@@ -680,32 +739,95 @@ class PhotoEditor {
     });
   }
 
+  // As large as the stage allows, keeping the shape pw × ph.
+  fitStage(pw, ph) {
+    const box = this.stage.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(this.stage).paddingLeft) * 2 || 0;
+    const fit = Math.min(Math.max(40, box.width - pad) / pw, Math.max(40, box.height - pad) / ph);
+    return [Math.max(1, Math.floor(pw * fit)), Math.max(1, Math.floor(ph * fit))];
+  }
+
+  // Before the whole picture is in: the picture as it is shown elsewhere, at its shape.
+  drawStandIn() {
+    if (!this.standIn) {
+      if (!this.pic.src) return;
+      this.standIn = h('img', { class: 'pe-canvas', src: this.pic.src, alt: '', onload: () => this.paint() });
+      this.canvas.hidden = true;
+      this.frame.prepend(this.standIn);
+    }
+    const iw = this.standIn.naturalWidth;
+    const ih = this.standIn.naturalHeight;
+    if (!iw || !ih) return;
+    const [cssW, cssH] = this.fitStage(iw, ih);
+    this.frame.style.width = `${cssW}px`;
+    this.frame.style.height = `${cssH}px`;
+  }
+
+  // The screen is made in three layers that are kept between paints, so only what
+  // changed is made again (in Safari each copy of a large canvas costs a lot):
+  // its shape (turned, straightened, at screen size; handed to WebGL once), its
+  // light and colour (one WebGL pass), and what is drawn on top.
+  forget() {
+    const s = this.screen;
+    if (!s) return;
+    this.finisher.drop(s.gl);
+    for (const c of [s.shaped, s.base]) if (c) c.width = c.height = 0;
+    this.screen = null;
+  }
+
   draw() {
     if (!this.el?.isConnected) return;
+    if (!this.pic.small) { this.drawStandIn(); return; }
     const r = this.before ? blank() : this.r;
     const g = shapeOf(r, this.pic.w, this.pic.h);
     const region = this.region();
-    // As large as the stage allows, keeping its shape.
-    const box = this.stage.getBoundingClientRect();
-    const pad = parseFloat(getComputedStyle(this.stage).paddingLeft) * 2 || 0;
-    const roomW = Math.max(40, box.width - pad);
-    const roomH = Math.max(40, box.height - pad);
     const pw = region.w * g.W;
     const ph = region.h * g.H;
-    const fit = Math.min(roomW / pw, roomH / ph);
-    const cssW = Math.max(1, Math.floor(pw * fit));
-    const cssH = Math.max(1, Math.floor(ph * fit));
+    const [cssW, cssH] = this.fitStage(pw, ph);
     const dpr = Math.min(2, devicePixelRatio || 1);
     const k = Math.min(cssW * dpr / pw, this.pic.f);
-    const made = make(r, this.pic.small, this.pic.f, this.finisher, { k, region });
-    this.canvas.width = made.width;
-    this.canvas.height = made.height;
-    const ctx = this.canvas.getContext('2d');
-    ctx.drawImage(made, 0, 0);
-    made.width = made.height = 0;
-    if (this.live && !this.before) {
-      drawMarks(ctx, [this.live], (x, y) => [(x - region.x) * g.W * k, (y - region.y) * g.H * k], Math.max(g.W, g.H) * k);
+    const w = Math.max(1, Math.round(pw * k));
+    const hh = Math.max(1, Math.round(ph * k));
+    const shapeKey = JSON.stringify([r.turn, r.flipX, r.flipY, r.straighten, region, w, hh]);
+    if (this.screen?.key !== shapeKey) {
+      this.forget();
+      const shaped = document.createElement('canvas');
+      shaped.width = w;
+      shaped.height = hh;
+      drawShape(shaped.getContext('2d'), this.pic.small, this.pic.f, r, g, region, k);
+      this.screen = { key: shapeKey, shaped, gl: null, look: null, from: shaped, base: null };
     }
+    const s = this.screen;
+    const look = adjusted(r) ? JSON.stringify([r.light, r.colour, r.detail]) : '';
+    if (s.look !== look) {
+      s.look = look;
+      s.from = s.shaped;
+      if (s.base) s.base.width = s.base.height = 0;
+      s.base = null;
+      if (look) {
+        s.gl = s.gl || this.finisher.upload(s.shaped);
+        s.from = (s.gl && this.finisher.light(s.gl, r)) || s.shaped;
+      }
+    } else if (s.from !== s.shaped && !s.base) {
+      // Only what is drawn changed (a line being drawn): copy the lit picture out of
+      // WebGL once and draw over that copy from now on.
+      s.base = document.createElement('canvas');
+      s.base.width = w;
+      s.base.height = hh;
+      s.base.getContext('2d').drawImage(s.from, 0, 0);
+      s.from = s.base;
+    }
+    if (this.canvas.width !== w || this.canvas.height !== hh) {
+      this.canvas.width = w;
+      this.canvas.height = hh;
+    }
+    const ctx = this.canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, hh);
+    ctx.drawImage(s.from, 0, 0);
+    const at = (x, y) => [(x - region.x) * g.W * k, (y - region.y) * g.H * k];
+    const unit = Math.max(g.W, g.H) * k;
+    drawMarks(ctx, r.marks, at, unit);
+    if (this.live && !this.before) drawMarks(ctx, [this.live], at, unit);
     this.frame.style.width = `${cssW}px`;
     this.frame.style.height = `${cssH}px`;
     this.view = { g, region, cssW, cssH };
@@ -940,8 +1062,9 @@ class PhotoEditor {
       this.el.remove();
       leaveRoom();
     }, { type: 'room', before: () => [], after: () => [] });
+    this.forget();
     this.finisher.destroy();
-    this.pic.full.close?.();
+    this.pic.full?.close?.();
     this.canvas.width = this.canvas.height = 0;
   }
 
@@ -968,6 +1091,7 @@ class PhotoEditor {
       this.busy(true);
       await nextFrame();
       const [w, hh, s] = this.outSize();
+      this.forget();
       const made = make(this.r, this.pic.full, 1, this.finisher, { k: s, region: this.r.crop || FULL });
       let [type] = this.outType();
       let blob = await toBlob(made, type);

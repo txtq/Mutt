@@ -535,8 +535,46 @@ def keyboard(s, seeded):
     s.shot('keyboard-in-sheet')
 
 
+def send_to_top(s, seeded):
+    # a planet of its own, made here, so the others stay as seeded; last in PATHS for the same reason
+    made = s.js('''return (async () => {
+        const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const { drawer } = await post('/api/drawers', { title: 'Jottings' });
+        for (let n = 1; n <= 14; n++) await post('/api/blocks', { content: `Thought number ${n}, written down so it is not lost.`, drawer: drawer.id });
+        return drawer.id;
+      })()''')
+    s.go(f'/p/{made}')
+    s.wait('return document.querySelectorAll(".cell[data-id]").length === 14', 'the new planet should show 14 notes')
+    s.settle(1)
+    menu = '''const cell = document.querySelectorAll(".cell[data-id]")[arguments[0]];
+        const r = cell.getBoundingClientRect();
+        cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 20 }));
+        return cell.dataset.id;'''
+    rows = 'return [...document.querySelectorAll(".menu [role=menuitem], .menu button")].map((b) => b.textContent.trim())'
+    last = s.js(menu, 13)
+    s.wait(f'{rows}.includes("Send to top")', 'the last note\'s right-click menu has no "Send to top"')
+    s.shot('send-to-top-menu')
+    s.click(s.named('.menu button, .menu [role=menuitem]', 'Send to top', 'no "Send to top" row to press'))
+    s.wait('return document.querySelector(".cell[data-id]").dataset.id === arguments[0]',
+           '"Send to top" did not move the note to the front', 4, (last,))
+    s.js('document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))')
+    s.settle(0.6)
+    s.js(menu, 0)
+    s.wait(f'{rows}.includes("Send to bottom") && !{rows[7:]}.includes("Send to top")',
+           'the first note\'s right-click menu should offer "Send to bottom" only')
+    s.click(s.named('.menu button, .menu [role=menuitem]', 'Send to bottom', 'no "Send to bottom" row to press'))
+    s.wait('const c = document.querySelectorAll(".cell[data-id]"); return c[c.length - 1].dataset.id === arguments[0]',
+           '"Send to bottom" did not move the note to the end', 4, (last,))
+    s.settle(0.6)
+    s.go(f'/p/{made}')
+    s.wait('const c = document.querySelectorAll(".cell[data-id]"); return c.length === 14 && c[13].dataset.id === arguments[0]',
+           'the new order was not kept after a reload', 8, (last,))
+    s.shot('send-to-bottom-kept')
+
+
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, phone, sample_page, keyboard]
+         documents_mode, undo, document_editor, open_book, universe, phone, sample_page, keyboard, send_to_top]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

@@ -230,7 +230,40 @@ export class Collection {
     const worlds = (this.drawer ? this.targets?.() || [] : []).map((t) => ({
       title: t.title, dot: t.dot, planet: t.planet, move: () => this.moveTo(t, id),
     }));
-    blockContextMenu(e, cell, block, { drawer: this.drawer, open, worlds });
+    blockContextMenu(e, cell, block, { drawer: this.drawer, open, worlds, extra: this.sendItems(block, cell) });
+  }
+
+  // A note or document on a planet you arrange by hand can jump to the top
+  // (from the third row down) or to the bottom (from the first two rows).
+  sendItems(block, cell) {
+    if (!this.drawer || this.sort !== 'manual' || !this.grid.sortable) return [];
+    if (!['text', 'doc', 'pdf'].includes(block.kind)) return [];
+    const list = this.list();
+    if (list.length < 2) return [];
+    const tops = [...new Set([...this.grid.el.children]
+      .filter((el) => el.classList.contains('cell'))
+      .map((el) => Math.round(el.offsetTop)))].sort((a, b) => a - b);
+    const row = tops.findIndex((t) => Math.abs(t - cell.offsetTop) < 2);
+    if (row >= 2) return [{ icon: 'up', label: 'Send to top', run: () => this.sendTo(block, 'top') }];
+    if (list[list.length - 1] === block) return [];
+    return [{ icon: 'down', label: 'Send to bottom', run: () => this.sendTo(block, 'bottom') }];
+  }
+
+  sendTo(block, where) {
+    const before = this.blocks.map((b) => b.id);
+    const rest = this.blocks.filter((b) => b !== block);
+    this.blocks.splice(0, this.blocks.length, ...(where === 'top' ? [block, ...rest] : [...rest, block]));
+    this.render('flip');
+    this.saveOrder(this.blocks.map((b) => b.id));
+    toast(where === 'top' ? 'Sent to the top' : 'Sent to the bottom', {
+      action: {
+        label: 'Undo',
+        run: () => {
+          this.saveOrder(before.filter((id) => this.blocks.some((b) => b.id === id)));
+          this.render('flip');
+        },
+      },
+    });
   }
 
   // Someone else's file in your community drawer. It stays in their own drawers.

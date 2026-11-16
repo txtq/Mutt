@@ -5,7 +5,7 @@
     python3 server.py --host 0.0.0.0 --port 80
 
 Environment: PORT, HOST, MUTT_DATA_DIR, MUTT_ALLOW_SIGNUPS, MUTT_MAX_UPLOAD_MB,
-MUTT_TRUST_PROXY, MUTT_SECRET, MUTT_BACKUPS, MUTT_SEE, MUTT_SEE_MODEL. See README.md.
+MUTT_TRUST_PROXY, MUTT_SECRET, MUTT_BACKUPS, MUTT_SEE, MUTT_SEE_MODEL, MUTT_HEAR, MUTT_HEAR_DIR. See README.md.
 """
 import argparse
 import os
@@ -13,7 +13,7 @@ import sys
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
-from mutt import api, backup, db, media, privacy, sight
+from mutt import api, backup, db, hear, media, privacy, sight
 from mutt.app import application
 
 
@@ -49,6 +49,7 @@ def main():
               flush=True)
     backup.start()
     sight.fetch_model()  # the picture reader's model, fetched once (MUTT_SEE=0 turns it off)
+    hear.fetch()  # the voice reader's model, fetched once (MUTT_HEAR=0 turns it off)
     media.start_backfill()
     privacy.start_sweep()  # blank where photos and videos stored before this were taken
     api.start_purging()   # Recently deleted: files go for good after a week

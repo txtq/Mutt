@@ -2,6 +2,7 @@
 // black hole). Pointer-based so fingers work too: on touch, hold for a
 // moment to pick it up, otherwise the page just scrolls.
 
+import { aim, comeBack, isFlick, tracker } from './fling.js';
 import { float } from './fx.js';
 import { DUR, EASE_SPRING, reducedMotion } from './util.js';
 import { sound } from './sound.js';
@@ -13,8 +14,10 @@ const EDGE = 72;
 // target, the ghost element and where it is. `reach` (pixels past its edge)
 // makes a small target take only what is let go right on it. onLoose, if it
 // says true, takes something let go over no target (it then owns the ghost).
-// Returns a function that detaches.
-export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd }) {
+// onThrow, if given, takes a flick (let go fast, over no target) at the world
+// it was aimed at: (target, ghost, at, velocity, size); a flick at nothing
+// comes home (fling.js). Returns a function that detaches.
+export function draggable(el, { ghost, targets, onDrop, onLoose, onThrow, onStart, onEnd }) {
   let blockClick = false;
 
   const down = (e) => {
@@ -32,6 +35,7 @@ export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd 
     let list = [];
     let frame = 0;
     let last = 0;
+    const track = tracker();
     const hold = touch ? setTimeout(() => {
       armed = true;
       navigator.vibrate?.(8);
@@ -106,6 +110,7 @@ export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd 
     const move = (ev) => {
       if (ev.pointerId !== pid) return;
       pos = { x: ev.clientX, y: ev.clientY };
+      track.add(pos.x, pos.y);
       if (!dragging) {
         const far = Math.hypot(pos.x - start.x, pos.y - start.y) > 6;
         if (far && !armed) { cleanup(); return; } // a scroll, not a pick-up
@@ -120,10 +125,23 @@ export function draggable(el, { ghost, targets, onDrop, onLoose, onStart, onEnd 
       const target = hovered;
       const ghostEl = g;
       const at = shown;
+      const v = track.velocity();
+      const flick = onThrow && ev.type === 'pointerup' && isFlick(v);
+      // Stars sit close round the void, so a flick often starts over it: one
+      // aimed at a world beyond still flies there.
+      let thrown = flick && (!target || target.kind === 'hole') ? aim(at, v, list) : null;
+      if (target && thrown?.kind === 'hole') thrown = null;
       cleanup();
       if (!wasDragging) return; // a plain click; the click handler opens it
-      if (target && ev.type === 'pointerup') {
+      if (thrown) {
+        await onThrow(thrown, ghostEl, at, v, size);
+      } else if (target && ev.type === 'pointerup') {
         await onDrop(target, ghostEl, at);
+      } else if (flick) {
+        // Thrown at nothing: it swings out and comes back to its place.
+        const home = () => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+        await comeBack(ghostEl, { from: at, v, home, scale: size });
+        ghostEl.remove();
       } else if (ev.type === 'pointerup' && onLoose && await onLoose(ghostEl, at)) {
         // taken where it was let go
       } else {

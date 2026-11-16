@@ -214,6 +214,10 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
   let hunger = 0;
   let hungry = false;
   let gulpAt = -1e9;
+  // Listening (Speak to the Void): the light opens to about twice and breathes with how loud you are.
+  let hearing = false;
+  let heard = 0;
+  let loud = 0;
 
   // The motion setting can change while it's on screen.
   const watch = new MutationObserver(() => sync());
@@ -431,8 +435,8 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     const o = open.o;
     const g = clamp((now - gulpAt) / 700);
     const gulp = g < 1 ? Math.sin(Math.PI * g) : 0;
-    const rc = lerp(R * 0.9, wideR(now), o) * (1 - gulp * 0.08) * (1 + hunger * 0.05);
-    const S = Math.max(R * CAGE, rc * openCage) * (1 + hunger * 0.03);
+    const rc = lerp(R * 0.9, wideR(now), o) * (1 - gulp * 0.08) * (1 + hunger * 0.05) * (1 + heard * (0.55 + 0.45 * loud));
+    const S = Math.max(R * CAGE, rc * openCage) * (1 + hunger * 0.03) * (1 - heard * 0.06);
     const glow = (reach) => (haloReach ? Math.max(rc * 1.05, Math.min(rc * reach, S * haloReach)) : rc * reach);
     // Only the square round the ball is drawn: `box` holds everything (the halo reaches
     // furthest), `ball` the cells, rims, rays, strands and the light. Closed, the two are the same.
@@ -537,17 +541,18 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     // At rest it turns by a fraction of a pixel a frame, so about 30 pictures
     // a second look the same as 60 for half the work, like the sky and the
     // planets. Opening, closing, hungry or gulping, it's drawn every frame.
-    const settling = openness(now) < 1 || now - wide.start < 450 || hungry || hunger > 0.001 || now - gulpAt < 700;
+    const settling = openness(now) < 1 || now - wide.start < 450 || hungry || hunger > 0.001 || now - gulpAt < 700 || hearing || heard > 0.001;
     if (!settling && R * CAGE < BIG && last && now - last < 32) return;
     const dt = Math.min(0.05, (now - (last || now)) / 1000);
     last = now;
     const t = openness(now);
     const sweep = t < 1 ? Math.sin(Math.PI * t) : 0;
     hunger += ((hungry ? 1 : 0) - hunger) * Math.min(1, dt * 6);
+    heard += ((hearing ? 1 : 0) - heard) * Math.min(1, dt * 6);
     const g = clamp((now - gulpAt) / 700);
     const pull = g < 1 ? Math.sin(Math.PI * g) : 0;
     const calm = root.dataset.motion === 'calm' ? 0.35 : 1;
-    spin += dt * 0.07 * (1 + sweep * 9 + hunger * 3 + pull * 4) * calm;
+    spin += dt * 0.07 * (1 + sweep * 9 + hunger * 3 + pull * 4 + heard * 2) * calm;
     draw(now);
   }
 
@@ -570,6 +575,7 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
       wide.start = -1e9;
       gulpAt = -1e9;
       hunger = hungry ? 1 : 0;
+      heard = hearing ? 1 : 0;
       draw(performance.now());
     }
   }
@@ -637,6 +643,9 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
     },
     hungry(on) { hungry = on; if (!running) { hunger = on ? 1 : 0; draw(performance.now()); } },
     gulp() { gulpAt = performance.now(); },
+    // Listening, and how loud it is right now (0 to 1). Held still, it shows one steady open size.
+    listen(on) { hearing = on; if (!on) loud = 0; if (!running) { heard = on ? 1 : 0; loud = 0; draw(performance.now()); } },
+    loudness(x) { loud = Math.max(0, Math.min(1, x)); },
     // Once its page has gone it stays asleep: nothing is left to stop it.
     play() { if (!gone) { wanted = true; sync(); } },
     pause() { wanted = false; sync(); },

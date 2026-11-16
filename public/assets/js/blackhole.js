@@ -58,7 +58,11 @@ export function stillVoid(name) {
   };
 }
 
-export function blackHole({ planets = () => [], onText, onFiles, mode: startMode = 'star', onMode, onToggle } = {}) {
+// How long a press on the void is held before it listens (Speak to the Void);
+// a shorter one is a tap and opens the add box.
+const HOLD = 450;
+
+export function blackHole({ planets = () => [], onText, onFiles, mode: startMode = 'star', onMode, onToggle, onHold } = {}) {
   const v = hole({ tag: 'button', label: 'Add', attrs: { type: 'button', 'aria-label': 'Add something', 'aria-expanded': 'false' } });
   const { core, el, art } = v;
   const label = v.text;
@@ -294,7 +298,85 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     return true;
   };
 
-  core.addEventListener('click', () => (open ? close() : show()));
+  // ---------------------------------------------------------------- holding it (Speak to the Void)
+  // Press and hold the void (or hold Space on it) and it listens: onHold()
+  // gives back { slide(k), end(drop) }. Sliding up past the void drops it.
+  // A press let go sooner is a tap, as ever.
+  const say = h('span', { class: 'tooltip void-say', 'aria-live': 'polite' });
+  el.append(say);
+  let press = null;
+  let eatClick = false;
+  let saying = 0;
+  const startHold = () => {
+    if (!press || press.held) return;
+    press.held = true;
+    press.ctl = onHold?.(press.kind) || null;
+    // (a browser that can't record: the hold was only a long tap)
+    if (!press.ctl) return;
+    eatClick = press.kind !== 'key';
+    navigator.vibrate?.(8);
+  };
+  const endHold = (drop = false) => {
+    const p = press;
+    press = null;
+    clearTimeout(p?.timer);
+    removeEventListener('pointermove', pressMove);
+    removeEventListener('pointerup', pressUp);
+    removeEventListener('pointercancel', pressUp);
+    removeEventListener('touchmove', stopScroll);
+    if (p?.held) p.ctl?.end(drop || (p.k || 0) >= 1);
+    setTimeout(() => { eatClick = false; }, 400);   // the click a let-go makes comes at once, if at all
+    return p;
+  };
+  const stopScroll = (e) => { if (press?.held) e.preventDefault(); };
+  const pressMove = (e) => {
+    if (!press || e.pointerId !== press.id) return;
+    if (!press.held) {
+      // moved before it was held: a scroll or a drag, not a hold
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) endHold();
+      return;
+    }
+    press.k = Math.max(0, Math.min(1, (press.y - e.clientY) / (v.radius() * 1.6)));
+    press.ctl?.slide(press.k);
+  };
+  const pressUp = (e) => {
+    if (!press || e.pointerId !== press.id) return;
+    endHold(false);
+  };
+  core.addEventListener('pointerdown', (e) => {
+    if (!onHold || open || e.button !== 0 || e.isPrimary === false || press) return;
+    eatClick = false;
+    press = { kind: 'pointer', id: e.pointerId, x: e.clientX, y: e.clientY, held: false, k: 0, timer: setTimeout(startHold, HOLD) };
+    addEventListener('pointermove', pressMove);
+    addEventListener('pointerup', pressUp);
+    addEventListener('pointercancel', pressUp);
+    addEventListener('touchmove', stopScroll, { passive: false });
+  });
+  // A long press mustn't bring up a phone's menu or pick text.
+  core.addEventListener('contextmenu', (e) => { if (press) e.preventDefault(); });
+  core.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && onHold && !open) {
+      e.preventDefault();
+      if (e.repeat || press) return;
+      press = { kind: 'key', held: false, k: 0, timer: setTimeout(startHold, HOLD) };
+    } else if (e.key === 'Escape' && press?.held) {
+      e.preventDefault();
+      e.stopPropagation();
+      endHold(true);
+    }
+  });
+  core.addEventListener('keyup', (e) => {
+    if (e.key !== ' ' || !press || press.kind !== 'key') return;
+    e.preventDefault();
+    const p = endHold(false);
+    if (p && !p.ctl) show();   // a tap of Space opens it, as a click does
+  });
+  core.addEventListener('blur', () => { if (press?.kind === 'key') endHold(false); });
+
+  core.addEventListener('click', (e) => {
+    if (eatClick) { eatClick = false; e.preventDefault(); return; }
+    if (open) close(); else show();
+  });
   go.addEventListener('click', submit);
   input.addEventListener('input', sync);
   // Return starts a new line, so a longer note is easy to write; ⌘/Ctrl+Return adds.
@@ -336,6 +418,8 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     close,
     isOpen: () => open,
     mode: () => mode,
+    // Where something added without the box goes (a voice note): its mode and planet.
+    where: () => ({ mode, planetId: mode === 'planet' && chosen() ? planetId : null }),
     setMode: (next) => setMode(next, { save: false }),
     // Files dropped while the box is open go where the box says.
     takeFiles: (files, from) => sendFiles(files, from || field.getBoundingClientRect()),
@@ -371,5 +455,22 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
       theSky()?.pull(at.x, at.y, { strength: 0.8, radius: this.radius() * 4 });
     },
     setLabel(text) { label.textContent = text; },
+    // Listening: the light breathes with how loud you are (voidart.js), the plus steps aside.
+    listening(on) {
+      el.classList.toggle('is-listening', on);
+      art.listen(on);
+      if (!on) label.textContent = 'Add';
+    },
+    loudness: (x) => art.loudness(x),
+    holding: () => !!press?.held,
+    // One short line from the void, above it while listening, under it otherwise; gone after `ms`.
+    say(text, { under = false, ms = 0, hot = false } = {}) {
+      clearTimeout(saying);
+      say.textContent = text || '';
+      say.classList.toggle('is-under', under);
+      say.classList.toggle('is-hot', hot);
+      say.classList.toggle('is-on', !!text);
+      if (text && ms) saying = setTimeout(() => say.classList.remove('is-on'), ms);
+    },
   };
 }

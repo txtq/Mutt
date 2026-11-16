@@ -43,7 +43,7 @@ export class Collection {
       onReorder: (ids) => this.saveOrder(ids, { hand: true }),
       onContext: (e, id, cell) => this.context(e, id, cell),
       targets,
-      onDropTo: (target, id) => this.moveTo(target, id),
+      onDropTo: (target, id, how) => this.moveTo(target, id, how),
       empty,
     });
     this.grid.renderOpts.moderate = moderate;
@@ -300,15 +300,18 @@ export class Collection {
   }
 
   // A file dragged (or sent from its menu) onto one of the worlds beside this one moves there.
-  async moveTo(target, id) {
+  // A file let go over (or thrown at: `thrown`, which lands later) a moon or the
+  // planet. True once it's moved.
+  async moveTo(target, id, { thrown = false } = {}) {
     const block = this.blocks.find((b) => b.id === id);
-    if (!block || !this.drawer || target.id === this.drawer.id) { this.render('flip'); return; }
+    if (!block || !this.drawer || target.id === this.drawer.id) { this.render('flip'); return false; }
     this.removedAt.set(id, this.blocks.indexOf(block));
     this.drop(id);
-    target.el?.gulp?.();
+    if (!thrown) target.el?.gulp?.();
     try {
       await moveBlock(block, this.drawer, { ...target, onBack: target.onBack });
       target.onMoved?.();
+      return true;
     } catch (err) {
       if (!this.blocks.some((b) => b.id === id)) {
         this.blocks.splice(Math.min(this.removedAt.get(id) ?? 0, this.blocks.length), 0, block);
@@ -316,6 +319,7 @@ export class Collection {
         this.onChange?.(this.blocks);
       }
       toast(err.message);
+      return false;
     }
   }
 

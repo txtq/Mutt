@@ -78,3 +78,11 @@ echo "their galaxy, not yours: $(curl -s "${V[@]}" "$B/api/search?q=shopping&of=
 echo "their galaxy, files marked theirs: $(curl -s "${V[@]}" "$B/api/search?q=crabs&of=Finder" | j "[(b['mine'], b.get('owner')) for b in d['blocks']]")"
 echo "no such person: $(curl -s -o /dev/null -w '%{http_code}' "${V[@]}" "$B/api/search?q=beach&of=nobody")"
 echo "your own name is your own search: $(curl -s "${C[@]}" "$B/api/search?q=shopping&of=Finder" | j "len(d['blocks'])")"
+# Speak to the Void: a voice note's shape and the words read on the device
+VN=$(printf 'not really sound' > "$SP/v.m4a"; curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: audio/mp4' --data-binary @"$SP/v.m4a" "$B/api/upload?name=Voice%20note.m4a&drawer=$D" | j "d['block']['id']")
+echo "voice note, shape and words kept: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$VN -d '{"voice":{"wave":[0,50,100,150,-3,20,30,40]},"heard":{"v":1,"text":"  pick up   more clay "}}' | j "(d['block']['kind'], d['block']['meta']['voice'], d['block']['meta']['heard'])")"
+echo "voice note, a shape too short is refused: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$VN -d '{"voice":{"wave":[1,2]}}' | j "d['block']['meta']['voice']['wave'][:3]")"
+echo "voice note, words on a note are ignored: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$N2 -d '{"heard":{"text":"x"}}' | j "'heard' in d['block'].get('meta', {})")"
+echo "voice note, found by its words: $(curl -s "${C[@]}" "$B/api/search?q=clay" | j "$names")"
+echo "voice note, found by its words in their galaxy: $(curl -s "${V[@]}" "$B/api/search?q=clay&of=Finder" | j "$names")"
+echo "voice reader off: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" $B/api/hear/encoder) $(curl -s "${C[@]}" $B/api/hear/todo | j "d['blocks']")"

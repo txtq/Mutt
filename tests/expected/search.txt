@@ -39,3 +39,9 @@ their galaxy, not yours: 0
 their galaxy, files marked theirs: [(False, 'finder')]
 no such person: 404
 your own name is your own search: 1
+voice note, shape and words kept: ('audio', {'wave': [0, 50, 100, 100, 0, 20, 30, 40]}, {'v': 1, 'text': 'pick up more clay'})
+voice note, a shape too short is refused: [0, 50, 100]
+voice note, words on a note are ignored: False
+voice note, found by its words: ['Voice note']
+voice note, found by its words in their galaxy: ['Voice note']
+voice reader off: 404 []

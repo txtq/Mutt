@@ -1,6 +1,7 @@
 // The four-wide block grid: keyed cells, gliding reflow, drag to reorder.
 
 import { renderCell, renderDivider, renderPending, updatePending } from './cells.js';
+import { aim, fly, isFlick, landed, tracker } from './fling.js';
 import { glide, measure } from './transitions.js';
 import { DUR, EASE, EASE_LEAVE, STAGGER, h, inViewport, reducedMotion } from './util.js';
 
@@ -344,7 +345,9 @@ export class Grid {
     if (!touch) e.preventDefault();
     let started = false;
     let timer = null;
+    const track = tracker();
     const move = (ev) => {
+      track.add(ev.clientX, ev.clientY);
       if (started) { this.dragMove(ev); return; }
       const dist = Math.hypot(ev.clientX - start.x, ev.clientY - start.y);
       if (touch) { if (dist > 10) cleanup(); return; }
@@ -355,7 +358,7 @@ export class Grid {
       cleanup();
       if (!started) return;
       if (ev.type === 'pointerup') this.dragMove(ev);
-      this.dragEnd();
+      this.dragEnd(ev.type === 'pointerup' ? track.velocity() : null);
     };
     const cleanup = () => {
       clearTimeout(timer);
@@ -478,9 +481,16 @@ export class Grid {
     d.raf = requestAnimationFrame((t) => this.scrollLoop(t, now));
   }
 
-  dragEnd() {
+  dragEnd(v = null) {
     const d = this.drag;
     if (!d) return;
+    // Flicked toward a moon (or, from a moon, its planet): it flies there (fling.js).
+    if (!d.over && v && isFlick(v)) {
+      const r = d.ghost.getBoundingClientRect();
+      const from = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      const target = aim(from, v, d.list);
+      if (target) { this.throwTo(d, target, from, v); return; }
+    }
     this.drag = null;
     cancelAnimationFrame(d.raf);
     removeEventListener('touchmove', d.blockTouch);
@@ -522,5 +532,25 @@ export class Grid {
     }
     const keys = this.keys();
     if (keys.join(',') !== d.initial) this.onReorder?.(keys);
+  }
+
+  // Thrown: it flies to the world as it is put there; the others close up behind it.
+  async throwTo(d, target, from, v) {
+    this.drag = null;
+    cancelAnimationFrame(d.raf);
+    removeEventListener('touchmove', d.blockTouch);
+    removeEventListener('contextmenu', d.blockTouch);
+    document.body.classList.remove('is-dragging');
+    this.suppressClick = true;
+    setTimeout(() => { this.suppressClick = false; }, 60);
+    d.cell.classList.remove('is-placeholder');
+    const g = d.ghost;
+    g.style.transformOrigin = '50% 50%';
+    g.style.transform = `translate(${from.x}px, ${from.y}px) translate(-50%, -50%) scale(0.6)`;
+    const ready = Promise.resolve(this.onDropTo?.(target, d.cell.dataset.id, { thrown: true }))
+      .then((ok) => { if (ok === false) throw new Error('not moved'); });
+    const ok = await fly(g, { from, v, target, ready, scale: 0.6 });
+    if (ok) { landed(target.el); target.el?.gulp?.(); }
+    g.remove();
   }
 }

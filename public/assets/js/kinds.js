@@ -18,7 +18,7 @@ const EXT_KIND = {};
 for (const [kind, list] of Object.entries({
   image: 'jpg jpeg jfif png gif webp avif bmp svg ico apng heic heif tif tiff',
   video: 'mp4 m4v mov webm ogv mkv avi wmv mpg mpeg 3gp',
-  audio: 'mp3 wav m4a aac ogg oga opus flac aif aiff wma mid midi',
+  audio: 'mp3 wav m4a aac ogg oga opus weba flac aif aiff wma mid midi',
   pdf: 'pdf',
   doc: 'doc docx odt rtf pages txt md markdown xls xlsx ods csv tsv numbers ppt pptx odp key epub tex',
   code: 'js mjs cjs ts tsx jsx py rb go rs java kt swift c h cc cpp hpp cs php html htm css scss sass less json yaml yml toml xml sh bash zsh sql lua r ipynb vue svelte',

@@ -335,6 +335,8 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Planets moved to new places; stars with them | scene; the ghost and guide change |
 | A planet dropped on an orbit | arrive on the spring |
 | A file dropped on a planet | the bubble arrive on the spring; the gulp scene |
+| A star or file box thrown at a world (Throwing) | flies on with its own speed, steered more and more toward the world, for at most scene; caught, it swings round it over arrive (holding close in, circling, until the server has answered), shrinking and fading after 0.7 of the way; the world's landing ring spreads over arrive; then the gulp. Under Still it is simply there once the server answers |
+| A throw at nothing, or one that couldn't land | carries on the way it was thrown and comes back to its place on a spring, at most grand |
 | Moons | bob on the rest beat; born over scene (several at once, from a split, one step apart); plumes on the slow beat; a split's Undo fades the moons it made away (change, leaves) as the files glide back |
 | Stars (loose files) arriving, leaving | arrive; leaves |
 | A star opening from a point into its card as the pointer comes near; lifting when pointed at; back to a point | move on the settle curve; move; leaves |
@@ -351,6 +353,8 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Turning | painted (rule 10): about 30 pictures a second, every picture when it is big (sign-in); rests while the screen is changing; fades in over move once its pictures are worked out |
 | Opening, closing | scene open, arrive closed; its box arrives over arrive after move, and leaves |
 | Swallowing | the file spirals in over scene (several: one step apart); the void gulps |
+| Listening (Speak to the Void) | the light swells and breathes with how loud you are, painted with the rest of the void; the plus fades over change; its one line arrives over move and leaves |
+| A voice note's words being read | the new star breathes on the quick beat until they are in; what was said arrives beside it over arrive, stays a slow beat, leaves |
 | *Sign-in* | |
 | The page arriving | the void and the dust over grand; the logo lands at scene |
 | The keys appearing; a key pressed | move and arrive, one step apart |
@@ -604,6 +608,7 @@ A star is a file on no planet, kept round the void on its owner's own galaxy (`r
 - **On a touch screen** (no hover) every star rests as its card: there is no pointer to come near.
 - **Out towards the universe**, and while something is being carried, they all rest.
 - Opening is `--dur-move` on `--ease-settle`; going back to a point is leaving (`--dur-change` on `--ease-leave`). Nothing moves at rest.
+- **A voice note** (Speak to the Void) rests as a bright point with 24 rays round it, their lengths its sound's loudness from start to end (`raysOf` in `planets.js`, a mask over `--star-white`, in place of the four faint rays); its card is night glass (`--night-mid`) with its first words, its sound's shape along the foot and its length. While its words are being read it breathes on the quick beat.
 - **More stars than fit**: a computer shows up to 240 round the void, a phone 18 (the newest 17 and a "+N" in the eighteenth place). "+N" is a round of clear glass the size of a star (`--gloss-clear` on `--clear-fill`, a 1px `--edge`, `--gloss-light`), its number in Caption 500 `--ink-2`; pressing it shows them all. On a phone a star is 36 across (a found file in search 44), whatever the zoom. A star's card is too small to split a word well, so a word longer than its line runs to the paper's edge instead ("Remembe r:" was the trouble).
 ### Constellations
 
@@ -644,12 +649,39 @@ Two ways of sharing with one person (2026-11-16, built from `design/concepts/10-
 - *Stopped people* are a door in the account sheet, "Beams you stopped", shown only once there is someone, each with "Let them beam".
 - *A kept copy's* file view says "Beamed by Sam Ray (@sam)" and "Their words" to its owner; to anyone else it is any saved copy.
 
+### Throwing
+
+A star on the galaxy, or a file box on a planet's page, flicked at a world flies there (Throw to Sort, the user's idea 06, built 2026-11-16 in `js/fling.js`; `drag.js` for stars, `grid.js` for boxes). It is a quicker drop: carrying something onto a world still works as before.
+
+- **A flick** is letting go while moving at 900 points a second or more over the last 80 thousandths of a second (a pointer held still for 60 before letting go was put down, not thrown).
+- **Aim helps.** The world nearest the line of the flick, within 28° either side (widened by how big it looks), is the one meant; nearer wins a tie; only what is on screen counts. Planets ring the void, so a throw at one often crosses it: **a world in line wins over the void**, which takes only the throws no world is in line with. A flick that starts over the void (stars sit close round it) and is aimed at a world beyond still flies there.
+- **What it can be thrown at.** A star: a planet, a moon, or the void (where it is sorted as a star let go there is). A file box on a planet's page: that planet's moons; on a moon's page, its planet. Never at a star.
+- **The flight** (Motion, "A star or file box thrown"): it keeps its own speed and is steered more and more toward the world, pulled a little toward the void on the way; within 2.2 of the world's radius it is caught and swings at most three quarters round it, closing in. The swing waits for the server, so the landing is the picture of something already done. The world's **landing ring** is the drop ring spreading once from 0.62 to 1.12 and fading (`.is-landing`), then the world gulps as for a drop.
+- **Says** "Put on Walks" with Undo (on the galaxy; a star taken back returns to its place among the stars and to its constellation if that still exists), "Moved to Glazes" with Undo on a planet's page, as a drop does.
+- **A throw at nothing** comes home (Motion, "A throw at nothing"). **One that couldn't land** (offline, or the world won't take it) comes home and a toast says why ("Mutt couldn’t be reached, so it stayed a star.").
+- **Touch**: the same, after the hold that picks a thing up. **Keyboard**: nothing new; moving with the keyboard is the menu's "Put on…". **Still**: no flight; it is there once the server answers.
+
+### Speak to the Void
+
+Press and hold the void, talk, let go: the recording becomes a star, and its words are written out on the device (the user's idea 19, built 2026-11-16; `blackhole.js` for the hold, `views/galaxy.js` `holdVoid` / `letGoVoid` / `keepVoice` / `readVoice`, `voice.js` for recording, `hear-worker.js` for the words, `mutt/hear.py` on the server). Decided with the user: the small English reader, the void's "To" decides where it goes, rays shaped like its sound.
+
+- **Holding.** Pressed for 450 thousandths of a second without moving more than 12, the void listens (a shorter press is a click, as ever: it opens the add box). With the keyboard, hold Space on the void; a tap of Space opens it. On a phone the page doesn't scroll and no menu comes while it is held.
+- **Listening.** The plus steps aside and the label counts the time (`0:07`); the light swells and breathes with how loud you are (`voidart.js` `listen`, `loudness`); the sky's stars lean in a little; music, if playing, goes quiet. **One short line** from the void (`.void-say`: the tooltip's glass, Caption `--ink-2`, kept within the void so a phone's ring of planets is never under it) says what letting go does: "Drag up to let it go" (a mouse), "Slide up to let it go" (a finger), "Esc to let it go" (Space). Sliding up past 1.6 of the void's radius turns it to "Let go to drop it" in `--ink`.
+- **Letting go** keeps it: the void gulps and a new star arrives (or the file goes where the void's "To" says, below). Let go after sliding up, or Esc: "Dropped. Nothing was kept" under the void. Under a second: "Too short to keep". Five minutes: it lets go by itself.
+- **The first time** the browser asks for the microphone, and "Hold to talk. It stays on your device." shows under the void while it asks. A phone needs the finger lifted to answer, so that hold is lost; "Now hold the void and talk" says so. Turned off: a toast says how to turn it on in the browser's settings for this website. No microphone, or busy: a toast says that.
+- **The words** are read on the device by Moonshine Tiny (English, Useful Sensors, MIT licence; 28 MB, fetched from Mutt's own server the first time a recording is read, kept by the browser after that, let go 45 seconds after its last job so a phone gets its memory back). A recording is read in pieces of at most 20 seconds, cut at the quietest moment. Only the words are saved (`meta.heard`), and the name is the first words of the first sentence, six at most. Nothing is sent anywhere to be read. A page closed before the words came is caught up the next time the galaxy opens (`/api/hear/todo`, three at a time).
+- **What was said** shows beside the new star for a slow beat on box glass (`.gx-said`: the words in Body `--ink`, "Read on this device · 0:07" as a Fact); pressing it opens the file.
+- **Where it goes.** The void's "To": a star stays a star; a planet: straight onto it; Autosort: born a star, its words read, then it flies from where it sits to the planet chosen, with the usual "Sent to …" and Move. No words heard: "No words were heard, so it stayed a star."
+- **In the file view**: "Voice note · 0:07", the player, and the words, which its owner can correct (a plain text box, saved when it loses focus); "Words read on the device it was recorded on". Others see the words as text.
+- **Still**: nothing breathes or swells; the lines and the star simply appear.
+- **Cost.** Nothing is fetched until the void is first held (`voice.js`), and the reader only once a recording is kept. While listening, one loudness reading a picture. The reader runs off the page's thread: 3.7 seconds of speech read in about 1.3 seconds the first time, 0.2 after, in Safari's engine on a computer.
+
 ### Drop ring
 
 What shows round a planet, a moon or a star while you carry something onto it, where a moved planet will land, and round the void while files are carried in from the computer. Chosen by the user on 2026-11-16, who found the dashed circles "too perfect": **a loop of dust**, the threads' print bent into a circle.
 
 - **What it is: print.** Three strands of dust that twist round each other a whole number of times on the way round, part and gather in two or three places, wander in width, with a haze and a few loose motes round them (`dustLoop` in `uvweb.js`, beside `wisp()`). Never a ruled or dashed line, never a glow.
-- **How it is drawn.** Once, a moment after the page starts (`dropring.js`, `makeDropRing` from `main.js`): the loop's soft strands as one picture, and a small tile of evenly laid dots, the void's own spacing and sizes (`evenPoints`, `DOT`). The stylesheet uses the two as a mask over `--thread-on`: the loop stretched to each ring, the dots never stretched, so a star's small ring and a planet's large one are dotted alike, and 7% shows between the dots as in the void. Until both pictures are in, no ring shows (`html.has-dust`). One rule in `galaxy.css` (headed THE DROP RING); each part sets only how far it reaches (planet −23%, moon −43%, star −32%, the ghost −7%, so the loop's middle lies where the old circle did; the void −55%, clear of its own dotted edge, which swells while files are over it).
+- **How it is drawn.** Once, a moment after the page starts (`dropring.js`, `makeDropRing` from `main.js`): the loop's soft strands as one picture, and a small tile of evenly laid dots, the void's own spacing and sizes (`evenPoints`, `DOT`). The stylesheet uses the two as a mask over `--thread-on`: the loop stretched to each ring, the dots never stretched, so a star's small ring and a planet's large one are dotted alike, and 7% shows between the dots as in the void. Until both pictures are in, no ring shows (`html.has-dust`). One rule in `galaxy.css` (headed THE DROP RING); each part sets only how far it reaches (planet −23%, moon −43%, star −32%, the ghost −7%; a world's landing ring after a throw spreads from the same reach, so the loop's middle lies where the old circle did; the void −55%, clear of its own dotted edge, which swells while files are over it).
 - **Moves.** Waiting to be dropped onto, it turns once every `--beat-rest`. The ghost and the star you are joining from with the keyboard wear it still: the ghost at half strength, that star at 0.6.
 - **A beamed file landing** (`.bm-star.is-new`, beams.js) wears it once: from 45% to 115% of its size over `--dur-scene`, rising in and fading out, never turning. Under Still it is already gone.
 - **Round the void** (`.drop-ring`, put there by `ring()` in `blackhole.js` while files from the computer are over the window) it grows in from 0.9 over `--dur-arrive` and fades over `--dur-change`, and turns like the rest. It was a blue ring with a glow until 2026-11-16, matched at the user's word. The orbit's dotted guide is a path, not a ring, and stays.
@@ -762,6 +794,7 @@ One frame for every kind of file, wherever files are shown (a planet's page, the
   3. *It is neither* (a song, a zip, code, anything else): box glass, set to the foot: one bold word in Title (what kind of file it is: `ZIP`; for a song, how long it is: `3:42`) and under it, only if the bold word wasn't the kind, the kind as a Fact. Above the word, its sign if it has one:
      - *A song*: 40 level bars, 1px wide in `--ink-4`, their heights made from the file's id so they never change; they take the planet's tint when the box is pointed at.
      - *Code or text with words to show*: its first lines in mono 10.5/1.6 `--ink-2`, fading out; code is numbered in `--ink-4`. Then only the kind as a Fact (no bold word).
+     - *A voice note made by holding the void*: its words (three lines, Body `--ink`, from the top) over its sound's real shape (`meta.voice.wave`, 16 bars) with its length as a Fact; with no words yet, the shape larger and "Voice" as the bold word. The fact is its date.
      - *Any other file*: nothing above the word. Don't invent a picture for a kind; a new sign is drawn on `/parts` and shown to the user first.
 - **The tag** (`.cell-tag`): a fact that sits on a picture, 8 in from its top-left corner: 20 high, corners 4, padding 0 8, Fact in `--ink`, on `--bar-fill` under `--tag-frost`. A video's (or a song with a cover's) length always shows, after a small play triangle. What a page or a cover is (`PDF · 12 pp`, `Book`) shows only when the box is pointed at.
 - **The buttons on a box** (`.cell-actions`): two small plain buttons (`.btn.btn-small.pill`), 12 above the foot of the box, on the same dark see-through glass as the tag. They appear when the box is pointed at or focused, and never on touch screens (right-click and a long press open the same menu).
@@ -1044,6 +1077,7 @@ Decided by the user, 2026-11-11 (the alternatives are on the boards in `design/`
 - Serif on paper: Newsreader, everywhere.
 - One logo, the Wonky. Four skies, tuned alike.
 - The sky: print dust in a river over a deeper floor, many mixed stars with a few fringed flares, a hint of liquid light, old film grain, slow movement; threads in the universe. The user found the first print sky "boring and repetitive and static" and the first stars "a bit too much", and wants it "evolving but not too distracting": keep it that side of the line.
+- Throw to Sort and Speak to the Void (2026-11-16, ideas 06 and 19 on `design/concepts/`): stars **and** file boxes can be thrown (a box at a moon or its planet); voice notes are read by the small English reader on the device; a voice note follows the void's "To"; a voice star's rays are its sound. Not built, on purpose: throwing with the keyboard (the menu's "Put on…" does it), reading other languages, and a sound for either (the Mutt Sounds work may add them: the moments are a throw landing, the void starting to listen, and letting go).
 - All four graphics areas matter: planets and the files on them, one icon set, the sky, the logo and its loading.
 - Foundations before visible changes; show before building; nothing may end up less smooth or more broken than it was found.
 

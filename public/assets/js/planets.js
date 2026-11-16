@@ -6,7 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
+import { BLUE, DUR, covered, fmtDuration, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
 
@@ -61,8 +61,42 @@ function pageFace(block) {
     note ? null : h('span', { class: 'ff-ext' }, kindWord(block)));
 }
 
+// A voice note (Speak to the Void): night with its first words, and its sound's
+// real shape along the foot. As a star at rest its rays are that shape (raysOf).
+const isVoice = (block) => block.kind === 'audio' && Array.isArray(block.meta?.voice?.wave);
+function voiceFace(block) {
+  const wave = block.meta.voice.wave;
+  const said = block.meta.heard?.text || '';
+  const bars = [];
+  for (let i = 0; i < 16; i++) bars.push(h('i', { style: { '--h': Math.max(8, wave[Math.floor((i * wave.length) / 16)] || 0) } }));
+  return h('span', { class: `ff ff-voice${said ? '' : ' is-wordless'}`, dataset: { kind: 'audio' } },
+    said ? h('span', { class: 'ff-said' }, excerpt(said, 80)) : null,
+    h('span', { class: 'ff-wave', 'aria-hidden': 'true' }, bars),
+    block.duration ? h('span', { class: 'ff-len' }, fmtDuration(block.duration)) : null);
+}
+
+// A voice star's rays: 24 round the point, each as long as the sound was loud
+// at that moment, drawn as a picture the stylesheet uses as a mask (its colour
+// is the stylesheet's).
+export function raysOf(block) {
+  if (!isVoice(block)) return null;
+  const wave = block.meta.voice.wave;
+  let d = '';
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+    const v = (wave[Math.floor((i * wave.length) / 24)] || 0) / 100;
+    const r0 = 14;
+    const r1 = r0 + 3 + 21 * v;
+    const p = (r) => `${(50 + Math.cos(a) * r).toFixed(1)} ${(50 + Math.sin(a) * r).toFixed(1)}`;
+    d += `M${p(r0)}L${p(r1)}`;
+  }
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='${d}' stroke='black' stroke-width='1.7' stroke-linecap='round' fill='none'/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 // A file as a small face: its picture, a scrap of its text, or what kind it is.
 export function fileFace(block, { lazy = false } = {}) {
+  if (isVoice(block)) return voiceFace(block);
   if (block.thumb) {
     const img = h('img', lazy ? { alt: '', 'data-src': block.thumb, draggable: false } : { src: block.thumb, alt: '', decoding: 'async', draggable: false });
     const face = h('span', { class: 'ff ff-img' }, img);
@@ -518,7 +552,9 @@ const FACES = {
     const n = Math.floor(w / 4);
     const rand = seeded(`sound:${f.id}`);
     for (let i = 0; i < n; i++) {
-      const a = (0.15 + 0.85 * Math.abs(Math.sin(i * 0.5) * (0.4 + 0.6 * rand()))) * hgt * 0.62;
+      // a voice note has its real shape; a song one made from its id
+      const a = (f.wave ? 0.12 + 0.88 * ((f.wave[Math.floor((i * f.wave.length) / n)] || 0) / 100)
+        : 0.15 + 0.85 * Math.abs(Math.sin(i * 0.5) * (0.4 + 0.6 * rand()))) * hgt * 0.62;
       ctx.fillStyle = i < n * 0.4 ? INK.pale : INK.ink3;
       ctx.beginPath();
       ctx.roundRect(x + w * 0.08 + i * ((w * 0.84) / n), y + hgt / 2 - a / 2, Math.max(1.2, (w * 0.84) / n - 1.4), a, 0.8);
@@ -559,7 +595,7 @@ function faceOf(planet, block, img) {
   if (block.kind === 'link') return { k: 'link', img };
   if (block.kind === 'pdf' || block.kind === 'doc') return { k: 'sheet', img };
   if (img) return { k: 'photo', img, video: block.kind === 'video' };
-  if (block.kind === 'audio') return { k: 'audio', id };
+  if (block.kind === 'audio') return { k: 'audio', id, wave: block.meta?.voice?.wave };
   return { k: 'other', kind: block.kind, word: kindWord(block) };
 }
 

@@ -62,9 +62,12 @@ function shaped(block, inner, kind = '') {
 function levels(block) {
   const bars = [];
   const next = seeded(String(block.id));
+  // A voice note made in Mutt keeps its real shape; a song's is made from its id.
+  const wave = block.meta?.voice?.wave;
   for (let n = 0; n < 40; n++) {
     const swell = 0.45 + 0.55 * Math.sin((n / 39) * Math.PI);
-    bars.push(h('i', { style: { '--h': Math.round(14 + next() * 70 * swell) } }));
+    const level = wave ? 8 + 0.9 * (wave[Math.floor((n * wave.length) / 40)] || 0) : 14 + next() * 70 * swell;
+    bars.push(h('i', { style: { '--h': Math.round(level) } }));
   }
   return h('div', { class: 'face-levels', 'aria-hidden': 'true' }, bars);
 }
@@ -82,6 +85,15 @@ function excerpt(block, text) {
 // song is, or what kind of file it is) and above it, where there is one, its
 // sign. Its name and size are in the caption, not here.
 function fileFace(block, { excerpt: wanted = true } = {}) {
+  // A voice note (Speak to the Void): what was said, read like a note, over its sound's shape and length.
+  if (block.kind === 'audio' && block.meta?.voice) {
+    const said = block.meta.heard?.text;
+    return h('div', { class: `face face-file face-voice${said ? '' : ' is-wordless'}` },
+      said ? h('div', { class: 'face-said' }, said.slice(0, 900)) : null,
+      levels(block),
+      h('div', { class: 'face-kind' }, block.duration ? fmtDuration(block.duration) : 'Voice'),
+      h('div', { class: 'face-sub' }, 'Voice note'));
+  }
   const text = wanted ? block.meta?.excerpt : null;
   const song = block.kind === 'audio';
   const length = song && block.duration ? fmtDuration(block.duration) : null;
@@ -150,7 +162,7 @@ const nameOf = (block) => (block.kind === 'link' && block.meta?.domain) || displ
 
 // The one fact beside the name: when words were added, how long or how big a file is.
 export function factOf(block) {
-  if (block.kind === 'text' || block.kind === 'link') return block.createdAt ? fmtDate(block.createdAt) : '';
+  if (block.kind === 'text' || block.kind === 'link' || block.meta?.voice) return block.createdAt ? fmtDate(block.createdAt) : '';
   if (block.meta?.pages && (isBook(block) || isPage(block))) return `${block.meta.pages} pp`;
   return block.size ? fmtBytes(block.size) : '';
 }

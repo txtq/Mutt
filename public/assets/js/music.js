@@ -45,7 +45,8 @@ let step = 0;
 let pos = 0; // beats into the four-bar loop
 let heard = false; // a tap or key has happened
 
-const wanted = () => heard && !!session.user && document.documentElement.dataset.music !== 'off' && !document.hidden;
+let hushed = false;
+const wanted = () => heard && !hushed && !!session.user && document.documentElement.dataset.music !== 'off' && !document.hidden;
 
 function bassNote(at, freq, dur) {
   const osc = ctx.createOscillator();
@@ -195,4 +196,12 @@ export function startMusic() {
   new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-music'] });
   // Signing in or out doesn't touch the setting; check now and then.
   setInterval(() => { if (heard && ctx && (ctx.state === 'running') !== wanted()) sync(); }, 2000);
+}
+
+// While the void is listening (Speak to the Void, voice.js) the music steps
+// out of the way, so the recording is only your voice; it comes back after.
+export function hush(on) {
+  hushed = on;
+  if (ctx && on) fade(0, 0.15);
+  sync();
 }

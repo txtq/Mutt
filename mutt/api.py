@@ -15,7 +15,7 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, convert, db, documents, export, kinds, links, media, privacy, quotes, recipes, sight, sorting, transcode
+from . import auth, books, convert, db, documents, export, hear, kinds, links, media, privacy, quotes, recipes, sight, sorting, transcode
 from . import modes as modes_registry
 from . import split as split_moons
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
@@ -3634,12 +3634,23 @@ def update_block(req, block_id):
             value = int_arg(body[key], 0, high)
             if value is not None:
                 updates[key] = value
-    if 'look' in body or 'see' in body:
+    if 'look' in body or 'see' in body or (row['kind'] == 'audio' and ('voice' in body or 'heard' in body)):
         meta = json.loads(row['meta'] or '{}')
         if 'look' in body:
             meta['look'] = clean_look(body['look'])
         if 'see' in body:
             meta['see'] = clean_see(body['see'])
+        # A voice note made by holding the void: its sound's shape, and the words read from it on the device.
+        if row['kind'] == 'audio' and 'voice' in body:
+            voice = hear.clean_voice(body['voice'])
+            if voice:
+                meta['voice'] = voice
+        if row['kind'] == 'audio' and 'heard' in body:
+            heard = hear.clean_heard(body['heard'])
+            if heard is None:
+                meta.pop('heard', None)
+            else:
+                meta['heard'] = heard
         req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
     if updates:
         updates['updated_at'] = now()
@@ -3864,6 +3875,9 @@ def search(req):
         if not owner:
             words += " OR json_remove(b.meta, '$.look', '$.see') LIKE ? ESCAPE '\\'"
             params.append(pattern)
+        else:  # a voice note's words are as open as its sound
+            words += " OR json_extract(b.meta, '$.heard.text') LIKE ? ESCAPE '\\'"
+            params.append(pattern)
         names = sight.asked(q)
         if names:  # "dogs", "a cat on the beach": pictures that show it count too
             seen = [r['id'] for r in req.db.execute(
@@ -3966,6 +3980,34 @@ def see_model(req):
         raise HttpError(503, 'The picture reader is still being fetched.')
     return file_response(req, sight.model_path(), 'application/octet-stream',
                          cache='public, max-age=31536000, immutable')
+
+
+@route('GET', r'/api/hear/todo')
+def hear_todo(req):
+    """Your voice notes whose words haven't been read yet (the page closed first, say)."""
+    if not hear.enabled():
+        return json_response({'blocks': []})
+    rows = req.db.execute(
+        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL AND b.kind = 'audio' "
+        "AND json_type(b.meta, '$.voice') IS NOT NULL AND json_type(b.meta, '$.heard') IS NULL "
+        "ORDER BY b.created_at DESC LIMIT 20", (req.user['id'],)).fetchall()
+    return json_response({'blocks': [block_json(b) for b in rows]})
+
+
+@route('GET', r'/api/hear/(?P<name>encoder|decoder|vocab)')
+def hear_model(req, name):
+    """The voice reader's model (hear.py), served by Mutt itself once it has fetched it."""
+    if not hear.enabled():
+        raise HttpError(404, 'Reading voice notes is turned off here.')
+    if not hear.ready():
+        hear.fetch()
+        raise HttpError(503, 'The voice reader is still being fetched.')
+    cache = 'public, max-age=31536000, immutable'
+    if name == 'vocab':
+        body = hear.vocab()
+        return Response(200, [('Content-Type', 'application/json; charset=utf-8'), ('Content-Length', str(len(body))),
+                              ('Cache-Control', cache)], body)
+    return file_response(req, hear.path_of(name), 'application/octet-stream', cache=cache)
 
 
 @route('GET', r'/api/looks/todo')

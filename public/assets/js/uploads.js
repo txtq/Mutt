@@ -130,6 +130,12 @@ async function run(item) {
         width: thumb.width, height: thumb.height, duration: thumb.duration,
       }).catch(() => ({ block }))).block;
     }
+    // A voice note made by holding the void: its shape and length, which the recorder knows best.
+    if (item.ctx.voice) {
+      block = (await api.patch(`/api/blocks/${block.id}`, {
+        voice: { wave: item.ctx.voice.wave }, duration: Math.max(1, Math.round(item.ctx.voice.seconds)),
+      }).catch(() => ({ block }))).block;
+    }
     if (visual) {
       const source = thumb?.blob || (item.kind === 'image' ? item.file : null);
       const looking = source ? lookOfBlob(source).catch(() => null) : Promise.resolve(null);

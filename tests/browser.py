@@ -1200,8 +1200,45 @@ def beam_file(s, seeded):
            'the kept file did not become one of your stars')
 
 
+def throw_star(s, seeded):
+    """Flick a star at the nearest planet: it flies there and is put on it, with an Undo (fling.js)."""
+    star = s.js('''return fetch('/api/blocks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+        body: JSON.stringify({ content: 'a thrown star' }) }).then((r) => r.json()).then((d) => d.block.id)''')
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7 && document.querySelector(`.star[data-id="${arguments[0]}"]`)',
+           'the galaxy (or the new star) did not load', args=(star,))
+    s.settle(1)
+    # a quick flick toward the nearest planet, let go well short of it, as a hand does it
+    title = s.js('''return (async () => {
+      const a = document.querySelector(`.star[data-id="${arguments[0]}"]`);
+      const mid = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+      const p = mid(a);
+      const near = [...document.querySelectorAll('.gx-field .planet:not(.is-moon)')].map((el) => ({ el, c: mid(el) }))
+        .sort((m, n) => Math.hypot(m.c.x - p.x, m.c.y - p.y) - Math.hypot(n.c.x - p.x, n.c.y - p.y))[0];
+      const d = Math.hypot(near.c.x - p.x, near.c.y - p.y), ux = (near.c.x - p.x) / d, uy = (near.c.y - p.y) / d;
+      const ev = (type, at, el = document) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 11, pointerType: 'mouse',
+        isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: at.x, clientY: at.y }));
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      ev('pointerdown', p, a);
+      let at = { x: p.x + ux * 10, y: p.y + uy * 10 };
+      ev('pointermove', at);
+      const step = Math.min(24, (d - 90) / 5);
+      for (let i = 0; i < 4; i++) { await sleep(16); at = { x: at.x + ux * step, y: at.y + uy * step }; ev('pointermove', at); }
+      ev('pointerup', at);
+      return near.el.querySelector('.planet-name')?.textContent || '';
+    })()''', star)
+    s.wait('return /^Put on /.test(document.querySelector(".toast")?.textContent || "")', 'a star flicked at a planet did not say "Put on …"', 6)
+    s.shot('throw-star')
+    planet = next((d['id'] for d in s.fetch('/api/galaxy')['planets'] if d['title'] == title), None)
+    end = time.time() + 6
+    while not planet or star not in [b['id'] for b in s.fetch(f'/api/drawers/{planet}')['blocks']]:
+        if time.time() > end:
+            raise Fail(f'the thrown star is not on "{title}", the planet it was flicked at')
+        time.sleep(0.2)
+
+
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
+         documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, send_to_top,
          split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
 
 

@@ -243,6 +243,7 @@ function stageMedia(block) {
   if (block.kind === 'pdf' && block.file) return pdfStage(block);
   if (block.kind === 'link') return linkStage(block);
   if (block.kind === 'text') return textStage(block);
+  if (block.kind === 'audio' && block.file && block.meta?.voice) return voiceStage(block);
   if (block.kind === 'audio' && block.file) {
     return h('div', { class: 'vw-media vw-card fglass' },
       h('div', { class: 'vw-card-ext' }, extLabel(block)),
@@ -256,6 +257,40 @@ function stageMedia(block) {
     return h('div', { class: 'vw-media vw-codebox' }, pre);
   }
   return fileCard(block);
+}
+
+// A voice note (Speak to the Void): the sound, and under it the words that were
+// read from it on the device. Its owner can put the words right.
+function voiceStage(block) {
+  const said = block.meta.heard?.text || '';
+  const mine = block.mine !== false;
+  let words = null;
+  if (mine) {
+    words = h('textarea', {
+      class: 'field-bare vw-said', rows: 1, value: said, spellcheck: 'true', 'aria-label': 'What was said',
+      placeholder: block.meta.heard ? 'No words were heard. Write them here' : 'The words haven’t been read yet',
+    });
+    autosize(words);
+    words.addEventListener('blur', async () => {
+      const text = words.value.trim();
+      if (text === (state.block.meta?.heard?.text || '')) return;
+      try {
+        const { block: saved } = await api.patch(`/api/blocks/${block.id}`, { heard: { v: 1, text } });
+        applyUpdate(saved, { keepSide: true });
+      } catch (err) {
+        toast(err.message);
+        words.value = state.block.meta?.heard?.text || '';
+      }
+    });
+    words.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); e.stopPropagation(); words.blur(); }
+    });
+  } else if (said) words = h('p', { class: 'vw-said' }, said);
+  return h('div', { class: 'vw-media vw-card vw-voice fglass' },
+    h('div', { class: 'vw-card-sub' }, ['Voice note', block.duration ? fmtDuration(block.duration) : null].filter(Boolean).join(' · ')),
+    h('audio', { src: block.file, controls: true, preload: 'metadata' }),
+    words,
+    said ? h('div', { class: 'vw-card-sub' }, 'Words read on the device it was recorded on') : null);
 }
 
 // A file with nothing to show: what it is, in box glass.

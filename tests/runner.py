@@ -53,7 +53,7 @@ def answer(line):
 def start_server(work, port=PORT):
     if answering(port):
         raise SystemExit(f'Port {port} is already taken by something else; run the checks again.')
-    env = dict(os.environ, MUTT_SEE='0', MUTT_CONVERT='0', MUTT_TRUST_PROXY='1', MUTT_ADMIN='boss', MUTT_ADMIN_KEY='test-admin-key',
+    env = dict(os.environ, MUTT_SEE='0', MUTT_HEAR='0', MUTT_CONVERT='0', MUTT_TRUST_PROXY='1', MUTT_ADMIN='boss', MUTT_ADMIN_KEY='test-admin-key',
                MUTT_DATA_DIR=os.path.join(work, 'data'), PORT=str(port))
     log = open(os.path.join(work, 'server.log'), 'w')
     proc = subprocess.Popen([sys.executable, 'server.py'], cwd=ROOT, env=env, stdout=log, stderr=log)

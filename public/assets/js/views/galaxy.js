@@ -8,16 +8,17 @@ import { blockContextMenu, openConnect, sortedToast } from '../actions.js';
 import { api, session } from '../api.js';
 import { blackHole, stillVoid } from '../blackhole.js';
 import { draggable, movable } from '../drag.js';
+import { comeBack, fly, landed } from '../fling.js';
 import { arcTo, burst, center, chipFrom, float, spiralInto } from '../fx.js';
 import { nav } from '../nav.js';
-import { fileFace, holdPlanets, lookOf, orbitReach, planetEl, planetSize, worldPicture } from '../planets.js';
+import { fileFace, holdPlanets, lookOf, orbitReach, planetEl, planetSize, raysOf, worldPicture } from '../planets.js';
 import { together } from '../planetgl.js';
 import { theSky } from '../sky.js';
 import { updatePrefs } from '../theme.js';
 import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
 import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
+import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, fmtDuration, h, isEditable, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
@@ -1115,6 +1116,8 @@ class Galaxy {
         onText: (text, from, dest) => this.addText(text, from, dest),
         onFiles: (files, from, dest) => this.addFiles(files, from, dest),
         onToggle: (open) => this.holdStill(open),
+        // Held, it listens (Speak to the Void): only where this browser can record.
+        onHold: typeof MediaRecorder !== 'undefined' && navigator.mediaDevices?.getUserMedia ? (kind) => this.holdVoid(kind) : null,
       });
       this.void = this.hole;
     } else {
@@ -2009,6 +2012,9 @@ class Galaxy {
       dataset: { id: block.id, kind: block.kind, tip: label, tipNow: '', tipAt: 'above' },
     }, fileFace(block));
     el.block = block;
+    // a voice note's rays are its sound (planets.js raysOf)
+    const rays = raysOf(block);
+    if (rays) { el.classList.add('is-voice'); el.style.setProperty('--rays', rays); }
     el.addEventListener('click', () => nav.openBlock(block.id));
     el.addEventListener('contextmenu', (e) => {
       if (document.body.classList.contains('is-carrying')) return;
@@ -2021,6 +2027,8 @@ class Galaxy {
       ghost: () => h('div', { class: 'star-ghost' }, fileFace(el.block)),
       targets: () => this.targets(el.block),
       onDrop: (target, ghost) => this.dropStar(el.block, target, ghost),
+      // flicked at a planet, a moon or the void, it flies there (fling.js)
+      onThrow: (target, ghost, at, v, size) => this.throwStar(el, target, ghost, at, v, size),
       // let go in the open sky, a star in a constellation leaves it
       onLoose: (ghost) => this.sky?.has(el.block.id) && this.looseStar(el.block, ghost),
     });
@@ -2034,7 +2042,7 @@ class Galaxy {
     const shown = this.shownStars();
     for (const block of shown) {
       let el = have.get(block.id);
-      if (el && (el.block.thumb !== block.thumb || el.block.title !== block.title)) {
+      if (el && (el.block.thumb !== block.thumb || el.block.title !== block.title || el.block.meta?.heard?.text !== block.meta?.heard?.text)) {
         const swap = this.starEl(block);
         swap.style.transform = el.style.transform;
         el = swap;
@@ -2110,13 +2118,69 @@ class Galaxy {
     el?.gulp();
     try {
       const res = await api.post(`/api/blocks/${block.id}/connections`, { drawer: target.id });
-      this.forgetStar(block.id);
-      if (target.kind === 'moon') toast(`Moved to ${el.moon.title}`);
-      else {
-        el?.bump(1);
-        toast(`Moved to ${el?.planet.title || 'a planet'}`);
+      this.putOn(block, target, el, res);
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  // Throw to Sort (fling.js, DESIGN.md "Throwing"): a star flicked at a world
+  // flies there. It is put on the planet as it leaves the hand, so the flight
+  // is only the picture of it; at the void it falls in and is autosorted.
+  async throwStar(star, target, ghost, at, v, size) {
+    const block = star.block;
+    const home = () => center(star.getBoundingClientRect());
+    if (target.kind === 'hole') {
+      await fly(ghost, { from: at, v, target, scale: size, caught: true });
+      await this.dropStar(block, target, ghost);
+      return;
+    }
+    const el = target.kind === 'moon' ? target.el : this.planetEls.get(target.id);
+    const put = api.post(`/api/blocks/${block.id}/connections`, { drawer: target.id });
+    const ok = await fly(ghost, { from: at, v, target, ready: put, pull: this.hole?.center(), scale: size });
+    if (!ok) {
+      // It couldn't land (offline, or the planet won't take it): back to its place.
+      put.catch((err) => toast(navigator.onLine === false || err.status === 0 ? 'Mutt couldn’t be reached, so it stayed a star.' : err.message));
+      await comeBack(ghost, { from: center(ghost.getBoundingClientRect()), home, scale: 0.4 });
+      ghost.remove();
+      return;
+    }
+    ghost.remove();
+    landed(el);
+    el?.gulp();
+    this.putOn(block, target, el, await put);
+  }
+
+  // A star has landed on a planet or moon: it leaves the stars, the planet
+  // counts it, and Undo brings it back out.
+  putOn(block, target, el, res) {
+    const was = this.sky?.of.get(block.id)?.id;   // its constellation, which the planet took it out of
+    this.forgetStar(block.id);
+    if (target.kind !== 'moon') el?.bump(1);
+    bus.emit('block:connected', { block: res.block, drawerId: target.id, connections: res.connections });
+    this.refresh();
+    const title = (target.kind === 'moon' ? el?.moon.title : el?.planet.title) || 'a planet';
+    toast(`Put on ${title}`, { action: { label: 'Undo', run: () => this.takeBack(block, target, was) } });
+  }
+
+  // Undo: off the planet again, and back among the stars from where it landed.
+  async takeBack(block, target, was) {
+    try {
+      const out = await api.del(`/api/blocks/${block.id}/connections/${target.id}`);
+      bus.emit('block:disconnected', { block: out.block, drawerId: target.id, connections: out.connections });
+      const world = target.kind === 'moon' ? target.el : this.planetEls.get(target.id);
+      if (!out.connections?.length && !this.isStar(block.id)) {
+        this.stars.unshift(out.block || block);
+        this.renderStars();
+        const from = world?.isConnected ? world.center() : null;
+        const c = this.coreWrap.getBoundingClientRect();
+        if (from) this.holdStar(block.id, { x: from.x - c.left, y: from.y - c.top });
+        if (was && this.sky?.byId(was)) {
+          const back = await api.post(`/api/constellations/${was}/stars`, { block: block.id }).catch(() => null);
+          if (back) this.sky.set(back.constellations);
+        }
+        this.layout();
       }
-      bus.emit('block:connected', { block: res.block, drawerId: target.id });
       this.refresh();
     } catch (err) {
       toast(err.message);
@@ -2270,6 +2334,197 @@ class Galaxy {
     addFiles(files, { drawerId: planetId });
   }
 
+  // ------------------------------------------------------------ Speak to the Void (voice.js)
+  // DESIGN.md "Speak to the Void". Hold the void and talk; let go and the
+  // recording becomes a star (or goes where the void's add box says), and a
+  // moment later the words read on this device are written on it.
+
+  // The void is held: it listens. Gives blackhole.js { slide(k), end(drop) }.
+  holdVoid(kind) {
+    if (this.p > 0.02 || this.listening) return null;
+    const hole = this.hole;
+    const s = { rec: null, ended: false, k: 0, timer: 0 };
+    this.listening = s;
+    const away = kind === 'key' ? 'Esc to let it go' : touchScreen() ? 'Slide up to let it go' : 'Drag up to let it go';
+    s.away = away;
+    hole.listening(true);
+    hole.say(away);
+    const c = hole.center();
+    theSky()?.pull(c.x, c.y, { strength: 0.5, radius: hole.radius() * 4 });
+    (async () => {
+      const voice = this.voiceMod || (this.voiceMod = await import('../voice.js'));
+      const asked = (await voice.permission()) !== 'granted';
+      if (asked && !s.ended) hole.say('Hold to talk. It stays on your device.', { under: true });
+      voice.warmUp();
+      try {
+        s.rec = await voice.listen({ onLevel: (x) => hole.loudness(x), onEnded: () => this.letGoVoid(s, false) });
+      } catch (err) {
+        this.listening = null;
+        hole.listening(false);
+        hole.say('');
+        toast(err.reason === 'denied' ? 'Mutt can’t hear you: the microphone is turned off for this site. You can turn it on in your browser’s settings for this website.'
+          : err.reason === 'none' ? 'There’s no microphone to listen with.' : 'The microphone is busy with something else.');
+        return;
+      }
+      if (s.ended) {
+        // Let go while the browser was asking for the microphone (a finger has to lift to answer).
+        s.rec.cancel();
+        this.listening = null;
+        hole.listening(false);
+        hole.say(asked ? 'Now hold the void and talk' : '', { under: true, ms: BEAT.slow });
+        return;
+      }
+      if (asked) hole.say(away);
+      s.timer = setInterval(() => {
+        const sec = s.rec.seconds();
+        hole.setLabel(fmtDuration(sec));
+        if (sec >= voice.LONGEST) this.letGoVoid(s, false);   // five minutes: it lets go by itself
+      }, 250);
+    })();
+    return {
+      slide: (k) => {
+        s.k = k;
+        if (!s.ended) hole.say(k >= 1 ? 'Let go to drop it' : s.away, { hot: k >= 1 });
+      },
+      end: (drop) => this.letGoVoid(s, drop),
+    };
+  }
+
+  async letGoVoid(s, drop) {
+    if (s.ended) return;
+    s.ended = true;
+    clearInterval(s.timer);
+    const hole = this.hole;
+    if (!s.rec) return;   // still starting: dealt with when the microphone answers
+    this.listening = null;
+    const short = s.rec.seconds() < this.voiceMod.SHORTEST;
+    if (drop || short) {
+      s.rec.cancel();
+      hole.listening(false);
+      hole.say(drop ? 'Dropped. Nothing was kept' : 'Too short to keep', { under: true, ms: BEAT.slow });
+      return;
+    }
+    hole.say('');
+    const got = await s.rec.stop();
+    hole.listening(false);
+    hole.gulp();
+    this.keepVoice(got);
+  }
+
+  // The recording goes up as an ordinary sound file: a star (or onto the
+  // planet the void's box is set to); with Autosort, it goes on once its words are read.
+  keepVoice(got) {
+    const { mode, planetId } = this.hole.where();
+    const file = new File([got.blob], `Voice note.${got.ext}`, { type: got.blob.type || 'audio/mp4' });
+    const drawerId = mode === 'planet' ? planetId : null;
+    const [item] = addFiles([file], { galaxy: true, drawerId, voice: { wave: got.wave, seconds: got.seconds } });
+    if (!item) return;
+    (this.voices ||= new Map()).set(item.key, { blob: got.blob, sort: mode === 'sort' && !drawerId });
+  }
+
+  // The words, read on this device, written on the file; then, with Autosort, on to its planet.
+  async readVoice(block, { blob, sort = false }) {
+    const voice = this.voiceMod || (this.voiceMod = await import('../voice.js'));
+    const star = () => this.starsEl.querySelector(`.star[data-id="${CSS.escape(block.id)}"]`);
+    star()?.classList.add('is-reading');
+    let text = null;
+    for (let tries = 0; tries < 6 && text == null; tries++) {
+      try {
+        text = await voice.hearWords(blob);
+      } catch (err) {
+        if (err.reason !== 'not ready') break;   // turned off, or this browser can't: it stays a sound
+        await wait(10000);   // the server is still fetching the reader
+      }
+    }
+    star()?.classList.remove('is-reading');
+    if (text == null) return;   // read on a later visit (catchUpVoices)
+    const res = await api.patch(`/api/blocks/${block.id}`, {
+      heard: { v: voice.HEAR_VERSION, text },
+      ...(text && /^Voice note$/.test(block.title || '') ? { title: voice.nameFrom(text) } : {}),
+    }).catch(() => null);
+    if (!res || !this.el.isConnected) return;
+    const fresh = res.block;
+    bus.emit('block:changed', fresh);
+    const i = this.stars.findIndex((b) => b.id === fresh.id);
+    if (i >= 0) {
+      this.stars[i] = fresh;
+      this.renderStars();
+      this.layout();
+      if (text) this.showSaid(fresh);
+    }
+    if (!sort || i < 0) return;
+    if (!text) { toast('No words were heard, so it stayed a star.'); return; }
+    const out = await api.post(`/api/blocks/${fresh.id}/autosort`, {}).catch(() => null);
+    if (out?.sortedInto && this.el.isConnected) await this.flyStar(out.block, out.sortedInto);
+  }
+
+  // What was said, beside the new star for a moment, in the owner's ink on box glass.
+  showSaid(block) {
+    const star = this.starsEl.querySelector(`.star[data-id="${CSS.escape(block.id)}"]`);
+    const text = block.meta?.heard?.text;
+    if (!star || !text || this.p > 0.02) return;
+    this.said?.remove();
+    const box = h('button', { type: 'button', class: 'gx-said fglass', onclick: () => nav.openBlock(block.id) },
+      h('span', { class: 'gx-said-words' }, excerpt(text, 220)),
+      h('span', { class: 'gx-said-fact' }, ['Read on this device', block.duration ? fmtDuration(block.duration) : null].filter(Boolean).join(' · ')));
+    document.body.append(box);
+    this.said = box;
+    const r = star.getBoundingClientRect();
+    const w = box.offsetWidth;
+    const hgt = box.offsetHeight;
+    const right = r.right + 12 + w < innerWidth - 16;
+    const x = right ? r.right + 12 : Math.max(16, Math.min(innerWidth - w - 16, r.left - 12 - w));
+    const y = Math.max(16, Math.min(innerHeight - hgt - 16, r.top + r.height / 2 - hgt / 2));
+    box.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    requestAnimationFrame(() => box.classList.add('is-on'));
+    const go = () => {
+      box.classList.remove('is-on');
+      setTimeout(() => box.remove(), DUR.change);
+      removeEventListener('scroll', go);
+      if (this.said === box) this.said = null;
+    };
+    setTimeout(go, BEAT.slow + DUR.arrive);
+    addEventListener('scroll', go, { once: true, passive: true });
+  }
+
+  // A star on its way to the planet autosort chose: from where it sits, not from the void.
+  async flyStar(block, { planet, created, or }) {
+    const star = this.starsEl.querySelector(`.star[data-id="${CSS.escape(block.id)}"]`);
+    const from = star ? center(star.getBoundingClientRect()) : this.hole.center();
+    this.forgetStar(block.id);
+    this.setPlanet(planet);
+    let el = this.planetEls.get(planet.id);
+    if (!el) {
+      el = this.addPlanet(planet, { born: true });
+      this.layout();
+      await wait(reducedMotion() ? 0 : DUR.arrive);
+    }
+    const chip = float(h('div', { class: 'fx-file' }, fileFace(block)), from);
+    await arcTo(chip, from, el.center(), { duration: DUR.scene, lift: 0.22, startScale: 1, endScale: 0.3 });
+    landed(el);
+    el.gulp();
+    el.bump(1);
+    sortedToast(block, { planet, created, or });
+    this.setHint();
+    this.refresh();
+  }
+
+  // Voice notes whose words weren't read (the tab closed first, or the reader
+  // wasn't ready): a few at a time, when the page is idle.
+  async catchUpVoices() {
+    if (typeof MediaRecorder === 'undefined' || this.caughtUp) return;
+    this.caughtUp = true;
+    let blocks;
+    try {
+      ({ blocks } = await api.get('/api/hear/todo'));
+    } catch { return; }
+    for (const block of blocks.slice(0, 3)) {
+      if (!this.live || document.hidden) return;
+      const blob = await fetch(block.file, { credentials: 'same-origin' }).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
+      if (blob) await this.readVoice(block, { blob });
+    }
+  }
+
   // A new star: up out of the void and into the cluster round it.
   async birth(block) {
     if (!this.stars.some((b) => b.id === block.id)) this.stars.unshift(block);
@@ -2383,6 +2638,9 @@ class Galaxy {
             const p = this.data.planets.find((x) => x.id === item.ctx.drawerId);
             if (p) this.launch(item.block, { planet: { ...p, count: (p.count || 0) + 1, previews: [item.block, ...(p.previews || [])], recent: [item.block, ...(p.recent || [])] }, created: false });
           } else this.birth(item.block);
+          // a voice note: now its words (Speak to the Void)
+          const voice = this.voices?.get(item.key);
+          if (voice) { this.voices.delete(item.key); this.readVoice(item.block, voice); }
         } else if (item.ctx.drawerId && this.planetEls.has(item.ctx.drawerId)) {
           this.planetEls.get(item.ctx.drawerId).bump(1);
           this.refresh();
@@ -2929,6 +3187,7 @@ class Galaxy {
         } else if (!moved) this.entrance();
         arriving = false;
         if (!this.mine) this.fetchMine();
+        else setTimeout(() => { if (this.live) this.catchUpVoices(); }, BEAT.slow);
         this.beamsWaiting();
         // A constellation that holds enough offers to become a planet, once the page is up.
         if (this.sky) setTimeout(() => { if (this.live && this.p < 0.02) this.sky.maybeOffer(); }, DUR.move);
@@ -2951,6 +3210,8 @@ class Galaxy {
         this.live = false;
         this.sky?.destroy();
         this.joinTip?.remove();
+        this.said?.remove();
+        if (this.listening) this.letGoVoid(this.listening, true);
         theSky()?.setLens(null);
         this.void.destroy();
         this.found?.destroy();

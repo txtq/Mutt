@@ -625,11 +625,13 @@ class Doc:
             written = content
         else:
             path = urlpath(content) if self.kind == 'link' else ''
-            inside = extra[:limit] or ' '.join(filter(None, [meta.get('excerpt'), meta.get('gist')]))
+            # A voice note's words (Speak to the Void) are read as if they had been written.
+            heard = (meta.get('heard') or {}).get('text') if isinstance(meta.get('heard'), dict) else None
+            inside = extra[:limit] or ' '.join(filter(None, [meta.get('excerpt'), meta.get('gist'), heard]))
             body = ' '.join(filter(None, [meta.get('description'), meta.get('siteName'), meta.get('keywords'),
                                           path, inside, media.get('album'), media.get('genre'), media.get('subject'),
                                           media.get('location'), media.get('template')]))
-            written = extra or meta.get('excerpt') or ''  # real text, never the gist (a bag of words)
+            written = extra or meta.get('excerpt') or heard or ''  # real text, never the gist (a bag of words)
         lines = written.strip().splitlines()
         first = lines[0] if lines else ''
         # A short heading before a colon or dash ("Ellie's nursery: ...", "# Weekly sync") is what a

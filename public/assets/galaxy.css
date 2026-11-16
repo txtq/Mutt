@@ -1344,10 +1344,30 @@ body.no-chrome #view { padding: 0; }
 .void-plus { display: grid; transition: transform var(--dur-arrive) var(--ease-settle); }
 .void-label { font: 500 var(--text-small)/1 var(--mono); letter-spacing: 0.22em; text-transform: uppercase; white-space: nowrap; }
 /* someone else's void carries their name, so it is read, not hinted: always the dark ink */
-.void-core:hover .void-mid, .void-core:focus-visible .void-mid, .void.is-hungry .void-mid, .void.is-still .void-mid { color: rgba(16, 13, 24, 0.8); }
+.void-core:hover .void-mid, .void-core:focus-visible .void-mid, .void.is-hungry .void-mid, .void.is-still .void-mid, .void.is-listening .void-mid { color: rgba(16, 13, 24, 0.8); }
 .void-core:hover .void-plus, .void-core:focus-visible .void-plus { transform: rotate(90deg); }
 .void.is-still .void-label { font: 500 var(--text-label)/1 var(--sans); letter-spacing: 0; text-transform: none; }
 .void.is-open .void-mid { opacity: 0; }
+/* Speak to the Void (blackhole.js; DESIGN.md "Speak to the Void"): held, the void listens. The plus steps
+   aside and the label is how long so far; one short line from the void sits above it (what letting go
+   does), or under it (the first time, a recording too short). The core can't be pressed into text or a menu. */
+.void-core { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.void .void-plus { transition: transform var(--dur-arrive) var(--ease-settle), opacity var(--dur-change); }
+.void.is-listening .void-plus { opacity: 0; }
+.void-say {
+  /* the tooltip's glass (SHARED PARTS), so it reads over the void's print; kept within the void, where a
+     phone's ring of planets never is, and above the core, where a finger isn't */
+  position: absolute;
+  left: 50%;
+  top: calc(50% - var(--vr) * 1.1);
+  z-index: 4;
+  translate: -50% -100%;
+  color: var(--ink-2);
+  transition: opacity var(--dur-change) var(--ease-leave);
+}
+.void-say.is-under { top: calc(50% + var(--vr) * 1.1); translate: -50% 0; }
+.void-say.is-on { opacity: 1; transition: opacity var(--dur-move) var(--ease-settle); }
+.void-say.is-hot { color: var(--ink); }
 
 /* the add box, held in the middle of the opened dark: flat and plain, like
    Are.na's. The writing sits straight on the light with no frame; one thin
@@ -1512,10 +1532,10 @@ body.no-chrome #view { padding: 0; }
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
-.ff-body { margin-top: 5%; font-size: 15cqw; font-weight: 500; line-height: 1.25; color: #707480; }
+.ff-body, .ff-said { margin-top: 5%; font-size: 15cqw; font-weight: 500; line-height: 1.25; color: #707480; }
 .ff-text.is-file .ff-head { font-size: 19cqw; }
 .ff-text.is-solo .ff-head { font-size: 17cqw; -webkit-line-clamp: 5; }
-.ff-text.is-file .ff-body { font: 500 13cqw/1.25 var(--mono); }
+.ff-text.is-file .ff-body, .ff-len { font: 500 13cqw/1.25 var(--mono); }
 .ff-ext {
   position: absolute;
   left: 10%;
@@ -1535,6 +1555,14 @@ body.no-chrome #view { padding: 0; }
 .ff-kind[data-kind="audio"] { background: #4f9b85; }
 .ff-kind[data-kind="video"] { background: #9b5d82; }
 .ff-kind[data-kind="code"] { background: #7468a8; }
+/* A voice note (Speak to the Void; DESIGN.md "Speak to the Void"): night, its first words in the
+   owner's ink, its sound's real shape along the foot and how long it is. Sized to the tile like a page. */
+.ff-voice { position: relative; container-type: size; background: var(--night-mid); color: var(--ink); font-family: var(--sans); text-align: left; }
+.ff-voice .ff-said { position: absolute; left: 8%; right: 8%; top: 7%; margin: 0; line-height: 1.2; color: var(--ink); overflow-wrap: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.ff-wave { position: absolute; left: 8%; right: 8%; bottom: 22%; height: 18%; display: flex; align-items: center; justify-content: space-between; }
+.ff-wave i { flex: none; width: max(1px, 3cqw); height: calc(var(--h) * 1%); border-radius: var(--r-full); background: var(--ink-3); }
+.ff-voice.is-wordless .ff-wave { bottom: 34%; height: 34%; }
+.ff-voice .ff-len { position: absolute; right: 8%; bottom: 5%; line-height: 1; color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ stars: loose files round the void */
 
@@ -1574,9 +1602,9 @@ body.no-chrome #view { padding: 0; }
   box-shadow: var(--shadow-rest);
   transform: var(--face);
   filter: brightness(var(--lit)) saturate(0.82);
-  transition: transform var(--dur-move) var(--ease-settle), border-radius var(--dur-move) var(--ease-settle), box-shadow var(--dur-move), filter var(--dur-move);
+  transition: transform var(--dur-move) var(--ease-settle), border-radius var(--dur-move) var(--ease-settle), box-shadow var(--dur-move), filter var(--dur-move), background-color var(--dur-move);
 }
-.star .ff-text > *, .star .ff-text::after, .star .ff-kind > span { transition: opacity var(--dur-move); }
+.star .ff-text > *, .star .ff-text::after, .star .ff-kind > span, .star .ff-voice > * { transition: opacity var(--dur-move); }
 /* A star's card is too small to split a word well ("Remembe r:"): a long word runs to the paper's edge instead. */
 .star .ff-text { overflow-wrap: normal; overflow: hidden; }
 .star:not(.star-more)::before, .star:not(.star-more)::after { content: ""; position: absolute; pointer-events: none; transition: opacity var(--dur-move); }
@@ -1599,6 +1627,37 @@ body.no-chrome #view { padding: 0; }
     linear-gradient(0deg, transparent 12%, color-mix(in srgb, var(--star-blue) 40%, transparent) 50%, transparent 88%) center / 1px 100% no-repeat,
     var(--star-glow);
 }
+/* a voice star whose words are being read: it breathes on the quick beat until they are in */
+.star.is-reading :is(.ff-voice, .face-voice), .star.is-reading.is-voice::before { animation: voice-reading var(--beat-quick) ease-in-out infinite alternate; }
+@keyframes voice-reading { to { opacity: 0.5; } }
+/* what was said, beside the new star for a moment (galaxy.js showSaid): the owner's words on box glass */
+.gx-said {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: max-content;
+  max-width: min(280px, calc(100vw - 2 * var(--space-16)));
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--r-box);
+  text-align: left;
+  opacity: 0;
+  translate: 0 8px;
+  transition: opacity var(--dur-change) var(--ease-leave), translate var(--dur-change) var(--ease-leave);
+}
+.gx-said.is-on { opacity: 1; translate: 0 0; transition: opacity var(--dur-arrive) var(--ease-settle), translate var(--dur-arrive) var(--ease-settle); }
+.gx-said-words { font: var(--type-body); color: var(--ink); overflow-wrap: anywhere; }
+.gx-said-fact { font: var(--type-fact); color: var(--ink-3); }
+/* a voice star's point: its rays are its sound (planets.js raysOf), in place of the four faint ones */
+.star.is-voice:not(.star-more)::before {
+  inset: -45%;
+  background: color-mix(in srgb, var(--star-white) 78%, transparent);
+  -webkit-mask: var(--rays) center / 100% 100% no-repeat;
+  mask: var(--rays) center / 100% 100% no-repeat;
+}
 .star:hover, .star:focus-visible { z-index: 6; }
 .star.is-near { z-index: 2; }
 .star:focus-visible { --face: scale(1.6); --lit: 1; outline: none; }
@@ -1619,12 +1678,13 @@ body.no-chrome #view { padding: 0; }
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) .ff {
     border-radius: 50%;
     box-shadow: var(--star-halo);
-    transition: transform var(--dur-change) var(--ease-leave), border-radius var(--dur-change) var(--ease-leave), box-shadow var(--dur-change), filter var(--dur-change);
+    transition: transform var(--dur-change) var(--ease-leave), border-radius var(--dur-change) var(--ease-leave), box-shadow var(--dur-change), filter var(--dur-change), background-color var(--dur-change);
   }
-  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) :is(.ff-text > *, .ff-kind > span),
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) :is(.ff-text > *, .ff-kind > span, .ff-voice > *),
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) .ff-text::after,
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible)::after { opacity: 0; transition-duration: var(--dur-change); }
   .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible)::before { opacity: calc(0.35 + var(--near, 1) * 0.65); }
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) .ff-voice { background: var(--star-white); }
 }
 /* "+N": the stars kept back (a phone shows 18, views/galaxy.js STAR_CAP_PHONE), a round of glass in the ring */
 .star.star-more {
@@ -1674,7 +1734,8 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
    dropring.js: its soft strands stretched to the ring, punched with a tile of dots that never
    stretches, so every ring is dotted alike. It turns slowly while it waits. */
 .has-dust .planet.is-target .planet-body::after, .has-dust .moon.is-target::after,
-.has-dust .star.is-target::after, .has-dust .star.is-picking::after, .has-dust .gx-ghost::before, .has-dust .drop-ring {
+.has-dust .star.is-target::after, .has-dust .star.is-picking::after, .has-dust .gx-ghost::before, .has-dust .drop-ring,
+.has-dust .planet-body.is-landing::after, .has-dust .moon.is-landing::after {
   content: "";
   position: absolute;
   border-radius: 0;
@@ -1688,6 +1749,10 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   animation: spin var(--beat-rest) linear infinite;
   pointer-events: none;
 }
+/* a thrown file landing (fling.js landed(); DESIGN.md "Throwing"): the ring spreads once on the world's face and fades */
+.has-dust .planet-body.is-landing::after { inset: -23%; animation: land-ring var(--dur-arrive) var(--ease-settle) forwards; }
+.has-dust .moon.is-landing::after { inset: -43%; animation: land-ring var(--dur-arrive) var(--ease-settle) forwards; }
+@keyframes land-ring { from { scale: 0.62; opacity: 1; } to { scale: 1.12; opacity: 0; } }
 /* round the void while files are carried in from the computer: it grows in with the drop hint */
 .has-dust .drop-ring { inset: -55%; transition: opacity var(--dur-change), scale var(--dur-arrive) var(--ease-settle); }
 .has-dust .drop-ring:not(.is-on) { opacity: 0; scale: 0.9; }
@@ -3324,6 +3389,9 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .face-levels { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-12); }
 .face-levels i { flex: none; width: 1px; height: calc(var(--h) * 0.6%); background: var(--ink-4); transition: background var(--dur-move); }
 .cell[data-id]:hover .face-levels i { background: color-mix(in srgb, var(--fg-tone) 70%, var(--ink-3)); }
+/* a voice note: its words from the top as a note's are, fading out, and under them its sound, shorter */
+.face-said { flex: 1; min-height: 0; overflow: hidden; margin-bottom: var(--space-12); font: var(--type-body); font-size: calc(var(--text-body) * var(--t, 1)); color: var(--ink); overflow-wrap: anywhere; -webkit-mask-image: linear-gradient(currentColor calc(100% - 40px), transparent); mask-image: linear-gradient(currentColor calc(100% - 40px), transparent); }
+.face-voice:not(.is-wordless) .face-levels { flex: none; height: var(--h-regular); }
 .face-excerpt {
   flex: 1;
   min-height: 0;
@@ -3621,6 +3689,9 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-card-sub { font: var(--type-fact); color: var(--ink-3); }
 .vw-card .btn { margin-top: var(--space-8); }
 .vw-card audio { width: 100%; margin-top: var(--space-12); }
+/* a voice note's words, under its sound: reading type, the owner's to put right (viewer.js voiceStage) */
+.vw-voice audio { margin: var(--space-4) 0 var(--space-8); }
+.vw-said { width: 100%; margin: 0; font: var(--type-lead); color: var(--ink); overflow-wrap: anywhere; white-space: pre-wrap; resize: none; }
 .vw-codebox { width: min(860px, 100%); height: 100%; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-box); background: var(--well); }
 .vw-code { margin: 0; padding: var(--space-24); font: 400 var(--text-caption)/20px var(--mono); color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* a note: its words on the sky, at the size a list's items are; click your own to write in place */

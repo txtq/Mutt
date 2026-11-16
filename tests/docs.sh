@@ -86,3 +86,17 @@ F=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Pics"}' | j
 echo "not text: $(curl -s "${C[@]}" "${J[@]}" -X POST "$B/api/blocks" -d '{"content":"https://example.com"}' | j "d['block']['kind']") $(L=$(curl -s "${C[@]}" "${J[@]}" -X POST "$B/api/blocks" -d '{"content":"https://example.org"}' | j "d['block']['id']"); curl -s "${C[@]}" $B/api/docs/$L | j "d.get('error')")"
 echo "delete note -> doc gone: $(curl -s "${C[@]}" "${J[@]}" -X DELETE $B/api/blocks/$A | j "d['ok']") $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' $B/api/docs/$A) $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' $B$SRC)"
 
+# A note's history (any note, not only documents): its words as they were are
+# kept when it changes; changes within ten minutes count as one; it can be put back.
+texts() { for v in $(curl -s "${C[@]}" $B/api/docs/$1/versions | j "' '.join(v['id'] for v in d['versions'])"); do curl -s "${C[@]}" $B/api/docs/$1/versions/$v | j "d['version']['name'] + ':' + d['version']['text']"; done | tr '\n' '|'; }
+N=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "$(note "first words" "$S")" | j "d['block']['id']")
+echo "new note, no history: $(curl -s "${C[@]}" $B/api/blocks/$N | j "d['block']['versions']")"
+curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$N -d '{"content":"second words"}' >/dev/null
+curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$N -d '{"content":"third words"}' >/dev/null
+echo "two quick changes keep one: $(texts $N)"
+sqlite3 "$SP/data/mutt.db" "UPDATE doc_versions SET created_at = created_at - 1800 WHERE block_id = '$N'; UPDATE blocks SET updated_at = updated_at - 900 WHERE id = '$N'"
+echo "after a pause: $(curl -s "${C[@]}" "${J[@]}" -X PATCH $B/api/blocks/$N -d '{"content":"fourth words"}' | j "d['block']['versions']") $(texts $N)"
+OLD=$(curl -s "${C[@]}" $B/api/docs/$N/versions | j "d['versions'][-1]['id']")
+echo "put back: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/docs/$N/versions/$OLD/restore | j "d['block']['content'], d['block']['versions']") $(texts $N)"
+echo "visitor puts back: $(curl -s "${O[@]}" "${J[@]}" -X POST $B/api/docs/$N/versions/$OLD/restore | j "d.get('error')")"
+echo "not a note: $(L=$(curl -s "${C[@]}" "${J[@]}" -X POST "$B/api/blocks" -d '{"content":"https://example.net"}' | j "d['block']['id']"); curl -s "${C[@]}" "${J[@]}" -X POST $B/api/docs/$L/versions/$OLD/restore | j "d.get('error')")"

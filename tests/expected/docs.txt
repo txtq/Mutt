@@ -41,3 +41,9 @@ private -> visitor: That file does not exist.
 private -> picture: 404
 not text: link Only text files open as documents.
 delete note -> doc gone: True 404 404
+new note, no history: 0
+two quick changes keep one: :first words|
+after a pause: 2 :third words|:first words|
+put back: first words 3 Before restoring:fourth words|:third words|:first words|
+visitor puts back: That file does not exist.
+not a note: Only text files have a history.

@@ -272,6 +272,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Signing out | the dark comes over arrive, lifts over scene |
 | *Rooms* | |
 | File view: side panel, connections, comments | arrive |
+| File view: a note's earlier copy coming onto the stage | its bar fades in over move, its words rise over arrive |
 | Editor and recipe card: the page flying open and back | scene each way, on the glide |
 | Editor: bars dropping in; the sky rising behind | arrive; scene |
 | Editor: bars stepping back while you write | out over grand, back in move |
@@ -662,6 +663,7 @@ How each mode is built. A new mode follows the nearest of these.
 **File view** (`viewer.js`; the section headed THE FILE VIEW).
 - A room. The file is as large as it can be on the left; a picture or a video keeps its shape with corners 12, a 1px `--box-edge` and `--shadow-raised`; a PDF's pages are white paper with `--paper-shadow`; a note is its words on the sky at the size of a list's items; a link is its address in a well, a picture of the page, then its title in Title; a file with nothing to show is a card of box glass.
 - **Its name, note, facts, planets and comments are a column of words straight on the sky** to the right, 360 wide, with `--sky-shadow`: no pane and no line between it and the file. The name (Title) and note (Body `--ink-2`) are bare text boxes. Then its buttons (plain "Download", quiet "Original" ending in the `out` icon), a hairline, its facts as a two-column list of Facts, a hairline, a small label (`ON 1 PLANET`) with a small plain "Planets" ending in a caret, each planet as a 32-high row, the comments, and last the small quiet "Take off …" and "Delete".
+- **A note's history** (`history.js`, fetched only for your own note once it has an earlier copy): under the facts, a hairline, the small label `HISTORY` with `N earlier` as a Fact at the far end, then a 32-high row for `Now` and for each earlier copy (its name or `Today, 14:02` in Label, its words as a Fact on the right; a named copy's time joins the Fact), five then a quiet small `Show all N`. The row on the stage is `--tint-2`. Picking a copy puts it on the stage in place of the note, under a bar of Mutt's glass (`.bar-glass`, a pill 40 high; on a phone corners 20 with the buttons under the words): when it was written in Label, a key of the two marks as a Fact, a small plain "Back to now" and a small main "Put this back". The words are the note's own size on the sky, marked against now: **added since** washed 28% `--mark-green`, **taken out since** in `--ink-3` struck through in `--danger`. A phrase that changed reads as one mark, struck then added. "Put this back" keeps how it is now as "Before restoring" first. A note's ••• and right-click menus have a `History` row (`history` icon) that opens the file view straight on the latest copy. Nothing shows on a note never changed.
 - Top left, two chevrons (the file before, the next one) and `1 / 4` as a Fact; top right, a quiet "Close".
 - On a narrow screen it is one page to scroll, the file then its words, with the top row staying put on Mutt's bar glass.
 

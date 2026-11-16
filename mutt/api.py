@@ -180,11 +180,14 @@ def block_json(row, mine=True, owner=None):
         data['connectionCount'] = row['conn_count']
     if 'comment_count' in keys:
         data['commentCount'] = row['comment_count']
+    if 'version_count' in keys and mine and row['kind'] == 'text':
+        data['versions'] = row['version_count']  # earlier copies kept in its history (owner only)
     return data
 
 
 BLOCK_COLUMNS = ('b.*, (SELECT COUNT(*) FROM connections cc WHERE cc.block_id = b.id) AS conn_count, '
-                 '(SELECT COUNT(*) FROM file_comments fc WHERE fc.block_id = b.id) AS comment_count')
+                 '(SELECT COUNT(*) FROM file_comments fc WHERE fc.block_id = b.id) AS comment_count, '
+                 '(SELECT COUNT(*) FROM doc_versions dv WHERE dv.block_id = b.id) AS version_count')
 
 
 # ---------------------------------------------------------------- icons
@@ -1377,6 +1380,7 @@ def save_recipe(req, block_id):
     if row['kind'] == 'text':
         content = recipes.to_text(rec)
         rec['sig'] = recipes.sig(content)
+        keep_before(req, row, content)
         req.db.execute('UPDATE blocks SET content = ?, title = ?, updated_at = ? WHERE id = ?',
                        (content, (rec.get('title') or '')[:200], now(), block_id))
     else:
@@ -1857,6 +1861,7 @@ def update_block(req, block_id):
         if not content.strip():
             raise HttpError(400, 'A text file needs some text.')
         updates['content'] = content.strip('\n')
+        keep_before(req, row, updates['content'])
     for key, high in (('width', 100000), ('height', 100000), ('duration', 10 ** 7)):
         if key in body:
             value = int_arg(body[key], 0, high)
@@ -2483,14 +2488,34 @@ def comments_of(req, block_id):
     return [comment_json(r) for r in rows]
 
 
-def add_version(req, block_id, title, html_text, text, name=''):
+def add_version(req, block_id, title, html_text, text, name='', at=None):
     words = documents.word_count(text)
     req.db.execute('INSERT INTO doc_versions (id, block_id, title, html, text, name, words, created_at) '
-                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (new_id(), block_id, title or '', html_text, text, name, words, now()))
+                   'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                   (new_id(), block_id, title or '', html_text, text, name, words, now() if at is None else at))
     old = req.db.execute("SELECT id FROM doc_versions WHERE block_id = ? AND name = '' ORDER BY created_at DESC "
                          'LIMIT -1 OFFSET ?', (block_id, DOC_VERSIONS_KEPT)).fetchall()
     for r in old:
         req.db.execute('DELETE FROM doc_versions WHERE id = ?', (r['id'],))
+
+
+def keep_before(req, row, new_text, name=''):
+    """A note's words are about to change: keep them as they were, in the same
+    history a document keeps, dated when they were written. Changes close
+    together count as one: the old words are kept only if they stood for ten
+    minutes, or nothing has been kept yet (a `name` keeps them regardless)."""
+    old = row['content'] or ''
+    if row['kind'] != 'text' or old == new_text:
+        return
+    last = req.db.execute('SELECT text FROM doc_versions WHERE block_id = ? ORDER BY created_at DESC LIMIT 1',
+                          (row['id'],)).fetchone()
+    if last and last['text'] == old:
+        return
+    if last and not name and now() - row['updated_at'] < DOC_VERSION_EVERY:
+        return
+    doc = req.db.execute('SELECT html, synced_at FROM docs WHERE block_id = ?', (row['id'],)).fetchone()
+    html_text = doc['html'] if doc and doc['html'] and doc['synced_at'] >= row['updated_at'] - 0.001 else None
+    add_version(req, row['id'], row['title'], html_text, old, name=name, at=row['updated_at'])
 
 
 @route('GET', r'/api/docs/(?P<block_id>[\w-]+)')
@@ -2592,6 +2617,28 @@ def rename_version(req, block_id, version_id):
     name = text_field(req.json(), 'name', 80, 'Name') or ''
     req.db.execute('UPDATE doc_versions SET name = ? WHERE id = ? AND block_id = ?', (name, version_id, block_id))
     return doc_versions(req, block_id)
+
+
+@route('POST', r'/api/docs/(?P<block_id>[\w-]+)/versions/(?P<version_id>[\w-]+)/restore')
+def restore_version(req, block_id, version_id):
+    """Put an earlier copy of a note (or document) back. How it is now is kept
+    first, as "Before restoring", so this can be undone the same way."""
+    row = own_block(req, block_id)
+    if row['kind'] != 'text':
+        raise HttpError(400, 'Only text files have a history.')
+    v = req.db.execute('SELECT * FROM doc_versions WHERE id = ? AND block_id = ?', (version_id, block_id)).fetchone()
+    if not v:
+        raise HttpError(404, 'That version is gone.')
+    text = (v['text'] or '').strip('\n')
+    if not text.strip():
+        raise HttpError(400, 'That version has no words to put back.')
+    keep_before(req, row, text, name='Before restoring')
+    stamp = now()
+    req.db.execute('UPDATE blocks SET content = ?, updated_at = ? WHERE id = ?', (text, stamp, block_id))
+    if v['html']:
+        req.db.execute('UPDATE docs SET html = ?, synced_at = ?, updated_at = ? WHERE block_id = ?',
+                       (v['html'], stamp, stamp, block_id))
+    return json_response({'block': reload_block(req, block_id)})
 
 
 @route('POST', r'/api/docs/(?P<block_id>[\w-]+)/img')

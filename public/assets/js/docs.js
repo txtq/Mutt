@@ -252,7 +252,7 @@ export class DeskView {
   context(e, el, b) {
     e.preventDefault();
     const open = () => this.onOpen(b.id);
-    if (b.mine !== false) blockContextMenu(e, el, b, { drawer: this.drawer, open });
+    if (b.mine !== false) blockContextMenu(e, el, b, { drawer: this.drawer, open, history: false });
     else openContextMenu(e, [{ icon: 'open', label: 'Open', run: open }], { title: titleOf(b), target: el });
   }
 

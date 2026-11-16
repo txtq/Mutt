@@ -3334,6 +3334,36 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-conn-note { margin-top: var(--space-12); font: var(--type-caption); color: var(--ink-3); }
 .vw-danger { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); margin: var(--space-32) 0 0 calc(var(--space-8) * -1 - 2px); }
 
+/* ---- a note's history (history.js): the earlier copies, under the facts, once there is one.
+   Picking one puts it on the stage in place of the note, marked against how it is now,
+   under a bar of Mutt's glass with "Back to now" and "Put this back". */
+.vw-hist[hidden] { display: none; }
+.vw-hist-fact { font: var(--type-fact); color: var(--ink-3); }
+.vw-hist-list { list-style: none; margin: var(--space-8) 0 0; padding: 0; }
+.vw-hist-list li { animation: rise var(--dur-arrive) var(--ease-settle) backwards; }
+.vw-hist-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-12); width: calc(100% + var(--space-16)); min-height: var(--h-regular); margin-left: calc(var(--space-8) * -1); padding: var(--space-8); border: 0; border-radius: var(--r-row); background: none; text-align: left; color: var(--ink); cursor: pointer; transition: background var(--dur-change); }
+.vw-hist-row:hover { background: var(--tint); }
+.vw-hist-row[aria-pressed="true"] { background: var(--tint-2); }
+.vw-hist-name { font: 400 var(--text-label)/16px var(--sans); }
+.vw-hist-meta { font: var(--type-fact); color: var(--ink-3); }
+.vw-hist-more { margin: var(--space-4) 0 0 calc(var(--space-8) * -1); }
+.vw-hist-view { display: flex; flex-direction: column; gap: var(--space-24); padding-top: 0; }
+.vw-hist-bar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); min-height: var(--h-large); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-16); border-radius: var(--r-full); animation: fade-in var(--dur-move) var(--ease-settle) backwards; }
+.vw-hist-what { display: grid; flex: 1; min-width: 0; }
+.vw-hist-when { font: var(--type-label); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-hist-key { font: var(--type-fact); color: var(--ink-3); }
+.vw-hist-btns { display: flex; gap: var(--space-8); }
+.vw-hist-text { font: 400 calc(var(--text-lead) * var(--t))/1.6 var(--sans); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; text-shadow: var(--sky-shadow); animation: rise var(--dur-arrive) var(--ease-settle) backwards; }
+/* what changed since: added words lit with the green marker, taken-out words struck through */
+:is(.vw-hist-text, .vw-hist-key) ins { text-decoration: none; color: var(--ink); background: color-mix(in srgb, var(--mark-green) 28%, transparent); border-radius: var(--r-mark); box-decoration-break: clone; -webkit-box-decoration-break: clone; text-shadow: none; }
+:is(.vw-hist-text, .vw-hist-key) del { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--danger); text-decoration-thickness: 1.5px; }
+@media (pointer: coarse) { .vw-hist-row { min-height: var(--h-large); } }
+@media (max-width: 860px) {
+  .vw-hist-bar { border-radius: var(--r-box); padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12); }
+  .vw-hist-what { flex-basis: 100%; }
+  .vw-hist-btns { margin-left: auto; }
+}
+
 @media (max-width: 1100px) { .viewer { grid-template-columns: minmax(0, 1fr) 320px; } }
 @media (max-width: 860px) {
   /* One page to scroll: the file, then its words. The top row stays at the top, on Mutt's bar glass. */

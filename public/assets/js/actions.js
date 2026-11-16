@@ -350,10 +350,20 @@ export async function toggleShare(block) {
   }
 }
 
+// A note opened from its menu's "History" shows its history straight away
+// (the file view asks once it has drawn the note's side).
+let historyWish = null;
+export function takeHistoryWish(id) {
+  const wanted = historyWish === id;
+  historyWish = null;
+  return wanted;
+}
+
 // What you can do to one of your files. `worlds` are moons (or a moon's
 // planet) it can move to straight away: [{ id, title, dot, move() }].
 // `remove` and `del` replace the usual take-off and delete (list mode has its own).
-function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [] } = {}) {
+// `history: false` where Open doesn't lead to the file view (a desk opens the editor, which has its own).
+function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [], history = true } = {}) {
   return [
     open && { icon: 'open', label: 'Open', run: open },
     ...extra,
@@ -366,6 +376,7 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     block.file && { icon: 'download', label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
     block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
     block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
+    open && history && block.kind === 'text' && block.versions > 0 && { icon: 'history', label: 'History', run: () => { historyWish = block.id; open(); } },
     '-',
     drawer && { icon: 'takeoff', label: `Take off ${drawer.title}`, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },
     { icon: 'trash', label: 'Delete', danger: true, run: del || (() => deleteBlock(block)) },

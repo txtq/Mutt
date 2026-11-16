@@ -241,6 +241,11 @@ def seed():
     other.open(urllib.request.Request(SITE + f'/api/blocks/{pier}/comments', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
                                       data=json.dumps({'body': 'I know this pier! Is it Brighton?'}).encode()), timeout=20)
 
+    # a postcard written twice, so it has a history (its first words kept)
+    wish = next(b['id'] for b in send('GET', f'/api/drawers/{ids["Postcards"]}')['blocks'] if b['content'] == 'wish you were here')
+    send('PATCH', f'/api/blocks/{wish}', {'content': 'wish you were here, love from the coast'})
+    ids['wish'] = wish
+
     # the seed itself is checked: each planet must be offered the mode its path expects
     for title, mode in (('Shopping', 'list'), ('Recipes to try', 'cookbook'), ('Essays', 'documents'), ('Shelf', 'reading')):
         if not send('GET', f'/api/drawers/{ids[title]}/modes')[mode].get('fits'):
@@ -332,6 +337,32 @@ def comment_notes(s, seeded):
     s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
     s.settle(1)
     s.gone('.cn-note', 'a comment already seen was told again')
+
+
+def note_history(s, seeded):
+    """A note changed once shows its history; an earlier copy is marked against now and can be put back."""
+    s.go(f'/p/{seeded["Postcards"]}')
+    s.click(s.see(f'.cell[data-id="{seeded["wish"]}"] [data-act="more"]', 'the changed note has no ••• button'))
+    s.click(s.named('.pop .menu-item', 'History', 'the menu of a note changed once has no "History"'))
+    s.see('.vw-hist-row:not(.is-now)', 'a note changed once shows no history in the file view')
+    s.wait('return /love from the coast/.test(document.querySelector(".vw-hist-text ins")?.textContent || "")',
+           'the earlier copy does not mark the words added since')
+    s.settle(1)
+    s.shot('note-history')
+    s.size(PHONE)
+    try:
+        s.settle(0.6)
+        s.no_sideways_scroll('A note\'s earlier copy')
+        s.shot('phone-note-history')
+    finally:
+        s.size(DESK)
+    s.click(s.named('.vw-hist-bar button', 'Put this back', 'the earlier copy has no "Put this back"'))
+    s.wait('return document.querySelector(".vw-text-body")?.textContent.trim() === "wish you were here"',
+           'Put this back did not bring the earlier words back')
+    s.wait('return /Before restoring/.test(document.querySelector(".vw-hist-list")?.textContent || "")',
+           'the words it had before were not kept in its history')
+    s.settle(1)
+    s.shot('note-history-put-back')
 
 
 def add_through_void(s, seeded):
@@ -504,7 +535,7 @@ def keyboard(s, seeded):
     s.shot('keyboard-in-sheet')
 
 
-PATHS = [sign_up, sign_in, comment_notes, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
+PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, open_book, universe, phone, sample_page, keyboard]
 
 

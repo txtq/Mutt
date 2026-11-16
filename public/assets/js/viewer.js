@@ -2,7 +2,7 @@
 
 import { commentSection } from './comments.js';
 import { momentLine } from './moments.js';
-import { deleteBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
+import { deleteBlock, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
@@ -545,6 +545,40 @@ function comments(block) {
   return state.comments.el;
 }
 
+// A note's history (history.js), once your note has an earlier copy. Like the
+// comments, it keeps its place while the side panel is rebuilt around it.
+function history(block) {
+  if (block.kind !== 'text' || block.mine === false) return null;
+  if (state.history?.id === block.id) {
+    state.history.inst?.update(block);
+    return state.history.el;
+  }
+  state.history = null;
+  if (!block.versions) return null;
+  const slot = { id: block.id, el: h('div', { class: 'vw-hist-slot' }), inst: null };
+  state.history = slot;
+  import('./history.js').then(({ historySection }) => {
+    if (state?.history !== slot) return;
+    slot.inst = historySection(block, {
+      block: () => state.block,
+      show: (el) => {
+        state.cleanup?.();
+        state.cleanup = null;
+        state.media = el;
+        el.dataset.vtMedia = '';
+        state.stage.replaceChildren(el);
+        // On a phone the history sits below the note: go up to where the copy now shows.
+        if (state.stage.getBoundingClientRect().top < 0) state.el.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+      },
+      back: () => renderStage(),
+      restored: (saved) => applyUpdate(saved),
+    });
+    slot.el.append(slot.inst.el);
+    if (takeHistoryWish(block.id)) slot.inst.reveal();
+  }).catch(() => { /* no history to show */ });
+  return slot.el;
+}
+
 // replaceChildren would print a skipped (null) piece as the word “null”.
 const fill = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null && k !== false));
 
@@ -602,6 +636,7 @@ function renderSide() {
     editable(block, 'description', { placeholder: 'Add a note', className: 'field-bare vw-desc' }),
     actions,
     metaRows(block),
+    history(block),
     h('section', { class: 'vw-conn-head' },
       h('span', { class: 'vw-conn-label' }, count ? `On ${plural(count, 'planet')}` : 'A loose star'),
       connectBtn),

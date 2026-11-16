@@ -6,7 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, DUR, h, named, onMotionChange, plural, reducedMotion, seeded } from './util.js';
+import { BLUE, DUR, covered, h, named, onMotionChange, plural, reducedMotion, seeded } from './util.js';
 import { icon } from './icons.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -663,8 +663,18 @@ let frame = 0;
 let held = false;
 // Planets also keep their picture while the screen is changing (a page change sets data-vt on the
 // page): the browser is showing pictures of both pages then, and repainting under them is waste.
-const changing = () => !!document.documentElement.dataset.vt;
-new MutationObserver(() => { if (!changing()) { wake(); wakeOrbits(); } }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-vt'] });
+// So do they while a room covers the page, and while the page is being scrolled: Safari,
+// repainting a world while a page of floating file boxes scrolls past, stops for a fifth of
+// a second. A world turns once a minute, so holding it that long can't be seen.
+let scrolling = false;
+let scrollRest = 0;
+addEventListener('scroll', () => {
+  scrolling = true;
+  clearTimeout(scrollRest);
+  scrollRest = setTimeout(() => { scrolling = false; if (!changing()) wake(); }, DUR.change);
+}, { passive: true, capture: true });
+const changing = () => scrolling || !!document.documentElement.dataset.vt || covered();
+new MutationObserver(() => { if (!changing()) { wake(); wakeOrbits(); } }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-vt', 'class'] });
 let beat = 0;
 let lastNow = 0;
 let gap = 16.7;
@@ -1033,6 +1043,8 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   }
 
   let shownWorld = '';
+  // what the caption says, so laying the galaxy out again doesn't rebuild it for nothing
+  let shownMeta = '';
   let fresh = 0;
   el.update = (next, opts = {}) => {
     planet = next;
@@ -1063,19 +1075,23 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const previews = next.locked ? [] : (next.previews || []).slice(0, 12);
     const tex = textureFor(next, previews, () => globeApi.setTexture(textures.get(tex.key) || tex));
     globeApi.setTexture(tex);
-    name.textContent = next.private ? 'Private' : next.title;
-    const bits = [];
+    const title = next.private ? 'Private' : next.title;
+    if (name.textContent !== title) name.textContent = title;
+    const vis = next.community ? 'community' : next.visibility;
+    const metaKey = next.private ? 'private' : `${next.mine !== false && vis !== 'pin' && vis}|${!!next.locked}|${next.count || 0}`;
+    const label = next.private ? 'A private planet' : `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}`;
+    if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
+    if (metaKey === shownMeta) return;
+    shownMeta = metaKey;
     if (next.private) {
       meta.replaceChildren();
-      el.setAttribute('aria-label', 'A private planet');
       return;
     }
-    const vis = next.community ? 'community' : next.visibility;
+    const bits = [];
     if (next.mine !== false && vis && vis !== 'pin') bits.push(icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12));
     if (next.locked) bits.push(icon('lock', 12));
     bits.push(h('span', null, next.count ? plural(next.count, 'file') : 'empty'));
     meta.replaceChildren(...bits);
-    el.setAttribute('aria-label', `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}`);
   };
   el.update(planet);
 

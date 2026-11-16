@@ -79,6 +79,8 @@ export function paperFaces() {
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 // The system setting, or Motion: Off in Mutt's own settings.
 export const reducedMotion = () => motionQuery.matches || document.documentElement.dataset.motion === 'off';
+// A room (the file view, the editor, the reader) covers the page: what turns behind it can't be seen.
+export const covered = () => document.documentElement.matches('.in-room, .is-writing, .is-reading');
 
 // Calls `fn` whenever either of those changes.
 export function onMotionChange(fn) {

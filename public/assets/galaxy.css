@@ -1518,6 +1518,8 @@ body.no-chrome #view { padding: 0; }
   cursor: grab;
 }
 .gx-stars .star { width: var(--chip); height: var(--chip); }
+/* each star is its own layer, so Safari doesn't paint every one again on each picture of a page change */
+.star { will-change: transform; }
 .gx-scene.is-live .star { transition: transform var(--dur-scene) var(--ease-settle), opacity var(--dur-change); }
 /* A star is the file's own face, in three states (DESIGN.md "Stars"):
    a card, lit from the void's light (--out points away from it), tilted a little as if
@@ -1555,7 +1557,8 @@ body.no-chrome #view { padding: 0; }
   transform: rotate(var(--tilt, 0deg));
   background:
     linear-gradient(90deg, transparent 12%, color-mix(in srgb, var(--star-blue) 40%, transparent) 50%, transparent 88%) center / 100% 1px no-repeat,
-    linear-gradient(0deg, transparent 12%, color-mix(in srgb, var(--star-blue) 40%, transparent) 50%, transparent 88%) center / 1px 100% no-repeat;
+    linear-gradient(0deg, transparent 12%, color-mix(in srgb, var(--star-blue) 40%, transparent) 50%, transparent 88%) center / 1px 100% no-repeat,
+    var(--star-glow);
 }
 .star:hover, .star:focus-visible { z-index: 6; }
 .star.is-near { z-index: 2; }
@@ -3132,6 +3135,10 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   -webkit-backdrop-filter: var(--fg-frost);
   transition: border-color var(--dur-move) var(--ease-settle), background var(--dur-move) var(--ease-settle), box-shadow var(--dur-arrive) var(--ease-settle);
 }
+/* In a sheet (search, recently deleted) a box sits on glass that is already frosted, so it
+   doesn't frost again: it would look the same, and Safari draws frost on frost again whenever
+   the sheet moves or finishes fading (a stall each time search opened). */
+.sheet :is(.face-text, .face-file, .face-link, .fglass) { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .cell[data-id]:hover :is(.face-text, .face-file, .face-link),
 .fglass:focus-within,
 .lm-item:hover > .lm-row,
@@ -3406,9 +3413,11 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
   animation-delay: calc(min(var(--i, 0), 14) * var(--stagger));
 }
 .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-focus; animation-duration: var(--dur-scene); }
-.cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap) { animation-name: part-fade, part-focus; animation-duration: var(--dur-arrive), var(--dur-arrive); }
+.cell.reveal .cell-cap { animation-name: part-fade, part-focus; animation-duration: var(--dur-arrive), var(--dur-arrive); }
+/* a picture only fades in: blurring one, shadow and all, had Safari paint every photo again on each picture (52 a second opening a planet of photos; 58 without) */
+.cell.reveal :is(.face-shape, .cell-fill > .face-img) { animation-name: part-fade; animation-duration: var(--dur-arrive); }
 @keyframes part-fade { from { opacity: 0; } }
-@keyframes part-focus { from { filter: blur(8px); } }
+@keyframes part-focus { from { filter: blur(2px); } }   /* small: in Safari every blurring part is drawn again each picture of a page change (8px made opening a planet drop to ~45 a second) */
 html[data-motion="calm"] .cell.reveal { animation-name: none; }
 html[data-motion="calm"] .cell.reveal :is(.face-shape, .cell-fill > .face-img, .cell-cap),
 html[data-motion="calm"] .cell.reveal :is(.face-text, .face-file, .face-link, .entry) > * { animation-name: part-fade; animation-duration: var(--dur-arrive); animation-delay: 0s; }

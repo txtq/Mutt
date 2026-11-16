@@ -170,15 +170,18 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     // Everything else fades with the page, so the old page's files don't
     // hang crisp over the new one while it arrives.
     const coming = new Set([...inst.el.querySelectorAll('[data-vt]')].map((el) => el.dataset.vt));
-    const pairs = visibleShared().filter(([, n]) => coming.has(n));
-    const names = new Set(pairs.map(([, n]) => n));
+    const shared = visibleShared().filter(([, n]) => coming.has(n));
     // Opening a planet from a galaxy is a dive toward it, and coming back a pull
     // away from it (DESIGN.md, "Planets"): the page grows from, or shrinks to,
     // where the planet is. Between two planets, and everywhere else, pages just change.
     const isWorld = ([el]) => el.classList.contains('planet-body');
     const onPlanet = (path) => path.startsWith('/p/');
-    const world = pairs.find(isWorld);
+    const world = shared.find(isWorld);
     const type = !world || onPlanet(current.path) === onPlanet(url.pathname) ? 'page' : onPlanet(url.pathname) ? 'dive' : 'rise';
+    // In a dive or a pull away only the planet travels: a file also shown on the galaxy (in a comment's
+    // note under the clock, say) flew on its own and showed as a pale card before the page had come.
+    const pairs = type === 'page' ? shared : [world];
+    const names = new Set(pairs.map(([, n]) => n));
     const aim = (pair) => {
       if (!pair) return;
       const r = pair[0].getBoundingClientRect();

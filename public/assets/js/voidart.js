@@ -10,7 +10,7 @@
 // evenly and sized for the screen, like a stippled print (DESIGN.md, "Print: the void"). Opening the void widens the light
 // until it holds the add box, burning through the strands behind it.
 
-import { DUR, h, reducedMotion, seeded } from './util.js';
+import { DUR, covered, h, reducedMotion, seeded } from './util.js';
 import { TEX, drawStipple, shellPixels, tileSize } from './voidmake.js';
 
 const SHARP = 2;       // pixels a point, at most
@@ -218,7 +218,8 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
   const watch = new MutationObserver(() => sync());
   // ... and it rests while the screen is changing (a page change sets data-vt): the browser is
   // showing pictures of both pages then, and every redraw under them is paid for twice over.
-  watch.observe(root, { attributes: true, attributeFilter: ['data-motion', 'data-vt'] });
+  // So does it while a room covers the page.
+  watch.observe(root, { attributes: true, attributeFilter: ['data-motion', 'data-vt', 'class'] });
 
   function openness(now) {
     const t = clamp((now - open.start) / open.dur);
@@ -550,7 +551,7 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
   }
 
   function sync() {
-    const go = wanted && onScreen && !document.hidden && !reducedMotion() && !root.dataset.vt;
+    const go = wanted && onScreen && !document.hidden && !reducedMotion() && !root.dataset.vt && !covered();
     if (go === running) {
       if (!go) draw(performance.now());
       return;

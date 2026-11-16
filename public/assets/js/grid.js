@@ -5,6 +5,10 @@ import { glide, measure } from './transitions.js';
 import { DUR, EASE, EASE_LEAVE, STAGGER, h, inViewport, reducedMotion } from './util.js';
 
 const nearby = (els) => [...els].filter((el) => el.isConnected && inViewport(el, 300));
+// Opening a big planet: how many boxes are built at first (more than a screen, at any width),
+// and how many are added at a time after (DESIGN.md, File box "Arriving").
+const FIRST = 24;
+const REST_BATCH = 12;
 
 // A cell's way in or out: it slides while its glass fades and its words go in
 // or out of focus. The fade and blur go on the parts, never on the cell, since
@@ -41,6 +45,7 @@ export class Grid {
 
     this.el.addEventListener('click', (e) => this.handleClick(e));
     this.el.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') this.finishRest();   // before the browser moves focus past the last box built
       const cell = e.target.closest?.('.cell[data-id]');
       if (cell && e.target === cell && e.key === 'Enter') this.onOpen?.(cell.dataset.id, cell);
     });
@@ -91,16 +96,77 @@ export class Grid {
   }
 
   keys() {
+    this.finishRest();
     return [...this.el.querySelectorAll(':scope > .cell[data-id]')].map((el) => el.dataset.id);
   }
 
   cellFor(id) {
+    if (!this.cells.has(id)) this.finishRest();
     return this.cells.get(id);
+  }
+
+  // ------------------------------------------------------------ opening in two steps
+
+  // A big planet opens in two steps (DESIGN.md, File box "Arriving"): the first FIRST boxes are
+  // built and arrive; the rest are added quietly, a few at a time, once the arrival is over and
+  // before anyone can scroll to them. Whatever needs every box (finding one, reordering, a sort,
+  // an upload, Tab, scrolling) first finishes building, so nothing sees half a grid.
+  holdRest(items) {
+    this.rest = items;
+    const go = () => this.buildSome();
+    this.restScroll = () => this.fillToView();
+    addEventListener('scroll', this.restScroll, { passive: true, capture: true });
+    // once the boxes on screen have arrived (the stagger stops at 16)
+    this.restTimer = setTimeout(go, DUR.arrive + STAGGER * 16);
+  }
+
+  buildSome(n = REST_BATCH) {
+    if (!this.rest?.length) { this.finishRest(); return; }
+    // a page left before its grid filled builds nothing more
+    if (!this.el.isConnected) { if ((this.restWaits = (this.restWaits || 0) + 1) < 20) this.restTimer = setTimeout(() => this.buildSome(), DUR.change); return; }
+    this.addRest(this.rest.splice(0, n));
+    if (this.rest.length) this.restTimer = setTimeout(() => requestAnimationFrame(() => this.buildSome()), 0);
+    else this.finishRest();
+  }
+
+  // Scrolled before the rest is in: build down to a screen past what can be seen, now.
+  fillToView() {
+    while (this.rest?.length) {
+      const last = this.el.lastElementChild;
+      if (last && last.getBoundingClientRect().top > innerHeight * 2) return;
+      this.addRest(this.rest.splice(0, REST_BATCH));
+    }
+    this.finishRest();
+  }
+
+  addRest(items) {
+    const els = items.map((item) => {
+      const el = item.divider ? renderDivider(item) : renderCell(item, this.renderOpts);
+      this.cells.set(item.id, el);
+      return el;
+    });
+    const all = document.createDocumentFragment();
+    all.append(...els);
+    this.el.insertBefore(all, this.emptyEl?.isConnected ? this.emptyEl : null);
+  }
+
+  finishRest() {
+    if (!this.rest) return;
+    const rest = this.rest;
+    this.rest = null;
+    clearTimeout(this.restTimer);
+    removeEventListener('scroll', this.restScroll, { capture: true });
+    if (rest.length) this.addRest(rest);
   }
 
   // items are files, or { divider, id, label } section labels.
   // animate: 'reveal' (staggered entrance), 'flip' (glide to new places), or false.
   set(items, { animate = 'reveal' } = {}) {
+    this.finishRest();
+    // a planet's first fill: past FIRST boxes, the rest come once the first have arrived
+    const twoSteps = animate === 'reveal' && !this.cells.size && items.length > FIRST + REST_BATCH;
+    const later = twoSteps ? items.slice(FIRST) : [];
+    if (twoSteps) items = items.slice(0, FIRST);
     const flip = animate === 'flip' && !reducedMotion();
     const before = flip ? measure(nearby(this.cells.values())) : null;
     const gridBox = this.el.getBoundingClientRect();
@@ -143,9 +209,28 @@ export class Grid {
           el.classList.add('reveal');
         }
       });
+      if (animate === 'reveal') this.onlySeenArrive(ordered);
       if (animate === 'reveal' && this.entry) this.entry.classList.add('reveal');
     }
+    if (twoSteps) this.holdRest(later);
     this.syncEmpty();
+  }
+
+  // Only the boxes that can be seen arrive. On a full planet the rest would blur into
+  // focus off screen, and Safari pays for every one of them each picture. The grid is
+  // often filled before it is on the page, so this waits for the first picture it is
+  // laid out in, and reads where every box is before changing any.
+  onlySeenArrive(els) {
+    let tries = 0;
+    const trim = () => {
+      if (!this.el.getClientRects().length) {
+        if (++tries < 30) requestAnimationFrame(trim);
+        return;
+      }
+      const away = els.filter((el) => el.classList.contains('reveal') && !inViewport(el, 200));
+      for (const el of away) el.classList.remove('reveal');
+    };
+    requestAnimationFrame(trim);
   }
 
   place(desired) {
@@ -170,6 +255,7 @@ export class Grid {
   }
 
   insertFirst(el, key) {
+    this.finishRest();
     const before = measure(nearby(this.el.querySelectorAll(':scope > .cell:not(.is-ghosting)')));
     this.place([el]);
     if (key) this.cells.set(key, el);
@@ -194,6 +280,7 @@ export class Grid {
   // Swap a placeholder for the finished block, keeping the local preview on
   // screen until the real image has loaded so nothing flickers.
   resolve(key, block, { keep = true } = {}) {
+    this.finishRest();
     const old = this.cells.get(key);
     this.cells.delete(key);
     if (!old) return null;
@@ -216,6 +303,7 @@ export class Grid {
   }
 
   update(block) {
+    this.finishRest();
     const old = this.cells.get(block.id);
     if (!old) return;
     const cell = renderCell(block);
@@ -223,7 +311,9 @@ export class Grid {
     this.cells.set(block.id, cell);
   }
 
-  remove(id, el = this.cells.get(id)) {
+  remove(id, el) {
+    this.finishRest();
+    el ??= this.cells.get(id);
     if (!el) return;
     if (id) this.cells.delete(id);
     const others = measure(nearby(this.el.querySelectorAll(':scope > .cell:not(.is-ghosting)')));
@@ -245,6 +335,7 @@ export class Grid {
 
   pointerDown(e) {
     if (!this.sortable || e.button !== 0) return;
+    this.finishRest();
     const cell = e.target.closest('.cell[data-id]');
     if (!cell || e.target.closest('button, a, input, textarea, [contenteditable]')) return;
     const start = { x: e.clientX, y: e.clientY };

@@ -1493,11 +1493,14 @@ class Galaxy {
         this.threadEls.set(key, note);
         this.threadNotes.append(note);
       }
-      note.dataset.a = t.a;
-      note.dataset.b = t.b;
-      note.textContent = plural(t.n, 'file');
+      // (this runs every picture while planets glide: only what changed is written)
+      if (note.dataset.a !== t.a) note.dataset.a = t.a;
+      if (note.dataset.b !== t.b) note.dataset.b = t.b;
+      const says = plural(t.n, 'file');
+      if (note.textContent !== says) note.textContent = says;
       note.classList.toggle('is-on', !!this.litId && (t.a === this.litId || t.b === this.litId));
-      note.style.transform = `translate(${curve.mid.x.toFixed(1)}px, ${curve.mid.y.toFixed(1)}px)`;
+      const move = `translate(${curve.mid.x.toFixed(1)}px, ${curve.mid.y.toFixed(1)}px)`;
+      if (note.style.transform !== move) note.style.transform = move;
       for (const [me, other] of [[t.a, t.b], [t.b, t.a]]) {
         const name = this.data.planets.find((p) => p.id === other)?.title;
         if (name) told.set(me, [...(told.get(me) || []), `${plural(t.n, 'file')} with ${name}`]);
@@ -1511,10 +1514,17 @@ class Galaxy {
     // Said to a screen reader on the planet itself, since the threads are only painted.
     for (const [id, el] of this.planetEls) {
       const says = told.get(id);
-      if (says) el.setAttribute('aria-description', `Shares ${says.join(', ')}`);
+      const text = says ? `Shares ${says.join(', ')}` : null;
+      if (el.getAttribute('aria-description') === text) continue;
+      if (text) el.setAttribute('aria-description', text);
       else el.removeAttribute('aria-description');
     }
-    this.paintThreads();
+    // the wisps are painted again only when an end has moved
+    const at = this.threadCurves.map(({ curve }) => `${curve.s.x.toFixed(1)},${curve.s.y.toFixed(1)},${curve.e.x.toFixed(1)},${curve.e.y.toFixed(1)}`).join(' ');
+    const still = at === this.threadsAt;
+    this.threadsAt = at;
+    if (!still) this.paintThreads();
+    return !still;
   }
 
   // The wisps, on one canvas only as big as they reach (DESIGN.md "What Mutt may cost").
@@ -1564,11 +1574,17 @@ class Galaxy {
   followThreads(ms = 0) {
     cancelAnimationFrame(this.threadFrame);
     if (!(this.data.threads || []).length && !this.threadEls.size) return;
-    const until = performance.now() + ms;
+    const start = performance.now();
+    const until = start + ms;
+    let calm = 0;
+    this.threadsAt = null;
     const tick = () => {
       if (!this.el.isConnected) return;
-      this.drawThreads();
-      if (performance.now() < until || this.field.querySelector('.planet.is-moving')) this.threadFrame = requestAnimationFrame(tick);
+      // a few pictures with no planet moved and nothing carried: they have landed
+      // (a glide starts slowly, so only after its first moments)
+      calm = this.drawThreads() || performance.now() - start < DUR.quick ? 0 : calm + 1;
+      const carried = this.field.querySelector('.planet.is-moving');
+      if (carried || (performance.now() < until && calm < 3)) this.threadFrame = requestAnimationFrame(tick);
     };
     tick();
   }

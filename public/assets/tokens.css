@@ -154,7 +154,10 @@
   --star-white: #ffffff; --star-amber: #ffbd80; --star-blue: #9eccff; --star-pink: #ffb8e6; --star-mint: #99ffe6;
   /* a loose file resting as a point of light round the void: its rim and its light. Sized for
      the face before it shrinks to a point (to 0.42), so on screen the rim is about 1 and the light about 10 */
-  --star-halo: 0 0 0 2.4px rgba(255, 255, 255, 0.24), 0 0 24px 7px rgba(158, 204, 255, 0.3), 0 0 52px 14px rgba(158, 204, 255, 0.1);
+  --star-halo: 0 0 0 2.4px rgba(255, 255, 255, 0.24);
+  /* ...and its light, painted round it on a box 1.6 chips wide (the rays' box), where the point is 26% out:
+     the same light the two soft shadows it once had gave, which Safari painted again on every picture of a page change */
+  --star-glow: radial-gradient(closest-side, rgba(158, 204, 255, 0.34), rgba(158, 204, 255, 0.29) 26%, rgba(158, 204, 255, 0.17) 45%, rgba(158, 204, 255, 0.06) 68%, rgba(158, 204, 255, 0));
   /* the universe: black, with no stars */
   --night-mid: #070914; --night-deep: #020307; --night-edge: #000002;
 

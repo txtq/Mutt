@@ -23,6 +23,23 @@ function settle(els, tops, duration) {
   });
 }
 
+// What glides. A tall group (a planet's grid of files) glides box by box, and only the
+// boxes that can be seen: moving the whole grid as one piece makes Safari redraw every box
+// in it before the glide can start (a tenth of a second on a full planet). Those off
+// screen just move.
+function movers(els) {
+  const out = [];
+  for (const el of els) {
+    if (el.children.length > 8 && el.getBoundingClientRect().height > innerHeight) {
+      for (const c of el.children) {
+        const r = c.getBoundingClientRect();
+        if (r.bottom > -100 && r.top < innerHeight + 100) out.push(c);
+      }
+    } else out.push(el);
+  }
+  return out;
+}
+
 // kind: an extra class; drawing: the name of its small drawing in icons.js.
 export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [], note = null, accept, busy, decline = 'Not now', onAccept, onDecline }) {
   const yes = h('button', { type: 'button', class: 'btn btn-main' }, accept);
@@ -37,7 +54,7 @@ export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [
 
   // Put it at the top of `parent`, easing what's already there down.
   el.show = (parent) => {
-    const below = [...parent.children];
+    const below = movers([...parent.children]);
     const tops = below.map(topOf);
     parent.prepend(el);
     if (reducedMotion()) return;
@@ -52,6 +69,7 @@ export function modeOffer({ kind = '', drawing: draws = 'list', title, signs = [
     if (!reducedMotion()) {
       const below = [];
       for (let n = el.nextElementSibling; n; n = n.nextElementSibling) below.push(n);
+      below.splice(0, below.length, ...movers(below));
       const tops = below.map(topOf);
       const r = el.getBoundingClientRect();
       Object.assign(el.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: '0' });

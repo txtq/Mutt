@@ -371,7 +371,7 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     worlds.length ? { heading: worlds.some((w) => w.planet) ? 'Move back to' : 'Move to a moon' } : null,
     ...worlds.map((w) => ({ label: w.title, icon: w.dot, run: w.move })),
     worlds.length ? '-' : null,
-    { icon: 'move', label: worlds.length ? 'Other planets…' : 'Move to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
+    { icon: 'move', label: worlds.length ? 'Other planets…' : 'Add to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
     block.file && { icon: 'download', label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
     block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },

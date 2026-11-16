@@ -38,6 +38,8 @@ let arriving = false;
 let handoff = null;
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
+// How far each galaxy's ring was turned on a phone, so coming back from a planet finds it as you left it.
+const turns = new Map();
 const smooth = (t) => t * t * (3 - 2 * t);
 
 function excerpt(text, n = 90) {
@@ -435,8 +437,9 @@ function scatter(planets, width, inner, m) {
   const ax = m.narrow ? 1 : 1.32;
   const ay = m.narrow ? 1 : 0.78;
   const pad = m.gap;
-  // a constellation (constellations.js) is laid out as a small planet as tall as its figure
-  const sizes = planets.map((p) => (p.shape ? p.shape.h : planetSize(p.count, m.scale)));
+  // a constellation (constellations.js) is laid out as a small planet as tall as its figure;
+  // on a phone's ring every planet keeps a size you can see and tap (ringSize)
+  const sizes = planets.map((p) => (m.narrow ? ringSize(p, m.viewH) : p.shape ? p.shape.h : planetSize(p.count, m.scale)));
   let fx = 1;
   planets.forEach((p, i) => {
     if (!placed(p) || !p.x) return;
@@ -444,7 +447,7 @@ function scatter(planets, width, inner, m) {
     fx = Math.min(fx, room / Math.abs(p.x * m.scale));
   });
   const stretch = 1 / Math.sqrt(Math.max(fx, 0.1));
-  if (m.narrow) return { ...rows(planets, sizes, width, inner, m), fx, stretch };
+  if (m.narrow) return { ...ringLayout(planets, sizes, width, inner, m, m.turn), fx, stretch };
   const fr = frameOf(width, m);
   const shape = orbitShape(planets, sizes, inner, m, fr);
   if (planets.length && !planets.some(placed)) {
@@ -514,95 +517,212 @@ function pads(m) {
   return { top: pad, bottom: pad };
 }
 
-// On a phone there's no room beside the void, so planets sit in loose rows
-// above and below it. Where you've put a planet decides its side and its
-// place in the order (top to bottom, then left to right); the rest fill
-// whichever side is shorter. Rows spread out to use the screen's height.
-function rows(planets, sizes, width, inner, m) {
-  const W = width - 16;
-  const wide = (i) => footprint(sizes[i], m, planets[i]);
-  const tall = (s) => s + 58; // a planet with its name under it
-  const sides = { top: [], bottom: [] };
-  const order = planets.map((p, i) => i);
-  order.filter((i) => placed(planets[i]))
-    .sort((a, b) => planets[a].y - planets[b].y || planets[a].x - planets[b].x)
-    .forEach((i) => sides[planets[i].y < 0 ? 'top' : 'bottom'].push(i));
-  const load = (list) => list.reduce((t, i) => t + wide(i) * tall(sizes[i]), 0);
-  for (const i of order) {
-    if (placed(planets[i])) continue;
-    if (load(sides.top) <= load(sides.bottom)) sides.top.unshift(i);
-    else sides.bottom.push(i);
-  }
-  // Pack each side into rows that fit the width.
-  const pack = (list) => {
-    const out = [];
-    for (const i of list) {
-      const row = out[out.length - 1];
-      const used = row ? row.reduce((t, j) => t + wide(j) + m.gap, 0) : Infinity;
-      if (used + wide(i) <= W) row.push(i);
-      else out.push([i]);
-    }
-    // Within a row, the ones you've put somewhere keep their left-to-right order.
-    for (const row of out) {
-      const slots = row.map((i, k) => k).filter((k) => placed(planets[row[k]]));
-      const sorted = slots.map((k) => row[k]).sort((x, y) => planets[x].x - planets[y].x);
-      slots.forEach((k, n) => { row[k] = sorted[n]; });
-    }
-    return out;
-  };
-  const height = (row) => tall(Math.max(...row.map((i) => sizes[i])));
-  const stack = (list) => list.reduce((t, r) => t + height(r) + m.gap, 0);
+// ---------------------------------------------------------------- the ring (a phone)
+
+// A phone has no room beside the void, so its planets ride one ring round it
+// (decided with the user, 2026-11-16: "rings that turn"). The ring is the
+// computer's rounded orbit (ORBIT_P), stretched to the screen's height and
+// wider than the screen, so its two ends run off the sides: an arc of planets
+// shows above the void and one below, and a swipe sideways turns the ring to
+// bring the others round. The order round it is the computer's: the planets
+// above the void left to right, then those below right to left, so a planet
+// sits on the same side of the void, in the same order, as on the computer.
+// At rest the ring always settles with a planet in the middle of a row.
+const PATH_N = 720;
+// A planet on the ring keeps a size you can see and tap, whatever the zoom.
+const ringSize = (p, viewH) => (p.shape ? p.shape.h : Math.round(clamp(planetSize(p.count, 0.56) * clamp(viewH / 640, 0.92, 1.12), 60, 100)));
+// How far below its globe's middle a planet's name reaches, and above it its globe.
+const below = (s) => s / 2 + 50;
+const above = (s) => s / 2 + 8;
+
+// The band round the void the stars may use, between the two arcs of planets.
+function ringBand(m, sizes) {
   const p = pads(m);
-  // A galaxy taller than the screen keeps its void on the first screen: only
-  // as many rows above it as leave its dust in sight. The rest come just
-  // below it, in the same order.
-  if (stack(pack(sides.top)) + stack(pack(sides.bottom)) + inner.ry * 2 + p.top + p.bottom > m.viewH) {
-    const room = m.viewH - p.top - inner.ry * 2 - p.bottom;
-    let k = 0;
-    while (k < sides.top.length && stack(pack(sides.top.slice(k))) > room) k++;
-    sides.bottom.unshift(...sides.top.splice(0, k));
+  const big = sizes.length ? Math.max(...sizes) : 0;
+  const half = (m.viewH - p.top - p.bottom) / 2;
+  // the top arc's names face the void, the bottom arc's globes do
+  return { half, B: half - (big ? above(big) : 0), yMax: half - (big ? above(big) + below(big) : 0) - m.gap };
+}
+
+// Stars on a phone: the newest nearest the void, kept in the band between the
+// arcs and filling its sides first, where the ring's ends leave room. Gives as
+// many places as fit (`room`), and how far they reach.
+function phoneStarSpots(n, m, width, yMax) {
+  const xMax = width / 2 - m.chip / 2 - 6;
+  const yLim = Math.max(m.chip / 2, yMax - m.chip / 2);
+  const r0 = m.hole * 2.75 + m.chip / 2;
+  const cell = m.cell;
+  const picked = [];
+  for (let k = 0; k < 8 && picked.length < STAR_CAP_PHONE; k++) {
+    const r = r0 + k * cell * 0.9;
+    const around = Math.max(6, Math.floor((2 * Math.PI * r) / cell));
+    const ring = [];
+    for (let j = 0; j < around; j++) {
+      const a = (j / around) * Math.PI * 2 + k * GOLDEN;
+      ring.push({ x: Math.cos(a) * r, y: Math.sin(a) * r * TALL });
+    }
+    // the sides first, then towards the arcs
+    ring.sort((a, b) => Math.abs(a.y) - Math.abs(b.y));
+    for (const pt of ring) {
+      if (picked.length >= STAR_CAP_PHONE) break;
+      if (Math.abs(pt.x) > xMax || Math.abs(pt.y) > yLim) continue;
+      if (picked.some((q) => Math.hypot(q.x - pt.x, q.y - pt.y) < cell * 0.98)) continue;
+      picked.push(pt);
+    }
   }
-  const top = pack(sides.top);
-  const bottom = pack(sides.bottom);
-  const spots = [];
-  // A row's planets spread across the width, its top edge at y0.
-  const lay = (row, y0, k) => {
-    const S = Math.max(...row.map((i) => sizes[i]));
-    const free = Math.max(0, W - row.reduce((t, i) => t + wide(i), 0));
-    const step = free / (row.length + 1);
-    // Every other row leans a little to one side, so it isn't a grid.
-    let x = -W / 2 + step + (row.length > 1 ? 0 : (k % 2 ? 1 : -1) * Math.min(step * 0.4, W * 0.12));
-    for (const i of row) {
-      const s = sizes[i];
-      const w = wide(i);
-      const rand = seeded(`row:${planets[i].id}`);
-      const y = y0 + 8 + S / 2 + (rand() - 0.5) * (S - s);
-      const cx = x + w / 2 + (rand() - 0.5) * step * 0.5;
-      spots[i] = { x: cx, y, size: s, rect: box(cx, y, s, w) };
-      x += w + step;
-    }
-  };
-  // The row next to the void tucks into the empty corners round it, as far
-  // as its planets clear the void and its stars.
-  const sink = (row, y0, dir, k) => {
-    let d = 0;
-    for (; d < inner.ry; d += 2) {
-      lay(row, y0 + dir * (d + 2), k);
-      if (row.some((i) => ovalHitsRect(inner.rx, inner.ry, spots[i].rect))) break;
-    }
-    return d;
-  };
-  const sinkTop = top.length ? sink(top[top.length - 1], -inner.ry - height(top[top.length - 1]), 1, 0) : 0;
-  const sinkBottom = bottom.length ? sink(bottom[0], inner.ry, -1, top.length) : 0;
-  // Spare height goes evenly between the rows and the void, up to a point.
-  const used = [...top, ...bottom].reduce((t, r) => t + height(r), 0) + inner.ry * 2 - sinkTop - sinkBottom;
-  const gaps = top.length + bottom.length;
-  const spare = gaps ? clamp((m.viewH - p.top - p.bottom - used) / gaps, m.gap, m.viewH * 0.07) : 0;
-  let y = -inner.ry + sinkTop;
-  top.slice().reverse().forEach((row, k) => { y -= spare + height(row); lay(row, y, k); });
-  y = inner.ry - sinkBottom;
-  bottom.forEach((row, k) => { y += spare; lay(row, y, k + top.length); y += height(row); });
-  return { spots, rects: spots.map((s) => s.rect) };
+  const spots = picked.slice(0, n);
+  const reachX = spots.reduce((t, q) => Math.max(t, Math.abs(q.x)), 0);
+  const reachY = spots.reduce((t, q) => Math.max(t, Math.abs(q.y)), 0);
+  return { spots, room: picked.length, outer: { x: spots.length ? reachX + m.chip / 2 : 0, y: spots.length ? reachY + m.chip / 2 : 0 } };
+}
+
+// The ring as points round it, from the top middle going clockwise, with how
+// far along each one is.
+function ringPath(A, B) {
+  const pts = [];
+  let L = 0;
+  for (let k = 0; k <= PATH_N; k++) {
+    const th = -Math.PI / 2 + (k / PATH_N) * Math.PI * 2;
+    const pt = { x: A * spow(Math.cos(th), 2 / ORBIT_P), y: B * spow(Math.sin(th), 2 / ORBIT_P) };
+    if (k) L += Math.hypot(pt.x - pts[k - 1].x, pt.y - pts[k - 1].y);
+    pt.u = L;
+    pts.push(pt);
+  }
+  return { A, B, L, pts };
+}
+function pointAt(path, u) {
+  const { pts, L } = path;
+  const v = ((u % L) + L) % L;
+  let lo = 0;
+  let hi = pts.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].u <= v) lo = mid; else hi = mid;
+  }
+  const a = pts[lo];
+  const b = pts[hi];
+  const t = b.u > a.u ? (v - a.u) / (b.u - a.u) : 0;
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+// Where each planet sits on the computer, on a screen like the owner's, read
+// once per arrangement: it gives the ring its order.
+const deskCache = new Map();
+function deskSpots(planets) {
+  const key = planets.map((p) => `${p.id}:${p.x ?? ''}:${p.y ?? ''}:${p.count || 0}:${p.shape ? Math.round(p.shape.w) : ''}:${(p.moons || []).length}`).join('|');
+  if (deskCache.has(key)) return deskCache.get(key);
+  const W = 1440;
+  const H = 820;
+  const flat = planets.map((p) => (p.shape ? { ...p, shape: { ...p.shape, h: p.shape.h * 1.3, w: p.shape.w * 1.3 } } : p));
+  const plan = fitted(W, H, (m) => {
+    const inner = { rx: m.rx * 0.72 + 18, ry: m.ry * 0.72 + 18 };
+    const laid = scatter(flat, W, inner, m);
+    return { ...laid, ...extent(laid.rects, inner, H, m) };
+  });
+  const out = { spots: plan.spots, m: plan.m, fx: plan.fx, stretch: plan.stretch };
+  deskCache.set(key, out);
+  if (deskCache.size > 24) deskCache.delete(deskCache.keys().next().value);
+  return out;
+}
+
+// Laid round the ring: `turn` is how far it has been turned (along the ring).
+// Gives each planet's place, and the ring, for turning it later.
+function ringLayout(planets, sizes, width, inner, m, turn = null) {
+  const n = planets.length;
+  const band = ringBand(m, sizes);
+  const half = width / 2;
+  // On a short screen (or under a comment's note) the planets give a little
+  // of their size before the void does, down to four fifths of it (a little
+  // less on a phone shorter than a 13 mini, an SE).
+  const most = band.half - inner.ry - m.gap - (above(0) + below(0));
+  const big0 = n ? Math.max(...sizes) : 0;
+  const k = big0 > most ? Math.max(0.8 * clamp(m.viewH / 577, 0.85, 1), most / big0) : 1;
+  if (k < 1) sizes = sizes.map((s) => Math.round(s * k));
+  const items = planets.map((p, i) => {
+    const w = footprint(sizes[i], m, p);
+    return { i, s: sizes[i], w, need: Math.max(w, sizes[i] * 1.12) + m.gap };
+  });
+  // The ring clears the void and its stars: the top arc's names and the bottom
+  // arc's globes keep off them.
+  const big = n ? Math.max(...sizes) : 0;
+  const B = Math.max(band.B, inner.ry + below(big) + m.gap, 1);
+  const Bb = Math.max(band.half - below(big), inner.ry + above(big) + m.gap, 1);
+  // Order round the ring, from the computer.
+  const desk = n ? deskSpots(planets).spots : [];
+  const top = items.filter((it) => (desk[it.i]?.y ?? 0) < 0).sort((a, b) => desk[a.i].x - desk[b.i].x);
+  const bottom = items.filter((it) => (desk[it.i]?.y ?? 0) >= 0).sort((a, b) => (desk[b.i]?.x ?? 0) - (desk[a.i]?.x ?? 0));
+  const order = [...top, ...bottom];
+  const total = order.reduce((t, it) => t + it.need, 0);
+  // Wide enough that a planet at either end is off the screen, and long
+  // enough round to hold them all.
+  const hw = n ? Math.max(...items.map((it) => it.w)) / 2 : 0;
+  let A = half + hw;
+  let path = ringPath(A, (B + Bb) / 2);
+  for (let k = 0; k < 40 && path.L < total; k++) { A *= 1.12; path = ringPath(A, (B + Bb) / 2); }
+  // The top arc sits a little higher than the bottom one is low: they each
+  // keep their names clear of the void.
+  const lift = (B - Bb) / 2;
+  const at = (u) => { const pt = pointAt(path, u); return { x: pt.x, y: pt.y - lift }; };
+  // How much of each arc is on the screen, for a planet of average width.
+  const avgHw = n ? items.reduce((t, it) => t + it.w, 0) / n / 2 : 0;
+  let vis = 0;
+  for (const pt of path.pts) { if (pt.u > path.L / 4) break; if (Math.abs(pt.x) <= half - avgHw + 2) vis = pt.u; }
+  const span = (list) => list.reduce((t, it) => t + it.need, 0);
+  // Everything fits in view: each arc holds its own, centred, and the ring stays still.
+  // A row too full hands its end planet round to the other arc.
+  let T = top.slice();
+  let Bm = bottom.slice();
+  for (let k = 0; k < n && span(T) > vis * 2 && span(Bm) + T[T.length - 1].need <= vis * 2; k++) Bm.unshift(T.pop());
+  for (let k = 0; k < n && span(Bm) > vis * 2 && span(T) + Bm[0].need <= vis * 2; k++) T.push(Bm.shift());
+  const still = span(T) <= vis * 2 && span(Bm) <= vis * 2;
+  const base = new Array(n);
+  let step = 0;
+  if (still) {
+    let u = -span(T) / 2;
+    for (const it of T) { base[it.i] = u + it.need / 2; u += it.need; }
+    u = path.L / 2 - span(Bm) / 2;
+    for (const it of Bm) { base[it.i] = u + it.need / 2; u += it.need; }
+  } else {
+    // All round the ring, each with the room it needs and the rest shared
+    // out evenly: the top row's middle planet starts at the top.
+    const slack = (path.L - total) / n;
+    let u = 0;
+    order.forEach((it, k) => {
+      if (k) u += (order[k - 1].need + it.need) / 2 + slack;
+      base[it.i] = u;
+    });
+    const mid = top.length ? order[Math.floor((top.length - 1) / 2)].i : order[0].i;
+    const shift = base[mid];
+    order.forEach((it) => { base[it.i] -= shift; });
+    step = path.L / n;
+  }
+  const ring = { path, lift, base, step, still, items, order: order.map((it) => it.i) };
+  const t = still ? 0 : restOf(ring, turn ?? 0);
+  const spots = items.map((it) => {
+    const pt = at(base[it.i] + t);
+    return { x: pt.x, y: pt.y, size: it.s, rect: box(pt.x, pt.y, it.s, it.w) };
+  });
+  ring.turn = t;
+  return { spots, rects: spots.map((sp) => sp.rect), ring };
+}
+
+// The turn nearest `to` that leaves the top row tidy: a planet in its middle,
+// or two planets either side of it.
+function restOf(ring, to) {
+  const L = ring.path.L;
+  const wrap = (v) => ((((v + L / 2) % L) + L) % L) - L / 2;
+  const marks = [];
+  ring.order.forEach((i, k) => {
+    const j = ring.order[(k + 1) % ring.order.length];
+    marks.push(ring.base[i], ring.base[i] + wrap(ring.base[j] - ring.base[i]) / 2);
+  });
+  let best = to;
+  let near = Infinity;
+  for (const b of marks) {
+    const d = wrap(b + to);
+    if (Math.abs(d) < near) { near = Math.abs(d); best = to - d; }
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------- the universe
@@ -1003,6 +1123,11 @@ class Galaxy {
     this.threadNotes = h('div', { class: 'gx-thread-notes', 'aria-hidden': 'true' });
     this.threadEls = new Map();
     this.scene = h('div', { class: 'gx-scene' }, this.threadsEl, this.art, this.guide, this.ghost, this.field, this.threadNotes, this.coreWrap, this.hint);
+    // A phone's ring (ringLayout): turned by a swipe sideways, kept where it was left for this galaxy.
+    this.turn = turns.get(this.owner) ?? null;
+    this.scene.addEventListener('pointerdown', (e) => this.grabRing(e));
+    this.scene.addEventListener('click', (e) => { if (this.turned) { e.preventDefault(); e.stopPropagation(); } }, true);
+    this.field.addEventListener('focusin', (e) => { const id = e.target.closest?.('.planet')?.planet?.id; if (id) this.ringShow(id); });
     const lightFrom = (e) => this.lightThreads(e.target.closest?.('.planet')?.planet?.id || null);
     this.field.addEventListener('pointerover', lightFrom);
     this.field.addEventListener('focusin', lightFrom);
@@ -1182,6 +1307,8 @@ class Galaxy {
         this.planetEls.get(other?.id)?.classList.remove('is-target');
         swap = null;
         if (cancelled) { el.classList.remove('is-moving'); this.layout(); return; }
+        // On a phone's ring a planet only changes places with another.
+        if (this.m.narrow) { el.classList.remove('is-moving'); if (other) this.swapOnRing(el.planet, other); else this.layout(); return; }
         if (other) { this.place(el.planet, this.spots.get(other.id), el, true, { planet: other, at: this.spots.get(el.planet.id) }); return; }
         if (snap) this.place(el.planet, snap, el, true);
         else this.place(el.planet, at, el);
@@ -1193,7 +1320,14 @@ class Galaxy {
       e.preventDefault();
       const spot = this.spots.get(el.planet.id);
       if (!spot) return;
-      if (this.m.narrow) { this.place(el.planet, { x: spot.x + step[0] * 24, y: spot.y + step[1] * 24 }); return; }
+      if (this.m.narrow) {
+        // On the ring: change places with the next planet round that way.
+        const order = this.ring?.order || [];
+        const k = order.indexOf(this.data.planets.indexOf(el.planet));
+        const next = k < 0 || !step[0] ? null : this.data.planets[order[(k + step[0] + order.length) % order.length]];
+        if (next && next !== el.planet) this.swapOnRing(el.planet, next).then(() => el.focus());
+        return;
+      }
       // The next place along on the orbits that way.
       let best = null;
       let far = Infinity;
@@ -1308,17 +1442,41 @@ class Galaxy {
     const hold = held && held.width === width && held.viewH === viewH && this.data.planets.every(placed) ? held.z : 0;
     if (!hold) this.held = null;
     this.laidRoom = this.mine ? this.notesRoom || 0 : 0;
-    const { m, starAt, inner, figs, spots, fx, stretch, shape, ...home } = fitted(width, viewH, (m) => {
+    const { m, starAt, inner, figs, spots, fx, stretch, shape, ring, starRoom, ...home } = fitted(width, viewH, (m) => {
       m.room = this.laidRoom;
-      const { spots: starAt, outer } = starSpots([...this.starsEl.children].filter((el) => !this.sky?.has(el.dataset.id)).length, m, width);
+      const loose = [...this.starsEl.children].filter((el) => !this.sky?.has(el.dataset.id)).length;
+      const figs = this.sky ? this.sky.items(m, width) : [];
+      const all = figs.length ? [...this.data.planets, ...figs] : this.data.planets;
+      // On a phone the stars keep to the band between the ring's two arcs (ringBand).
+      let starRoom = 0;
+      let starAt;
+      let outer;
+      if (m.narrow) {
+        m.turn = this.turn;
+        ({ spots: starAt, outer, room: starRoom } = phoneStarSpots(loose, m, width, ringBand(m, all.map((p) => ringSize(p, viewH))).yMax));
+      } else ({ spots: starAt, outer } = starSpots(loose, m, width));
       // Planets keep clear of the dust and of the stars caught in it. The
       // dust fades out well before its edge, so they may sit on its rim.
       const gap = m.narrow ? 10 : 18;
       const inner = { rx: Math.max(outer.x, m.rx * 0.72) + gap, ry: Math.max(outer.y, m.ry * 0.72) + gap };
-      const figs = this.sky ? this.sky.items(m, width) : [];
-      const laid = scatter(figs.length ? [...this.data.planets, ...figs] : this.data.planets, width, inner, m);
-      return { starAt, inner, figs, ...laid, ...extent(laid.rects, inner, viewH, m) };
+      const laid = scatter(all, width, inner, m);
+      return { starAt, inner, figs, starRoom, ...laid, ...extent(laid.rects, inner, viewH, m) };
     }, hold);
+    this.ring = ring || null;
+    this.figs = figs;
+    if (ring) this.turn = ring.turn;
+    // A phone shows as many stars as its band holds (the last place is "+N").
+    if (m.narrow && starRoom !== this.starRoom) {
+      const before = this.shownStars().length;
+      this.starRoom = starRoom;
+      if (this.shownStars().length !== before && !this.relaying) {
+        this.relaying = true;
+        this.renderStars();
+        this.layout();
+        this.relaying = false;
+        return;
+      }
+    }
     this.m = m;
     this.shape = shape;
     this.inner = inner;
@@ -1385,6 +1543,159 @@ class Galaxy {
     this.followThreads(this.scene.classList.contains('is-live') ? DUR.scene + DUR.quick : 0);
     // Only glide between spots once the first arrangement has landed.
     if (!this.scene.classList.contains('is-live')) requestAnimationFrame(() => requestAnimationFrame(() => this.scene.classList.add('is-live')));
+  }
+
+  // ------------------------------------------------------------ the ring (a phone)
+
+  // Every planet where the ring's turn puts it, without laying the page out again.
+  applyTurn() {
+    const R = this.ring;
+    if (!R || R.still || !this.size) return;
+    const { cx, cy } = this.size;
+    const count = this.data.planets.length;
+    const spots = R.items.map((it, i) => {
+      const pt = pointAt(R.path, R.base[i] + this.turn);
+      const y = pt.y - R.lift;
+      return { x: pt.x, y, size: it.s, rect: box(pt.x, y, it.s, it.w) };
+    });
+    together(() => this.data.planets.forEach((p, i) => {
+      if (!spots[i]) return;
+      this.spots.set(p.id, spots[i]);
+      const el = this.planetEls.get(p.id);
+      if (el && !el.classList.contains('is-moving')) el.style.transform = `translate(${(cx + spots[i].x).toFixed(1)}px, ${(cy + spots[i].y).toFixed(1)}px)`;
+    }));
+    if (this.figs?.length && this.sky) {
+      const figSpots = spots.slice(count);
+      this.figs.forEach((f, i) => this.spots.set(f.id, figSpots[i]));
+      const inFig = this.sky.place(this.figs, figSpots);
+      for (const el of this.starsEl.children) {
+        const at = inFig.get(el.dataset.id);
+        if (!at) continue;
+        el.at = at;
+        el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+      }
+    }
+    this.drawThreads();
+  }
+
+  // A swipe sideways turns the ring; up and down still scroll out to the universe.
+  // Like a wheel: below the void, moving right turns it the other way.
+  grabRing(e) {
+    const R = this.ring;
+    if (!R || R.still || !this.m?.narrow || this.p > 0.02 || e.button || e.isPrimary === false) return;
+    if (this.stage.classList.contains('is-adding') || document.body.classList.contains('is-carrying')) return;
+    const pid = e.pointerId;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const from = this.turn;
+    const sign = y0 - this.scene.getBoundingClientRect().top > this.size.cy ? -1 : 1;
+    let on = false;
+    const trail = [];
+    const move = (ev) => {
+      if (ev.pointerId !== pid) return;
+      const dx = ev.clientX - x0;
+      const dy = ev.clientY - y0;
+      if (!on) {
+        if (document.body.classList.contains('is-carrying') || (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx))) { stop(); return; }
+        if (Math.abs(dx) < 10) return;
+        on = true;
+        this.turned = true;
+        cancelAnimationFrame(this.ringFrame);
+        this.scene.classList.add('is-turning');
+      }
+      trail.push({ t: ev.timeStamp, x: ev.clientX });
+      while (trail.length > 2 && ev.timeStamp - trail[0].t > DUR.quick) trail.shift();
+      this.turn = from + sign * (dx - Math.sign(dx) * 10);
+      this.applyTurn();
+    };
+    const up = (ev) => {
+      if (ev.pointerId !== pid) return;
+      stop();
+      if (!on) return;
+      setTimeout(() => { this.turned = false; }, 0);
+      // a flick carries on a little, then the ring settles with a planet in the middle of a row
+      const a = trail[0];
+      const b = trail[trail.length - 1];
+      const v = a && b && b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0;
+      this.settleRing(this.turn + sign * v * DUR.arrive * 0.6);
+    };
+    const stop = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  }
+
+  // Glide the ring to `to`, rounded to the nearest planet's place.
+  settleRing(to) {
+    const R = this.ring;
+    if (!R || R.still) return;
+    const goal = restOf(R, to);
+    cancelAnimationFrame(this.ringFrame);
+    const done = () => {
+      this.scene.classList.remove('is-turning');
+      turns.set(this.owner, this.turn);
+    };
+    if (reducedMotion()) { this.turn = goal; this.applyTurn(); done(); return; }
+    this.scene.classList.add('is-turning');
+    // a spring that is within a hundredth of its goal after --dur-move
+    const w = SETTLES / (DUR.move / 1000);
+    let last = performance.now();
+    const tick = (now) => {
+      if (!this.el.isConnected) return;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      this.turn += (goal - this.turn) * (1 - Math.exp(-w * dt));
+      if (Math.abs(goal - this.turn) < 0.4) this.turn = goal;
+      this.applyTurn();
+      if (this.turn !== goal) this.ringFrame = requestAnimationFrame(tick);
+      else done();
+    };
+    this.ringFrame = requestAnimationFrame(tick);
+  }
+
+  // A planet reached with the keyboard (or the screen reader) round the back of
+  // the ring is turned to the middle of the nearer row.
+  ringShow(id) {
+    const R = this.ring;
+    if (!R || R.still || !this.size) return;
+    const i = this.data.planets.findIndex((p) => p.id === id);
+    const sp = this.spots.get(id);
+    if (i < 0 || !sp || Math.abs(sp.x) + R.items[i].w / 2 <= this.size.width / 2) return;
+    const L = R.path.L;
+    const u = (((R.base[i] + this.turn) % L) + L) % L;
+    const toTop = u > L / 2 ? L - u : -u;
+    const toBottom = L / 2 - u;
+    this.settleRing(this.turn + (Math.abs(toTop) <= Math.abs(toBottom) ? toTop : toBottom));
+  }
+
+  // On a phone, a planet carried onto another changes places with it, and the
+  // two change places on the computer too (what's saved is where they sit there).
+  async swapOnRing(a, b) {
+    const all = this.figs?.length ? [...this.data.planets, ...this.figs] : this.data.planets;
+    const D = deskSpots(all);
+    const unit = (s) => ({ x: Math.round((s.x / (D.m.scale * D.fx)) * 10) / 10, y: Math.round((s.y / (D.m.scale * D.stretch)) * 10) / 10 });
+    const ia = all.indexOf(a);
+    const ib = all.indexOf(b);
+    if (ia < 0 || ib < 0 || !D.spots[ia] || !D.spots[ib]) { this.layout(); return; }
+    const first = !this.data.planets.some(placed);
+    const at = new Map(this.data.planets.map((p, i) => [p.id, unit(D.spots[i])]));
+    at.set(a.id, unit(D.spots[ib]));
+    at.set(b.id, unit(D.spots[ia]));
+    const list = (first ? this.data.planets : [a, b]).map((p) => ({ id: p.id, ...at.get(p.id) }));
+    const before = new Map(this.data.planets.map((p) => [p.id, { x: p.x, y: p.y }]));
+    for (const s of list) Object.assign(this.data.planets.find((q) => q.id === s.id), { x: s.x, y: s.y });
+    this.layout();
+    try {
+      await api.put('/api/galaxy/layout', { planets: list });
+    } catch (err) {
+      toast(err.message);
+      for (const p of this.data.planets) Object.assign(p, before.get(p.id));
+      this.layout();
+    }
   }
 
   barHeight() {
@@ -1625,7 +1936,7 @@ class Galaxy {
   // ------------------------------------------------------------ stars
 
   shownStars() {
-    const cap = innerWidth < 640 ? STAR_CAP_PHONE : STAR_CAP;
+    const cap = innerWidth < 640 ? clamp(this.starRoom || STAR_CAP_PHONE, 4, STAR_CAP_PHONE) : STAR_CAP;
     return this.showAll || this.stars.length <= cap ? this.stars : this.stars.slice(0, cap - 1);
   }
 
@@ -2291,7 +2602,10 @@ class Galaxy {
     }
     // The web is further off, so it moves more slowly.
     this.web.style.transform = `scale(${((k / kEnd) ** 0.45).toFixed(4)})`;
-    this.webLayer.style.opacity = String(smooth(clamp((e - 0.12) / 0.5)));
+    const webOn = smooth(clamp((e - 0.12) / 0.5));
+    this.webLayer.style.opacity = String(webOn);
+    // Hidden while it can't be seen, so its layer (as big as the whole universe) holds no picture.
+    this.webLayer.style.visibility = webOn > 0 ? '' : 'hidden';
     // Names stay a readable size, and come in once everyone's in place.
     const lab = smooth(clamp((e - 0.74) / 0.2));
     this.uvStage.style.setProperty('--lab', lab.toFixed(3));

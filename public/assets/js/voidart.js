@@ -23,8 +23,10 @@ const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 // How big the light is for a page this size (its radius, in CSS pixels).
 export function voidRadius(width, viewH) {
-  const narrow = width < 640;
-  return Math.round(clamp(Math.min(viewH * 0.095, width * (narrow ? 0.14 : 0.08)), narrow ? 44 : 50, 92));
+  // A phone's (under 640) is a little smaller beside its ring of planets, so a
+  // wide phone's void doesn't crowd them and its stars to the edges (2026-11-16).
+  if (width < 640) return Math.round(clamp(Math.min(viewH * 0.085, width * 0.115), 38, 92));
+  return Math.round(clamp(Math.min(viewH * 0.095, width * 0.08), 50, 92));
 }
 // How far out the cage reaches, in multiples of that radius.
 export const REACH = { x: 3.1, y: 3.3 };

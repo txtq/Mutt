@@ -16,6 +16,7 @@ import { tintFor } from './theme.js';
 import { fmtBytes, fmtDate, fmtDuration, h, seeded } from './util.js';
 import { icon } from './icons.js';
 import { planetDot } from './planets.js';
+import { mendThumb } from './thumbs.js';
 
 const BOX = 4 / 5;   // the frame's own shape (.cell-box in galaxy.css)
 
@@ -120,6 +121,7 @@ function linkFace(block, src) {
 export function blockFace(block) {
   let el;
   const src = imageSrc(block);
+  if (src && !block.thumb) mendThumb(block);
   if (block.kind === 'link') el = linkFace(block, src);
   else if (src) el = shaped(block, img(src, block, 'face face-img'), isBook(block) ? 'is-book' : isPage(block) ? 'is-page' : '');
   else if (block.kind === 'video' && block.file) {

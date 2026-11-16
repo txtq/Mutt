@@ -507,6 +507,19 @@ function pdfStage(block) {
     }
   }
 
+  // On a phone a page far off screen lets its picture go (about 3 MB each: a long PDF
+  // read to the end held hundreds) and is drawn again when it comes near.
+  function forgetPage(box) {
+    const canvas = box.querySelector(':scope > canvas');
+    if (!canvas || !box.dataset.w) return;
+    rendering.delete(Number(box.dataset.n));
+    delete box.dataset.w;
+    box.classList.add('is-shimmer');
+    canvas.width = 0;
+    canvas.height = 0;
+    canvas.remove();
+  }
+
   // pdf.js's see-through words over the picture of the page.
   async function words(box, n, page, vp, canvas) {
     const layer = h('div', { class: 'vw-pdf-text' });
@@ -574,6 +587,7 @@ function pdfStage(block) {
         for (const entry of entries) {
           entry.target.classList.toggle('is-near', entry.isIntersecting);
           if (entry.isIntersecting) draw(entry.target);
+          else if (innerWidth <= 720 && !markup) forgetPage(entry.target);
         }
         showPage();  // once the pages have their real size
       }, { root: pages, rootMargin: '900px 0px' });

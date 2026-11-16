@@ -29,6 +29,8 @@ async function encode(draw, w, h, opaque = false) {
     ctx.fillRect(0, 0, w, h);
     blob = await toBlob(canvas, 'image/jpeg', 0.86);
   }
+  canvas.width = 0;
+  canvas.height = 0;
   return blob;
 }
 
@@ -140,4 +142,39 @@ export async function makeThumb(file, kind) {
     return null;
   }
   return null;
+}
+
+// A picture of your own with no preview (one saved from a link, or from before
+// previews) is shown from its whole file, which on a phone can be 48 MB once
+// decoded, for every box it is in. The first time it is shown here, the browser
+// makes the preview it lacks, one picture at a time, and every page after uses that.
+const mending = new Set();
+const mendQueue = [];
+let mendBusy = false;
+export function mendThumb(block) {
+  if (block.thumb || block.kind !== 'image' || block.mine === false || !block.file) return;
+  if (block.ext === 'gif' || block.ext === 'svg' || mending.has(block.id)) return;
+  mending.add(block.id);
+  mendQueue.push(block);
+  mendNext();
+}
+async function mendNext() {
+  if (mendBusy || !mendQueue.length) return;
+  mendBusy = true;
+  const block = mendQueue.shift();
+  try {
+    const blob = await fetch(block.file).then((r) => (r.ok ? r.blob() : null));
+    const made = blob && await imageThumb(new File([blob], block.fileName || 'picture', { type: blob.type }));
+    if (made?.blob) {
+      const { sendFile } = await import('./api.js');
+      const { bus } = await import('./util.js');
+      const q = new URLSearchParams();
+      if (made.width) q.set('w', made.width);
+      if (made.height) q.set('h', made.height);
+      const done = await sendFile(`/api/blocks/${block.id}/thumb?${q}`, made.blob).catch(() => null);
+      if (done?.block) bus.emit('block:changed', done.block);
+    }
+  } catch { /* left as it is; tried again on the next visit */ }
+  mendBusy = false;
+  mendNext();
 }

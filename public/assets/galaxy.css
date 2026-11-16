@@ -1574,6 +1574,8 @@ body.no-chrome #view { padding: 0; }
   transition: transform var(--dur-move) var(--ease-settle), border-radius var(--dur-move) var(--ease-settle), box-shadow var(--dur-move), filter var(--dur-move);
 }
 .star .ff-text > *, .star .ff-text::after, .star .ff-kind > span { transition: opacity var(--dur-move); }
+/* A star's card is too small to split a word well ("Remembe r:"): a long word runs to the paper's edge instead. */
+.star .ff-text { overflow-wrap: normal; overflow: hidden; }
 .star:not(.star-more)::before, .star:not(.star-more)::after { content: ""; position: absolute; pointer-events: none; transition: opacity var(--dur-move); }
 /* the void's light across the card */
 .star:not(.star-more)::after {
@@ -1731,6 +1733,8 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   -webkit-touch-callout: none;
 }
 .gx-scene.is-live .planet { transition: transform var(--dur-scene) var(--ease-settle), opacity var(--dur-change); }
+/* a phone's ring follows the finger, then its own spring (views/galaxy.js settleRing) */
+.gx-scene.is-turning .planet, .gx-scene.is-turning .gx-fig, .gx-scene.is-turning .star { transition: none; }
 /* being moved: it follows the pointer, lifted a little */
 .gx-scene .planet.is-moving { z-index: 7; transition: none; }
 .planet.is-moving .planet-body { transform: scale(1.06); }

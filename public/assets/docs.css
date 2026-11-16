@@ -509,8 +509,10 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 }
 
 @media (max-width: 760px) {
-  /* the toolbar runs off the right edge here: it fades there, to say there is more to scroll to */
-  .de-tools { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+  /* A phone's toolbar is two centred rows, so nothing hides off the edge (2026-11-16): the
+     undo and the two pickers, then the marks, lists and the rest. Its menu still says "Auto". */
+  .de-tools { flex-wrap: wrap; justify-content: center; row-gap: var(--space-2); overflow: visible; border-radius: var(--r-panel); }
+  .de-tools .de-sep, .de-kind-auto { display: none; }
   .de-back { padding: 0 var(--space-4); }
   .de-name { font-size: var(--text-lead); }
   .de-status { display: none; }

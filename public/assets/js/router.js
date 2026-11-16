@@ -145,6 +145,7 @@ export async function render({ pop = false, motion = 'page' } = {}) {
   if (viewerOpen()) await closeViewer();
   const swap = () => {
     current?.inst.destroy?.();
+    if (current) letGo(current.inst.el);
     // A page's own colours (a planet's), which its controls lean toward.
     for (const k of Object.keys(current?.inst.tint || {})) document.body.style.removeProperty(k);
     for (const [k, v] of Object.entries(inst.tint || {})) document.body.style.setProperty(k, v);
@@ -202,6 +203,22 @@ export async function render({ pop = false, motion = 'page' } = {}) {
   else swap();
   inst.mounted?.({ moved });
   if (id === navId) await syncViewer(blockId);
+}
+
+// A page that has gone gives back what its drawings held at once. A canvas's
+// pixels are only freed when the browser next tidies up, and on a phone Safari
+// can run out first: every trip into a planet and back left ~50 MB behind, and
+// after a dozen the tab reloaded (2026-11-16). Once the change has played, any
+// canvas of the old page not on screen again is emptied.
+function letGo(el) {
+  if (!el) return;
+  setTimeout(() => {
+    for (const c of el.querySelectorAll('canvas')) {
+      if (c.isConnected) continue;
+      c.width = 0;
+      c.height = 0;
+    }
+  }, DUR.grand);
 }
 
 // Into the dark: a veil the colour of the night sky covers the page, the

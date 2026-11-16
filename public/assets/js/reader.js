@@ -27,7 +27,8 @@ const FONTS = [{ value: 'serif', label: 'Serif' }, { value: 'sans', label: 'Sans
 const SIZES = [14, 15, 16, 17, 18, 19, 20, 22, 24, 27, 30];
 const SPACINGS = [{ value: 'tight', label: 'Tight' }, { value: 'normal', label: 'Normal' }, { value: 'loose', label: 'Loose' }];
 const COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'];
-const DEFAULTS = { theme: 'night', font: 'serif', size: 4, spacing: 'normal', justify: true, pages: 1 };
+// A phone's column is too narrow to justify without wide gaps, so a phone starts ragged.
+const DEFAULTS = { theme: 'night', font: 'serif', size: 4, spacing: 'normal', justify: innerWidth > 720, pages: 1 };
 
 // Two pages side by side need a wide screen; then it's the reader's choice.
 const roomForTwo = (W, H) => W >= 960 && W > H * 1.15;

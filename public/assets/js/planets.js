@@ -249,14 +249,32 @@ const TEX_H = 512;
 // The newest few hundred pictures are kept for painting planets; older ones
 // are let go, or a long visit would hold every picture it ever passed (the
 // browser keeps the files, so asking again later is quick).
+// Each is kept as a small copy the size of the largest card it can be on a
+// map (cards are at most 60 of the map's 256 tall, drawn at twice that), never
+// the picture itself: a preview is up to 1000 across, 3 MB once decoded, and a
+// galaxy of photo planets held hundreds of them, which a phone couldn't
+// (2026-11-16). The small copy is about 0.1 MB.
 const imageCache = new Map();
 const MAX_IMAGES = 400;
+const CARD_PX = 192;
+function small(img) {
+  const k = Math.min(1, CARD_PX / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+  if (k >= 1) return img;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.naturalWidth * k));
+  c.height = Math.max(1, Math.round(img.naturalHeight * k));
+  const g = c.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, 0, 0, c.width, c.height);
+  img.src = '';
+  return c;
+}
 function loadImage(src) {
   if (!imageCache.has(src)) {
     imageCache.set(src, new Promise((resolve) => {
       const img = new Image();
       img.decoding = 'async';
-      img.onload = () => resolve(img);
+      img.onload = () => { img.onerror = null; resolve(small(img)); };
       img.onerror = () => resolve(null);
       img.src = src;
     }));

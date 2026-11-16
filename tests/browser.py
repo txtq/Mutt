@@ -173,8 +173,8 @@ class Browser:
             raise Fail(f'{where} scrolls sideways at phone width ({max(wide[0], wide[1])}px of page in a {wide[2]}px screen)')
 
     def press(self, key):
-        """One key on whatever has focus: 'Tab'."""
-        code = {'Tab': ''}[key]
+        """One key on whatever has focus: 'Tab', 'Escape', 'Enter' or a plain one ('/')."""
+        code = {'Tab': '\ue004', 'Escape': '\ue00c', 'Enter': '\ue007', 'ArrowDown': '\ue015'}.get(key, key)   # a plain key ("/") is itself
         self.call('POST', '/actions', {'actions': [{'type': 'key', 'id': 'kb', 'actions': [
             {'type': 'keyDown', 'value': code}, {'type': 'keyUp', 'value': code}]}]})
 

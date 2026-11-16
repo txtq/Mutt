@@ -15,7 +15,7 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, convert, db, documents, export, kinds, links, media, privacy, recipes, sight, sorting, transcode
+from . import auth, books, convert, db, documents, export, kinds, links, media, privacy, quotes, recipes, sight, sorting, transcode
 from . import modes as modes_registry
 from . import split as split_moons
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
@@ -3401,6 +3401,17 @@ def drawer_shelf(req, drawer_id):
             'book': books.is_book(r, meta),
         })
     return json_response({'books': out})
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/quotes')
+def drawer_quotes(req, drawer_id):
+    """The quotes on a planet, for its commonplace book: each one's words,
+    who said them and where from (mutt/quotes.py), read from the notes as
+    they are now."""
+    drawer = visible_drawer(req, drawer_id)
+    rows = req.db.execute('SELECT b.* FROM connections c JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ? '
+                          'AND b.deleted_at IS NULL ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
+    return json_response({'quotes': quotes.wall(rows, sorting.form, drawer['title'] or '')})
 
 
 @route('GET', r'/api/books/(?P<block_id>[\w-]+)')

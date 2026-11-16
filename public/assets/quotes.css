@@ -1,0 +1,72 @@
+/* ================================================================== THE COMMONPLACE BOOK
+   A planet kept for quotes (quotes.js; DESIGN.md "The modes", Commonplace book). Fetched with its code,
+   only when a planet uses it. Every value is a name from tokens.css.
+   The quote's own voice is the book face (--serif, italic), on the cards and in the slideshow only. */
+
+.qw { margin: 0 0 var(--space-48); display: grid; gap: var(--space-32); }
+.qw-others[hidden] { display: none; }
+.qw-book { min-width: 0; }
+.qw-wall { min-width: 0; }
+.qw-group { display: grid; min-width: 0; }
+.qw-grid { display: grid; grid-template-columns: repeat(var(--qw-cols, 3), minmax(0, 1fr)); gap: var(--space-24); align-items: start; }
+.qw-col { display: flex; flex-direction: column; gap: var(--space-24); min-width: 0; }
+.qw-empty { margin: 0; font: var(--type-body); color: var(--ink-3); text-shadow: var(--sky-shadow); }
+
+/* the add box (the shared one), the first thing on the wall */
+.qw-add { position: relative; height: 168px; }
+
+/* ---- a card: box glass, the planet's paled colour as a short stroke at the top, the words set by their length */
+.qw-card {
+  position: relative; display: flex; flex-direction: column; gap: var(--space-12); width: 100%;
+  padding: var(--space-24) var(--space-24) var(--space-16); border-radius: var(--r-box);
+  color: var(--ink); text-align: left; cursor: pointer; font: inherit;
+}
+.qw-card::before {
+  content: ""; width: var(--space-24); height: 2px; border-radius: var(--r-full);
+  background: var(--pt, var(--blue-ink)); opacity: 0.8;
+}
+.qw-words { display: block; padding-left: 0.4em; font-family: var(--serif); font-style: italic; color: var(--ink); white-space: pre-line; text-wrap: pretty; overflow-wrap: anywhere; }
+.qw-hang { margin-left: -0.4em; }
+.qw-card.is-s1 .qw-words { font: var(--type-title); font-family: var(--serif); font-style: italic; font-weight: 400; }
+.qw-card.is-s2 .qw-words { font: var(--type-lead); font-family: var(--serif); font-style: italic; font-weight: 400; }
+.qw-card.is-s3 .qw-words { font: var(--type-body); font-family: var(--serif); font-style: italic; }
+.qw-by { display: flex; flex-direction: column; gap: var(--space-2); padding-left: 0.4em; }
+.qw-who { font: var(--type-label); font-family: var(--serif); font-weight: 600; color: var(--ink-2); }
+.qw-src { font: var(--type-caption); font-family: var(--serif); font-style: italic; color: var(--ink-3); }
+.qw-card:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .qw { gap: var(--space-24); }
+  .qw-grid, .qw-col { gap: var(--space-12); }
+  .qw-card { padding: var(--space-16); }
+  .qw .sec-head { flex-wrap: wrap; height: auto; row-gap: var(--space-8); }
+}
+
+/* ---- the slideshow: a room. The quote large on the sky; Mutt's bar at the foot; Close at the top right. */
+.qs { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: var(--space-16) var(--space-24) max(var(--space-16), env(safe-area-inset-bottom)); }
+.qs-top { display: flex; justify-content: flex-end; }
+.qs-stage { display: grid; place-items: center; min-height: 0; overflow: auto; padding: var(--space-24) 6vw; touch-action: pan-y; }
+.qs-quote { margin: 0; max-width: 40em; display: grid; gap: var(--space-24); justify-items: center; text-align: center; text-shadow: var(--sky-shadow); }
+.qs-words { margin: 0; color: var(--ink); white-space: pre-line; text-wrap: balance; overflow-wrap: anywhere; font-family: var(--serif); font-style: italic; font-weight: 400; }
+.qs-hang { margin-left: -0.4em; }
+.qs-words.is-s1 { font-size: var(--text-reach); line-height: 1.3; }
+.qs-words.is-s2 { font-size: min(var(--text-reach), var(--text-page)); line-height: 1.35; }
+.qs-words.is-s3 { font-size: min(var(--text-reach), var(--text-title)); line-height: 1.45; text-align: left; text-wrap: pretty; }
+.qs-by { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); }
+.qs-by[hidden] { display: none; }
+.qs-who { font: var(--type-lead); font-family: var(--serif); font-weight: 600; color: var(--ink-2); }
+.qs-src { font: var(--type-label); font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--ink-3); }
+.qs-foot { display: flex; justify-content: center; }
+.qs-bar { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4); border-radius: var(--r-full); }
+.qs-where { min-width: 5.5em; text-align: center; font: var(--type-fact); color: var(--ink-3); }
+.qs-sep { width: 1px; height: var(--space-16); margin: 0 var(--space-4); background: var(--line); }
+
+/* Playing and left alone, the bar and Close step back until the pointer moves. */
+.qs :is(.qs-top, .qs-foot) { transition: opacity var(--dur-arrive) var(--ease-settle); }
+.qs.is-still :is(.qs-top, .qs-foot):not(:has(:focus-visible)) { opacity: 0; }
+.qs.is-still { cursor: none; }
+
+@media (max-width: 720px) {
+  .qs { padding: var(--space-8) var(--space-16) max(var(--space-16), env(safe-area-inset-bottom)); }
+  .qs-stage { padding: var(--space-16) 0; }
+}

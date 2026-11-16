@@ -35,7 +35,7 @@ from collections import Counter
 from functools import lru_cache
 
 from . import media as media_info
-from . import sight
+from . import quotes, sight
 from .lexicon import (ALIASES, COMMON, CONCEPTS, DOC_TYPES, EMOJI, FOREIGN, GROUP_NAMES, KIN_PAIRS, KIND_GROUPS,
                       MEDIUMS, NATIONALITIES, PLACES, ROLE_PHRASES, ROLES, SHOP_SITES, SHORT_OK, SIGHTS, SITE_TOPICS,
                       STOP_WORDS, TOPICS)
@@ -279,6 +279,8 @@ def form(text, ext=''):
         found['tasks'] = 1.0 if verbs >= 2 or first in TODO_VERBS and n == 1 else 0.7
     if short and (QUOTE_RE.match(text) or (CREDIT_RE.search(text) and n <= 6)):
         found['quote'] = 1.0
+    elif len(text) <= quotes.LIMIT and quotes.credited(text):
+        found['quote'] = 1.0  # "— Name, Source", "Rick (Casablanca)", "Mum: “…”", a passage with its credit
     if quantities >= 2 or re.search(r'\bingredients?\b', text, re.I):
         found['recipe'] = min(1.0, 0.5 + quantities * 0.1)
     if ext in CODE_EXTS or (n >= 2 and code_lines >= max(2, n * 0.3)) or (n == 1 and code_lines and '(' in text):

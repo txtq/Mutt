@@ -1,0 +1,343 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quote Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&display=swap">
+<style>
+/* Proposal board for quotes in Mutt (2026-11-16). Values copied from tokens.css; nothing here is in the app.
+   Each choice is a row of options; my pick is marked. Dark only, like Mutt. */
+:root {
+  color-scheme: dark;
+  --sans: "Red Hat Text", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sky-top: #020721; --sky-deep: #041038; --sky-mid: #0a1f6c; --sky-low: #1a56d0;
+  --ink: #f2f5fc; --ink-2: #cbd3e8; --ink-3: #a4b0cd; --ink-4: #7f8cab;
+  --sky-shadow: 0 1px 2px rgba(0, 0, 18, 0.8), 0 0 10px rgba(0, 0, 18, 0.5);
+  --line: rgba(190, 205, 240, 0.12); --line-2: rgba(190, 205, 240, 0.22);
+  --well: rgba(0, 4, 24, 0.38);
+  --paper: #f8f5ee; --paper-ink: #1d1b18; --paper-ink-2: #5c5852; --paper-ink-3: #8f897f; --paper-rule: #ddd6c8;
+  --pc: #e0a25a; --pc-pale: #f3c992; --pa: #c9853a;  /* an example planet colour (amber) */
+  --box-fill: rgba(190, 202, 240, 0.09); --box-frost: blur(28px) saturate(1.15) brightness(0.9);
+  --box-edge: color-mix(in srgb, rgba(225, 232, 255, 0.18), var(--pc-pale) 22%);
+  --bar-fill: rgba(13, 19, 48, 0.74); --bar-edge: rgba(205, 218, 255, 0.16);
+  --room-veil: rgba(5, 8, 24, 0.62);
+  --shadow-rest: 0 12px 28px -20px rgba(0, 0, 18, 0.7);
+  --shadow-raised: 0 20px 40px -22px rgba(0, 0, 18, 0.8);
+  --paper-shadow: 0 0 0 1px rgba(0, 0, 18, 0.2), var(--shadow-raised);
+}
+* { box-sizing: border-box; }
+html { background: var(--sky-top); }
+body {
+  margin: 0; color: var(--ink-2); font: 400 14px/22px var(--sans);
+  background:
+    radial-gradient(120% 70% at 50% 110%, var(--sky-low) 0%, var(--sky-mid) 35%, var(--sky-deep) 65%, var(--sky-top) 100%);
+  padding: 64px 16px 120px;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 88px; }
+section { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+h1 { margin: 0; font: 700 34px/38px var(--sans); letter-spacing: -0.02em; color: var(--ink); text-shadow: var(--sky-shadow); }
+h2 { margin: 0; font: 700 20px/26px var(--sans); color: var(--ink); text-shadow: var(--sky-shadow); }
+h3 { margin: 0; font: 500 13px/16px var(--sans); color: var(--ink); text-shadow: var(--sky-shadow); }
+p { margin: 0; max-width: 70ch; text-shadow: var(--sky-shadow); }
+.small { font: 500 10.5px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.fact { font: 400 11px/16px var(--mono); color: var(--ink-3); }
+.pick { color: var(--pc-pale); }
+.opts { display: flex; flex-direction: column; gap: 48px; }
+.opt { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.opt > p { color: var(--ink-3); font-size: 13px; line-height: 20px; }
+
+/* ---------- the file box ---------- */
+.row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.cell { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.box {
+  aspect-ratio: 4 / 5; border-radius: 12px; position: relative; overflow: hidden;
+  background: var(--box-fill); backdrop-filter: var(--box-frost); -webkit-backdrop-filter: var(--box-frost);
+  border: 1px solid var(--box-edge); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), var(--shadow-rest);
+  padding: 16px;
+}
+.cap { display: flex; justify-content: space-between; gap: 8px; font: 400 12px/16px var(--sans); color: var(--ink-2); text-shadow: var(--sky-shadow); }
+.cap .fact { white-space: nowrap; }
+.cap span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note { color: var(--ink); -webkit-mask: linear-gradient(#000 calc(100% - 40px), transparent); mask: linear-gradient(#000 calc(100% - 40px), transparent); height: 100%; }
+
+/* quote faces: the words sized to their length; three sizes, all existing roles */
+.q { display: flex; flex-direction: column; justify-content: center; height: 100%; gap: 12px; }
+.q .w { color: var(--ink); text-wrap: pretty; hanging-punctuation: first; }
+.q .w { padding-left: 0.42em; } .q .w .hang { margin-left: -0.42em; }
+.q .by { display: flex; flex-direction: column; gap: 2px; }
+.q .who { font: 500 13px/16px var(--sans); color: var(--ink-2); }
+.q .src { font: 400 12px/16px var(--sans); color: var(--ink-3); }
+.q.s1 .w { font: 500 20px/26px var(--sans); }
+.q.s2 .w { font: 400 16px/24px var(--sans); }
+.q.s3 .w { font: 400 14px/22px var(--sans); }
+.q .rule { width: 16px; height: 2px; border-radius: 2px; background: var(--pc-pale); opacity: .7; }
+
+/* A: a slip of paper lying in the box */
+.box.slip { display: grid; place-items: center; padding: 12px; }
+.slipp {
+  width: 100%; max-height: 94%; background: var(--paper); border-radius: 4px; box-shadow: var(--paper-shadow);
+  padding: 18px 16px; color: var(--paper-ink); display: flex; flex-direction: column; gap: 10px;
+}
+.slipp .w { font-family: var(--serif); font-style: italic; color: var(--paper-ink); text-wrap: pretty; }
+.slipp.s1 .w { font-size: 21px; line-height: 27px; }
+.slipp.s2 .w { font-size: 16px; line-height: 23px; }
+.slipp.s3 .w { font-size: 13.5px; line-height: 20px; }
+.slipp .who { font: 600 11px/14px var(--serif); letter-spacing: .08em; text-transform: uppercase; color: var(--paper-ink-2); }
+.slipp .src { font: italic 400 12px/16px var(--serif); color: var(--paper-ink-3); }
+
+/* C: glass, the serif as a quote's own voice */
+.q.serif .w { font-family: var(--serif); font-style: italic; font-weight: 400; }
+.q.serif.s1 .w { font-size: 23px; line-height: 29px; }
+.q.serif.s2 .w { font-size: 18px; line-height: 25px; }
+.q.serif.s3 .w { font-size: 15px; line-height: 22px; }
+.q.serif .who { font-family: var(--serif); font-weight: 600; font-size: 13px; letter-spacing: .02em; }
+.q.serif .src { font-family: var(--serif); font-style: italic; font-size: 13px; }
+
+/* ---------- the file view ---------- */
+.room {
+  position: relative; border-radius: 20px; overflow: hidden; min-height: 460px;
+  background: var(--room-veil); border: 1px solid var(--line);
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; padding: 56px 32px 32px;
+}
+.room > .top { position: absolute; inset: 16px 20px auto; display: flex; justify-content: space-between; }
+.stage { display: grid; place-items: center; min-width: 0; }
+.big { max-width: 560px; display: flex; flex-direction: column; gap: 20px; text-shadow: var(--sky-shadow); }
+.big .w { font: italic 400 30px/40px var(--serif); color: var(--ink); text-wrap: balance; }
+.big .who { font: 600 13px/16px var(--serif); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+.big .src { font: italic 400 15px/20px var(--serif); color: var(--ink-3); }
+.page {
+  background: var(--paper); border-radius: 4px; box-shadow: var(--paper-shadow); color: var(--paper-ink);
+  width: min(400px, 100%); aspect-ratio: 5 / 7; padding: 15% 13%; display: flex; flex-direction: column; justify-content: center; gap: 18px;
+}
+.page .w { font: italic 400 22px/31px var(--serif); text-wrap: balance; }
+.page .who { font: 600 11px/14px var(--serif); letter-spacing: .12em; text-transform: uppercase; color: var(--paper-ink-2); }
+.page .src { font: italic 400 13px/18px var(--serif); color: var(--paper-ink-3); }
+.page .folio { margin-top: auto; text-align: center; font: 400 11px/1 var(--serif); color: var(--paper-ink-3); }
+.side { display: flex; flex-direction: column; gap: 14px; text-shadow: var(--sky-shadow); min-width: 0; }
+.side .name { font: 700 20px/26px var(--sans); color: var(--ink); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  height: 32px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px;
+  font: 500 13px/16px var(--sans); color: var(--ink); border: 1px solid var(--bar-edge);
+  background: linear-gradient(rgba(255,255,255,.1), rgba(255,255,255,.03)); text-shadow: none;
+}
+.btn.quiet { border-color: transparent; background: none; color: var(--ink-2); }
+.btn.main { background: var(--pa); border-color: transparent; color: #fff; }
+.btn.sm { height: 24px; padding: 0 10px; font-size: 12px; }
+.hair { height: 1px; background: var(--line); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
+.new { outline: 1px dashed var(--pc-pale); outline-offset: 3px; }
+.ico { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- the planet ---------- */
+.planet { display: flex; flex-direction: column; gap: 20px; }
+.phead { display: flex; align-items: center; gap: 20px; }
+.world { width: 72px; height: 72px; border-radius: 50%; flex: none;
+  background: radial-gradient(circle at 35% 30%, var(--pc-pale), var(--pc) 45%, #3a2410 100%); box-shadow: 0 0 0 1px rgba(255,255,255,.1); }
+.pname { font: 700 26px/32px var(--sans); letter-spacing: -0.01em; color: var(--ink); text-shadow: var(--sky-shadow); }
+.sec { display: flex; align-items: center; gap: 8px; height: 32px; text-shadow: var(--sky-shadow); }
+.sec .l { font: 500 13px/16px var(--sans); color: var(--ink-2); }
+.sec .end { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--well); box-shadow: inset 0 1px 3px rgba(0,0,0,.45); }
+.seg span { height: 26px; padding: 0 12px; border-radius: 999px; display: grid; place-items: center; font: 500 12px/1 var(--sans); color: var(--ink-3); }
+.seg span.on { background: rgba(255,255,255,.14); color: var(--ink); }
+.wall { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.wall > div { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.card {
+  border-radius: 12px; padding: 20px 20px 18px;
+  background: var(--box-fill); backdrop-filter: var(--box-frost); -webkit-backdrop-filter: var(--box-frost);
+  border: 1px solid var(--box-edge); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), var(--shadow-rest);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.card .w { font-family: var(--serif); font-style: italic; color: var(--ink); text-wrap: pretty; }
+.card.s1 .w { font-size: 24px; line-height: 31px; }
+.card.s2 .w { font-size: 18px; line-height: 26px; }
+.card.s3 .w { font-size: 15px; line-height: 23px; }
+.card .who { font: 600 11px/14px var(--serif); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+.card .src { font: italic 400 13px/16px var(--serif); color: var(--ink-3); }
+.card .top { height: 2px; width: 24px; border-radius: 2px; background: var(--pc-pale); opacity: .8; }
+.author { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; }
+.author .n { font: 600 18px/24px var(--serif); color: var(--ink); text-shadow: var(--sky-shadow); }
+
+.reader { min-height: 420px; grid-template-columns: 1fr; place-items: center; }
+.reader .big { max-width: 680px; text-align: center; align-items: center; }
+.reader .big .w { font-size: 34px; line-height: 44px; }
+.reader .foot { position: absolute; inset: auto 20px 18px; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); }
+.dot.on { background: var(--pc-pale); }
+
+/* ---------- the picture ---------- */
+.pics { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.pic { width: 240px; aspect-ratio: 4 / 5; border-radius: 12px; overflow: hidden; position: relative; display: flex; flex-direction: column; justify-content: center; padding: 28px 24px; gap: 14px; box-shadow: var(--shadow-raised); }
+.pic.sky { background: radial-gradient(130% 80% at 50% 115%, var(--sky-low), var(--sky-mid) 40%, var(--sky-deep) 70%, var(--sky-top)); color: var(--ink); }
+.pic.paper { background: var(--paper); color: var(--paper-ink); border-radius: 4px; }
+.pic.tone { background: radial-gradient(120% 90% at 30% 0%, #6b4520, #2a170a 70%); color: #fbeedd; }
+.pic .w { font: italic 400 19px/26px var(--serif); text-wrap: balance; }
+.pic .who { font: 600 9.5px/12px var(--serif); letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
+.pic .mark { position: absolute; bottom: 14px; right: 16px; font: 500 9px/1 var(--mono); letter-spacing: .14em; opacity: .5; }
+
+.list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; max-width: 76ch; text-shadow: var(--sky-shadow); }
+.list li::marker { color: var(--ink-4); }
+.list b { color: var(--ink); font-weight: 500; }
+
+@media (max-width: 720px) {
+  .row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+  .wall { grid-template-columns: 1fr; }
+  .box { padding: 12px; }
+  .q { justify-content: flex-start; -webkit-mask: linear-gradient(#000 calc(100% - 32px), transparent); mask: linear-gradient(#000 calc(100% - 32px), transparent); }
+  .q.s1 .w { font: 500 16px/22px var(--sans); } .q.s2 .w, .q.s3 .w { font: 400 13px/20px var(--sans); }
+  .q.serif.s1 .w { font-size: 18px; line-height: 24px; } .q.serif.s2 .w, .q.serif.s3 .w { font-size: 14px; line-height: 20px; }
+  .slipp { padding: 12px; overflow: hidden; } .slipp.s1 .w { font-size: 17px; line-height: 22px; } .slipp.s2 .w, .slipp.s3 .w { font-size: 12.5px; line-height: 18px; }
+  .sec { flex-wrap: wrap; height: auto; }
+  body { padding-top: 40px; }
+  .room { grid-template-columns: 1fr; padding: 56px 16px 24px; }
+  .big .w { font-size: 24px; line-height: 32px; }
+  .reader .big .w { font-size: 26px; line-height: 34px; }
+}
+</style>
+
+<main>
+<section>
+  <span class="small">Proposal · not built</span>
+  <h1>Quotes in Mutt</h1>
+  <p>A note that reads as a quote (words in quotation marks, or a line ending “— Someone”) already gets noticed by Mutt: autosort sends it to a Quotes planet. Today it still shows as a plain note. Below are the ways it could be shown, with my pick marked in amber. The planet here is an amber one to show where its colour lands.</p>
+</section>
+
+<!-- ============================================================ 1 -->
+<section>
+  <span class="small">1 · Its box, wherever it is</span>
+  <h2>A quote’s file box</h2>
+  <p>Switches on by itself for any note that reads as a quote, like a song gets its level bars. The words are set larger the shorter they are (three sizes), and who said it and where from sit underneath, read out of the note. The note itself is not changed. A quote too long for its box fades out at the foot, like a note.</p>
+  <div class="opts">
+    <div class="opt">
+      <h3>A · A slip of paper</h3>
+      <div class="row"><div class="cell"><div class="box"><div class="note">Ask Sam about the ferry times for Saturday, and whether the dog can come.</div></div><div class="cap"><span>Ferry</span><span class="fact">4 Nov</span></div></div><div class="cell"><div class="box slip"><div class="slipp s1"><div class="w">“Hope is the thing with feathers.”</div><div><div class="who">Emily Dickinson</div></div></div></div><div class="cap"><span>Hope is the thing…</span><span class="fact">3 Nov</span></div></div><div class="cell"><div class="box slip"><div class="slipp s2"><div class="w">“We are such stuff as dreams are made on, and our little life is rounded with a sleep.”</div><div><div class="who">William Shakespeare</div><div class="src">The Tempest</div></div></div></div><div class="cap"><span>We are such stuff…</span><span class="fact">2 Nov</span></div></div><div class="cell"><div class="box slip"><div class="slipp s3"><div class="w">“I went to the woods because I wished to live deliberately, to front only the essential facts of life, and see if I could not learn what it had to teach.”</div><div><div class="who">Henry David Thoreau</div><div class="src">Walden</div></div></div></div><div class="cap"><span>I went to the woods…</span><span class="fact">1 Nov</span></div></div></div>
+      <p>Like a cutting kept from a book. Paper is already allowed its serif, so this breaks no rule. Bright: a planet of these is a wall of cream.</p>
+    </div>
+    <div class="opt">
+      <h3>B · On glass, Mutt’s own type</h3>
+      <div class="row"><div class="cell"><div class="box"><div class="note">Ask Sam about the ferry times for Saturday, and whether the dog can come.</div></div><div class="cap"><span>Ferry</span><span class="fact">4 Nov</span></div></div><div class="cell"><div class="box"><div class="q s1"><div class="rule"></div><div class="w"><span class="hang">“</span>Hope is the thing with feathers.”</div><div class="by"><span class="who">Emily Dickinson</span></div></div></div><div class="cap"><span>Hope is the thing…</span><span class="fact">3 Nov</span></div></div><div class="cell"><div class="box"><div class="q s2"><div class="rule"></div><div class="w"><span class="hang">“</span>We are such stuff as dreams are made on, and our little life is rounded with a sleep.”</div><div class="by"><span class="who">William Shakespeare</span><span class="src">The Tempest</span></div></div></div><div class="cap"><span>We are such stuff…</span><span class="fact">2 Nov</span></div></div><div class="cell"><div class="box"><div class="q s3"><div class="rule"></div><div class="w"><span class="hang">“</span>I went to the woods because I wished to live deliberately, to front only the essential facts of life, and see if I could not learn what it had to teach.”</div><div class="by"><span class="who">Henry David Thoreau</span><span class="src">Walden</span></div></div></div><div class="cap"><span>I went to the woods…</span><span class="fact">1 Nov</span></div></div></div>
+      <p>Same glass as any note, the words set in the middle with the opening mark hung in the margin, and a short stroke of the planet’s colour. Quietest; sits easily beside other notes. Uses only existing sizes.</p>
+    </div>
+    <div class="opt">
+      <h3 class="pick">C · On glass, in the book face · my pick</h3>
+      <div class="row"><div class="cell"><div class="box"><div class="note">Ask Sam about the ferry times for Saturday, and whether the dog can come.</div></div><div class="cap"><span>Ferry</span><span class="fact">4 Nov</span></div></div><div class="cell"><div class="box"><div class="q serif s1"><div class="rule"></div><div class="w"><span class="hang">“</span>Hope is the thing with feathers.”</div><div class="by"><span class="who">Emily Dickinson</span></div></div></div><div class="cap"><span>Hope is the thing…</span><span class="fact">3 Nov</span></div></div><div class="cell"><div class="box"><div class="q serif s2"><div class="rule"></div><div class="w"><span class="hang">“</span>We are such stuff as dreams are made on, and our little life is rounded with a sleep.”</div><div class="by"><span class="who">William Shakespeare</span><span class="src">The Tempest</span></div></div></div><div class="cap"><span>We are such stuff…</span><span class="fact">2 Nov</span></div></div><div class="cell"><div class="box"><div class="q serif s3"><div class="rule"></div><div class="w"><span class="hang">“</span>I went to the woods because I wished to live deliberately, to front only the essential facts of life, and see if I could not learn what it had to teach.”</div><div class="by"><span class="who">Henry David Thoreau</span><span class="src">Walden</span></div></div></div><div class="cap"><span>I went to the woods…</span><span class="fact">1 Nov</span></div></div></div>
+      <p>B’s glass and layout, but the words in the italic book face documents use. Reads as a quote at a glance. It needs your yes: today the book face is only for paper and a desk’s own names, so this would be a second exception, “a quote keeps its own voice”.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+  <span class="small">2 · Opened</span>
+  <h2>The file view</h2>
+  <p>Opening a quote shows it large, with everything else (its planets, comments, history) on the right as for any file. Two new things on the right, only for a quote: <b>Copy</b> (the words with who said it) and <b>Save as picture</b> (section 4). Editing the words stays as it is today.</p>
+  <div class="opts">
+    <div class="opt">
+      <h3 class="pick">A · Large on the sky · my pick</h3>
+      <div class="room">
+        <div class="top"><span class="fact">2 / 7</span><span class="btn quiet sm">Close</span></div>
+        <div class="stage"><div class="big"><div class="w">“Be patient toward all that is unsolved in your heart, and try to love the questions themselves.”</div><div><div class="who">Rainer Maria Rilke</div><div class="src">Letters to a Young Poet</div></div></div></div>
+        <div class="side">
+          <div class="name">Be patient toward…</div>
+          <div class="btns"><span class="btn new">Copy</span><span class="btn new">Save as picture</span></div>
+          <div class="hair"></div>
+          <div class="facts fact"><span>Said by</span><span>Rainer Maria Rilke</span><span>From</span><span>Letters to a Young Poet</span><span>Added</span><span>3 Nov</span></div>
+        </div>
+      </div>
+      <p>The words straight on the dimmed sky, like a note is today, but set as a quote. Dashed: the new buttons.</p>
+    </div>
+    <div class="opt">
+      <h3>B · A page from a book</h3>
+      <div class="room">
+        <div class="top"><span class="fact">2 / 7</span><span class="btn quiet sm">Close</span></div>
+        <div class="stage"><div class="page"><div class="w">“Be patient toward all that is unsolved in your heart, and try to love the questions themselves.”</div><div><div class="who">Rainer Maria Rilke</div><div class="src">Letters to a Young Poet</div></div></div></div>
+        <div class="side">
+          <div class="name">Be patient toward…</div>
+          <div class="btns"><span class="btn">Copy</span><span class="btn">Save as picture</span></div>
+        </div>
+      </div>
+      <p>The quote on a single sheet of paper. Goes naturally with box A, the slip.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+  <span class="small">3 · A planet that’s mostly quotes</span>
+  <h2>A commonplace book</h2>
+  <p>Offered once, like the cookbook: “This planet looks like a commonplace book · Make it a commonplace book”. Nothing is rewritten; “Show as files again” puts it back. Other files on the planet stay in a group below.</p>
+  <div class="opts">
+    <div class="opt">
+      <h3 class="pick">A · A wall, and one at a time · my pick</h3>
+      <div class="planet">
+        <div class="phead"><div class="world"></div><div class="pname">Quotes</div></div>
+        <div class="sec"><span class="l">Quotes</span><span class="fact">7 · 5 people</span><span class="end"><span class="seg"><span class="on">All</span><span>By who</span></span><span class="btn sm">Read one at a time</span></span></div>
+        <div class="wall"><div><div class="card s1"><div class="top"></div><div class="w">“Hope is the thing with feathers.”</div><div class="who">Emily Dickinson</div></div><div class="card s1"><div class="top"></div><div class="w">“Here’s looking at you, kid.”</div><div><div class="who">Rick</div><div class="src">Casablanca, 1942</div></div></div></div><div><div class="card s3"><div class="top"></div><div class="w">“It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.”</div><div><div class="who">Jane Austen</div><div class="src">Pride and Prejudice</div></div></div><div class="card s2"><div class="top"></div><div class="w">“Just start. The rest follows.”</div><div class="who">Mum</div></div></div><div><div class="card s2"><div class="top"></div><div class="w">“We are such stuff as dreams are made on.”</div><div><div class="who">William Shakespeare</div><div class="src">The Tempest</div></div></div><div class="card s2"><div class="top"></div><div class="w">“I wandered lonely as a cloud.”</div><div class="who">William Wordsworth</div></div></div></div>
+      </div>
+      <p>Cards of every height, packed like a wall of cuttings, newest first. “By who” groups them under each person’s name. “Read one at a time” opens the reading room below.</p>
+    </div>
+  </div>
+  <div class="opts">
+    <div class="opt">
+      <h3>The reading room (one at a time)</h3>
+      <div class="room reader">
+        <div class="top"><span class="fact">3 / 7</span><span class="btns"><span class="btn quiet sm">Shuffle</span><span class="btn quiet sm">Close</span></span></div>
+        <div class="big"><div class="w">“We are such stuff as dreams are made on, and our little life is rounded with a sleep.”</div><div><div class="who">William Shakespeare</div><div class="src">The Tempest</div></div></div>
+        <div class="foot"><span class="btn quiet sm">‹</span><span class="dot"></span><span class="dot"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="btn quiet sm">›</span></div>
+      </div>
+      <p>One quote large on the sky; arrow keys or a swipe go to the next; Shuffle picks at random. Each quote fades into the next, nothing moves while you read. (The arrows here stand in for Mutt’s chevron icons.)</p>
+    </div>
+    <div class="opt">
+      <h3>“By who”</h3>
+      <div class="planet">
+        <div class="author"><span class="n">William Wordsworth</span><span class="fact">2</span></div>
+        <div class="wall" style="grid-template-columns: repeat(2, minmax(0, 1fr))"><div><div class="card s2"><div class="top"></div><div class="w">“I wandered lonely as a cloud.”</div></div></div><div><div class="card s2"><div class="top"></div><div class="w">“The world is too much with us.”</div></div></div>
+        </div>
+        <div class="author"><span class="n">Emily Dickinson</span><span class="fact">1</span></div>
+        <div class="wall" style="grid-template-columns: repeat(2, minmax(0, 1fr))"><div><div class="card s1"><div class="top"></div><div class="w">“Hope is the thing with feathers.”</div></div></div>
+        </div>
+      </div>
+      <p>Grouped under each person, most quoted first; the name moves to the heading, so cards only say where it’s from.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+  <span class="small">4 · Sharing</span>
+  <h2>Save as picture</h2>
+  <p>From the file view, a quote can be saved as a picture to post or send: drawn on your device, nothing leaves Mutt. A small panel picks the background; the picture is 1080 × 1350.</p>
+  <div class="pics">
+    <div class="pic sky"><div class="w">“Hope is the thing with feathers.”</div><div class="who">Emily Dickinson</div><span class="mark">MUTT</span></div>
+    <div class="pic tone"><div class="w">“Hope is the thing with feathers.”</div><div class="who">Emily Dickinson</div></div>
+    <div class="pic paper"><div class="w">“Hope is the thing with feathers.”</div><div class="who">Emily Dickinson</div></div>
+  </div>
+  <p class="fact">Night sky (with a faint MUTT mark, which can be off) · the planet’s colour · paper</p>
+</section>
+
+<!-- ============================================================ 5 -->
+<section>
+  <span class="small">5 · Underneath</span>
+  <h2>Reading who said it</h2>
+  <ul class="list">
+    <li><b>Today Mutt misses a lot of quotes.</b> “— Mary Oliver, Wild Geese” doesn’t count, because of the comma; nor does a quote longer than about a paragraph. I’d widen what it reads: “— Name, Source”, “— Name (Film, 1999)”, “Name, in Source”, a source on its own line, a link under the quote (its page’s title becomes the source), and quotes up to about 1,200 characters when they’re in quotation marks.</li>
+    <li><b>One reader, on the server</b>: the same check autosort uses splits a quote into its words, who said it and where from, and sends that with the note. Nothing new is stored; edit the note anywhere and it reads again.</li>
+    <li><b>If Mutt gets one wrong</b>, the file’s menu gets “Show as a note” (remembered on that file), and “Show as a quote” to put it back.</li>
+    <li><b>While typing</b>, nothing new: the box simply turns into a quote once it’s added. I’d skip a “this looks like a quote” line while you write; it would be noise.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 6 -->
+<section>
+  <span class="small">What I’d build now</span>
+  <h2>My recommendation</h2>
+  <ul class="list">
+    <li><b>Now</b>: reading who said it (5), the quote box (1, look C, or A/B if you’d rather not add the serif), the file view large on the sky (2A) with Copy.</li>
+    <li><b>Now too, if you want a mode</b>: the commonplace book (3) with the wall and “By who”. The reading room one at a time could follow later.</li>
+    <li><b>Later</b>: Save as picture (4).</li>
+  </ul>
+</section>
+</main>

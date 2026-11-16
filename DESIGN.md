@@ -45,7 +45,7 @@ One name kept from before that is not in this file (`--bg`) sits in a marked blo
 2. **Five materials, no sixth.** Sky, glass (two kinds), gloss, paper, print. Section 3 says what each is for.
 3. **Your files are the brightest thing.** Chrome is dim and thin. Pictures, pages and covers carry the colour.
 4. **A planet lends its colour to its own things only.** If it sits on box glass on that planet's page, it may take the planet's colour. If it sits on bar glass, it is Mutt's and stays Mutt blue on every page.
-5. **Two typefaces, two jobs.** Red Hat Text for words, Red Hat Mono for small facts and small labels. A serif only on paper, and for a desk's own names (see "Documents").
+5. **Two typefaces, two jobs.** Red Hat Text for words, Red Hat Mono for small facts and small labels. A serif only on paper, for a desk's own names (see "Documents"), and for a quote's own words in a commonplace book (see "Commonplace book").
 6. **Things arrive, they don't appear.** Opening and closing are the same motion in two directions, on the shared lengths and curves.
 7. **Simple until needed.** A feature has no button until what you're doing calls for it (see "Direction" in `CLAUDE.md`).
 8. **Calm at rest.** At rest a box only floats, slowly. Glow and lean belong to the one box being pointed at or typed in.
@@ -120,7 +120,7 @@ A PDF's own words, when Mutt retypes a line or writes a text box into one, are s
 | Caption | `--type-caption` | 12 / 16 | 400 | Names under file boxes, hints, small help. |
 | Fact | `--type-fact` | 11 / 16, mono | 400 | Anything you could count or date: `12 files · 3 Nov · 4.2 MB`. |
 | Small label | `--type-small` | 10.5 / 1, mono, `0.14em`, capitals | 500, `--ink-3` | The label above a control or group (`WHO CAN SEE IT`, `INGREDIENTS`, `TICKED`), and `ADD` / `UNIVERSE` on the galaxy (`0.18em`, `--ink-2`). |
-| Reach | `--text-reach` | 22 to 40 with the window / 1.3 | 500 | Words read from across a room: the step while cooking. Nothing else. |
+| Reach | `--text-reach` | 22 to 40 with the window / 1.3 | 500 | Words read from across a room: the step while cooking, a short quote in the slideshow (longer ones at the smaller of reach and Page, or of reach and Title). Nothing else. |
 
 Set a line of text with the whole role: `font: var(--type-label)`. It carries weight, size, line height and family; letter-spacing and capitals are added beside it where the table gives them. When only the size is wanted (inside a `calc`, or beside the owner's text-size setting), each role's size is also `--text-display`, `--text-page`, `--text-title`, `--text-lead`, `--text-body`, `--text-label`, `--text-caption`, `--text-fact`, `--text-small`. The old stylesheets use the sizes; new work uses the roles.
 
@@ -159,7 +159,7 @@ Ten layers, lowest first. They were checked against the app in session 2 (the se
 | `--z-page` | 1 | The page (`#app`). The top bar and the drop hint are inside it, so nothing in the page can rise above the layers below. |
 | `--z-bar` | 40 | The top bar, within the page. |
 | `--z-sheet` | 60 | Sheets (account, search), the phone note, a box while it is being dragged. |
-| `--z-room` | 70 | A room: a place that covers the page and its bar (the file view, the editor, cooking, the reader). Above sheets, so nothing of the page shows over it; dialogs, menus and toasts open above it. |
+| `--z-room` | 70 | A room: a place that covers the page and its bar (the file view, the editor, cooking, the reader, the slideshow). Above sheets, so nothing of the page shows over it; dialogs, menus and toasts open above it. |
 | `--z-dialog` | 80 | The scrim and its dialog. |
 | `--z-pop` | 85 | Menus (••• and right-click). |
 | `--z-toast` | 95 | Toasts. |
@@ -189,6 +189,7 @@ Settled in session 8 with the user: the names, the rules, and the list of everyt
 | `--beat-quick` | 1 s | What never stops, quick: a caret, a spinner, dots while it thinks, a shimmer. |
 | `--beat-slow` | 4 s | What never stops, slow: sign-in breathing, steam, a moon's plume, the arrow to the universe. |
 | `--beat-rest` | 9 s | What never stops, at rest: a box floating, a moon bobbing, the ring round a thing you are dragging onto. |
+| `--slide-pace` | 12 s | Not motion: how long one quote stays in a playing slideshow before the next (the commonplace book). |
 | `--ease-settle` | `cubic-bezier(0.16, 1, 0.3, 1)` | Things arriving. |
 | `--ease-glide` | `cubic-bezier(0.4, 0, 0.2, 1)` | Things moving from one place to another: a planet to its page, a page flying open, a bead, a shake. |
 | `--ease-spring` | `cubic-bezier(0.34, 1.3, 0.64, 1)` | Things you press, and things that pop: a button, a switch's knob, a menu growing, a dropped planet. |
@@ -287,12 +288,15 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Reader: opening, closing | move; leaves |
 | Reader: a page turning, its bars, panels, ribbon | move |
 | Cooking: the next step | move |
+| Slideshow (commonplace book): the next quote | the one showing leaves; the next rises 8 and fades in over arrive |
+| Slideshow: its bar and Close stepping back while it plays, coming back | after a slow beat of stillness, out over arrive; back the same |
 | Photo editor: a tab's controls arriving | arrive, one step apart |
 | Photo editor: the crop's lines of thirds | change |
 | *Modes* | |
 | List: an item ticked and sinking to Done | scene on the glide, however far |
 | List: items arriving, one added, one removed | arrive, one step apart; move; leaves |
 | Cookbook, desk, shelf: cards, pages, covers arriving | arrive, one step apart |
+| Commonplace book: cards arriving, one added; one taken away | each card slides up 16 over arrive while its words fade in a step later, one step apart; leaves |
 | A desk's page or a shelf's cover lifting | arrive (the cover on the spring) |
 | *The galaxy and its planets* | |
 | The galaxy arriving | planets rise over arrive, one step apart; the hint over scene |
@@ -399,7 +403,7 @@ One cream, flat, everywhere paper shows: a page on a desk, the pages of a docume
 - Words `--paper-ink` `#1d1b18`, `--paper-ink-2` `#5c5852` (a subtitle, a quote), `--paper-ink-3` `#8f897f` (a page's number, a helper in the margin). A ruled line is `--paper-rule` `#ddd6c8`; a sunk patch (code, a table's heading row) `--paper-well` `#efebe2`; a link `--paper-blue` `#1f4fa8`; the caret in a document `--paper-caret` `#b3261e`. `--paper-edge` `#e9e4d8` is kept for a page's edge where one is wanted.
 - Shadow `--paper-shadow`: `0 0 0 1px rgba(0,0,18,.2), var(--shadow-raised)`. Pointed at and lifted, `--paper-shadow-on`: the same hairline with `--shadow-overlay`. Paper never glows and never takes a planet's colour.
 - A book's cover is paper's shape with the left corners 2 and `--spine`, a shaded band 7% wide down its left edge.
-- Type on paper is `--serif`: titles 600, text 400, at the reader's or document's own size. The serif is used nowhere else, with one exception the user chose in session 5: on a desk, the planet's name and note and the names under the pages are serif too (section 4, "Documents").
+- Type on paper is `--serif`: titles 600, text 400, at the reader's or document's own size. The serif is used nowhere else, with two exceptions the user chose: on a desk, the planet's name and note and the names under the pages are serif too (session 5; section 4, "Documents"); and in a commonplace book a quote keeps its own voice, its words in the italic serif and who said it in the serif, on its card and in the slideshow (2026-11-16, from `design/quote-board.html`; section 4, "Commonplace book").
 
 ### Print: the void
 
@@ -689,7 +693,7 @@ An offer (a mode's "This planet looks like …") is box glass with corners 20 an
 
 - **Split into moons** is offered in the same box, though it acts once instead of showing the planet another way: "This planet holds two things" (three, four…), the signs with numbers ("4 files are about pottery and 4 about climbing.", "1 other fits neither."), and the note says which move to a moon of their own and which stay, then "Nothing is lost, and it can be undone." Its button and its ••• row (icon `moon`) say `Split into moons`. Accepting brings the new moons in beside the world one step apart, the files that went leave the grid in one glide, and a toast says `Split into 2 moons` with Undo. It is offered last of the offers, only while the planet shows as plain files, and never on a moon.
 
-**An offer's drawing** is one of six in `icons.js` (`drawing(name)`: `list`, `shelf`, `cards`, `desk`, `moons`, `sky`), and they are all made the same way: a pane of glass in front (an outline in the icons' line, faintly filled) with the planet's paled colour along its top edge, another pane behind it, and a few marks that say which mode it is. A list is two strips with ticks, a bookshelf two covers, a cookbook a card behind its tab, a desk two pages, a split (`moons`) a planet with its small moon on the front pane (chosen by the user from three, 2026-11-16). Drawn on a 24 grid, shown at 28 in a 40 well with corners 11. A new mode's drawing is made this way and no other: add it to `DRAWINGS` in `icons.js`, name it in the mode's page entry (`drawing: '…'` in `modes.js`), and show the user first.
+**An offer's drawing** is one of seven in `icons.js` (`drawing(name)`: `list`, `shelf`, `cards`, `desk`, `moons`, `sky`, `quotes`), and they are all made the same way: a pane of glass in front (an outline in the icons' line, faintly filled) with the planet's paled colour along its top edge, another pane behind it, and a few marks that say which mode it is. A list is two strips with ticks, a bookshelf two covers, a cookbook a card behind its tab, a desk two pages, a split (`moons`) a planet with its small moon on the front pane (chosen by the user from three, 2026-11-16). Drawn on a 24 grid, shown at 28 in a 40 well with corners 11. A new mode's drawing is made this way and no other: add it to `DRAWINGS` in `icons.js`, name it in the mode's page entry (`drawing: '…'` in `modes.js`), and show the user first.
 
 ### Room
 
@@ -745,6 +749,14 @@ How each mode is built. A new mode follows the nearest of these.
 - A panel is the small panel's shape (corners 20) filled with `--page-raised`; its settings are a small label over each control; a row of choices is the segmented bar's shape with the chosen one a bead of the page itself; page colours are four tiles showing "Aa" on each fill; contents are rows 32 high.
 - Words you pick get a pill of `--page-raised`: the five marker swatches and an underline, then small quiet buttons (Note, Copy).
 - The foot's two lines are Facts (`10%`, `6 pages left in chapter`).
+
+**Commonplace book** (`quotes.js`; `quotes.css`, fetched with it the first time a planet is one).
+- A planet kept for quotes. The shared heading (`Quotes`, how many and how many people: `8 · 7 people`) with, at the far end, a segmented bar `All` / `By who` (only once someone is named) and a small plain `Slideshow` led by the `play` icon. Under it the wall; files that aren't quotes stay below under `Other files`, without an add box of their own.
+- **The wall** is columns of cards (three above 900 wide, two above 540, one on a phone), 24 apart (12 on a phone), each card going into the shortest column so the wall reads across in order. The shared add box (placeholder "Add a quote", 168 high) is the first thing on it.
+- **A card is box glass** (`.fglass`, corners 12, padding 24/24/16; 16 on a phone) led by a short stroke of the planet's paled colour (24 by 2). **A quote keeps its own voice** (chosen by the user with this mode): its words in `--serif` italic 400, at Title, Lead or Body by length (up to 70 letters, 180, longer), the opening mark hung in the margin; then who said it in the serif 600 at Label size `--ink-2`, and where from in the serif italic at Caption size `--ink-3`. The marks round the words are Mutt's: the note's own are taken off when it is read.
+- **By who**: each person's quotes stand together under the shared section heading (their name, how many), and those groups are packed into the columns like cards; a card there leaves out the name. Quotes with no one named come last, under "No one named".
+- Pressing a card opens the slideshow at it, paused; its menu (right-click) is the file's own with "Show in the slideshow", or for someone else's planet that and "Open as a file".
+- **The slideshow is a room.** One quote large, centred on the sky with `--sky-shadow`: its words in the serif italic at `--text-reach` (longer ones smaller, see Type), who said it in the serif 600 at Lead `--ink-2`, where from in the serif italic at Label `--ink-3`. Close is a quiet button at the top right. At the foot one pill of bar glass (Mutt blue): `chevron-left`, where you are as a Fact (`3 / 8`), `chevron-right`, a hairline, Play/Pause (`play`/`pause`) and Shuffle (`shuffle`, lit while on), all quiet round buttons. Playing, it moves on every `--slide-pace` and keeps the screen awake; after a slow beat with the pointer still, the bar and Close step back until it moves. Arrow keys step, Space plays and pauses, Escape closes, a sideways swipe steps.
 
 **File view** (`viewer.js`; the section headed THE FILE VIEW).
 - A room. The file is as large as it can be on the left; a picture or a video keeps its shape with corners 12, a 1px `--box-edge` and `--shadow-raised`; a PDF's pages are white paper with `--paper-shadow`; a note is its words on the sky at the size of a list's items; a link is its address in a well, a picture of the page, then its title in Title; a file with nothing to show is a card of box glass.
@@ -824,9 +836,9 @@ One set, in one file: `public/assets/js/icons.js`. `icon(name)` is the only way 
 - **A tail to leave, a chevron to step.** `back` (an arrow with a tail) takes you somewhere else: to the galaxy, out of the editor. `chevron-left` and `chevron-right` step to the next thing of the same kind: the next file, the next recipe card. `chevron-up` and `chevron-down` step through matches. `caret` only ever means "this opens a menu".
 - **It lights when pointed at.** A part of an icon marked as its body (the inside of a lock, a page, a speech bubble) is empty at rest and fills with `--icon-lit` of its own colour when its button or menu row is pointed at, and stays filled while the button is held on (`.is-on`, `aria-pressed`, `aria-expanded`). This is automatic; a feature writes nothing for it.
 
-**The names** (100)
+**The names** (102)
 
-- *Everyday:* `plus` `minus` `close` `check` `more` `grip` `caret` `chevron-left` `chevron-right` `chevron-up` `chevron-down` `back` `forward` `up` `down` `out` `search` `zoom` `undo` `redo` `upload` `download` `sort` `link` `copy` `trash` `edit` `open` `play`
+- *Everyday:* `plus` `minus` `close` `check` `more` `grip` `caret` `chevron-left` `chevron-right` `chevron-up` `chevron-down` `back` `forward` `up` `down` `out` `search` `zoom` `undo` `redo` `upload` `download` `sort` `link` `copy` `trash` `edit` `open` `play` `pause` `shuffle`
 - *Pictures:* `turn-left` `turn-right` `mirror` (side to side) `mirror-down` (top to bottom)
 - *Mutt's own things:* `planet` `moon` `star` (a file on no planet) `lock` (private, locked) `key` (opened with a code) `people` `globe` (public) `comment` `move` (to a planet) `onto` (put on a planet, save) `takeoff` (take off a planet) `files` (show as files) `page` `book` `bookmark` `note` `pot` `chapter` `camera` `picture` `colour` `tick` `untick`
 - *In menus:* `history` `print` `setup` (options) `replace` `count` `spell`
@@ -893,6 +905,7 @@ Checklist before calling it done:
 Decided by the user, 2026-11-11 (the alternatives are on the boards in `design/`):
 
 - A planet's colour is for the planet's own things only; shared controls stay Mutt blue.
+- Quotes (2026-11-16, from `design/quote-board.html`): the user chose the commonplace book with a slideshow. A quote's own voice is the italic serif, on its card and in the slideshow. Not built, on purpose: a quote's look in an ordinary file box and in the file view, and saving a quote as a picture (all on the board).
 - Boxes are calm at rest: the slow float stays; glow and lean only on the box pointed at or typed in.
 - Small words: brighter greys, the faintest never for words, and the soft shadow under words on the sky.
 - A box at rest carries a faint edge of the planet's colour and no halo.

@@ -196,6 +196,32 @@ export const MODES = {
       };
     },
   },
+  commonplace: {
+    label: 'Make it a commonplace book',
+    icon: 'quote',
+    drawing: 'quotes',
+    name: 'a commonplace book',
+    moons: true,
+    // its stylesheet is fetched alongside, and the wall waits for both
+    load: () => Promise.all([import('./quotes.js'), styles('quotes.css')]).then(([m]) => m),
+    view: (m, page, blocks) => new m.QuoteWall({
+      drawer: page.drawer, blocks, editable: page.mine, makeCollection: page.makeCollection, onChange: page.changed,
+      onShow: (show) => page.saveMode('commonplace', { show }),
+    }),
+    start: async (m, page) => {
+      const blocks = page.filesNow();
+      await page.patchMode('commonplace', { on: true, dismissed: false });
+      return { view: MODES.commonplace.view(m, page, blocks), say: 'Now a commonplace book' };
+    },
+    blocks: (v) => v.list(),
+    offer: () => ({
+      title: 'This planet looks like a commonplace book',
+      note: 'Its quotes are set on cards, with who said them and where from, and can be read one at a time as a slideshow. The notes themselves don’t change.',
+      accept: 'Make it a commonplace book',
+      busy: 'Setting the quotes…',
+    }),
+    menu: (page) => [{ icon: 'play', label: 'Slideshow', run: () => page.modeView('commonplace')?.slideshow() }, showAsFiles(page, 'commonplace')],
+  },
 
 };
 
@@ -203,11 +229,11 @@ export const MODES = {
 const andList = (words) => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`);
 
 // A planet saved with more than one mode on shows the first of these.
-export const SHOW_ORDER = ['list', 'reading', 'documents', 'cookbook'];
+export const SHOW_ORDER = ['list', 'reading', 'documents', 'cookbook', 'commonplace'];
 // Which is suggested first when a planet fits more than one.
-export const OFFER_ORDER = ['reading', 'cookbook', 'documents', 'list', 'split'];
+export const OFFER_ORDER = ['reading', 'cookbook', 'commonplace', 'documents', 'list', 'split'];
 // The order they stand in the ••• menu.
-export const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents', 'split'];
+export const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents', 'commonplace', 'split'];
 
 export const allowed = (key, drawer) => MODES[key].moons || !drawer.parentId;
 

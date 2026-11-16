@@ -1051,3 +1051,12 @@ COOK_VERBS = (
 
 # Video and picture sites where links are often recipes, on a planet that's about food.
 FOOD_VIDEO_SITES = 'youtube.com youtu.be tiktok.com instagram.com pinterest.com pin.it vimeo.com reddit.com'.split()
+
+
+# Planet names that say it keeps quotes: on one, a short passage counts as a
+# quote for the commonplace book (mutt/quotes.py).
+QUOTE_NAMES = (
+    'quote', 'quotes', 'quotation', 'quotations', 'sayings', 'saying', 'commonplace', 'epigraph', 'epigraphs',
+    'aphorism', 'aphorisms', 'maxim', 'maxims', 'proverbs', 'wisdom', 'passages', 'excerpts', 'highlights',
+    'marginalia', 'florilegium',
+)

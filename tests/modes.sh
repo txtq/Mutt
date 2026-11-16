@@ -92,3 +92,31 @@ echo "split refused: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$K/spl
 curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/drawers/$(echo $MOONS | cut -d' ' -f1)
 echo "7 moons: $(signs $K "$SF")"
 echo "split the climbing planet: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$K/split -d '{}' | j "d['drawer']['count'], [(m['title'], m['count']) for m in d['drawer']['moons']][-1]")"
+
+echo "-- commonplace book, on at 60% with 4 quotes, stays down to 35%"
+Q=$(planet "Bits and pieces")
+QF="(d['commonplace']['fits'], d['commonplace']['share'], d['commonplace'].get('left', False))"
+note $Q "“Hope is the thing with feathers.” — Emily Dickinson" >/dev/null
+note $Q "\"We are such stuff as dreams are made on.\" - Shakespeare, The Tempest" >/dev/null
+note $Q "Be patient toward all that is unsolved in your heart.
+— Rainer Maria Rilke, Letters to a Young Poet" >/dev/null
+for i in 1 2; do note $Q "$PROSE ($i)" >/dev/null; done
+echo "3 quotes of 5 (fewer than 4): $(signs $Q "$QF")"
+note $Q "“Here's looking at you, kid.”
+Rick (Casablanca, 1942)" >/dev/null
+note $Q "$PROSE (3)" >/dev/null
+echo "4 of 7 (57%), never answered: $(signs $Q "$QF")"
+note $Q "Mum: \"Just start. The rest follows.\"" >/dev/null
+echo "5 of 8 (62%): $(signs $Q "$QF") signs: $(signs $Q "d['commonplace']['signs']")"
+echo "turned on: $(mode $Q '{"commonplace":{"on":true,"show":"who"}}' "d['drawer']['modes']['commonplace']")"
+echo "a show nobody knows: $(mode $Q '{"commonplace":{"show":"shelf"}}' "d['error']")"
+for i in 4 5 6 7 8; do note $Q "$PROSE ($i)" >/dev/null; done
+echo "5 of 13 (38%), on: $(signs $Q "$QF")"
+for i in 9 10; do note $Q "$PROSE ($i)" >/dev/null; done
+echo "5 of 15 (33%), on: $(signs $Q "$QF")"
+echo "the quotes, read: $(curl -s "${C[@]}" $B/api/drawers/$Q/quotes | j "[(q['who'], q['source'], q['size'], q['words'][:20]) for q in d['quotes']]")"
+QM=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"Sayings\",\"parent\":\"$Q\"}" | j "d['drawer']['id']")
+for t in "Measure twice, cut once." "Fortune favours the bold." "Slow and steady wins the race." "Look before you leap."; do note $QM "$t" >/dev/null; done
+echo "a moon called Sayings, plain lines: $(signs $QM "$QF")"
+echo "a moon can be one: $(mode $QM '{"commonplace":{"on":true}}' "d['drawer']['modes']['commonplace']['on']")"
+echo "on a moon called Sayings, plain lines count: $(curl -s "${C[@]}" $B/api/drawers/$QM/quotes 2>/dev/null | j "len(d.get('quotes', []))")"

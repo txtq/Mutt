@@ -1,6 +1,6 @@
 -- every mode from one place
-modes reported: ['cookbook', 'documents', 'list', 'reading', 'split']
-how each arrives: ['cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer', 'split: offer']
+modes reported: ['commonplace', 'cookbook', 'documents', 'list', 'reading', 'split']
+how each arrives: ['commonplace: offer', 'cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer', 'split: offer']
 nothing fits an empty planet: []
 -- settings, all checked one way
 unknown setting: Those reading settings could not be saved.
@@ -10,7 +10,7 @@ list keeps its defaults: {'on': False, 'dismissed': False, 'type': 'check', 'mar
 a mode nobody knows is left alone: ['list', 'shareTip']
 a moon can't be a cookbook: Moons can’t be that.
 a moon can be a list: True
-moon's modes reported: ['documents', 'list']
+moon's modes reported: ['commonplace', 'documents', 'list']
 -- list: on at its own rule, stays down to 40%
 5 short things: (True, 1.0, False)
 5 of 9 (56%), never answered: (False, 0.56, False)
@@ -48,3 +48,15 @@ undo twice: There’s no split to undo.
 split refused: There’s nothing here to split any more.
 7 moons: (True, 0.5, 4, [('Pottery', 4, False), ('Climbing', 4, True)])
 split the climbing planet: 4 ('Pottery', 4)
+-- commonplace book, on at 60% with 4 quotes, stays down to 35%
+3 quotes of 5 (fewer than 4): (False, 0.6, False)
+4 of 7 (57%), never answered: (False, 0.57, False)
+5 of 8 (62%): (True, 0.62, False) signs: ['5 of its 8 files are quotes.', 'Said by Mum, Rick and 3 others.']
+turned on: {'on': True, 'dismissed': False, 'show': 'who'}
+a show nobody knows: Those commonplace book settings could not be saved.
+5 of 13 (38%), on: (True, 0.38, False)
+5 of 15 (33%), on: (False, 0.33, True)
+the quotes, read: [('Mum', '', 1, 'Just start. The rest'), ('Rick', 'Casablanca, 1942', 1, "Here's looking at yo"), ('Rainer Maria Rilke', 'Letters to a Young Poet', 1, 'Be patient toward al'), ('Shakespeare', 'The Tempest', 1, 'We are such stuff as'), ('Emily Dickinson', '', 1, 'Hope is the thing wi')]
+a moon called Sayings, plain lines: (True, 1.0, False)
+a moon can be one: True
+on a moon called Sayings, plain lines count: 4

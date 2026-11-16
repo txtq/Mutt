@@ -5,7 +5,7 @@ mode", is the recipe.
 
 Two kinds:
   planet  belongs to a whole planet (a list, a bookshelf, a cookbook, a desk
-          of documents). Read from the planet's files.
+          of documents, a commonplace book). Read from the planet's files.
   moment  answers what's being written right now in one note (writing).
           Read from the text with sorting.form.
 
@@ -32,7 +32,7 @@ planet, and moment() answers every moment mode for one piece of text.
 """
 import json
 
-from . import books, documents, recipes, sorting, split
+from . import books, documents, quotes, recipes, sorting, split
 from .web import HttpError
 
 ARRIVES = ('offer', 'undo', 'quiet')
@@ -164,6 +164,11 @@ def read_split(ctx):
     return found
 
 
+def read_commonplace(ctx):
+    found = quotes.signs(ctx.title, ctx.files, sorting.form)
+    return {**found, 'share': _share(found['count'], len(ctx.files))}
+
+
 PLANET_MODES = [
     Mode('list', read_list, on=0.6, stay=0.4, moons=True,
          settings={'doneLast': flag, 'type': one_of('check', 'bullet', 'number', 'plain'),
@@ -175,6 +180,8 @@ PLANET_MODES = [
          settings={'chapters': names(40, recipes.MAX_CHAPTER)}),
     Mode('documents', read_documents, words='document', on=0.5, stay=0.3, moons=True,
          settings={'sort': one_of(*documents.SORTS)}),
+    Mode('commonplace', read_commonplace, words='commonplace book', on=0.6, stay=0.35, least=4, moons=True,
+         settings={'show': one_of('all', 'who')}, defaults={'show': 'all'}),
     # Not a way of showing the planet: accepting it splits the planet once (it
     # is never "on"), so its bars only say when to offer it and keep it in the menu.
     Mode('split', read_split, words='split', on=0.25, stay=0.15, least=4, shows=False),

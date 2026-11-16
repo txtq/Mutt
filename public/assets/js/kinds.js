@@ -45,6 +45,14 @@ export function imageSrc(block) {
   return block.thumb || (block.kind === 'image' && WEB_IMAGE.has(block.ext || '') ? block.file : null);
 }
 
+// Your own photos and pictures open in the photo editor (photoedit.js). A GIF
+// (it may move) and an SVG (it is drawn, not taken) don't.
+const EDITABLE = new Set(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'tif', 'tiff', 'bmp']);
+export function canEditPicture(block) {
+  return block?.kind === 'image' && block.mine !== false && !!block.file
+    && (EDITABLE.has((block.ext || '').toLowerCase()) || !!block.meta?.original);
+}
+
 export function extLabel(block) {
   return block.ext ? block.ext.toUpperCase() : KIND_ONE[block.kind];
 }

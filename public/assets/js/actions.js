@@ -1,11 +1,12 @@
 // Things you can do to a file from anywhere: put it on planets, take it off, delete it.
 
 import { api } from './api.js';
-import { displayTitle } from './kinds.js';
+import { canDownload, downloadMenu, formatsOf } from './downloads.js';
+import { canEditPicture, displayTitle } from './kinds.js';
 import { drawerHref, nav } from './nav.js';
 import { planetDot } from './planets.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './ui.js';
-import { bus, h, plural, wait } from './util.js';
+import { bus, h, plural, styles, wait } from './util.js';
 import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- connect picker
@@ -338,6 +339,16 @@ export async function restoreBlock(block) {
   }
 }
 
+// The photo editor and its look are fetched the first time a picture is edited.
+export async function editPicture(block, opts) {
+  try {
+    const [editor] = await Promise.all([import('./photoedit.js'), styles('photo.css')]);
+    await editor.openPhotoEditor(block, opts);
+  } catch (err) {
+    toast(err?.message || 'The editor couldn’t be opened. Check your connection.');
+  }
+}
+
 export async function toggleShare(block) {
   try {
     const { block: saved } = await api.post(`/api/blocks/${block.id}/share`, { shared: !block.sharedAt });
@@ -373,7 +384,8 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     worlds.length ? '-' : null,
     { icon: 'move', label: worlds.length ? 'Other planets…' : 'Add to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
-    block.file && { icon: 'download', label: 'Download', run: () => { location.href = `${block.file}?dl=1`; } },
+    canEditPicture(block) && { icon: 'edit', label: 'Edit picture', run: () => editPicture(block) },
+    canDownload(block) && { icon: 'download', label: formatsOf(block).length ? 'Download as…' : 'Download', run: () => downloadMenu(anchor, block) },
     block.kind === 'link' && { icon: 'link', label: 'Copy link', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Link copied')) },
     block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => toast('Text copied')) },
     open && history && block.kind === 'text' && block.versions > 0 && { icon: 'history', label: 'History', run: () => { historyWish = block.id; open(); } },

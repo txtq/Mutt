@@ -14,7 +14,7 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, convert, db, documents, export, kinds, links, media, recipes, sight, sorting
+from . import auth, books, convert, db, documents, export, kinds, links, media, recipes, sight, sorting, transcode
 from . import modes as modes_registry
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
 
@@ -117,7 +117,7 @@ def public_meta(raw, mine):
     """A file's details as the browser gets them: a picture's reading is only
     marked as done (its numbers stay on the server), and where and when a
     photo was taken is only shown to its owner."""
-    meta = json.loads(raw or '{}')
+    meta = dict(raw) if isinstance(raw, dict) else json.loads(raw or '{}')
     see = meta.get('see')
     if isinstance(see, dict):
         if mine:
@@ -126,6 +126,12 @@ def public_meta(raw, mine):
             meta.pop('see')
     if not mine and isinstance(meta.get('media'), dict):
         meta['media'] = {k: v for k, v in meta['media'].items() if k not in ('gps', 'location', 'taken', 'camera')}
+    # An edited picture: where its original is kept stays on the server; how it was edited is its owner's.
+    original = meta.pop('original', None)
+    if not mine:
+        meta.pop('edit', None)
+    elif isinstance(original, dict):
+        meta['original'] = {k: original.get(k) for k in ('file_name', 'ext', 'size', 'width', 'height')}
     return meta
 
 
@@ -147,13 +153,16 @@ def clean_modes(value, current, moon=False):
 
 def block_json(row, mine=True, owner=None):
     keys = row.keys()
-    meta = public_meta(row['meta'], mine)
+    raw = json.loads(row['meta'] or '{}')
+    meta = public_meta(raw, mine)
     file_url = None
     if row['file_key']:
         # A PDF marked up in Mutt is written anew each time; its address changes with it.
-        rev = meta.get('rev')
+        rev = raw.get('rev')
         file_url = (f"/f/{row['id']}/" + (f"r{int(rev)}/" if isinstance(rev, int) else '')
                     + urllib.parse.quote(row['file_name'] or 'file'))
+        if isinstance(raw.get('original'), dict):
+            file_url += f"?e={row['file_key'][:8]}"  # an edited picture: a new address for each edit
     thumb_url = f"/t/{row['id']}?v={row['thumb_key'][:8]}" if row['thumb_key'] else None
     data = {
         'id': row['id'],
@@ -2065,6 +2074,130 @@ def make_document(req, block_id):
     return json_response({'block': reload_block(req, new), 'drawer': drawer_id, 'position': position}, status=201)
 
 
+# ---------------------------------------------------------------- the photo editor
+
+# A picture is edited in the browser (photoedit.js) and the result replaces the
+# file, while the original is kept beside it (meta.original) so the owner can
+# always go back. The editor reopens the original with its settings (meta.edit),
+# so nothing is lost by editing again. Formats the browser can't write (HEIC,
+# TIFF, BMP…) come back as JPEG.
+EDITABLE = {'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'tif', 'tiff', 'bmp'}
+EDIT_KEYS = {'v', 'crop', 'turn', 'flipX', 'flipY', 'straighten', 'light', 'colour', 'detail', 'marks', 'size'}
+MAX_EDIT_JSON = 512 * 1024
+ORIGINAL_FIELDS = ('file_key', 'file_name', 'mime', 'ext', 'size', 'width', 'height', 'thumb_key')
+
+
+def editable_picture(req, block_id):
+    row = own_block(req, block_id)
+    if row['kind'] != 'image' or ((row['ext'] or '').lower() not in EDITABLE and not row_original(row)):
+        raise HttpError(400, 'Only photos and pictures can be edited.')
+    return row
+
+
+def row_original(row):
+    original = json.loads(row['meta'] or '{}').get('original')
+    return original if isinstance(original, dict) and original.get('file_key') else None
+
+
+def clean_edit(value):
+    if not isinstance(value, dict):
+        raise HttpError(400, 'Those edits could not be read.')
+    value = {k: v for k, v in value.items() if k in EDIT_KEYS}
+    if len(json.dumps(value)) > MAX_EDIT_JSON:
+        raise HttpError(413, 'There is too much drawn on this picture to save.')
+    return value
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/picture')
+def save_edited_picture(req, block_id):
+    """The edited picture takes the file's place; the first original is kept."""
+    row = editable_picture(req, block_id)
+    data = req.read_bytes(MAX_UPLOAD)
+    ext, mime = kinds.thumb_type(data)
+    if ext not in ('jpg', 'png', 'webp'):
+        raise HttpError(400, 'An edited picture must be a JPEG, PNG or WebP.')
+    width, height = int_arg(req.arg('w'), 1, 100000), int_arg(req.arg('h'), 1, 100000)
+    meta = json.loads(row['meta'] or '{}')
+    original = row_original(row)
+    folder = db.user_files_dir(req.user['id'])
+    key = secrets.token_hex(12) + f'.{ext}'
+    with open(os.path.join(folder, key), 'wb') as f:
+        f.write(data)
+    if original:
+        # Editing again: the last edit (and its preview) give way; the original stays.
+        stale = [row['file_key'] if row['file_key'] != original['file_key'] else None,
+                 row['thumb_key'] if row['thumb_key'] != original.get('thumb_key') else None]
+    else:
+        meta['original'] = {k: row[k] for k in ORIGINAL_FIELDS}
+        stale = []
+    meta.pop('look', None)  # its colours are measured again
+    meta.pop('edit', None)  # its settings follow (PUT .../edit)
+    base = os.path.splitext(meta['original']['file_name'] or 'Picture')[0]
+    req.db.execute('UPDATE blocks SET file_key = ?, file_name = ?, mime = ?, ext = ?, size = ?, width = ?, height = ?, '
+                   'thumb_key = NULL, meta = ?, updated_at = ? WHERE id = ?',
+                   (key, f'{base}.{ext}', mime, ext, len(data), int(width) if width else row['width'],
+                    int(height) if height else row['height'], json.dumps(meta, ensure_ascii=False), now(), block_id))
+    remove_block_files(req.user['id'], *stale)
+    return json_response({'block': reload_block(req, block_id)})
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/original')
+def restore_original(req, block_id):
+    """Back to the picture as it was uploaded: the edit and its preview are erased."""
+    row = own_block(req, block_id)
+    original = row_original(row)
+    if not original:
+        raise HttpError(400, 'This picture hasn’t been edited.')
+    meta = json.loads(row['meta'] or '{}')
+    meta.pop('original', None)
+    meta.pop('edit', None)
+    meta.pop('look', None)
+    stale = [row['file_key'] if row['file_key'] != original['file_key'] else None,
+             row['thumb_key'] if row['thumb_key'] != original.get('thumb_key') else None]
+    req.db.execute('UPDATE blocks SET file_key = ?, file_name = ?, mime = ?, ext = ?, size = ?, width = ?, height = ?, '
+                   'thumb_key = ?, meta = ?, updated_at = ? WHERE id = ?',
+                   (*(original.get(k) for k in ORIGINAL_FIELDS), json.dumps(meta, ensure_ascii=False), now(), block_id))
+    remove_block_files(req.user['id'], *stale)
+    return json_response({'block': reload_block(req, block_id)})
+
+
+@route('PUT', r'/api/blocks/(?P<block_id>[\w-]+)/edit')
+def save_edit_settings(req, block_id):
+    """How the picture was edited, so the editor opens the original with them."""
+    row = own_block(req, block_id)
+    if not row_original(row):
+        raise HttpError(400, 'This picture hasn’t been edited.')
+    meta = json.loads(row['meta'] or '{}')
+    meta['edit'] = clean_edit(req.json().get('edit'))
+    req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
+    return json_response({'ok': True})
+
+
+@route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/original')
+def serve_original(req, block_id):
+    """The picture as it was before it was edited, for the editor (its owner only)."""
+    row = own_block(req, block_id)
+    original = row_original(row)
+    if not original:
+        raise HttpError(404, 'This picture hasn’t been edited.')
+    path = os.path.join(db.user_files_dir(row['user_id']), original['file_key'])
+    content_type, _, _ = kinds.serving(row['kind'], original.get('mime') or '', original.get('ext') or '')
+    return file_response(req, path, content_type, filename=original.get('file_name'),
+                         headers=[('Content-Security-Policy', FILE_CSP)])
+
+
+@route('GET', r'/api/convert/(?P<name>core\.js|core\.wasm)')
+def convert_core(req, name):
+    """The sound and video converter's engine (transcode.py), served by Mutt itself."""
+    if not transcode.enabled():
+        raise HttpError(404, 'Converting sound and video is switched off here.')
+    if not transcode.ready():
+        transcode.fetch()
+        raise HttpError(503, 'The converter is still being fetched.')
+    return file_response(req, transcode.path_of(name), transcode.content_type(name),
+                         cache='public, max-age=31536000, immutable')
+
+
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/share')
 def share_block(req, block_id):
     own_block(req, block_id)
@@ -2193,7 +2326,9 @@ def set_aside(conn, block_id):
 def erase_block(conn, row):
     """Gone for good: the row (and everything hung on it) and its files on disk."""
     conn.execute('DELETE FROM blocks WHERE id = ?', (row['id'],))
-    remove_block_files(row['user_id'], row['file_key'], row['thumb_key'])
+    original = row_original(row) if 'meta' in row.keys() else None
+    remove_block_files(row['user_id'], row['file_key'], row['thumb_key'],
+                       *((original['file_key'], original.get('thumb_key')) if original else ()))
 
 
 def purge_deleted(conn, user_id=None):
@@ -2202,7 +2337,7 @@ def purge_deleted(conn, user_id=None):
     if user_id is not None:
         where += ' AND user_id = ?'
         params.append(user_id)
-    rows = conn.execute(f'SELECT id, user_id, file_key, thumb_key FROM blocks WHERE {where}', params).fetchall()
+    rows = conn.execute(f'SELECT id, user_id, file_key, thumb_key, meta FROM blocks WHERE {where}', params).fetchall()
     for r in rows:
         erase_block(conn, r)
     return len(rows)
@@ -2268,7 +2403,7 @@ def restore_block(req, block_id):
 @route('DELETE', r'/api/deleted')
 def empty_deleted(req):
     """Erase everything in Recently deleted now."""
-    rows = req.db.execute('SELECT id, user_id, file_key, thumb_key FROM blocks WHERE user_id = ? AND deleted_at IS NOT NULL',
+    rows = req.db.execute('SELECT id, user_id, file_key, thumb_key, meta FROM blocks WHERE user_id = ? AND deleted_at IS NOT NULL',
                           (req.user['id'],)).fetchall()
     for r in rows:
         erase_block(req.db, r)

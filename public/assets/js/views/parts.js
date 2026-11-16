@@ -10,7 +10,7 @@
 
 import { renderCell } from '../cells.js';
 import { entryCell } from '../entry.js';
-import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, stepper, toast } from '../ui.js';
+import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, slider, stepper, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
 import { ICON_NAMES, icon } from '../icons.js';
 import { commentNote } from '../commentnotes.js';
@@ -111,6 +111,13 @@ function switches() {
       row(null, tick('Also delete 3 files that only live here'), tick('Ticked', { on: true }), tick('Pointed at', { hover: true }), tick('Keyboard', { focus: true }))),
     section('Chip', 'A person in Share, a filter in search.', row(null, chip('@ines', PALETTE[5]), chip('@tomas', PALETTE[2]), chip('Photos'))),
     section('Stepper', 'A number with a minus and a plus in a sunken track. A button at its limit is switched off.', row(null, serves.el, size.el)),
+    section('Slider', 'A value slid along a sunken channel: the switch’s well and pearl. Its name and number sit above it; the channel fills from where it starts (the middle, or the left) to the value. Double-click puts it back.',
+      h('div', { class: 'parts-panel parts-sliders' },
+        slider({ label: 'Brightness', value: 24 }).el,
+        slider({ label: 'Shadows', value: -40 }).el,
+        slider({ label: 'Sharpen', value: 0, min: 0, max: 100, format: String }).el,
+        held(slider({ label: 'Keyboard', value: 60, min: 0, max: 100, format: String }).input, 'focus').closest('.slider'),
+        (() => { const s = slider({ label: 'Switched off', value: 0 }); s.input.disabled = true; return s.el; })())),
   ];
 }
 

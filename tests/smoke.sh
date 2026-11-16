@@ -24,6 +24,17 @@ curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$FID
 echo "delete it again from recently deleted: $(curl -s "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$FID | j "d['ok']") $(curl -s "${C[@]}" $B/api/deleted | j "len(d['blocks'])") $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' "$B${F##* }")"
 curl -s "${C[@]}" -D "$SP/exp.h" -o "$SP/exp.zip" "$B/api/me/export?mark=t1"
 echo "download everything: $(grep -o 'mutt-export=t1;' "$SP/exp.h") $(python3 -c "import zipfile,sys,json; z=zipfile.ZipFile(sys.argv[1]); n=sorted(z.namelist()); print(n, json.loads(z.read(\"tester's galaxy/Your data.json\"))['account']['username'])" "$SP/exp.zip") signed out $(curl -s -o /dev/null -w "%{http_code}" $B/api/me/export)"
+python3 -c "
+import struct, sys, zlib
+def png(w, h, path):
+    chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
+    rows = b''.join(b'\0' + b'\x80\x40\x20' * w for _ in range(h))
+    open(path, 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+png(4, 4, sys.argv[1] + '/p.png'); png(2, 2, sys.argv[1] + '/e.png')" "$SP"
+PID=$(curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: image/png' --data-binary @"$SP/p.png" "$B/api/upload?drawer=$D&name=p.png" | j "d['block']['id']")
+echo "edit a picture, original kept: $(curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: image/png' --data-binary @"$SP/e.png" "$B/api/blocks/$PID/picture?w=2&h=2" | j "('?e=' in d['block']['file'], d['block']['meta']['original'])")"
+echo "the original shows to its owner only: $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' $B/api/blocks/$PID/original) $(curl -s -o /dev/null -w '%{http_code}' $B/api/blocks/$PID/original)"
+echo "start over brings the original back: $(curl -s "${C[@]}" -H X-Mutt:1 -X POST $B/api/blocks/$PID/original | j "('?e=' in d['block']['file'], 'original' in d['block']['meta'], d['block']['meta'].get('width'))")"
 echo "no csrf header: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" -H Content-Type:application/json -X POST $B/api/drawers -d '{"title":"x"}')"
 echo "spa route: $(curl -s -o /dev/null -w '%{http_code}' $B/d/whatever)"
 X=(-b "$SP/x.txt" -c "$SP/x.txt")

@@ -2,9 +2,10 @@
 
 import { commentSection } from './comments.js';
 import { momentLine } from './moments.js';
-import { deleteBlock, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
+import { deleteBlock, editPicture, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
+import { downloadMenu, formatsOf } from './downloads.js';
 import { api } from './api.js';
-import { KIND_ONE, displayTitle, extLabel, imageSrc } from './kinds.js';
+import { KIND_ONE, canEditPicture, displayTitle, extLabel, imageSrc } from './kinds.js';
 import { markdown } from './md.js';
 import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
@@ -157,7 +158,7 @@ function mount(carried = false) {
     state.stage,
     state.side);
   state.onKey = (e) => {
-    if (e.defaultPrevented || isEditable(document.activeElement) || document.querySelector('.scrim, .pop')) return;
+    if (e.defaultPrevented || isEditable(document.activeElement) || document.querySelector('.scrim, .pop, .pe')) return;
     if (e.key === 'ArrowLeft') step(-1);
     else if (e.key === 'ArrowRight') step(1);
   };
@@ -260,7 +261,16 @@ function fileCard(block) {
     h('div', { class: 'vw-card-ext' }, extLabel(block)),
     h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
     h('div', { class: 'vw-card-sub' }, fmtBytes(block.size)),
-    block.file ? h('a', { class: 'btn btn-main', href: `${block.file}?dl=1` }, 'Download') : null);
+    block.file ? downloadButton(block, 'btn btn-main') : null);
+}
+
+// Download, as it is or as another kind of file: a menu when it can become something else.
+function downloadButton(block, cls = 'btn') {
+  const more = formatsOf(block).length > 0;
+  return h('button', {
+    type: 'button', class: cls, ...(more ? { 'aria-haspopup': 'menu' } : {}),
+    onclick: (e) => downloadMenu(e.currentTarget, state?.block.id === block.id ? state.block : block),
+  }, 'Download', more ? icon('caret') : null);
 }
 
 // The address along the top, like a browser's: click it to go to the site.
@@ -699,6 +709,7 @@ function metaRows(block) {
   if (block.fileName) rows.push(['File', block.fileName]);
   rows.push(['Added', fullDate(block.createdAt)]);
   if (block.updatedAt - block.createdAt > 60000) rows.push(['Edited', fullDate(block.updatedAt)]);
+  if (block.meta?.original && block.mine !== false) rows.push(['Original', `${block.meta.original.width} × ${block.meta.original.height}, kept`]);
   const from = block.meta?.savedFrom;
   if (from && block.mine !== false) {
     rows.push(['From', h('a', { href: `/g/${from.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${from.username}`); } }, `@${from.username}`)]);
@@ -781,7 +792,8 @@ const fill = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null
 function renderSide() {
   const { block, connections, drawer } = state;
   const actions = h('div', { class: 'vw-actions' },
-    block.file ? h('a', { class: 'btn', href: `${block.file}?dl=1` }, 'Download') : null,
+    canEditPicture(block) ? h('button', { type: 'button', class: 'btn', onclick: () => editPicture(state.block) }, icon('edit'), 'Edit') : null,
+    block.file || block.kind === 'text' ? downloadButton(block) : null,
     block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Original', icon('out')) : null,
     block.file && block.kind === 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Open', icon('out')) : null,
     block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit', icon('out')) : null,
@@ -866,9 +878,10 @@ function applyUpdate(block, { keepSide = false } = {}) {
 
 bus.on('block:changed', (block) => {
   if (state?.block.id !== block.id) return;
-  const newPicture = block.thumb !== undefined && block.thumb !== state.block.thumb;
+  const newPicture = (block.thumb !== undefined && block.thumb !== state.block.thumb) || (block.file !== undefined && block.file !== state.block.file);
   if (state.block.sharedAt === block.sharedAt && !newPicture) return;
   state.block = { ...state.block, ...block };
+  state.list = state.list.map((b) => (b.id === block.id ? state.block : b));
   if (newPicture) renderStage();
   renderSide();
 });

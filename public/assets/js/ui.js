@@ -106,6 +106,48 @@ export function stepper({ value, min = -Infinity, max = Infinity, step = 1, form
   return { el, set, get value() { return current; }, down, up, out };
 }
 
+// ---------------------------------------------------------------- slider
+
+// A value slid along a sunken track, with its name and its number above it
+// (DESIGN.md section 4, "Slider"). The track fills from `origin` to the value,
+// so a slider that starts in the middle (brightness: −100 to +100) fills
+// either way. Double-click puts it back at `origin`. `onInput` follows the
+// knob; `onChange` comes once, when it is let go.
+export function slider({ label, value = 0, min = -100, max = 100, step = 1, origin = 0, format = signed, onInput, onChange } = {}) {
+  const input = h('input', { type: 'range', class: 'slider-input', min, max, step, value, 'aria-label': label });
+  const fill = h('span', { class: 'slider-fill', 'aria-hidden': 'true' });
+  const shown = h('span', { class: 'slider-value' });
+  const el = h('div', { class: 'slider' },
+    h('div', { class: 'slider-head' }, h('span', { class: 'slider-label' }, label), shown),
+    h('div', { class: 'slider-track' }, fill, input));
+  const at = (v) => (v - min) / (max - min);
+  const paint = () => {
+    const v = Number(input.value);
+    const a = at(Math.min(v, origin));
+    const b = at(Math.max(v, origin));
+    fill.style.setProperty('--from', a);
+    fill.style.setProperty('--to', b);
+    shown.textContent = format(v);
+    shown.classList.toggle('is-moved', v !== origin);
+    input.setAttribute('aria-valuetext', format(v));
+  };
+  const set = (v) => { input.value = v; paint(); };
+  input.addEventListener('input', () => { paint(); onInput?.(Number(input.value)); });
+  input.addEventListener('change', () => onChange?.(Number(input.value)));
+  input.addEventListener('dblclick', () => {
+    if (Number(input.value) === origin) return;
+    set(origin);
+    onInput?.(origin);
+    onChange?.(origin);
+  });
+  paint();
+  return { el, set, input, get value() { return Number(input.value); } };
+}
+
+function signed(v) {
+  return v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0';
+}
+
 export function exit(el, className = 'is-leaving', fallback = DUR.change + 60) {
   return new Promise((resolve) => {
     if (reducedMotion()) { el.remove(); resolve(); return; }
@@ -404,6 +446,7 @@ export function openMenu(anchor, items, opts = {}) {
   const list = h('div', { class: 'menu', role: 'menu' },
     items.filter(Boolean).map((item) => item === '-'
       ? h('div', { class: 'menu-sep' })
+      : item.heading ? h('div', { class: 'menu-head' }, item.heading)
       : h('button', {
         type: 'button', ...rowRole(item), class: `menu-item${item.danger ? ' is-danger' : ''}`,
         onclick: (ev) => pickRow(ev.currentTarget, () => { pop.close(); item.run(); }),

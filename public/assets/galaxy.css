@@ -688,6 +688,31 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .stepper-btn:disabled { opacity: 0.42; }
 .stepper-value { min-width: 36px; padding: 0 var(--space-4); text-align: center; font: var(--type-label); line-height: var(--h-inner); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
 
+/* ---- slider: built by slider() in ui.js (.slider > .slider-head (.slider-label, .slider-value) + .slider-track > .slider-fill + input.slider-input).
+   A value slid along a sunken channel: the switch's well and pearl, its fill the pressed gloss from where it starts to the value. */
+.slider { display: grid; gap: var(--space-4); min-width: 0; }
+.slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
+.slider-label { font: var(--type-label); color: var(--ink-2); }
+.slider-value { font: var(--type-fact); font-variant-numeric: tabular-nums; color: var(--ink-3); transition: color var(--dur-change); }
+.slider-value.is-moved { color: var(--ink); }
+.slider-track { position: relative; height: var(--h-small); }
+.slider-track::before, .slider-fill { content: ""; position: absolute; top: 50%; height: var(--space-4); margin-top: calc(var(--space-4) / -2); border-radius: var(--r-full); }
+.slider-track::before { left: 0; right: 0; background: var(--well); box-shadow: var(--well-shadow); }
+/* The knob's middle travels from 10 in to 10 from the end, and the fill follows it there. */
+.slider-fill { left: calc(10px + (100% - 20px) * var(--from, 0)); width: calc((100% - 20px) * (var(--to, 0) - var(--from, 0))); background: var(--gloss-on), var(--accent); }
+.slider-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; touch-action: pan-y; }
+.slider-input::-webkit-slider-runnable-track { height: 100%; background: none; border: 0; }
+.slider-input::-moz-range-track { height: 100%; background: none; border: 0; }
+.slider-input::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: var(--space-2); border: 0; border-radius: var(--r-full); background: var(--pearl); box-shadow: var(--pearl-drop); transition: transform var(--dur-change) var(--ease-spring); }
+.slider-input::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: var(--r-full); background: var(--pearl); box-shadow: var(--pearl-drop); transition: transform var(--dur-change) var(--ease-spring); }
+.slider-input:hover::-webkit-slider-thumb { transform: scale(1.1); }
+.slider-input:hover::-moz-range-thumb { transform: scale(1.1); }
+.slider-input:active::-webkit-slider-thumb { transform: scale(0.94); }
+.slider-input:active::-moz-range-thumb { transform: scale(0.94); }
+.slider-input:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 2px; border-radius: var(--r-full); }
+.slider-input:disabled { cursor: default; }
+.slider:has(.slider-input:disabled) { opacity: 0.42; }
+
 /* ---- menu: openMenu() and openContextMenu() in ui.js (.pop > .menu > .menu-item…). .pop is the shell that floats. */
 .pop {
   position: fixed;
@@ -967,6 +992,9 @@ html.in-room, html.in-room body { overflow: hidden; }
 html:is(.in-room, .leaving-room, .is-writing, .is-unwriting) :is(#view, .sb, .home-back) { transition: opacity var(--dur-arrive) var(--ease-settle); }
 html:is(.in-room, .is-writing) :is(#view, .sb, .home-back) { opacity: 0; pointer-events: none; }
 html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page change fades a picture of the page instead */
+/* A room opened from inside another (the photo editor from the file view) takes its place: the one under
+   it steps away too, and is kept as it was for when the top one goes. */
+.room:has(~ .room) { visibility: hidden; }
 
 /* ---- swatch: a colour to pick. A dot of the colour (--c); the chosen one wears a ring.
    .swatch (20), + .swatch-large (24, in a panel of nothing but colours). */
@@ -981,6 +1009,7 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
    area to tap is 40 (the standard's rule; these were found under it in session 8). A new small
    control joins this list rather than growing its own. */
 @media (pointer: coarse) {
+  .slider-track { height: var(--h-large); }   /* the channel and knob keep their look; the area to slide is 40 */
   :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go is placed already */
   :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
     content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, var(--h-large)); height: max(100%, var(--h-large)); transform: translate(-50%, -50%);

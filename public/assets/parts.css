@@ -49,3 +49,4 @@
 .parts-icon:hover { background: var(--tint); }
 .parts-icon span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--type-fact); color: var(--ink-3); }
 .parts-menus { display: flex; flex-wrap: wrap; gap: var(--space-16); align-items: flex-start; }
+.parts-sliders { display: grid; gap: var(--space-16); }

@@ -1,0 +1,92 @@
+/* ================================================================== THE PHOTO EDITOR
+   One of your pictures, being edited (photoedit.js; fetched with it, the first time a
+   picture is edited). DESIGN.md "Photo editor". A room laid out like the file view it
+   opens from: the picture as large as it can be on the left, keeping its shape, and
+   Mutt's tools on the right, on one panel of bar glass (Mutt blue on every planet).
+   Top left: Undo, Redo and "Before" (hold to see it as it was); top right: Cancel and
+   Save. On a phone the panel sits under the picture. */
+.pe { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: 56px minmax(0, 1fr); }
+
+.pe-top { grid-row: 1; grid-column: 1; display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-24); }
+.pe-before { margin-left: var(--space-8); }
+.pe-before[aria-pressed="true"] { background: var(--tint-2); color: var(--ink); }
+.pe-acts { grid-row: 1; grid-column: 2; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-8); padding-right: var(--space-24); }
+
+/* ---- the picture: its shape, a picture's edge and the raised shadow, as in the file view */
+.pe-stage { grid-row: 2; grid-column: 1; display: grid; place-items: center; min-width: 0; min-height: 0; padding: var(--space-24); }
+.pe-frame { position: relative; border-radius: var(--r-box); outline: 1px solid var(--box-edge); box-shadow: var(--shadow-raised); }
+.pe-canvas { display: block; width: 100%; height: 100%; border-radius: inherit; }
+.pe[data-tool="draw"] .pe-frame { cursor: crosshair; touch-action: none; }
+.pe[data-tool="draw"] .pe-frame:has(.pe-text) { cursor: text; }
+/* While cropping the corners are square, so the crop's lines meet the picture's edge. */
+.pe[data-tool="crop"]:not(.is-before) .pe-frame { border-radius: var(--r-mark); }
+
+/* ---- the crop: what is left out lies under the room's veil; thirds show while it moves */
+.pe-crop { position: absolute; inset: 0; display: none; overflow: hidden; border-radius: inherit; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pe[data-tool="crop"]:not(.is-before) .pe-crop { display: block; }
+.pe-crop-box { position: absolute; border: 1px solid var(--white); outline: 200vmax solid var(--room-veil); cursor: move; }
+.pe-third { position: absolute; background: var(--line-3); opacity: 0; transition: opacity var(--dur-change); }
+.pe-crop.is-dragging .pe-third { opacity: 1; }
+.pe-third-v1, .pe-third-v2 { top: 0; bottom: 0; width: 1px; }
+.pe-third-v1 { left: 33.333%; }
+.pe-third-v2 { left: 66.667%; }
+.pe-third-h1, .pe-third-h2 { left: 0; right: 0; height: 1px; }
+.pe-third-h1 { top: 33.333%; }
+.pe-third-h2 { top: 66.667%; }
+/* Handles: a corner is a white bracket, an edge a short white bar, both drawn just inside the crop's edge
+   (the crop layer clips what lies outside the picture); each has room to grab round it. */
+.pe-handle { position: absolute; width: var(--space-32); height: var(--space-32); }
+.pe-handle::before { content: ""; position: absolute; border: 0 solid var(--white); }
+.pe-handle-nw, .pe-handle-ne, .pe-handle-sw, .pe-handle-se { margin: calc(var(--space-16) * -1); }
+.pe-handle-nw { left: 0; top: 0; cursor: nwse-resize; }
+.pe-handle-se { right: 0; bottom: 0; margin: 0 calc(var(--space-16) * -1) calc(var(--space-16) * -1) 0; cursor: nwse-resize; }
+.pe-handle-ne { right: 0; top: 0; margin: calc(var(--space-16) * -1) calc(var(--space-16) * -1) 0 0; cursor: nesw-resize; }
+.pe-handle-sw { left: 0; bottom: 0; margin: 0 0 0 calc(var(--space-16) * -1); margin-bottom: calc(var(--space-16) * -1); cursor: nesw-resize; }
+.pe-handle-nw::before, .pe-handle-ne::before, .pe-handle-sw::before, .pe-handle-se::before { width: var(--space-16); height: var(--space-16); }
+.pe-handle-nw::before { left: var(--space-16); top: var(--space-16); border-width: 3px 0 0 3px; }
+.pe-handle-ne::before { right: var(--space-16); top: var(--space-16); border-width: 3px 3px 0 0; }
+.pe-handle-sw::before { left: var(--space-16); bottom: var(--space-16); border-width: 0 0 3px 3px; }
+.pe-handle-se::before { right: var(--space-16); bottom: var(--space-16); border-width: 0 3px 3px 0; }
+.pe-handle-n, .pe-handle-s { left: var(--space-24); right: var(--space-24); width: auto; cursor: ns-resize; }
+.pe-handle-e, .pe-handle-w { top: var(--space-24); bottom: var(--space-24); height: auto; cursor: ew-resize; }
+.pe-handle-n { top: calc(var(--space-16) * -1); }
+.pe-handle-s { bottom: calc(var(--space-16) * -1); }
+.pe-handle-w { left: calc(var(--space-16) * -1); }
+.pe-handle-e { right: calc(var(--space-16) * -1); }
+.pe-handle-n::before, .pe-handle-s::before { left: 50%; top: 50%; width: var(--space-24); height: 0; margin: 0 0 0 calc(var(--space-12) * -1); border-top-width: 3px; }
+.pe-handle-s::before { margin-top: -3px; }
+.pe-handle-e::before, .pe-handle-w::before { left: 50%; top: 50%; width: 0; height: var(--space-24); margin: calc(var(--space-12) * -1) 0 0 0; border-left-width: 3px; }
+.pe-handle-e::before { margin-left: -3px; }
+
+/* ---- words being written on the picture: the shared text box, at the size they will be */
+.pe-text { position: absolute; width: auto; min-width: 180px; max-width: 80%; height: auto; transform: translateY(-50%); padding: var(--space-4) var(--space-8); font-size: var(--pe-type); font-weight: 700; line-height: 1.2; }
+
+/* ---- the tools: one panel of bar glass */
+.pe-side { grid-row: 2; grid-column: 2; display: flex; flex-direction: column; min-height: 0; margin: 0 var(--space-24) var(--space-24) 0; padding: var(--space-8) var(--space-16) var(--space-16); border-radius: var(--r-panel); box-shadow: var(--shadow-float); }
+.pe-tabs { flex: none; }
+.pe-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-16); margin: 0 calc(var(--space-16) * -1); padding: var(--space-16); overscroll-behavior: contain; }
+.pe-panel > :is(.seg, .pe-row, .switch, .pe-inks) { align-self: flex-start; }
+.pe-panel > .pe-label + * { margin-top: calc(var(--space-8) * -1); }
+.pe-panel > * { animation: rise var(--dur-arrive) var(--ease-settle) backwards; animation-delay: calc(min(var(--i, 0), 14) * var(--stagger)); }
+.pe-label { font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.pe-row { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.pe-inks { display: flex; flex-wrap: wrap; gap: var(--space-12); padding: var(--space-4) var(--space-2); }
+.pe-hint { margin: 0; font: var(--type-caption); color: var(--ink-3); }
+.pe-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); padding-top: var(--space-12); border-top: 1px solid var(--line); }
+.pe-fact { margin: 0; min-width: 0; font: var(--type-fact); color: var(--ink-3); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Room for a fingertip: 40 to grab on a touch screen. */
+@media (pointer: coarse) {
+  .pe-handle::after { content: ""; position: absolute; inset: calc((var(--h-large) - var(--space-32)) / -2); }
+}
+
+/* ---- a phone: the picture, then the tools under it */
+@media (max-width: 720px) {
+  .pe { grid-template-columns: minmax(0, 1fr); grid-template-rows: 52px minmax(0, 1fr) auto; }
+  .pe-top { grid-row: 1; grid-column: 1; justify-self: start; padding: 0 var(--space-8); }
+  .pe-acts { grid-row: 1; grid-column: 1; justify-self: end; padding-right: var(--space-8); }
+  .pe-before { margin-left: 0; }
+  .pe-stage { grid-row: 2; padding: var(--space-16); }
+  .pe-side { grid-row: 3; grid-column: 1; max-height: 46svh; margin: 0; padding-bottom: calc(var(--space-16) + env(safe-area-inset-bottom)); border-radius: var(--r-panel) var(--r-panel) 0 0; }
+  .pe-tabs { overflow-x: auto; }
+}

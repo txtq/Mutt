@@ -115,6 +115,8 @@
   --mark-pink: #ff69a0;
   --mark-purple: #aa6ef0;
   --mark-ink: #2a2108;     /* words on a marker-yellow badge */
+  /* the photo editor's pens: white, black (--void), the five markers, and this red, which nothing else uses */
+  --pen-red: #f04a3e;
 
   /* a room: a place that covers the page (the file view, the editor, cooking). The page
      steps away, the sky stays, and this dims it. */

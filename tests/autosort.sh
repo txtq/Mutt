@@ -157,3 +157,5 @@ echo "pictures still to read: $(curl -s "${A[@]}" $B/api/see/todo | j "[b['title
 # Someone else sees a shared photo, but not where or when it was taken, or the reading.
 curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$P1/share -d '{"shared":true}' > /dev/null
 echo "someone else sees: $(curl -s -b "$SP/b.txt" $B/api/blocks/$P1 | j "d.get('error') or d['block']['meta']")"
+curl -s -o "$SP/dl.jpg" -b "$SP/b.txt" $B/f/$P1
+echo "where it was taken, left in the photo they download: $(python3 -c "import sys; from mutt import media; print(media.read(sys.argv[1], 'jpg').get('gps'))" "$SP/dl.jpg")"

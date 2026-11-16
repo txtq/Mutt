@@ -6,6 +6,7 @@
 // The void answers every key, and the right code lets its light take you.
 
 import { phoneNote } from '../phonenote.js';
+import { askForLongerCode } from '../account.js';
 import { api, session } from '../api.js';
 import { shockwave } from '../fx.js';
 import { glitch, logo } from '../logo.js';
@@ -483,6 +484,7 @@ export const loginView = {
         // The light stays until the galaxy is in place underneath it.
         await nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
         phoneNote();
+        askForLongerCode();
         if (flash) {
           flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.scene, delay: DUR.quick, easing: 'ease', fill: 'forwards' })
             .finished.then(() => flash.remove(), () => flash.remove());

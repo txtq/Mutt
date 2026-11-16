@@ -12,12 +12,15 @@ echo "device cookie: $(grep -c mutt_device "$SP/o.txt")"
 for i in 1 2 3 4 5 6; do echo "1.1.1.1 miss $i: $(from 1.1.1.1 0000)"; done
 echo "1.1.1.1 right code (expect 429): $(code 1.1.1.1 123493)"
 echo "2.2.2.2 right code, new browser (expect 200): $(code 2.2.2.2 123493)"
-for i in 1 2 3 4 5 6; do from "2001:db8::$i" 0000 > /dev/null; done
-echo "same IPv6 /64, 7th address (expect 429): $(from 2001:db8::7 0000)"
-for n in $(seq 10 17); do for i in 1 2 3 4 5; do from "9.9.9.$n" 0000 > /dev/null; done; done
+echo "made-up address in front of a locked-out one (expect 429): $(code '8.8.8.8, 1.1.1.1' 123493)"
+for i in 1 2 3 4 5 6; do from "2001:db8::$i" 000000 > /dev/null; done
+echo "same IPv6 /64, 7th address (expect 429): $(from 2001:db8::7 000000)"
+# A 4-digit guess can only open a 4-digit code, so those stop after 10 misses a day.
+echo "after 10 misses, a 4-digit guess from a new place (expect 429): $(code 7.7.7.7 1234)  6-digit (expect 401): $(code 7.7.7.8 000001)"
+for n in $(seq 10 17); do for i in 1 2 3 4 5; do from "9.9.9.$n" 000000 > /dev/null; done; done
 # The day is counted from the first of those misses, so a busy machine loses a few seconds
 # before this asks: the wait only has to be within a minute of 24 hours.
-echo "after 40+ misses, new browser (expect 429): $(from 3.3.3.3 1234 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['error'], 'retryAfter within a minute of 24 hours:', 86340 <= d.get('retryAfter', 0) <= 86400)")"
+echo "after 40+ misses, new browser (expect 429): $(from 3.3.3.3 123456 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['error'], 'retryAfter within a minute of 24 hours:', 86340 <= d.get('retryAfter', 0) <= 86400)")"
 echo "after 40+ misses, owner's browser (expect 200): $(code 4.4.4.4 123493 -b "$SP/o.txt")"
 echo "owner's browser, wrong code (expect 401): $(code 4.4.4.4 9999 -b "$SP/o.txt")"
 printf '<script>alert(1)</script>' > "$SP/x.html"

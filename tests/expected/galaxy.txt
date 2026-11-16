@@ -17,6 +17,9 @@ rule holds: someone not on a People planet's list could open it -> no
 rule holds: a visitor could read someone's star -> no
 rule holds: a private planet's name showed in a visitor's view of the galaxy -> no
 rule holds: someone signed out could read a galaxy -> no
+others can add, on a private planet (expect refused): Only a public planet can take files from others.  new: 400
+open planet made private: False 0
+rule holds: a planet stayed open to all after it was made private -> no
 locked body: True alma Recipes
 no planet code yet: @alma hasn't given this planet a code yet. True
 sign-in code as planet code: That's your sign-in code. Pick a different one, so sharing this planet doesn't share your account.
@@ -32,6 +35,7 @@ unlock: True [('', True), ('Recipes', False), ('Zines', False), ('Gifts', False)
 cy still locked: 403
 after code change: pin 403 old code 403 new code 200
 alma signs in still: 200
+asked to pick a longer code: alma True bo False
 after unlock: pin 200 priv 404 privblock 404
 bo saves public file: zine one alma
 connections bo sees: ['Zines']

@@ -72,9 +72,24 @@ export function changePin() {
     onDone: async ([current, next, again]) => {
       if (next !== again) return 'Those didn’t match.';
       await api.post('/api/me/pin', { current, next });
+      if (session.user) session.user.oldCode = false;
       toast('Code changed');
       return null;
     },
+  });
+}
+
+// Someone who still signs in with 4 digits is asked, once a day on each
+// device, to pick 6: a 4-digit code is far easier to guess.
+export function askForLongerCode() {
+  if (!session.user?.oldCode) return;
+  const today = new Date().toDateString();
+  try {
+    if (localStorage.getItem('mutt:old-code-asked') === today) return;
+    localStorage.setItem('mutt:old-code-asked', today);
+  } catch { /* asked again next time, no harm */ }
+  toast('Your sign-in code is only 4 digits. A 6-digit one is far harder to guess.', {
+    action: { label: 'Change code', run: () => changePin() },
   });
 }
 

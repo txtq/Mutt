@@ -13,7 +13,7 @@ import sys
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
-from mutt import api, backup, db, media, sight
+from mutt import api, backup, db, media, privacy, sight
 from mutt.app import application
 
 
@@ -50,6 +50,7 @@ def main():
     backup.start()
     sight.fetch_model()  # the picture reader's model, fetched once (MUTT_SEE=0 turns it off)
     media.start_backfill()
+    privacy.start_sweep()  # blank where photos and videos stored before this were taken
     api.start_purging()   # Recently deleted: files go for good after a week
     with make_server(args.host, args.port, application,
                      server_class=ThreadingWSGIServer, handler_class=Handler) as httpd:

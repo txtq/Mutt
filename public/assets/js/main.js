@@ -16,6 +16,7 @@ import { planetView } from './views/planet.js';
 import { catchUp } from './see.js';
 import { watchSpelling } from './spellfield.js';
 import { phoneNote } from './phonenote.js';
+import { askForLongerCode } from './account.js';
 import { tooltips } from './tooltip.js';
 
 bootPrefs();
@@ -184,6 +185,7 @@ async function boot() {
   // Once the page has settled, read pictures uploaded before the picture reader existed.
   if (session.user) setTimeout(() => catchUp(), 6000);
   if (session.user) phoneNote();
+  if (session.user) askForLongerCode();
 }
 
 boot();

@@ -14,11 +14,11 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, convert, db, documents, export, kinds, links, media, recipes, sight, sorting, transcode
+from . import auth, books, convert, db, documents, export, kinds, links, media, privacy, recipes, sight, sorting, transcode
 from . import modes as modes_registry
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
 
-MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '100')) * 1024 * 1024)
+MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '50')) * 1024 * 1024)
 MAX_THUMB = 8 * 1024 * 1024
 UNLOCK_TTL = 12 * 60 * 60
 ALLOW_SIGNUPS = os.environ.get('MUTT_ALLOW_SIGNUPS', '1').lower() not in ('0', 'false', 'no', 'off')
@@ -81,6 +81,13 @@ def user_json(row):
     return {'username': row['username'], 'createdAt': ms(row['created_at'])}
 
 
+def me_json(row, short=None):
+    """You, as you see yourself: `oldCode` when you still sign in with 4 digits."""
+    if short is None:
+        short = bool(row['short_code']) if 'short_code' in row.keys() else False
+    return {**user_json(row), 'oldCode': short}
+
+
 def user_prefs(row):
     try:
         return json.loads(row['prefs'] or '{}')
@@ -118,6 +125,7 @@ def public_meta(raw, mine):
     marked as done (its numbers stay on the server), and where and when a
     photo was taken is only shown to its owner."""
     meta = dict(raw) if isinstance(raw, dict) else json.loads(raw or '{}')
+    meta.pop('unplaced', None)
     see = meta.get('see')
     if isinstance(see, dict):
         if mine:
@@ -314,9 +322,9 @@ def drawer_visible(req, row):
         parent = req.db.execute('SELECT * FROM drawers WHERE id = ?', (parent_id,)).fetchone()
         if not parent or not drawer_visible(req, parent):
             return False
-    if row['community']:
-        return True
     visibility = row['visibility']
+    if row['community'] and visibility == 'public':
+        return True
     if visibility == 'public':
         return True
     if visibility == 'people':
@@ -329,7 +337,7 @@ def drawer_visible(req, row):
 
 
 def writable_drawer(req, drawer_id):
-    row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND (user_id = ? OR community = 1)',
+    row = req.db.execute("SELECT * FROM drawers WHERE id = ? AND (user_id = ? OR (community = 1 AND visibility = 'public'))",
                          (drawer_id, req.user['id'])).fetchone()
     if not row:
         raise HttpError(404, 'That drawer does not exist.')
@@ -339,7 +347,7 @@ def writable_drawer(req, drawer_id):
 def in_community_drawer(req, block_id):
     return bool(req.db.execute(
         'SELECT 1 FROM connections c JOIN drawers d ON d.id = c.drawer_id '
-        'WHERE c.block_id = ? AND d.community = 1 LIMIT 1', (block_id,)).fetchone())
+        "WHERE c.block_id = ? AND d.community = 1 AND d.visibility = 'public' LIMIT 1", (block_id,)).fetchone())
 
 
 def readable_block(req, block_id, deleted=False):
@@ -474,7 +482,10 @@ def user_stats(conn, user_id):
 @route('GET', r'/api/health', auth=False)
 def health(req):
     req.db.execute('SELECT 1').fetchone()
-    return json_response({'ok': True, 'persistentStorage': db.PERSISTENT})
+    # `forwarded`: how many addresses reached Mutt in X-Forwarded-For (never the
+    # addresses), so MUTT_PROXY_HOPS can be checked: send one yourself and the
+    # count is yours plus the number of proxies.
+    return json_response({'ok': True, 'persistentStorage': db.PERSISTENT, 'forwarded': len(req.forwarded)})
 
 
 # ---------------------------------------------------------------- accounts
@@ -486,7 +497,7 @@ def me(req):
     headers = []
     if not auth.known_device(req.db, req.user['id'], req.cookie(auth.DEVICE_COOKIE)):
         headers.append(auth.remember_device(req, req.db, req.user['id']))  # signed in before device cookies
-    return json_response({'user': user_json(req.user), 'prefs': user_prefs(req.user),
+    return json_response({'user': me_json(req.user), 'prefs': user_prefs(req.user),
                           'stats': user_stats(req.db, req.user['id'])}, headers=headers)
 
 
@@ -530,7 +541,7 @@ def signup(req):
         raise HttpError(409, 'That username is taken.')
     auth.signups_by_ip.hit(ip)
     user = req.db.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
-    return json_response({'user': user_json(user), 'prefs': {}, 'stats': {'files': 0, 'drawers': 0}},
+    return json_response({'user': me_json(user, False), 'prefs': {}, 'stats': {'files': 0, 'drawers': 0}},
                          headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
 
@@ -578,9 +589,11 @@ def login(req):
             err.message = "That username and code don't match."
         raise
     token = auth.create_session(req.db, user['id'])
+    short = len(pin) == 4
+    req.db.execute('UPDATE users SET short_code = ? WHERE id = ?', (1 if short else 0, user['id']))
     if random.random() < 0.05:
         auth.prune_sessions(req.db)
-    return json_response({'user': user_json(user), 'prefs': user_prefs(user),
+    return json_response({'user': me_json(user, short), 'prefs': user_prefs(user),
                           'stats': user_stats(req.db, user['id'])},
                          headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
@@ -612,7 +625,7 @@ def change_pin(req):
     if uses_planet_code(req, new_pin):
         raise HttpError(400, "That's the code for one of your planets. Pick a different one.")
     pin_hash, salt = auth.new_pin_hash(new_pin)
-    req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ? WHERE id = ?', (pin_hash, salt, req.user['id']))
+    req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ?, short_code = 0 WHERE id = ?', (pin_hash, salt, req.user['id']))
     auth.end_other_sessions(req.db, req.user['id'], req.session_token)
     return json_response({'ok': True})
 
@@ -1095,7 +1108,8 @@ def list_drawers(req):
     if req.arg('community') == '1':
         others = req.db.execute(
             'SELECT d.*, u.username AS owner_name, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
-            'FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 AND d.parent_id IS NULL AND d.user_id != ? '
+            "FROM drawers d JOIN users u ON u.id = d.user_id WHERE d.community = 1 AND d.visibility = 'public' "
+            'AND d.parent_id IS NULL AND d.user_id != ? '
             'ORDER BY d.updated_at DESC', (req.user['id'],)).fetchall()
         drawers += [{**drawer_json(r, r['n']), 'owner': r['owner_name']} for r in others]
     stats = user_stats(req.db, req.user['id'])
@@ -1143,6 +1157,8 @@ def create_drawer(req):
         if parent_list.get('on'):
             modes = clean_modes({'list': {k: v for k, v in parent_list.items() if k in LIST_DEFAULTS}
                                  | {'on': True, 'dismissed': False}}, {})
+    if body.get('community') and visibility != 'public':
+        raise HttpError(400, 'Only a public planet can take files from others.')
     drawer_id = new_id()
     stamp = now()
     with db.transaction(req.db):
@@ -1190,8 +1206,16 @@ def get_drawer(req, drawer_id):
 
 @route('PATCH', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def update_drawer(req, drawer_id):
-    moon = bool(own_drawer(req, drawer_id)['parent_id'])
+    before = own_drawer(req, drawer_id)
+    moon = bool(before['parent_id'])
     body = req.json()
+    # "Others can add files" only goes with Public: asking for both together
+    # with another setting is refused, and leaving Public turns it off.
+    public = body.get('visibility', before['visibility']) == 'public'
+    if body.get('community') and not public:
+        raise HttpError(400, 'Only a public planet can take files from others.')
+    if not public and before['community']:
+        body['community'] = False
     updates = {}
     title = text_field(body, 'title', 80, 'Drawer name')
     if title is not None:
@@ -1842,11 +1866,13 @@ def create_block(req):
             if not name.lower().endswith('.' + ext) and not kinds.extension(name):
                 name += '.' + ext
             key = f'{secrets.token_hex(12)}.{ext}'
+            data = bytearray(data)
+            privacy.forget_place_bytes(data)
             with open(os.path.join(db.user_files_dir(req.user['id']), key), 'wb') as f:
                 f.write(data)
             block_id = insert_block(req, kind='image', title=title or name, file_key=key, file_name=name,
                                     mime=mime, ext=ext, size=len(data),
-                                    meta={'source': stripped, 'domain': info.get('domain')}, **shared)
+                                    meta={'source': stripped, 'domain': info.get('domain'), 'unplaced': 1}, **shared)
         else:
             shoot = wants_screenshot(info)
             if shoot:
@@ -1900,6 +1926,9 @@ def upload(req):
         found = media.read(path, ext)  # camera, date, place, app, artist, album, author...
         if found:
             meta['media'] = found
+    if size and kind in privacy.KINDS:
+        privacy.forget_place(path)  # where it was taken stays in meta.media, for its owner only
+        meta['unplaced'] = 1
     if text or kind in ('pdf', 'doc', 'image'):
         doctype = sorting.doc_type(text[:sorting.DOC_LIMIT], ' '.join([name, (meta.get('media') or {}).get('title', '')]))
         if doctype:
@@ -2388,7 +2417,7 @@ def restore_block(req, block_id):
     with db.transaction(req.db):
         for spot in json.loads(row['deleted_from'] or '[]'):
             drawer = req.db.execute('SELECT * FROM drawers WHERE id = ?', (str(spot.get('drawer')),)).fetchone()
-            if not drawer or not (drawer['user_id'] == req.user['id'] or drawer['community']):
+            if not drawer or not (drawer['user_id'] == req.user['id'] or (drawer['community'] and drawer['visibility'] == 'public')):
                 continue
             req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, checked) '
                            'VALUES (?, ?, ?, ?, ?)', (block_id, drawer['id'], spot.get('position'), now(), spot.get('checked')))
@@ -3065,8 +3094,10 @@ def add_doc_image(req, block_id):
     if not data:
         raise HttpError(400, 'That picture was empty.')
     image_id = new_id()
-    req.db.execute('INSERT INTO doc_images (id, block_id, mime, data, created_at) VALUES (?, ?, ?, ?, ?)',
-                   (image_id, block_id, mime, data, now()))
+    data = bytearray(data)
+    privacy.forget_place_bytes(data)  # where a photo was taken never goes into a document
+    req.db.execute('INSERT INTO doc_images (id, block_id, mime, data, created_at, unplaced) VALUES (?, ?, ?, ?, ?, 1)',
+                   (image_id, block_id, mime, bytes(data), now()))
     return json_response({'src': f'/api/docs/{block_id}/img/{image_id}'}, status=201)
 
 

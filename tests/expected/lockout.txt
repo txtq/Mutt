@@ -8,7 +8,9 @@ device cookie: 1
 1.1.1.1 miss 6: {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
 1.1.1.1 right code (expect 429): 429
 2.2.2.2 right code, new browser (expect 200): 200
+made-up address in front of a locked-out one (expect 429): 429
 same IPv6 /64, 7th address (expect 429): {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
+after 10 misses, a 4-digit guess from a new place (expect 429): 429  6-digit (expect 401): 401
 after 40+ misses, new browser (expect 429): Too many wrong codes. Try again in 24 hours. retryAfter within a minute of 24 hours: True
 after 40+ misses, owner's browser (expect 200): 200
 owner's browser, wrong code (expect 401): 401

@@ -243,6 +243,20 @@ def migrate(conn):
                  'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '
                  'mime TEXT NOT NULL, data BLOB NOT NULL, created_at REAL NOT NULL)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_doc_images ON doc_images(block_id)')
+    if 'unplaced' not in {row[1] for row in conn.execute('PRAGMA table_info(doc_images)')}:
+        # 1 once where it was taken has been blanked (privacy.py); older pictures are swept at start.
+        conn.execute('ALTER TABLE doc_images ADD COLUMN unplaced INTEGER NOT NULL DEFAULT 0')
+    if 'short_code' not in user_columns:
+        # 1 when the account last signed in with a 4-digit code: it is asked to pick a 6-digit one.
+        conn.execute('ALTER TABLE users ADD COLUMN short_code INTEGER NOT NULL DEFAULT 0')
+    # "Others can add files" only ever goes with Public. A planet that somehow
+    # has it under another setting loses it, and other people's files leave
+    # with it, as when its owner turns it off.
+    loose = [r[0] for r in conn.execute("SELECT id FROM drawers WHERE community = 1 AND visibility != 'public'")]
+    for drawer_id in loose:
+        conn.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id IN (SELECT b.id FROM blocks b '
+                     'JOIN drawers d ON d.id = ? WHERE b.user_id != d.user_id)', (drawer_id, drawer_id))
+        conn.execute('UPDATE drawers SET community = 0 WHERE id = ?', (drawer_id,))
     conn.execute('CREATE TABLE IF NOT EXISTS doc_comments ('
                  'id TEXT PRIMARY KEY, '
                  'block_id TEXT NOT NULL REFERENCES blocks(id) ON DELETE CASCADE, '

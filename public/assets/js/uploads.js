@@ -16,7 +16,7 @@ let active = 0;
 
 // Matches the server's default limit (MUTT_MAX_UPLOAD_MB), so a file that's
 // too big is turned away at once instead of after uploading it all.
-export const MAX_UPLOAD_MB = 100;
+export const MAX_UPLOAD_MB = 50;
 const MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024;
 
 // The files that fit; says once which ones didn't.

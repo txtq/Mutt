@@ -7,6 +7,10 @@ import urllib.parse
 
 # Behind a hosting proxy, trust its forwarded IP and HTTPS headers (the Dockerfile turns this on).
 TRUST_PROXY = os.environ.get('MUTT_TRUST_PROXY', '').lower() in ('1', 'true', 'yes', 'on')
+# How many proxies in front of Mutt add an address to X-Forwarded-For. Each
+# adds the one it was reached from at the end; whatever comes before those was
+# written by the visitor and can't be trusted.
+PROXY_HOPS = max(1, int(os.environ.get('MUTT_PROXY_HOPS', '1') or 1))
 CHUNK = 256 * 1024
 
 
@@ -124,10 +128,14 @@ class Request:
     @property
     def client_ip(self):
         if TRUST_PROXY:
-            forwarded = self.header('X-Forwarded-For')
-            if forwarded:
-                return forwarded.split(',')[0].strip()
+            hops = self.forwarded
+            if hops:
+                return hops[-min(PROXY_HOPS, len(hops))]
         return self.environ.get('REMOTE_ADDR', '')
+
+    @property
+    def forwarded(self):
+        return [part.strip() for part in (self.header('X-Forwarded-For') or '').split(',') if part.strip()]
 
 
 _routes = []

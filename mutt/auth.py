@@ -6,7 +6,8 @@ A 4-digit PIN only has 10,000 possibilities, so every guess is expensive
 - per account *and* source (IP, or IPv6 /64): 5 free misses, then an
   exponential back-off. Someone guessing from one place hits this first.
 - per account from everywhere: 40 misses in a day closes it to new devices
-  until they age out, so many sources can't guess through it either.
+  until they age out, so many sources can't guess through it either. A
+  4-digit guess (older accounts, planet codes) stops at 10 misses a day.
   Browsers that have signed in to the account before carry a device cookie
   and skip this one, so the owner isn't locked out by someone else's guessing.
 - per source across all accounts (in memory).
@@ -48,6 +49,9 @@ RESERVED = {
 FREE_ATTEMPTS = 5
 FAILURE_WINDOW = 24 * 60 * 60
 ACCOUNT_LIMIT = 40  # one source can make at most ~35 misses a day, so it never reaches this alone
+# A 4-digit guess can only open a 4-digit code (an older account, or a planet's
+# code), where 10,000 tries cover every code, so those stop much sooner.
+SHORT_LIMIT = 10
 DEVICE_COOKIE = 'mutt_device'
 DEVICE_TTL = 400 * 24 * 60 * 60  # the longest browsers keep a cookie
 
@@ -174,7 +178,8 @@ def try_pin(conn, user, pin, ip, device=None):
     `device` is the browser's device cookie when signing in to this account.
     """
     ok = lambda: check_pin(pin, user['pin_salt'], user['pin_hash'])
-    failure, _ = _guarded(conn, 'login_failures', user['id'], ip, ok, device)
+    limit = SHORT_LIMIT if len(pin) == 4 else ACCOUNT_LIMIT
+    failure, _ = _guarded(conn, 'login_failures', user['id'], ip, ok, device, limit)
     return failure
 
 
@@ -201,10 +206,10 @@ def try_share_code(conn, owner, code, ip):
         rows = conn.execute("SELECT id, share_hash FROM drawers WHERE user_id = ? AND visibility = 'pin' "
                             'AND share_hash IS NOT NULL', (owner['id'],)).fetchall()
         return [r['id'] for r in rows if hmac.compare_digest(bytes(r['share_hash']), digest)]
-    return _guarded(conn, 'share_failures', owner['id'], ip, opens)
+    return _guarded(conn, 'share_failures', owner['id'], ip, opens, limit=SHORT_LIMIT)
 
 
-def _guarded(conn, table, user_id, ip, check, device=None):
+def _guarded(conn, table, user_id, ip, check, device=None, limit=ACCOUNT_LIMIT):
     """Run `check` (truthy when the code is right) under the lockout rules,
     counting misses in `table` (login_failures or share_failures)."""
     source = source_key(ip)
@@ -218,8 +223,8 @@ def _guarded(conn, table, user_id, ip, check, device=None):
         if wait <= 0 and not known_device(conn, user_id, device):
             recent = conn.execute(
                 f'SELECT at FROM {table} WHERE user_id = ? AND at > ? ORDER BY at DESC LIMIT ?',
-                (user_id, cutoff, ACCOUNT_LIMIT)).fetchall()
-            if len(recent) >= ACCOUNT_LIMIT:
+                (user_id, cutoff, limit)).fetchall()
+            if len(recent) >= limit:
                 wait = recent[-1][0] + FAILURE_WINDOW - now
         if wait > 0:
             wait = int(wait) + 1

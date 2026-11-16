@@ -39,6 +39,13 @@ rule "someone not on a People planet's list could open it" "$(status "${W[@]}" $
 rule "a visitor could read someone's star" "$(status "${W[@]}" $B/api/blocks/$STAR)" 404
 rule "a private planet's name showed in a visitor's view of the galaxy" "$(curl -s "${U[@]}" $B/api/galaxy/alma | j "'Diary' in json.dumps(d)")" False
 rule "someone signed out could read a galaxy" "$(status $B/api/galaxy/alma)" 401
+# "Others can add files" only ever goes with Public.
+echo "others can add, on a private planet (expect refused): $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$PRIV -d '{"community":true}' | j "d.get('error')")  new: $(status "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"No","visibility":"people","community":true}')"
+SWAP=$(mk '{"title":"Swap","visibility":"public","community":true}')
+curl -s -o /dev/null "${U[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"bo's swap\",\"drawer\":\"$SWAP\"}"
+echo "open planet made private: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$SWAP -d '{"visibility":"private"}' | j "d['drawer']['community'], d['drawer']['count']")"
+rule "a planet stayed open to all after it was made private" "$(status "${U[@]}" $B/api/drawers/$SWAP)" 404
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X DELETE $B/api/drawers/$SWAP
 echo "locked body: $(curl -s "${U[@]}" $B/api/drawers/$PIN | j "d.get('locked'), d.get('owner'), d['drawer']['title']")"
 LOGIN_CODE="{\"pin\":\"1357\",\"drawer\":\"$PIN\"}"; RIGHT_CODE="{\"pin\":\"4242\",\"drawer\":\"$PIN\"}"
 code() { curl -s -o /dev/null -w '%{http_code}' "${U[@]}" "${J[@]}" -X POST $B/api/galaxy/alma/unlock -d "$1"; }
@@ -57,6 +64,7 @@ echo "cy still locked: $(curl -s -o /dev/null -w '%{http_code}' "${W[@]}" $B/api
 curl -s -o /dev/null "${A[@]}" "${J[@]}" -X PUT $B/api/drawers/$PIN/code -d '{"code":"8080"}'
 echo "after code change: pin $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PIN) old code $(code '{"pin":"4242"}') new code $(code '{"pin":"8080"}')"
 echo "alma signs in still: $(curl -s -o /dev/null -w '%{http_code}' -c "$SP/gx.txt" "${J[@]}" -X POST $B/api/auth/login -d '{"username":"alma","pin":"1357"}')"
+echo "asked to pick a longer code: alma $(curl -s -b "$SP/gx.txt" $B/api/me | j "d['user']['oldCode']") bo $(curl -s "${J[@]}" -X POST $B/api/auth/login -d '{"username":"bo","pin":"246893"}' | j "d['user']['oldCode']")"
 echo "after unlock: pin $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PIN) priv $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/drawers/$PRIV) privblock $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" $B/api/blocks/$NPRIV)"
 echo "bo saves public file: $(curl -s "${U[@]}" "${J[@]}" -X POST $B/api/blocks/$NPUB/save -d '{}' | j "d['block']['content'], d['block']['meta']['savedFrom']['username']")"
 echo "connections bo sees: $(curl -s "${U[@]}" $B/api/blocks/$NPUB | j "[c['title'] for c in d['connections']]")"

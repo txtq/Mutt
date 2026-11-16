@@ -3157,22 +3157,41 @@ def list_arg(req, name, allowed=None):
 
 @route('GET', r'/api/search')
 def search(req):
-    """Your planets and files, by words and/or kind, extension, date, colour and traits."""
+    """Files and planets by words and/or kind, extension, date, colour and traits: your own, or with
+    `of=<username>` the files on that person's planets you may open. Each file says which of the
+    galaxy's planets it is on (`on`, a moon counted as its planet), for the search on the galaxy."""
     q = (req.arg('q') or '').strip()[:100]
     uid = req.user['id']
-    where, params = ['b.user_id = ?', 'b.deleted_at IS NULL'], [uid]
+    of = auth.normalize_username(req.arg('of'))
+    owner = find_user(req, of) if of else None
+    if owner and owner['id'] == uid:
+        owner = None
+    if owner:
+        # Someone else's galaxy: only files on planets (and moons) you can open, found by what anyone
+        # who opens them sees. A file's details (where a photo was taken, its camera) are never searched.
+        open_ids = [r['id'] for r in req.db.execute('SELECT * FROM drawers WHERE user_id = ?', (owner['id'],))
+                    if drawer_visible(req, r)]
+        scope = "b.id IN (SELECT block_id FROM connections WHERE drawer_id IN (SELECT value FROM json_each(?)))"
+        where, params = [scope, 'b.deleted_at IS NULL'], [json.dumps(open_ids)]
+    else:
+        scope = 'b.user_id = ?'
+        where, params = [scope, 'b.deleted_at IS NULL'], [uid]
     pattern = None
     if q:
         pattern = '%' + q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
         # A picture's reading is numbers, not words: it's matched by what it shows below.
         words = ("b.title LIKE ? ESCAPE '\\' OR b.description LIKE ? ESCAPE '\\' OR b.content LIKE ? ESCAPE '\\' "
-                 "OR b.file_name LIKE ? ESCAPE '\\' OR json_remove(b.meta, '$.look', '$.see') LIKE ? ESCAPE '\\'")
-        params += [pattern] * 5
+                 "OR b.file_name LIKE ? ESCAPE '\\'")
+        params += [pattern] * 4
+        if not owner:
+            words += " OR json_remove(b.meta, '$.look', '$.see') LIKE ? ESCAPE '\\'"
+            params.append(pattern)
         names = sight.asked(q)
         if names:  # "dogs", "a cat on the beach": pictures that show it count too
             seen = [r['id'] for r in req.db.execute(
-                "SELECT id, kind, json_extract(meta, '$.see') AS see FROM blocks "
-                "WHERE user_id = ? AND deleted_at IS NULL AND json_extract(meta, '$.see.v') = ?", (uid, sight.VERSION))
+                f"SELECT b.id, b.kind, json_extract(b.meta, '$.see') AS see FROM blocks b "
+                f"WHERE {scope} AND b.deleted_at IS NULL AND json_extract(b.meta, '$.see.v') = ?",
+                (params[0], sight.VERSION))
                 if sight.shows(json.loads(r['see']), names, r['kind'])]
             if seen:
                 words += " OR b.id IN (SELECT value FROM json_each(?))"
@@ -3207,20 +3226,47 @@ def search(req):
     else:
         order = SEARCH_SORTS['new']
     offset = int(int_arg(req.arg('offset'), 0, 100_000) or 0)
-    blocks = req.db.execute(
-        f"SELECT {BLOCK_COLUMNS} FROM blocks b WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?",
+    rows = req.db.execute(
+        f"SELECT {BLOCK_COLUMNS}, u.username AS owner_name FROM blocks b JOIN users u ON u.id = b.user_id "
+        f"WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?",
         (*params, SEARCH_PAGE + 1, offset)).fetchall()
+    blocks = [block_json(r, mine=r['user_id'] == uid, owner=None if r['user_id'] == uid else r['owner_name'])
+              for r in rows[:SEARCH_PAGE]]
+    planets_on(req, blocks)
     drawers = []
     if pattern and not offset:
-        drawers = req.db.execute(
+        found = req.db.execute(
             "SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n FROM drawers d "
             "WHERE d.user_id = ? AND (d.title LIKE ? ESCAPE '\\' OR d.description LIKE ? ESCAPE '\\') "
-            "ORDER BY d.updated_at DESC LIMIT 40", (uid, pattern, pattern)).fetchall()
+            "ORDER BY d.updated_at DESC LIMIT 40", ((owner or req.user)['id'], pattern, pattern)).fetchall()
+        drawers = [d for d in found if not owner or drawer_visible(req, d)]
     return json_response({
         'drawers': [drawer_json(d, d['n'], drawer_previews(req, d['id'])) for d in drawers],
-        'blocks': [block_json(b) for b in blocks[:SEARCH_PAGE]],
-        'more': len(blocks) > SEARCH_PAGE,
+        'blocks': mark_saved(req, blocks) if owner else blocks,
+        'more': len(rows) > SEARCH_PAGE,
     })
+
+
+def planets_on(req, blocks):
+    """The planets each found file is on, as far as this person may open them: each file's `on`,
+    a list of planet ids (a moon counted as its planet), empty for a star."""
+    ids = [b['id'] for b in blocks]
+    on = {}
+    seen = {}
+    for start in range(0, len(ids), 500):
+        part = ids[start:start + 500]
+        rows = req.db.execute(
+            'SELECT c.block_id, d.* FROM connections c JOIN drawers d ON d.id = c.drawer_id '
+            f"WHERE c.block_id IN ({','.join('?' * len(part))}) ORDER BY c.connected_at", part).fetchall()
+        for r in rows:
+            if r['id'] not in seen:
+                seen[r['id']] = drawer_visible(req, r)
+            top = r['parent_id'] or r['id']
+            if seen[r['id']] and top not in on.setdefault(r['block_id'], []):
+                on[r['block_id']].append(top)
+    for b in blocks:
+        b['on'] = on.get(b['id'], [])
+    return blocks
 
 
 @route('GET', r'/api/see/todo')

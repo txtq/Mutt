@@ -61,3 +61,20 @@ s "a word that is not a subject" "q=rex%20dog"
 for i in $(seq 1 62); do curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"filler $i\"}"; done
 echo "page 1: $(curl -s "${C[@]}" "$B/api/search?q=filler" | j "(len(d['blocks']), d['more'])")"
 echo "page 2: $(curl -s "${C[@]}" "$B/api/search?q=filler&offset=60" | j "(len(d['blocks']), d['more'])")"
+# Search on a galaxy: each file says which planets it is on (a moon counts as its planet), and
+# on someone else's galaxy it finds only files on planets you may open, never by their details.
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/blocks/$N1/connections -d "{\"drawer\":\"$D\"}"
+MOON=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"Rock pools\",\"parent\":\"$D\"}" | j "d['drawer']['id']")
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"beach crabs in the pools\",\"drawer\":\"$MOON\"}"
+SECRET=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Secret beach","visibility":"private"}' | j "d['drawer']['id']")
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"beach hut key under the mat\",\"drawer\":\"$SECRET\"}"
+on="[(b['content'][:12], [{'$D': 'Beach trip', '$SECRET': 'Secret beach'}.get(i, '?') for i in b['on']]) for b in d['blocks'] if b['kind'] == 'text']"
+echo "your planets per file: $(curl -s "${C[@]}" "$B/api/search?q=beach" | j "$on")"
+V=(-b "$SP/v.txt" -c "$SP/v.txt"); rm -f "$SP/v.txt"
+curl -s -o /dev/null "${V[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"Visitor","pin":"582914"}'
+echo "their galaxy, words: $(curl -s "${V[@]}" "$B/api/search?q=beach&of=Finder" | j "$on")"
+echo "their galaxy, planets: $(curl -s "${V[@]}" "$B/api/search?q=beach&of=Finder" | j "[x['title'] for x in d['drawers']]")"
+echo "their galaxy, not yours: $(curl -s "${V[@]}" "$B/api/search?q=shopping&of=Finder" | j "len(d['blocks'])")"
+echo "their galaxy, files marked theirs: $(curl -s "${V[@]}" "$B/api/search?q=crabs&of=Finder" | j "[(b['mine'], b.get('owner')) for b in d['blocks']]")"
+echo "no such person: $(curl -s -o /dev/null -w '%{http_code}' "${V[@]}" "$B/api/search?q=beach&of=nobody")"
+echo "your own name is your own search: $(curl -s "${C[@]}" "$B/api/search?q=shopping&of=Finder" | j "len(d['blocks'])")"

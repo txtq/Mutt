@@ -13,7 +13,7 @@ import { BEAT, bus, DUR, EASE_LEAVE, h, plural } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
 import { askForKey, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
-import { searchBody } from './search.js';
+import { dropHeldSearch, heldSearch, searchBody } from './search.js';
 import { icon } from './icons.js';
 import { commentNotes } from './commentnotes.js';
 
@@ -30,12 +30,15 @@ function sheet(className, build) {
   let open = false;
   let anchor = null;
   // Menus and dialogs opened from a sheet sit outside it; using them keeps it open, and Escape closes them first.
-  const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target) && !e.target.closest?.('.pop, .scrim')) close(); };
+  // (what search found round the void belongs to search: pressing it keeps search open)
+  const outside = (e) => { if (!el.contains(e.target) && !anchor?.contains(e.target) && !e.target.closest?.('.pop, .scrim, .gx-found')) close(); };
   const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (!closeTopLayer()) close(); } };
+  let body = null;
   function show(from) {
     for (const s of sheets) if (s !== api_) s.close();
     anchor = from;
-    el.replaceChildren(build(close));
+    body = build(close);
+    el.replaceChildren(body);
     el.inert = false;
     open = true;
     anchor?.setAttribute('aria-expanded', 'true');
@@ -46,6 +49,8 @@ function sheet(className, build) {
   function close() {
     if (!open) return;
     open = false;
+    body?.onLeave?.();   // (search sends what it found home)
+    el.tabsWith = null;
     el.classList.remove('is-open');
     el.inert = true;
     anchor?.setAttribute('aria-expanded', 'false');
@@ -357,9 +362,27 @@ export function createStatusbar() {
   });
 
   const settings = sheet('sheet-settings', settingsBody);
-  const search = sheet('sheet-search-wrap', searchBody);
+  // Search belongs to a galaxy: what it finds gathers round that galaxy's void (gravity.js).
+  const search = sheet('sheet-search-wrap', (close) => searchBody(close, { here: current, sheetEl: search.el }));
   who.addEventListener('click', () => settings.toggle(who));
-  searchBtn.addEventListener('click', () => search.toggle(searchBtn));
+  // Opened anywhere else, it first takes you to the galaxy it searches: from a planet, that planet's
+  // galaxy (someone else's searches their files); from the universe or any other page, your own.
+  let wantSearch = false;
+  const openSearch = () => {
+    const seek = current?.seek;
+    if (seek && !(seek.away() && !seek.mine)) {
+      if (seek.away()) seek.home();   // out in the universe from your galaxy: back in, and it gathers there
+      search.show(searchBtn);
+      return;
+    }
+    wantSearch = true;
+    const w = current?.who;
+    if (seek) seek.home();
+    else nav.go(w && !w.you && w.username ? `/g/${encodeURIComponent(w.username)}` : '/');
+  };
+  searchBtn.addEventListener('click', () => (search.isOpen() ? search.close() : openSearch()));
+  // A file opened from what search found: closing it brings search back as it was.
+  bus.on('viewer:closed', () => { if (heldSearch() && current?.seek) search.show(searchBtn); });
 
   const tick = () => {
     clock.firstChild.textContent = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date());
@@ -394,7 +417,7 @@ export function createStatusbar() {
   let glitched = false;
   return {
     el: bar,
-    search: { focus: () => search.show(searchBtn) },
+    search: { focus: () => (search.isOpen() ? search.el.querySelector('.search-input')?.focus() : openSearch()) },
     update(inst) {
       current = inst;
       paintWho();
@@ -408,6 +431,9 @@ export function createStatusbar() {
       }
       settings.close();
       search.close();
+      dropHeldSearch();
+      if (wantSearch && inst.seek) requestAnimationFrame(() => search.show(searchBtn));
+      wantSearch = false;
     },
   };
 }

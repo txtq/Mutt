@@ -32,3 +32,10 @@ beach, in words and pictures: ['walk', 'shore', 'sunset by the beach']
 a word that is not a subject: []
 page 1: (60, True)
 page 2: (2, False)
+your planets per file: [('beach hut ke', ['Secret beach']), ('beach crabs ', ['Beach trip']), ('sunset by th', ['Beach trip'])]
+their galaxy, words: [('beach crabs ', ['Beach trip']), ('sunset by th', ['Beach trip'])]
+their galaxy, planets: ['Beach trip']
+their galaxy, not yours: 0
+their galaxy, files marked theirs: [(False, 'finder')]
+no such person: 404
+your own name is your own search: 1

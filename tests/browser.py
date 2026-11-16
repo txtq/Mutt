@@ -665,6 +665,32 @@ def universe(s, seeded):
     s.shot('universe')
 
 
+def search_gravity(s, seeded):
+    """Search on the galaxy: what it finds lifts off its planets and gathers round the void, its planets
+    stay lit, the arrow key reaches it, it opens, and closing the file brings search back."""
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7', 'the galaxy did not load')
+    s.press('/')
+    s.type(s.see('.sheet.is-open .search-input', 'pressing / did not open search'), 'pier')
+    s.wait('return document.querySelectorAll(".gx-found:not([inert]) .gx-found-file").length === 1',
+           'the postcard that says "pier" did not gather round the void')
+    lit = s.js('return [...document.querySelectorAll(".planet.is-found")].map((p) => p.planet.title).sort()')
+    if lit != ['Holiday', 'Postcards']:
+        raise Fail(f'the planets lit while searching "pier" were {lit}, not the two it is on (Holiday, Postcards)')
+    s.press('ArrowDown')
+    s.wait('return document.activeElement?.classList.contains("gx-found-file")', 'the down arrow in the box did not reach the file')
+    s.settle(1.0)
+    s.shot('search-gravity')
+    s.press('Enter')
+    s.wait('return new URL(location.href).searchParams.has("b") && !!document.querySelector(".room")', 'pressing the file did not open it')
+    s.press('Escape')
+    s.wait('return !document.querySelector(".room") && !!document.querySelector(".sheet.is-open .search-input")?.value',
+           'closing the file did not bring search back as it was')
+    s.press('Escape')
+    s.wait('return !document.querySelector(".gx-scene.is-seeking") && !document.querySelector(".gx-found:not([inert]) .gx-found-file")',
+           'closing search did not send the file home')
+
+
 def shared_files(s, seeded):
     """Files on more than one planet: threads on the galaxy, "also on" under the file box and in the file view."""
     s.go('/')
@@ -959,7 +985,7 @@ def split_moons(s, seeded):
         raise Fail(f'the page had errors while splitting: {errors[:3]}')
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
+         documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
          split_moons, forgot_code, key_nudge]
 
 

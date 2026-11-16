@@ -5,7 +5,7 @@ import { session } from './api.js';
 import { nav } from './nav.js';
 import { canTransition, transition, visibleShared } from './transitions.js';
 import { closeAllPopovers, toast } from './ui.js';
-import { DUR, EASE_LEAVE, h, reducedMotion } from './util.js';
+import { DUR, EASE_LEAVE, bus, h, reducedMotion } from './util.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
 
 const routes = [];
@@ -79,6 +79,7 @@ async function syncViewer(blockId) {
     await openViewer(blockId, { list: current?.inst.list?.() || [], drawer: current?.inst.drawer || null });
   } else if (!blockId && viewerOpen()) {
     await closeViewer();
+    bus.emit('viewer:closed');   // back on the same page (search brings itself back, if a file was opened from it)
   }
 }
 

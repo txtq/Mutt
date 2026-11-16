@@ -306,6 +306,12 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | A star opening from a point into its card as the pointer comes near; lifting when pointed at; back to a point | move on the settle curve; move; leaves |
 | A constellation: its stars gathering into it, moving with it | scene, as stars do; a new figure's name arrives, its wisps come in over move once the stars have landed |
 | A constellation becoming a planet | its stars draw together into one point over scene on the glide, its name leaves; the planet is born as a new planet is |
+| Search: a found file lifting off its planet and gliding to the void (as a file launched from the void, backwards) | scene on the glide, along a gentle curve, growing from 0.35 and fading in over its first third; several one step apart (at most 14); flies only once typing pauses for move |
+| Search: a found file moving to a new place on the ring | move on the glide |
+| Search: planets without a match stepping back, and coming back | change |
+| Search: the line from the file pointed at to its planets | fades in over move |
+| Search: the sky's stars leaning in toward the void as the first files arrive | once, over grand, half as strong as the void swallowing a file |
+| Search: the found files going home | leaves (change on the leaving curve), all together |
 | Threads between planets | still at rest; they arrive over scene after the planets, follow the planets while they glide or are carried (repainted only then), brighten in one step when a planet at one end is pointed at, and their counts fade in over move and out over change |
 | *The void* | |
 | Turning | painted (rule 10): about 30 pictures a second, every picture when it is big (sign-in); rests while the screen is changing; fades in over move once its pictures are worked out |
@@ -631,7 +637,7 @@ One menu for the ••• button, right-click, the editor and the reader, and i
 
 ### File box
 
-One frame for every kind of file, wherever files are shown (a planet's page, search). Built by `renderCell` in `cells.js`; styled only in the section of `galaxy.css` headed THE FILE BOX. Drawn in every kind at `/parts`.
+One frame for every kind of file, wherever files are shown (a planet's page, the rest of what search found). Built by `renderCell` in `cells.js`; styled only in the section of `galaxy.css` headed THE FILE BOX. Drawn in every kind at `/parts`.
 
 - **The frame**: a box four wide to five tall (`.cell-box`), corners 12, and 12 under it one line, the caption. Four boxes to a row, 24 apart each way; on a phone two to a row, 12 apart across and 16 down.
 - **The rule**: the box shows what is in the file and the caption says what it is called. Nothing is said twice: a name is never repeated inside its box, and a fact is never in both places.
@@ -661,6 +667,21 @@ One frame for every kind of file, wherever files are shown (a planet's page, sea
 - **One column**: the header and everything under it share the same left and right edges, 48 in from the page's own gutter above 720 wide, so the back arrow sits in the margin beside them. Nothing on a planet's page is inset on its own.
 - **Section heading** (`.sec-head`, built by `sectionHead()` in `ui.js`): one for every mode. The name in Label `--ink-2` and one Fact beside it (`Books 2`, `Documents 4 · 518 words`), 8 apart, straight on the sky with `--sky-shadow`, in a row 32 high with 12 under it; the group's own buttons (Sort, New document) at the far end. **Only where a page has more than one group, or the group has its own buttons**: a plain planet has no heading, because its header already says how many files it holds.
 - **Small text**: one Caption and one Fact. Anything you could count or date is a Fact (mono); everything else small is a Caption.
+
+### Search: gravity
+
+Decided with the user on 2026-11-16 (the proposal `Mutt-notes/design/search-gravity-2026-11-16.html`, option A). Search belongs to a galaxy. On a galaxy what it finds doesn't come as a list: each file lifts off the planet it is on and settles round the void. Built in `gravity.js` (fetched the first time someone searches on a galaxy) with search's sheet in `search.js`; styled in the section of `galaxy.css` headed "Search as gravity", beside the stars.
+
+- **Where it searches**: on your galaxy, your files and stars; on someone else's galaxy, their files on the planets you may open (never by a file's hidden details). Opened anywhere else, search first takes you to the galaxy it searches: from a planet page, that planet's galaxy (the pull away); out in the universe, back in to yours (on someone else's, home to yours); from any other page, your own. Back returns you.
+- **The sheet** keeps the search box, the row of choices, People (they are galaxies, not files) and planets found by their names. It holds no files, except the rest after "+N more".
+- **A found file** is the small face the planets wear in their belts, the stars' look (`.star`) a little larger (47 across, 37 on a phone: the galaxy's `cell`), evenly round the void just inside the rim of its cage (2.1 times the light's radius), clockwise from the top in the order Sort gives. At most 12 (8 under 640 wide). Pointed at or reached by keyboard it grows as a star does, its tooltip names it and where it lives (`a postcard of the harbour · Postcards`, `… · a star`), and a faint line (1px `--line-3`, a gentle curve) runs back to each of its planets.
+- **The galaxy**: the planets holding found files (flown or not) and planets found by name stay as they are; every other planet, your stars and the threads step back to 0.36. A found star leaves its own place for the ring and returns when search closes.
+- **More than fly**: a quiet small `+N more` (`More than N` while there are more to fetch) under the ring opens the rest as file boxes in the sheet, as search's list was.
+- **Opening one**: a press or Enter opens the file view over the galaxy, the file gliding from its spot; the file view's arrows walk through what was found; closing it brings search back as it was.
+- **The keyboard**: Tab goes from the box through the choices to the files (`tabsWith` in `ui.js`: they belong to search's layer), then `+N more`; the down arrow in the box goes straight to the first file; the arrow keys go round the ring; Escape closes search and every file goes home.
+- **Typing**: each letter asks at once; the files move only once typing pauses (`--dur-move`). Files that still match stay, new ones fly out, those that don't go home. An empty box sends everything home.
+- **Still**: no flight and no lean; the files, the lit planets and the rest stepped back are simply there.
+- **Cost** (Chrome with the real graphics chip, 1440 by 900 at two pixels a point): 60 pictures a second while the files fly, while gathered and going home, no long tasks; the page and drawing cost less gathered than search's list did. Not measured in real Safari.
 
 ### Offer
 

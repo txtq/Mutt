@@ -293,14 +293,18 @@ document.addEventListener('keydown', (e) => {
   const at = document.activeElement;
   // Where Tab writes (a document's page), it is the writer's.
   if (at?.isContentEditable && layer.contains(at)) return;
-  const stops = [...layer.querySelectorAll(CAN_FOCUS)].filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert]'));
+  // A layer may own something drawn elsewhere on the page (`tabsWith`: search, the files it gathered round
+  // the void): its stops come after the layer's own.
+  const own = (q) => [...layer.querySelectorAll(q), ...(layer.tabsWith?.isConnected ? layer.tabsWith.querySelectorAll(q) : [])];
+  const inside = (el) => layer.contains(el) || !!layer.tabsWith?.contains(el);
+  const stops = own(CAN_FOCUS).filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert]'));
   if (!stops.length) return;
   e.preventDefault();
   const back = e.shiftKey;
   let next;
   if (stops.includes(at)) {
     next = stops[(stops.indexOf(at) + (back ? -1 : 1) + stops.length) % stops.length];
-  } else if (layer.contains(at)) {   // on something in the layer that isn't a stop: the nearest stop that way
+  } else if (inside(at)) {   // on something in the layer that isn't a stop: the nearest stop that way
     const ahead = stops.filter((el) => at.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
     const behind = stops.filter((el) => !ahead.includes(el));
     next = back ? behind[behind.length - 1] || stops[stops.length - 1] : ahead[0] || stops[0];

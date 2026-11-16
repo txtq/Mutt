@@ -1031,7 +1031,7 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
 @media (pointer: coarse) {
   .slider-track { height: var(--h-large); }   /* the channel and knob keep their look; the area to slide is 40 */
   :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go is placed already */
-  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
+  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .gx-found-file, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
     content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, var(--h-large)); height: max(100%, var(--h-large)); transform: translate(-50%, -50%);
   }
   /* in a row of them, only upward and downward: sideways belongs to the neighbour */
@@ -1498,7 +1498,7 @@ body.no-chrome #view { padding: 0; }
   cursor: grab;
 }
 .gx-stars .star { width: var(--chip); height: var(--chip); }
-.gx-scene.is-live .star { transition: transform var(--dur-scene) var(--ease-settle); }
+.gx-scene.is-live .star { transition: transform var(--dur-scene) var(--ease-settle), opacity var(--dur-change); }
 /* A star is the file's own face, in three states (DESIGN.md "Stars"):
    a card, lit from the void's light (--out points away from it), tilted a little as if
    caught in the swirl (--tilt) and smaller and dimmer further out (--near, 1 beside the void);
@@ -1613,6 +1613,21 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .gx-sky { transition: opacity var(--dur-arrive) var(--ease-settle); }
 .world.is-far .gx-fig-name, .world.is-far .gx-fig-offer { opacity: 0; pointer-events: none; }
 .gx-fig-name, .gx-fig-offer { transition: opacity var(--dur-move) var(--ease-settle); }
+/* ---- Search as gravity (gravity.js; DESIGN.md "Search"): what a search found sits round the void
+   as stars do, each a .star at (--x, --y) from the void's middle; the planets it came from stay lit
+   (.is-found) and everything else steps back. A star that was found leaves its own place (.is-lifted). */
+.gx-found { position: absolute; left: 0; top: 0; z-index: 3; width: 0; height: 0; }
+.gx-scene .gx-found .star { translate: var(--x) var(--y); transition: translate var(--dur-move) var(--ease-glide); }
+.gx-found-more { position: absolute; left: 0; top: 0; translate: -50% var(--y); white-space: nowrap; }
+.gx-found-lines { position: absolute; left: 0; top: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; pointer-events: none; opacity: 0; transition: opacity var(--dur-move); }
+.gx-found-lines.is-on { opacity: 1; }
+.gx-found-lines path { fill: none; stroke: var(--line-3); stroke-width: 1; stroke-linecap: round; }
+.gx-scene.is-seeking .gx-field .planet:not(.is-found),
+.gx-scene.is-seeking .gx-stars .star,
+.gx-scene.is-seeking :is(.gx-threads, .gx-thread-notes) { opacity: 0.36; }
+.gx-scene .gx-stars .star.is-lifted { opacity: 0; pointer-events: none; }
+/* on a touch screen a found file's ::after is its room for a fingertip, not the void's light */
+@media (pointer: coarse) { .gx-scene .gx-found-file::after { inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); background: none; } }
 
 /* ------------------------------------------------------------------ planets */
 
@@ -1630,7 +1645,7 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
 }
-.gx-scene.is-live .planet { transition: transform var(--dur-scene) var(--ease-settle); }
+.gx-scene.is-live .planet { transition: transform var(--dur-scene) var(--ease-settle), opacity var(--dur-change); }
 /* being moved: it follows the pointer, lifted a little */
 .gx-scene .planet.is-moving { z-index: 7; transition: none; }
 .planet.is-moving .planet-body { transform: scale(1.06); }

@@ -9,7 +9,7 @@ import { COLORS, TRAITS, arrange, ensureLooks } from './look.js';
 import { nav } from './nav.js';
 import { planetEl } from './planets.js';
 import { openPopover } from './ui.js';
-import { debounce, h, nameColor, nameMatch } from './util.js';
+import { DUR, debounce, h, nameColor, nameMatch } from './util.js';
 import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- what can be picked
@@ -157,14 +157,31 @@ function parse(text, all) {
 
 let measured = false; // older pictures get measured once a visit
 
+// A file opened from what search gathered on a galaxy: what was typed, so closing the file brings
+// search back as it was (statusbar.js reopens it; leaving the page forgets it).
+let held = null;
+export const heldSearch = () => !!held;
+export const dropHeldSearch = () => { held = null; };
+// How many files gather round the void (gravity.js CAP); a phone is a galaxy under 640 wide.
+const capFor = () => (innerWidth < 640 ? 8 : 12);
+
 // Everyone else's username, fetched once a visit, so you can jump to a galaxy.
 let everyone = null;
 const loadEveryone = () => (everyone ||= api.get('/api/users').then((r) => r.users).catch(() => { everyone = null; return []; }));
 
-export function searchBody(close) {
-  const state = { kind: [], ext: [], when: null, color: null, vibe: [], sort: null };
+// `here` is the page search opened on. On a galaxy (`here.seek`), what it finds doesn't come as a list:
+// it lifts off the planets and gathers round the void (gravity.js), and someone else's galaxy is
+// searched for their files. Elsewhere it is the list.
+export function searchBody(close, { here = null, sheetEl = null } = {}) {
+  const again = held;
+  held = null;
+  const state = again?.state || { kind: [], ext: [], when: null, color: null, vibe: [], sort: null };
+  const seek = here?.seek || null;
+  const theirs = seek && !seek.mine ? seek.owner : null;
+  const blank = theirs ? `Search ${seek.name || `@${theirs}`}’s planets and people` : 'Search your planets, stars and people';
 
-  const input = h('input', { class: 'search-input', type: 'search', placeholder: 'Search your planets, stars and people', 'aria-label': 'Search', autocomplete: 'off', enterkeyhint: 'search' });
+  const input = h('input', { class: 'search-input', type: 'search', placeholder: blank, 'aria-label': theirs ? `Search ${seek.name || `@${theirs}`}’s planets` : 'Search', autocomplete: 'off', enterkeyhint: 'search' });
+  if (again) input.value = again.text;
   const chipsEl = h('span', { class: 'search-chips' });
   const box = h('label', { class: 'field field-search sheet-search' }, icon('search'), chipsEl, input);
   const options = h('div', { class: 'search-options' });
@@ -202,7 +219,7 @@ export function searchBody(close) {
 
   function paint() {
     const list = chips();
-    input.placeholder = list.length ? 'Add words…' : 'Search your planets, stars and people';
+    input.placeholder = list.length ? 'Add words…' : blank;
     chipsEl.replaceChildren(...list.map((c) => h('span', { class: 'chip' },
       c.dot ? h('i', { class: 'chip-dot', style: { '--c': c.dot } }) : null,
       c.label,
@@ -303,7 +320,9 @@ export function searchBody(close) {
     return true;
   }
 
+  let typedAt = 0;
   input.addEventListener('input', () => {
+    typedAt = performance.now();
     absorb(false);
     run();
   });
@@ -314,6 +333,10 @@ export function searchBody(close) {
       const top = matchPeople()[0];
       if (top && /^@/.test(input.value.trim())) { visit(top); return; }
       if (absorb(true)) run.now();
+    } else if (e.key === 'ArrowDown' && grav?.active) {
+      // on a galaxy, straight to the files round the void (Tab gets there too, past the choices)
+      e.preventDefault();
+      grav.el.querySelector('.gx-found-file')?.focus();
     } else if (e.key === 'Backspace' && !input.value && input.selectionStart === 0) {
       const last = chips().pop();
       if (last) { e.preventDefault(); last.drop(); changed(); }
@@ -338,6 +361,7 @@ export function searchBody(close) {
     if (state.vibe.length) p.set('vibe', state.vibe.join(','));
     if (state.sort && state.sort !== 'color') p.set('sort', state.sort);
     if (offset) p.set('offset', offset);
+    if (theirs) p.set('of', theirs);
     return p;
   }
 
@@ -347,6 +371,13 @@ export function searchBody(close) {
   async function fetchPage(more) {
     const mine = ++n;
     const offset = more ? loaded.length : 0;
+    // On a galaxy, nothing asked is nothing gathered: the files go home.
+    if (seek && !anything()) {
+      loaded = [];
+      listOpen = false;
+      show([], false);
+      return;
+    }
     try {
       const data = await api.get(`/api/search?${query(offset)}`);
       if (mine !== n) return;
@@ -377,16 +408,29 @@ export function searchBody(close) {
   h('span', { class: 'search-person-go' }, 'Galaxy', icon('chevron-right', 12)));
 
   let planets = [];
+  let planetIds = [];
   let lastMore = false;
+  let listOpen = false;   // on a galaxy: "+N more" pressed, so the rest show as the list
+  let shownCap = 0;
+  // A window narrowed to a phone's width (or widened) changes how many fly.
+  const resized = () => { if (seek && capFor() !== shownCap) show(null); };
+  addEventListener('resize', resized);
   function show(drawers, more = lastMore) {
     lastMore = more;
-    if (drawers) planets = drawers.map((d) => {
-      const el = planetEl(d, { size: 40 });
-      el.classList.add('planet-mini');
-      el.addEventListener('click', close);
-      return el;
-    });
-    const list = state.sort === 'color' ? arrange(loaded, 'color') : loaded;
+    if (drawers) {
+      planetIds = drawers.map((d) => d.id);
+      planets = drawers.map((d) => {
+        const el = planetEl(d, { size: 40 });
+        el.classList.add('planet-mini');
+        el.addEventListener('click', close);
+        return el;
+      });
+    }
+    const all = state.sort === 'color' ? arrange(loaded, 'color') : loaded;
+    const cap = capFor();
+    shownCap = cap;
+    if (seek) gather(all.slice(0, cap), all.length - cap, more, all.slice(cap).flatMap((b) => b.on || []));
+    const list = seek ? (listOpen ? all.slice(cap) : []) : all;
     const files = list.map((b) => {
       const cell = renderCell(b, { actions: false });
       cell.addEventListener('click', () => { close(); nav.openBlock(b.id); });
@@ -403,14 +447,47 @@ export function searchBody(close) {
         h('p', { class: 'search-label' }, 'People'), h('div', { class: 'search-people-row' }, people.map(personEl))) : null,
       planets.length ? h('div', { class: 'search-planets' }, planets) : null,
       files.length ? h('div', { class: 'grid search-grid' }, files) : null,
-      more ? h('div', { class: 'search-more' }, h('button', { type: 'button', class: 'btn', onclick: () => fetchPage(true) }, 'Show more')) : null,
-      !planets.length && !files.length && !people.length ? h('p', { class: 'search-none' }, anything() ? 'Nothing out there like that.' : 'Nothing here yet.') : null,
+      more && (!seek || listOpen) ? h('div', { class: 'search-more' }, h('button', { type: 'button', class: 'btn', onclick: () => fetchPage(true) }, 'Show more')) : null,
+      !planets.length && !all.length && !people.length && (anything() || !seek) ? h('p', { class: 'search-none' }, anything() ? 'Nothing out there like that.' : 'Nothing here yet.') : null,
     ].filter(Boolean));
   }
 
-  const later = debounce(() => fetchPage(false), 180);
-  const run = () => later();
-  run.now = () => fetchPage(false);
+  // Each letter asks at once (an older answer arriving late is dropped: `n`).
+  const run = () => fetchPage(false);
+  run.now = run;
+
+  // ------------------------------------------------------------ on a galaxy: gravity
+
+  let grav = null;
+  let holding = false;
+  let gatherTimer = 0;
+  // The files fly only once typing pauses (--dur-move after the last letter); asking never waits.
+  function gather(blocks, rest, more, alsoLit = []) {
+    clearTimeout(gatherTimer);
+    if (!grav && !blocks.length && !planetIds.length && !seek.gathered?.()) return;   // nothing to gather, nothing to fetch
+    const since = performance.now() - typedAt;
+    if (since < DUR.move) { gatherTimer = setTimeout(() => gather(blocks, rest, more, alsoLit), DUR.move - since); return; }
+    seek.gravity().then(async (g) => {
+      if (!g || !results.isConnected) return;
+      grav = g;
+      if (sheetEl) sheetEl.tabsWith = g.el;
+      // out in the universe on the way back in: it gathers once the galaxy is in view
+      for (let i = 0; seek.away() && i < 40 && results.isConnected; i++) await new Promise((r) => setTimeout(r, DUR.quick));
+      if (!results.isConnected) return;
+      if (!blocks.length && !planetIds.length) { g.clear(); return; }
+      const label = rest > 0 ? (more ? `More than ${rest}` : `+${rest} more`) : null;
+      g.show(blocks, {
+        planets: [...planetIds, ...alsoLit],
+        more: listOpen ? null : label,
+        open: (b) => { holding = true; held = { text: input.value, state }; close(); nav.openBlock(b.id); },
+        onMore: () => {
+          listOpen = true;
+          show(null);
+          requestAnimationFrame(() => results.querySelector('.cell')?.focus());
+        },
+      });
+    });
+  }
 
   // Older pictures haven't had their colours and vibes read; do that quietly.
   if (!measured) {
@@ -424,5 +501,13 @@ export function searchBody(close) {
   paint();
   run.now();
   setTimeout(() => input.focus(), 60);
-  return h('div', { class: 'sheet-in' }, box, options, results);
+  const body = h('div', { class: 'sheet-in' }, box, options, results);
+  // Search closed: what it gathered goes home, unless a file was opened from it.
+  body.onLeave = () => {
+    clearTimeout(gatherTimer);
+    removeEventListener('resize', resized);
+    if (!holding) grav?.clear();
+    holding = false;
+  };
+  return body;
 }

@@ -1346,6 +1346,7 @@ class Galaxy {
     this.nearStars(this.pointer);
 
     this.starsEl.style.setProperty('--chip', `${m.chip}px`);
+    this.found?.place();
 
     // The runway below: how far you scroll to get out to the universe.
     this.travel = Math.round(Math.max(1000, viewH * 2.2));
@@ -2416,6 +2417,26 @@ class Galaxy {
     });
   }
 
+  // Search as gravity (gravity.js): fetched the first time someone searches on this galaxy.
+  gravity() {
+    this.foundLoad ||= import('../gravity.js').then(({ Gravity }) => {
+      if (!this.el.isConnected) return null;
+      this.found = new Gravity({
+        layer: this.coreWrap,
+        scene: this.scene,
+        mine: this.mine,
+        center: () => this.void.center(),
+        hole: () => this.void.radius(),
+        chip: () => this.m.cell,
+        narrow: () => this.m.narrow,
+        planets: () => this.planetEls,
+        star: (id) => (this.mine ? this.starsEl.querySelector(`.star[data-id="${CSS.escape(id)}"]`) : null),
+      });
+      return this.found;
+    });
+    return this.foundLoad;
+  }
+
   inst() {
     return {
       el: this.el,
@@ -2424,7 +2445,18 @@ class Galaxy {
       who: { username: this.owner, name: this.ownerName, you: this.mine },
       home: !this.mine,
       goHome: this.mine ? () => this.goHome() : () => this.back(),
-      list: () => this.stars,
+      // the file view's arrows walk through what a search found, while it is round the void
+      list: () => this.found?.list() || this.stars,
+      // search (search.js) gathers what it finds here, unless you are out in the universe
+      seek: {
+        mine: this.mine,
+        owner: this.owner,
+        name: this.ownerName,
+        away: () => this.p > 0.02,
+        home: () => (this.mine ? this.goHome() : nav.go('/')),
+        gravity: () => this.gravity(),
+        gathered: () => !!this.found?.active,
+      },
       dropTarget: () => this.dropTarget(),
       pasteText: (text) => { if (this.p < 0.5) this.hole?.focusText(text); },
       mounted: ({ moved = false } = {}) => {
@@ -2471,6 +2503,7 @@ class Galaxy {
         this.joinTip?.remove();
         theSky()?.setLens(null);
         this.void.destroy();
+        this.found?.destroy();
         theSky()?.setNight(0);
         holdPlanets(false);
         bus.emit('universe', false);

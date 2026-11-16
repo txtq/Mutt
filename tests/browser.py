@@ -729,7 +729,10 @@ def send_to_top(s, seeded):
         const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
           body: JSON.stringify(body) }).then((r) => r.json());
         const { drawer } = await post('/api/drawers', { title: 'Jottings' });
-        for (let n = 1; n <= 14; n++) await post('/api/blocks', { content: `Thought number ${n}, written down so it is not lost.`, drawer: drawer.id });
+        for (let n = 1; n <= 13; n++) await post('/api/blocks', { content: `Thought number ${n}, written down so it is not lost.`, drawer: drawer.id });
+        // the last is a file, not a note: every file can be sent
+        await fetch(`/api/upload?drawer=${drawer.id}&name=photos.zip`, { method: 'POST', headers: { 'Content-Type': 'application/zip', 'X-Mutt': '1' },
+          body: 'PK' });
         return drawer.id;
       })()''')
     s.go(f'/p/{made}')
@@ -741,7 +744,7 @@ def send_to_top(s, seeded):
         return cell.dataset.id;'''
     rows = 'return [...document.querySelectorAll(".menu [role=menuitem], .menu button")].map((b) => b.textContent.trim())'
     last = s.js(menu, 13)
-    s.wait(f'{rows}.includes("Send to top")', 'the last note\'s right-click menu has no "Send to top"')
+    s.wait(f'{rows}.includes("Send to top")', 'the last file\'s right-click menu has no "Send to top"')
     s.shot('send-to-top-menu')
     s.click(s.named('.menu button, .menu [role=menuitem]', 'Send to top', 'no "Send to top" row to press'))
     s.wait('return document.querySelector(".cell[data-id]").dataset.id === arguments[0]',

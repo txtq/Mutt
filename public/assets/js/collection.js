@@ -241,11 +241,10 @@ export class Collection {
     blockContextMenu(e, cell, block, { drawer: this.drawer, open, worlds, extra: this.sendItems(block, cell) });
   }
 
-  // A note or document on a planet you arrange by hand can jump to the top
-  // (from the third row down) or to the bottom (from the first two rows).
+  // Any file on a planet you arrange by hand can jump to the top (from the
+  // third row down) or to the bottom (from the first two rows).
   sendItems(block, cell) {
     if (!this.drawer || this.sort !== 'manual' || !this.grid.sortable) return [];
-    if (!['text', 'doc', 'pdf'].includes(block.kind)) return [];
     const list = this.list();
     if (list.length < 2) return [];
     const tops = [...new Set([...this.grid.el.children]

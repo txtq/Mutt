@@ -1,7 +1,7 @@
 #!/bin/bash
 # Comments on files: anyone who can see a file can comment; its owner can
 # remove any comment, a writer can take theirs back; nobody else can.
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1); A=(-b "$SP/a.txt" -c "$SP/a.txt"); V=(-b "$SP/v.txt" -c "$SP/v.txt"); X=(-b "$SP/x.txt" -c "$SP/x.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 for who in "A owner 482193" "V visitor 135793" "X other 246893"; do set -- $who; eval "curl -s \"\${$1[@]}\" \"\${J[@]}\" -X POST $B/api/auth/signup -d '{\"username\":\"$2\",\"pin\":\"$3\"}' >/dev/null"; done

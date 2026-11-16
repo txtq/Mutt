@@ -2,7 +2,7 @@
 # Wrong codes: someone guessing from one place locks only themselves out;
 # many places together close the account to new browsers but not the owner's.
 # Also: uploaded HTML and SVG come back as harmless text or sandboxed.
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 source "$(dirname "$0")/lib.sh"
 J=(-H Content-Type:application/json -H X-Mutt:1); O=(-b "$SP/o.txt" -c "$SP/o.txt")
 rm -f "$SP/o.txt"

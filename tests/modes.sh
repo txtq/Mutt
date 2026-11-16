@@ -4,7 +4,7 @@
 # mode on at the higher one and keeps it down to the lower one. Then the
 # moment modes (what's being written right now).
 # (No {a, b} in the python snippets: old bash expands braces inside $(...).)
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"maker","pin":"482193"}' >/dev/null

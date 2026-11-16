@@ -1,7 +1,7 @@
 #!/bin/bash
 # Search filters: kind, extension, dates, colour, vibes, sort, paging, and the
 # list of pictures still to be measured.
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt")
 rm -f "$SP/c.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }

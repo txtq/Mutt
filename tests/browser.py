@@ -24,7 +24,10 @@ Seed what it needs in `seed()` so it never leans on another path.
 import base64, http.cookiejar, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PORT, DRIVER_PORT = 8098, 4498
+# This run's own ports (tests/ports.py): with fixed ones, a second session's run
+# would drive the first one's server and browser driver.
+from ports import free_ports
+PORT, DRIVER_PORT = free_ports(2)
 SITE = f'http://localhost:{PORT}'
 SHOTS = os.path.join(HERE, 'shots', 'latest')
 ELEMENT = 'element-6066-11e4-a52e-4f735466cecf'

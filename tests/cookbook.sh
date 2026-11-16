@@ -1,7 +1,7 @@
 #!/bin/bash
 # Cookbook mode: which planets are offered it, reading recipe notes into cards,
 # saving a card (the note is rewritten), chapters, the dish photo, visitors.
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt"); V=(-b "$SP/v.txt" -c "$SP/v.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 note() { python3 -c "import json,sys; print(json.dumps({'content': sys.argv[1], 'drawer': sys.argv[2]}))" "$1" "$2" |

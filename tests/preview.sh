@@ -1,5 +1,5 @@
 #!/bin/bash
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1); A=(-b "$SP/pa.txt" -c "$SP/pa.txt"); U=(-b "$SP/pb.txt" -c "$SP/pb.txt")
 rm -f "$SP/pa.txt" "$SP/pb.txt"
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
@@ -15,7 +15,7 @@ echo "preview again (already done): $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api
 echo "bo asks for alma's preview: $(curl -s -o /dev/null -w '%{http_code}' "${U[@]}" "${J[@]}" -X POST $B/api/blocks/$ID/preview)"
 T=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"just words"}' | j "d['block']['id']")
 echo "preview on text does nothing: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$T/preview | j "d['block']['meta'].get('shot')")"
-P=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"http://127.0.0.1:8099/"}' | j "d['block']['id']")
+P=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d "{\"content\":\"http://127.0.0.1:${B##*:}/\"}" | j "d['block']['id']")
 sleep 3
 echo "local address gets no picture: $(curl -s "${A[@]}" $B/api/blocks/$P | j "d['block']['meta'].get('shot')")"
 echo "edit text: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$T -d '{"content":"new words"}' | j "d['block']['content']")  empty: $(curl -s -o /dev/null -w '%{http_code}' "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$T -d '{"content":"   "}')"

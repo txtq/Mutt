@@ -16,12 +16,14 @@ failure, reported as: label, what it should be, what came back. Ids and times ar
 masked before comparing. A suite can also print "RULE BROKEN: ..." (tests/lib.sh).
 """
 import difflib, os, re, shutil, subprocess, sys, tempfile, time, urllib.request
+from ports import answering, free_ports
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 API = ['smoke', 'galaxy', 'preview', 'lockout', 'search', 'autosort', 'moons',
        'books', 'docs', 'cookbook', 'comments', 'modes']
-PORT = 8099
+PORT = free_ports(1)[0]          # this run's own, so two worktrees testing at once never meet
+os.environ['MUTT_TEST_PORT'] = str(PORT)   # the suites read it (B=localhost:$MUTT_TEST_PORT)
 MAX_SHOWN = 12   # failures printed per suite, so a broken run stays cheap to read
 
 MASKS = [
@@ -49,6 +51,8 @@ def answer(line):
 
 
 def start_server(work, port=PORT):
+    if answering(port):
+        raise SystemExit(f'Port {port} is already taken by something else; run the checks again.')
     env = dict(os.environ, MUTT_SEE='0', MUTT_CONVERT='0', MUTT_TRUST_PROXY='1', MUTT_ADMIN='boss', MUTT_ADMIN_KEY='test-admin-key',
                MUTT_DATA_DIR=os.path.join(work, 'data'), PORT=str(port))
     log = open(os.path.join(work, 'server.log'), 'w')
@@ -56,7 +60,9 @@ def start_server(work, port=PORT):
     for _ in range(60):
         try:
             urllib.request.urlopen(f'http://localhost:{port}/api/health', timeout=1).read()
-            return proc
+            if proc.poll() is None:   # it's this run's server answering, not someone else's
+                return proc
+            break
         except Exception:
             time.sleep(0.1)
     proc.kill()

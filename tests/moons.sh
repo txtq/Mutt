@@ -1,6 +1,6 @@
 #!/bin/bash
 # Moons: small planets that belong to a planet.
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1)
 A=(-b "$SP/ma.txt" -c "$SP/ma.txt"); U=(-b "$SP/mb.txt" -c "$SP/mb.txt")
 rm -f "$SP/ma.txt" "$SP/mb.txt"

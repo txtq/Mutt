@@ -1,5 +1,5 @@
 #!/bin/bash
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 . "$(dirname "$0")/lib.sh"
 J=(-H Content-Type:application/json -H X-Mutt:1)
 A=(-b "$SP/ga.txt" -c "$SP/ga.txt"); U=(-b "$SP/gb.txt" -c "$SP/gb.txt"); W=(-b "$SP/gc.txt" -c "$SP/gc.txt")

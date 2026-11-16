@@ -1,7 +1,7 @@
 #!/bin/bash
 # Reading mode: which planets are offered it, what a book's insides look like
 # to the reader, and saving where you are, highlights and a PDF's reading format.
-SP="$1"; B=localhost:8099
+SP="$1"; B=localhost:${MUTT_TEST_PORT:-8099}
 J=(-H Content-Type:application/json -H X-Mutt:1); C=(-b "$SP/c.txt" -c "$SP/c.txt"); O=(-b "$SP/o.txt" -c "$SP/o.txt")
 j() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 python3 tests/make_books.py "$SP" >/dev/null

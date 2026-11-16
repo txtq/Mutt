@@ -18,7 +18,7 @@ import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
 import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
 import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
-import { beads, beadsRun, paintWeb } from '../uvweb.js';
+import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
 
@@ -685,12 +685,12 @@ function blurCopy(el, voidPic) {
 
 // Where every galaxy sits on the map, round yours (`home`), and how far the
 // camera pulls back to fit them all on screen.
-function universeLayout(plans, home, width, viewH, names, near) {
+function universeLayout(plans, home, width, viewH, names, near = [], pairs = []) {
   // Names stay one size however far out, so the spacing keeps room for
   // them at the scale the map is drawn at: look for the largest scale at
   // which the map, names and all, still fits the screen.
   const size = width < 640 ? LABEL.narrow : LABEL.wide;
-  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k }, names, near);
+  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k }, names, near, pairs);
   let lo = K_MIN;
   let hi = K_MAX;
   let best = at(lo);
@@ -711,12 +711,14 @@ const LABEL = { wide: { x: 150, y: 46 }, narrow: { x: 96, y: 26 } };
 
 // The map: galaxies in loose rows, centred like lines of a poem, with yours
 // in the middle of the middle row. The galaxies you visit and save files
-// from (`near`, from the server) are drawn closest round yours, the
-// strongest pull nearest; everyone else fills the places left A to Z in
-// reading order. Each row is as tall as its tallest galaxy and its name;
-// the number of rows is whichever fits this screen's shape best, so nobody
-// is drawn smaller than they need to be.
-function spreadUniverse(plans, home, width, viewH, label, names = [], near = []) {
+// from (`near`, from the server) take the places closest round yours, the
+// strongest pull nearest. Galaxies that share files (`pairs`: { i, j, n })
+// are then seated beside those they share with (`seat`); everyone else fills
+// the places left A to Z in reading order, and sharers are drawn a little
+// closer where there's room (`gather`). Each row is as tall as its tallest
+// galaxy and its name; the number of rows is whichever fits this screen's
+// shape best, so nobody is drawn smaller than they need to be.
+function spreadUniverse(plans, home, width, viewH, label, names = [], near = [], pairs = []) {
   const n = plans.length;
   const narrow = width < 640;
   // A phone has little room to spare; a computer keeps space round the map.
@@ -753,20 +755,23 @@ function spreadUniverse(plans, home, width, viewH, label, names = [], near = [])
     const sizes = Array.from({ length: count }, (_, r) => (r < count - 1 ? per : n - per * (count - 1)));
     const mid = (count - 1) >> 1;
     const grid = sizes.map((len, r) => Array.from({ length: len }, (_, c) => (r === mid && c === (len - 1) >> 1 ? home : null)));
-    const cells = [];
-    grid.forEach((row, r) => row.forEach((v, c) => { if (v == null) cells.push({ r, c }); }));
-    others.forEach((g, i) => { grid[cells[i].r][cells[i].c] = g; });
-    if (!close.length) return grid;
-    // The places nearest yours on the map go to the strongest pulls; the
-    // rest keep their A to Z order in the places left.
-    const spots = place(grid);
-    const at = spots[home];
-    const far = (cell) => { const s = spots[grid[cell.r][cell.c]]; return Math.hypot(s.x - at.x, s.y - at.y); };
-    const order = cells.map((cell, i) => ({ i, d: far(cell) })).sort((a, b) => a.d - b.d || a.i - b.i);
-    const taken = new Set(order.slice(0, close.length).map((o) => o.i));
-    close.forEach((g, j) => { const cell = cells[order[j].i]; grid[cell.r][cell.c] = g; });
-    const queue = others.filter((g) => !(pull(g) > 0));
-    cells.forEach((cell, i) => { if (!taken.has(i)) grid[cell.r][cell.c] = queue.shift(); });
+    const queue = others.slice();
+    if (close.length) {
+      // The places nearest yours on the map go to the strongest pulls
+      // (measured with everyone seated A to Z, since a place's spot depends
+      // on the galaxies in its row).
+      const cells = [];
+      grid.forEach((row, r) => row.forEach((v, c) => { if (v == null) cells.push({ r, c }); }));
+      others.forEach((g, i) => { grid[cells[i].r][cells[i].c] = g; });
+      const spots = place(grid);
+      const at = spots[home];
+      const far = (cell) => { const s = spots[grid[cell.r][cell.c]]; return Math.hypot(s.x - at.x, s.y - at.y); };
+      const order = cells.map((cell, i) => ({ i, d: far(cell) })).sort((a, b) => a.d - b.d || a.i - b.i);
+      cells.forEach((cell) => { grid[cell.r][cell.c] = null; });
+      close.forEach((g, j) => { const cell = cells[order[j].i]; grid[cell.r][cell.c] = g; queue.splice(queue.indexOf(g), 1); });
+    }
+    seat(grid, queue, home, pairs);
+    for (const row of grid) row.forEach((v, c) => { if (v == null) row[c] = queue.shift(); });
     return grid;
   };
   const measure = (grid) => {
@@ -782,6 +787,7 @@ function spreadUniverse(plans, home, width, viewH, label, names = [], near = [])
     if (per === 1 || s.k > size.k * 1.001) { grid = g; size = s; }
   }
   const spots = place(grid);
+  gather(spots, pairs, home, (i) => ({ w: wide(i), top: plans[i].ey, bottom: plans[i].ey + label.y }), Math.min(gx, gy) * 0.5);
   // Fit the whole map, centred below the heading, with room round it for
   // the names, which stay one size however far out.
   let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
@@ -795,10 +801,130 @@ function spreadUniverse(plans, home, width, viewH, label, names = [], near = [])
   return { spots, k, mid };
 }
 
+// Galaxies that share files sit side by side. Starting from yours, the one
+// sharing most with those already seated takes the free place nearest them
+// (weighted by how much they share); a group that shares nothing with yours
+// starts at the first free place in reading order. Taken from `queue`, so the
+// rest still fill in A to Z.
+function seat(grid, queue, home, pairs) {
+  if (!pairs.length) return;
+  const at = new Map();
+  grid.forEach((row, r) => row.forEach((v, c) => { if (v != null) at.set(v, { r, c }); }));
+  const pos = ({ r, c }) => ({ x: c - (grid[r].length - 1) / 2, y: r });
+  const share = (i) => pairs.filter((p) => p.i === i || p.j === i).map((p) => ({ other: p.i === i ? p.j : p.i, n: p.n }));
+  const free = () => grid.flatMap((row, r) => row.map((v, c) => (v == null ? { r, c } : null))).filter(Boolean);
+  const linked = queue.filter((i) => i !== home && share(i).length);
+  while (linked.length) {
+    // the one that shares most with those already seated (A to Z on a tie: `linked` keeps that order)
+    let best = 0;
+    let most = -1;
+    linked.forEach((i, k) => {
+      const n = share(i).reduce((t, s) => t + (at.has(s.other) ? s.n : 0), 0);
+      if (n > most) { most = n; best = k; }
+    });
+    const i = linked.splice(best, 1)[0];
+    const spots = free();
+    if (!spots.length) break;
+    let cell = spots[0];
+    if (most > 0) {
+      let cost = Infinity;
+      for (const f of spots) {
+        const p = pos(f);
+        const d = share(i).reduce((t, s) => {
+          const o = at.get(s.other);
+          return o ? t + s.n * Math.hypot(p.x - pos(o).x, p.y - pos(o).y) : t;
+        }, 0);
+        if (d < cost - 1e-6) { cost = d; cell = f; }
+      }
+    }
+    grid[cell.r][cell.c] = i;
+    at.set(i, cell);
+    queue.splice(queue.indexOf(i), 1);
+  }
+}
+
+// Then each pair is drawn a little closer, a few times over, as long as it
+// lands clear of every other galaxy and its name. Yours stays put, so the
+// map is the same wherever you zoom out from.
+function gather(spots, pairs, home, box, pad) {
+  const rect = (i, s = spots[i]) => {
+    const b = box(i);
+    return { x0: s.x - b.w / 2, x1: s.x + b.w / 2, y0: s.y - b.top, y1: s.y + b.bottom };
+  };
+  const clearOf = (i, s) => spots.every((_, j) => j === i || !overlaps(rect(i, s), rect(j), pad));
+  for (let round = 0; round < 4; round++) {
+    for (const { i, j, n } of pairs) {
+      const a = spots[i];
+      const b = spots[j];
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      if (d < 1) continue;
+      // the more they share, the closer (up to a fifth of the way each round)
+      const pull = d * Math.min(0.2, 0.08 + 0.03 * n);
+      const ux = (b.x - a.x) / d;
+      const uy = (b.y - a.y) / d;
+      for (const [k, dir] of [[i, 1], [j, -1]]) {
+        if (k === home) continue;
+        const share = i === home || j === home ? 1 : 0.5;
+        const next = { x: spots[k].x + ux * pull * share * dir, y: spots[k].y + uy * pull * share * dir };
+        if (clearOf(k, next)) spots[k] = next;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- threads
+
+// A thread between two planets that share files: a gentle curve that bows
+// away from the void (so it never crosses it), from the edge of one globe to
+// the edge of the other. `a` and `b` are { x, y, r } in the scene; `v` is the
+// void's middle and `inner` the oval round it that planets keep clear of.
+const THREAD_GAP = 6;
+// How strong the wisps' dots are, dimmest to brightest (the dots, never their size, make it brighter)
+const WISP_SHADES = [0.1, 0.2, 0.34, 0.52];
+const THREAD_NOTE = 20;
+function threadCurve(a, b, v, inner, frame) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < a.r + b.r + THREAD_GAP * 3) return null;
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  // How far to bow toward one side (sign 1 or -1) before the curve's middle (halfway to its
+  // control point) clears the void, kept inside the page; `clear` says whether it got there.
+  const bow = (sign) => {
+    const nx = (-dy / len) * sign;
+    const ny = (dx / len) * sign;
+    const at = (bend) => ({ x: mx + (nx * bend) / 2, y: my + (ny * bend) / 2 });
+    const free = (q) => ((q.x - v.x) / inner.rx) ** 2 + ((q.y - v.y) / inner.ry) ** 2 >= 1.15;
+    const inside = (q) => q.x >= frame.x0 && q.x <= frame.x1 && q.y >= frame.y0 && q.y <= frame.y1;
+    let bend = len * 0.14;
+    for (let i = 0; i < 40 && !free(at(bend)); i++) {
+      if (!inside(at(bend + len * 0.06))) break;
+      bend += len * 0.06;
+    }
+    return { nx, ny, bend, clear: free(at(bend)) };
+  };
+  // the side that clears the void with the least bow; one that can't (a planet above the void
+  // and one below it on a phone) passes behind the void, which is drawn over the threads
+  const sides = [bow(1), bow(-1)].sort((p, q) => (q.clear - p.clear) || (p.bend - q.bend));
+  const { nx, ny, bend } = sides[0];
+  const c = { x: mx + nx * bend, y: my + ny * bend };
+  const edge = (p) => {
+    const ux = c.x - p.x;
+    const uy = c.y - p.y;
+    const l = Math.hypot(ux, uy) || 1;
+    return { x: p.x + (ux / l) * (p.r + THREAD_GAP), y: p.y + (uy / l) * (p.r + THREAD_GAP) };
+  };
+  const s = edge(a);
+  const e = edge(b);
+  // the count sits just off the curve's middle, on the outside of the bow, clear of its dots
+  return { s, c, e, mid: { x: (s.x + 2 * c.x + e.x) / 4 + nx * THREAD_NOTE, y: (s.y + 2 * c.y + e.y) / 4 + ny * THREAD_NOTE } };
+}
+
 // ---------------------------------------------------------------- the page
 
 class Galaxy {
-  constructor(data, list) {
+  constructor(data, list, links = []) {
     this.data = data;
     this.mine = !!data.user.you;
     this.owner = data.user.username;
@@ -806,6 +932,8 @@ class Galaxy {
     this.stars = data.stars || [];
     this.showAll = false;
     this.list = list || [ownEntry(data)];
+    // Galaxies that share files ({ a, b, n } by username): drawn closer, with a thread between.
+    this.links = links;
     // Already here when the page opens out in the universe.
     this.uvLoading = list ? Promise.resolve() : null;
     this.off = [];
@@ -840,7 +968,17 @@ class Galaxy {
     this.guidePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     this.guide.append(this.guidePath);
     this.ghost = h('div', { class: 'gx-ghost', 'aria-hidden': 'true' });
-    this.scene = h('div', { class: 'gx-scene' }, this.art, this.guide, this.ghost, this.field, this.coreWrap, this.hint);
+    // Threads between planets that share files, behind the planets, and how
+    // many files each one carries (shown while a planet at one end is pointed at).
+    this.threadsEl = h('canvas', { class: 'gx-threads', width: 0, height: 0, 'aria-hidden': 'true' });
+    this.threadNotes = h('div', { class: 'gx-thread-notes', 'aria-hidden': 'true' });
+    this.threadEls = new Map();
+    this.scene = h('div', { class: 'gx-scene' }, this.threadsEl, this.art, this.guide, this.ghost, this.field, this.threadNotes, this.coreWrap, this.hint);
+    const lightFrom = (e) => this.lightThreads(e.target.closest?.('.planet')?.planet?.id || null);
+    this.field.addEventListener('pointerover', lightFrom);
+    this.field.addEventListener('focusin', lightFrom);
+    this.field.addEventListener('pointerleave', () => this.lightThreads(null));
+    this.field.addEventListener('focusout', (e) => { if (!this.field.contains(e.relatedTarget)) this.lightThreads(null); });
     this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy` }, this.scene);
 
     // ------------------------------------------------------------ the universe below
@@ -979,6 +1117,7 @@ class Galaxy {
         swap = null;
         open = this.m.narrow ? [] : this.openFor(el.planet);
         el.classList.add('is-moving');
+        this.followThreads();
       },
       onMove: (pointer, dt) => {
         const p = toScene(pointer);
@@ -1184,6 +1323,8 @@ class Galaxy {
     this.uvStage.style.height = `${viewH}px`;
     this.placeUniverse(width, viewH, m, home);
     this.track(true);
+    // Threads follow the planets as they glide to their new places.
+    this.followThreads(this.scene.classList.contains('is-live') ? DUR.scene + DUR.quick : 0);
     // Only glide between spots once the first arrangement has landed.
     if (!this.scene.classList.contains('is-live')) requestAnimationFrame(() => requestAnimationFrame(() => this.scene.classList.add('is-live')));
   }
@@ -1276,6 +1417,128 @@ class Galaxy {
       body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, `Enter the code @${owner} gave you. It stays open for you for 12 hours.`), field.el, msg),
     });
     setTimeout(() => field.focus(), 60);
+  }
+
+  // ------------------------------------------------------------ threads
+
+  // Where a planet is drawn right now (mid-glide, or being carried), in the scene.
+  planetAt(id) {
+    const el = this.planetEls.get(id);
+    const spot = this.spots?.get(id);
+    if (!el || !spot) return null;
+    const t = getComputedStyle(el).transform;
+    const m = t && t !== 'none' ? new DOMMatrixReadOnly(t) : null;
+    return { x: m ? m.e : this.size.cx + spot.x, y: m ? m.f : this.size.cy + spot.y, r: (spot.size || el.offsetWidth) / 2 };
+  }
+
+  // Wisps of print between planets that share files: faint at rest, brighter
+  // while a planet at one end is pointed at (DESIGN.md "Threads").
+  drawThreads() {
+    if (!this.size || !this.spots) return;
+    const { width, height, cx, cy } = this.size;
+    const wanted = new Set();
+    const told = new Map();
+    this.threadCurves = [];
+    for (const t of this.data.threads || []) {
+      const a = this.planetAt(t.a);
+      const b = this.planetAt(t.b);
+      if (!a || !b) continue;
+      const key = `${t.a}:${t.b}`;
+      const curve = threadCurve(a, b, { x: cx, y: cy }, this.inner, { x0: 12, x1: width - 12, y0: 12, y1: height - 12 });
+      if (!curve) continue;
+      wanted.add(key);
+      this.threadCurves.push({ key, t, curve });
+      let note = this.threadEls.get(key);
+      if (!note) {
+        note = h('span', { class: 'gx-thread-note' });
+        this.threadEls.set(key, note);
+        this.threadNotes.append(note);
+      }
+      note.dataset.a = t.a;
+      note.dataset.b = t.b;
+      note.textContent = plural(t.n, 'file');
+      note.classList.toggle('is-on', !!this.litId && (t.a === this.litId || t.b === this.litId));
+      note.style.transform = `translate(${curve.mid.x.toFixed(1)}px, ${curve.mid.y.toFixed(1)}px)`;
+      for (const [me, other] of [[t.a, t.b], [t.b, t.a]]) {
+        const name = this.data.planets.find((p) => p.id === other)?.title;
+        if (name) told.set(me, [...(told.get(me) || []), `${plural(t.n, 'file')} with ${name}`]);
+      }
+    }
+    for (const [key, note] of this.threadEls) {
+      if (wanted.has(key)) continue;
+      note.remove();
+      this.threadEls.delete(key);
+    }
+    // Said to a screen reader on the planet itself, since the threads are only painted.
+    for (const [id, el] of this.planetEls) {
+      const says = told.get(id);
+      if (says) el.setAttribute('aria-description', `Shares ${says.join(', ')}`);
+      else el.removeAttribute('aria-description');
+    }
+    this.paintThreads();
+  }
+
+  // The wisps, on one canvas only as big as they reach (DESIGN.md "What Mutt may cost").
+  // Each is laid out from its own seed, so it is the same wisp however its planets move.
+  paintThreads() {
+    const canvas = this.threadsEl;
+    const list = this.threadCurves || [];
+    let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+    for (const { curve } of list) {
+      for (const p of [curve.s, curve.c, curve.e]) {
+        x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+      }
+    }
+    if (!list.length) { canvas.width = canvas.height = 0; return; }
+    const pad = 24;
+    x0 = Math.floor(x0 - pad); y0 = Math.floor(y0 - pad);
+    const W = Math.ceil(x1 + pad) - x0;
+    const H = Math.ceil(y1 + pad) - y0;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const pw = Math.round(W * dpr);
+    const ph = Math.round(H * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+    Object.assign(canvas.style, { left: `${x0}px`, top: `${y0}px`, width: `${W}px`, height: `${H}px` });
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, -x0 * dpr, -y0 * dpr);
+    ctx.clearRect(x0, y0, W, H);
+    const root = getComputedStyle(document.documentElement);
+    const ink = { rest: root.getPropertyValue('--thread').trim(), lit: root.getPropertyValue('--thread-on').trim() };
+    const size = 1 / dpr + 0.35;
+    for (const { key, t, curve } of list) {
+      const lit = !!this.litId && (t.a === this.litId || t.b === this.litId);
+      const buckets = WISP_SHADES.map(() => []);
+      wisp((x, y, b) => buckets[Math.max(0, Math.min(WISP_SHADES.length - 1, Math.round(b * (WISP_SHADES.length - 1))))].push(x, y),
+        seeded(`thread:${key}`), curve.s, curve.c, curve.e,
+        { strands: t.n >= 4 ? 4 : 3, width: 1.8 + Math.min(1.6, t.n * 0.35), spread: 7 + Math.min(6, t.n * 1.5), haze: 0.7 });
+      ctx.fillStyle = lit ? ink.lit : ink.rest;
+      buckets.forEach((pts, b) => {
+        ctx.globalAlpha = Math.min(1, WISP_SHADES[b] * (lit ? 1.8 : 1));
+        for (let n = 0; n < pts.length; n += 2) ctx.fillRect(pts[n], pts[n + 1], size, size);
+      });
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Redraw the threads now, and every picture for `ms` (planets gliding) or
+  // while a planet is being carried. Nothing runs when nothing moves.
+  followThreads(ms = 0) {
+    cancelAnimationFrame(this.threadFrame);
+    if (!(this.data.threads || []).length && !this.threadEls.size) return;
+    const until = performance.now() + ms;
+    const tick = () => {
+      if (!this.el.isConnected) return;
+      this.drawThreads();
+      if (performance.now() < until || this.field.querySelector('.planet.is-moving')) this.threadFrame = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  lightThreads(id) {
+    if (id === this.litId) return;
+    this.litId = id;
+    for (const note of this.threadEls.values()) note.classList.toggle('is-on', !!id && (note.dataset.a === id || note.dataset.b === id));
+    this.paintThreads();
   }
 
   // ------------------------------------------------------------ stars
@@ -1664,9 +1927,10 @@ class Galaxy {
   // moment, or as soon as you start scrolling out, whichever comes first.
   // Until then the universe holds only this one.
   loadUniverse() {
-    this.uvLoading ||= api.get('/api/galaxies').then(({ galaxies }) => {
+    this.uvLoading ||= api.get('/api/galaxies').then(({ galaxies, links }) => {
       if (!this.el.isConnected) return;
       this.list = withOwner(galaxies, this.data);
+      this.links = links || [];
       this.uvKey = null;
       if (this.size && this.homePlan) {
         this.placeUniverse(this.size.width, this.size.viewH, this.m, this.homePlan);
@@ -1690,7 +1954,11 @@ class Galaxy {
     // The map is always laid out round you, whoever's page this is, so it's
     // the same map wherever you zoom out from.
     const you = this.list.findIndex((g) => g.you);
-    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.username), this.list.map((g) => g.near || 0));
+    const index = new Map(this.list.map((g, i) => [g.username, i]));
+    const pairs = (this.links || []).map((l) => ({ i: index.get(l.a), j: index.get(l.b), n: l.n }))
+      .filter((p) => p.i != null && p.j != null && p.i !== p.j);
+    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.username),
+      this.list.map((g) => g.near || 0), pairs);
     const { height, cx, cy } = this.size;
     // Everything zooms about one point, F, chosen so that at the end the map
     // sits fitted on screen: a map point P ends at mid + k·P. At the start
@@ -1736,14 +2004,14 @@ class Galaxy {
 
     // The web behind, drawn as it looks once you're all the way out.
     const nodes = spots.map((s, i) => ({ x: mid.x + k * s.x, y: mid.y + k * s.y, r: k * Math.max(plans[i].ex, plans[i].ey) * 0.8 }));
-    const webKey = `${width}×${viewH}:${nodes.map((n) => `${Math.round(n.x)},${Math.round(n.y)}`).join(';')}`;
+    const webKey = `${width}×${viewH}:${nodes.map((n) => `${Math.round(n.x)},${Math.round(n.y)}`).join(';')}:${pairs.map((p) => `${p.i}-${p.j}-${p.n}`).join(',')}`;
     if (webKey !== this.webKey) {
       this.webKey = webKey;
       const M = 1.4;
       const W = width * M;
       const H = viewH * M;
       const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
-      const threads = paintWeb(this.webCanvas, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner);
+      const threads = paintWeb(this.webCanvas, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner, pairs);
       this.webBeads.dataset.run = this.p > 0.02 ? 'yes' : 'no';
       beads(this.webBeads, threads, reducedMotion());
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
@@ -1931,7 +2199,7 @@ class Galaxy {
       this.swapping = false;
       return;
     }
-    handoff = { data, list: this.list };
+    handoff = { data, list: this.list, links: this.links };
     nav.go('/universe', { replace: true, motion: 'none' });
   }
 
@@ -2007,6 +2275,7 @@ class Galaxy {
     this.void.art.animate([{ transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }],
       { duration: DUR.grand, easing: EASE });
     this.starsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.change, fill: 'backwards' });
+    this.threadsEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.move + Math.min(this.planetEls.size, 14) * STAGGER, fill: 'backwards' });
     [...this.planetEls.values()].forEach((p, i) => {
       p.body.animate([
         { transform: 'scale(0.85)', opacity: 0 },
@@ -2058,6 +2327,7 @@ class Galaxy {
         // A glide still under way would carry on after the page has gone,
         // waking its void and dimming the sky over the next page.
         cancelAnimationFrame(this.scrollFrame);
+        cancelAnimationFrame(this.threadFrame);
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
         this.diving = false;
@@ -2089,16 +2359,16 @@ async function loadGalaxy(username, universe) {
     api.get(mine ? '/api/galaxy' : `/api/galaxy/${encodeURIComponent(username)}`),
     universe ? api.get('/api/galaxies') : null,
   ]);
-  return { data, list: everyone && withOwner(everyone.galaxies, data) };
+  return { data, list: everyone && withOwner(everyone.galaxies, data), links: everyone?.links || [] };
 }
 
 export const galaxyView = {
   load: ([username]) => loadGalaxy(username, false),
 
-  create(params, { data, list }) {
+  create(params, { data, list, links }) {
     if (data.user.you && params[0]) queueMicrotask(() => nav.go('/', { replace: true }));
     if (data.stats) session.stats = data.stats;
-    return new Galaxy(data, list).inst();
+    return new Galaxy(data, list, links).inst();
   },
 };
 

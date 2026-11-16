@@ -100,3 +100,16 @@ echo "after reset: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['x'], p['y']) for 
 echo "near, bo (visited alma, saved one file): $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], round(g['near'], 1)) for g in d['galaxies']]")"
 echo "near, cy (visited alma): $(curl -s "${W[@]}" $B/api/galaxies | j "[(g['username'], round(g['near'], 1)) for g in d['galaxies']]")"
 echo "near, alma (visited no one): $(curl -s "${A[@]}" $B/api/galaxies | j "[(g['username'], g['near']) for g in d['galaxies']]")"
+# files on more than one planet: threads between planets, "also on", galaxies that share files
+for d in $PRIV $PPL; do curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$NPUB/connections -d "{\"drawer\":\"$d\"}"; done
+names() { j "sorted(tuple(sorted(({p['id']: p['title'] for p in d['planets']}[t['a']], {p['id']: p['title'] for p in d['planets']}[t['b']]))) + (t['n'],) for t in d['threads'])"; }
+echo "threads, own: $(curl -s "${A[@]}" $B/api/galaxy | names)"
+echo "threads bo sees (on Gifts' list, not Diary): $(curl -s "${U[@]}" $B/api/galaxy/alma | names)  cy: $(curl -s "${W[@]}" $B/api/galaxy/alma | j "d['threads']")"
+rule "a thread led to a private planet a visitor can't see" "$(curl -s "${U[@]}" $B/api/galaxy/alma | j "'$PRIV' in json.dumps(d['threads'])")" False
+also() { j "[(b['content'], [p['title'] for p in b.get('alsoOn', [])]) for b in d['blocks'] if b.get('alsoOn')]"; }
+echo "also on, own: $(curl -s "${A[@]}" $B/api/drawers/$PUB | also)  bo: $(curl -s "${U[@]}" $B/api/drawers/$PUB | also)  cy: $(curl -s "${W[@]}" $B/api/drawers/$PUB | also)"
+BOP=$(curl -s "${U[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Kept"}' | j "d['drawer']['id']")
+curl -s -o /dev/null "${U[@]}" "${J[@]}" -X POST $B/api/blocks/$NPUB/save -d "{\"drawer\":\"$BOP\"}"
+echo "galaxies sharing files, as cy sees: $(curl -s "${W[@]}" $B/api/galaxies | j "d['links']")"
+curl -s -o /dev/null "${U[@]}" "${J[@]}" -X PATCH $B/api/drawers/$BOP -d '{"visibility":"private"}'
+echo "after bo's planet goes private, cy: $(curl -s "${W[@]}" $B/api/galaxies | j "d['links']")  bo: $(curl -s "${U[@]}" $B/api/galaxies | j "d['links']")"

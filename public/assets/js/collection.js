@@ -165,7 +165,15 @@ export class Collection {
     this.onChange?.(this.blocks);
   }
 
-  connected({ block, drawerId }) {
+  // The other planets a file is on, from the list that comes back when it is
+  // put on or taken off one (the "also on" in its caption).
+  withAlso(block, connections) {
+    if (!this.drawer || !Array.isArray(connections)) return block;
+    return { ...block, alsoOn: connections.filter((d) => d.id !== this.drawer.id) };
+  }
+
+  connected({ block: given, drawerId, connections }) {
+    const block = this.withAlso(given, connections);
     const i = this.blocks.findIndex((b) => b.id === block.id);
     if (i >= 0) { this.patch(block); return; }
     if (!this.drawer || drawerId !== this.drawer.id) return;
@@ -176,12 +184,12 @@ export class Collection {
     this.onChange?.(this.blocks);
   }
 
-  disconnected({ block, drawerId }) {
+  disconnected({ block, drawerId, connections }) {
     if (this.drawer && drawerId === this.drawer.id) {
       const i = this.blocks.findIndex((b) => b.id === block.id);
       if (i >= 0) this.removedAt.set(block.id, i);
       this.drop(block.id);
-    } else this.patch(block);
+    } else this.patch(this.withAlso(block, connections));
   }
 
   // ------------------------------------------------------------ cell actions

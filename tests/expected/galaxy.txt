@@ -65,3 +65,9 @@ after reset: [(None, None), (None, None), (None, None), (None, None), (None, Non
 near, bo (visited alma, saved one file): [('bo', 0), ('alma', 4.0), ('cy', 0)]
 near, cy (visited alma): [('cy', 0), ('alma', 1.0), ('bo', 0)]
 near, alma (visited no one): [('alma', 0), ('bo', 0), ('cy', 0)]
+threads, own: [('Diary', 'Gifts', 1), ('Diary', 'Zines', 1), ('Gifts', 'Zines', 1)]
+threads bo sees (on Gifts' list, not Diary): [('Gifts', 'Zines', 1)]  cy: []
+rule holds: a thread led to a private planet a visitor can't see -> no
+also on, own: [('zine one', ['Diary', 'Gifts'])]  bo: [('zine one', ['Gifts'])]  cy: []
+galaxies sharing files, as cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}]
+after bo's planet goes private, cy: []  bo: [{'a': 'alma', 'b': 'bo', 'n': 1}]

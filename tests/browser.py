@@ -232,6 +232,14 @@ def seed():
     upload(library)
     shutil.rmtree(books, ignore_errors=True)
     send('PATCH', f'/api/drawers/{library}', {'modes': {'reading': {'on': True, 'dismissed': False}}})
+    # Files on more than one planet: two postcards are on Holiday too, and one of its notes on Walks,
+    # so the galaxy has two threads (Postcards–Holiday carries 2 files, Holiday–Walks 1)
+    holiday = planet('Holiday', ['ferry times', 'pack sun cream'])
+    walks = planet('Walks', ['the coast path'])
+    on = lambda drawer: {b['content']: b['id'] for b in send('GET', f'/api/drawers/{drawer}')['blocks']}
+    for text in ('wish you were here', 'the pier at dusk'):
+        send('POST', f'/api/blocks/{on(ids["Postcards"])[text]}/connections', {'drawer': holiday})
+    send('POST', f'/api/blocks/{on(holiday)["ferry times"]}/connections', {'drawer': walks})
     # and a neighbour, for the universe
     other = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     other.open(urllib.request.Request(SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
@@ -240,6 +248,11 @@ def seed():
     pier = next(b['id'] for b in send('GET', f'/api/drawers/{ids["Postcards"]}')['blocks'] if b['content'] == 'the pier at dusk')
     other.open(urllib.request.Request(SITE + f'/api/blocks/{pier}/comments', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
                                       data=json.dumps({'body': 'I know this pier! Is it Brighton?'}).encode()), timeout=20)
+    # ...and keeps a copy of it on a planet of their own, so the two galaxies share a file
+    seaside = json.load(other.open(urllib.request.Request(SITE + '/api/drawers', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+                                                          data=json.dumps({'title': 'Seaside'}).encode()), timeout=20))['drawer']['id']
+    other.open(urllib.request.Request(SITE + f'/api/blocks/{pier}/save', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+                                      data=json.dumps({'drawer': seaside}).encode()), timeout=20)
 
     # a postcard written twice, so it has a history (its first words kept)
     wish = next(b['id'] for b in send('GET', f'/api/drawers/{ids["Postcards"]}')['blocks'] if b['content'] == 'wish you were here')
@@ -473,6 +486,56 @@ def universe(s, seeded):
     s.shot('universe')
 
 
+def shared_files(s, seeded):
+    """Files on more than one planet: threads on the galaxy, "also on" under the file box and in the file view."""
+    s.go('/')
+    s.wait('const c = document.querySelector(".gx-threads"); return document.querySelectorAll(".gx-thread-note").length === 2 && c && c.width > 0',
+           'the two pairs of planets that share files were not joined by threads', 10)
+    s.settle(1.5)
+    s.shot('threads-rest')
+    s.js('const p = [...document.querySelectorAll(".planet")].find((e) => e.planet?.title === "Holiday");'
+         'p.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));')
+    s.wait('return [...document.querySelectorAll(".gx-thread-note.is-on")]'
+           '.map((n) => n.textContent).sort().join() === "1 file,2 files"', 'pointing at Holiday did not light its two threads with how many files each carries')
+    s.settle(1)
+    s.shot('threads')
+    s.go(f'/p/{seeded["Postcards"]}')
+    s.wait('return document.querySelectorAll(".cell .cell-also").length === 2', 'the two postcards also on Holiday showed no "also on" in their captions')
+    s.settle(1)
+    s.shot('also-on-boxes')
+    s.click(s.named('.cell', 'the pier at dusk', 'the pier postcard is not on Postcards'))
+    s.wait('return /^also on 1 planet$/i.test(document.querySelector(".vw-conn-label")?.textContent || "")',
+           'the file view did not say the file is also on one other planet')
+    s.click(s.named('.vw-conn', 'Holiday', 'the file view did not list Holiday'))
+    s.wait('return location.pathname === arguments[0] && !!document.querySelector(".viewer")',
+           'pressing Holiday did not open the same file on Holiday', 8, (f'/p/{seeded["Holiday"]}',))
+    s.settle(1)
+    s.shot('also-on-viewer')
+    s.go('/universe')
+    s.wait('return document.querySelector(".world")?.classList.contains("is-out") && /neighbour/.test(document.body.textContent)',
+           'the universe did not open', 10)
+    near = s.js('const els = [...document.querySelectorAll(".uvg")]; const at = (u) => els.find((e) => e.dataset.user === u)?.getBoundingClientRect();'
+                'const a = at(arguments[0]); const b = at("neighbour"); return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : null;', NAME)
+    if near is None:
+        raise Fail('the universe is missing your galaxy or the neighbour\'s')
+    s.settle(1.2)
+    s.shot('universe-shared')
+    s.size(PHONE)
+    try:
+        s.go('/')
+        s.wait('return document.querySelectorAll(".gx-thread-note").length === 2', 'the threads did not show at phone width', 10)
+        s.settle(1.5)
+        s.no_sideways_scroll('The galaxy with threads')
+        s.shot('phone-threads')
+        s.go(f'/p/{seeded["Postcards"]}')
+        s.wait('return document.querySelectorAll(".cell .cell-also").length === 2', '"also on" did not show at phone width')
+        s.settle(1)
+        s.no_sideways_scroll('A planet with "also on"')
+        s.shot('phone-also-on')
+    finally:
+        s.size(DESK)
+
+
 def sample_page(s, seeded):
     """The hidden page of shared parts: it opens, a real menu opens from it, and it fits a phone."""
     s.go('/parts')
@@ -574,7 +637,7 @@ def send_to_top(s, seeded):
 
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, phone, sample_page, keyboard, send_to_top]
+         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

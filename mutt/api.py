@@ -702,7 +702,33 @@ def blocks_in_drawer(req, drawer_id, community=False):
         if community and not b['mine']:
             b['community'] = True
         blocks.append(b)
-    return mark_saved(req, blocks)
+    return also_on(req, mark_saved(req, blocks), drawer_id)
+
+
+def also_on(req, blocks, here_id):
+    """Which other planets (and moons) each file on a planet is on, as far as
+    this person may see them: the "also on" under a file box and in the file
+    view. Only files on more than one planet are looked up."""
+    ids = [b['id'] for b in blocks if (b.get('connectionCount') or 0) > 1]
+    found = {}
+    seen = {}
+    for start in range(0, len(ids), 500):
+        part = ids[start:start + 500]
+        rows = req.db.execute(
+            'SELECT c.block_id, d.* FROM connections c JOIN drawers d ON d.id = c.drawer_id '
+            f"WHERE c.drawer_id != ? AND c.block_id IN ({','.join('?' * len(part))}) ORDER BY c.connected_at",
+            (here_id, *part)).fetchall()
+        for r in rows:
+            if r['id'] not in seen:
+                seen[r['id']] = drawer_visible(req, r)
+            if seen[r['id']]:
+                found.setdefault(r['block_id'], []).append(
+                    {'id': r['id'], 'title': r['title'], 'icon': {'c': json.loads(r['icon']).get('c')},
+                     'parentId': r['parent_id']})
+    for b in blocks:
+        if b['id'] in found:
+            b['alsoOn'] = found[b['id']]
+    return blocks
 
 
 def drawers_of(req, user_id, with_previews, owner=None):
@@ -796,9 +822,12 @@ def galaxy_of(req, owner):
             # Private planets, and people-only ones you're not on, show
             # blurred: where they are and what kind, never their name or files.
             planets.append(private_planet(r))
+    open_ids = {p['id'] for p in planets if not p.get('locked')}
+    open_ids |= {m['id'] for p in planets for m in p.get('moons') or [] if not m.get('locked')}
     data = {
         'user': {**user_json(owner), 'you': mine},
         'planets': planets,
+        'threads': planet_threads(req, owner['id'], open_ids),
     }
     if mine:
         stars = req.db.execute(
@@ -808,6 +837,60 @@ def galaxy_of(req, owner):
         data['stars'] = [block_json(r) for r in stars]
         data['stats'] = user_stats(req.db, owner['id'])
     return data
+
+
+def planet_threads(req, owner_id, open_ids):
+    """The threads between someone's planets: each pair of planets that share
+    files, and how many. A moon counts as its planet. Only planets (and moons)
+    this person can open are counted, so a thread never gives away a private one."""
+    rows = req.db.execute(
+        'SELECT c1.block_id, c1.drawer_id AS da, c2.drawer_id AS db, '
+        'COALESCE(d1.parent_id, d1.id) AS a, COALESCE(d2.parent_id, d2.id) AS b '
+        'FROM connections c1 JOIN connections c2 ON c2.block_id = c1.block_id AND c2.drawer_id > c1.drawer_id '
+        'JOIN drawers d1 ON d1.id = c1.drawer_id JOIN drawers d2 ON d2.id = c2.drawer_id '
+        'WHERE d1.user_id = ? AND d2.user_id = ?', (owner_id, owner_id)).fetchall()
+    pairs = {}
+    for r in rows:
+        if r['a'] == r['b'] or r['da'] not in open_ids or r['db'] not in open_ids:
+            continue
+        pairs.setdefault(tuple(sorted((r['a'], r['b']))), set()).add(r['block_id'])
+    return [{'a': a, 'b': b, 'n': len(files)} for (a, b), files in sorted(pairs.items())]
+
+
+def galaxy_links(req, open_ids):
+    """Galaxies that share files, for the universe: a file on planets in two
+    galaxies (someone's file on a planet others can add to), or a copy one
+    person saved from another's planet, both where this person can see them.
+    A copy of a copy leads back to the first. [{a, b, n}] by username."""
+    saved = dict(req.db.execute(
+        "SELECT id, json_extract(meta, '$.savedFrom.id') FROM blocks "
+        "WHERE json_extract(meta, '$.savedFrom.id') IS NOT NULL").fetchall())
+
+    def root(block_id):
+        for _ in range(8):
+            if block_id not in saved:
+                break
+            block_id = saved[block_id]
+        return block_id
+
+    rows = req.db.execute(
+        'SELECT c.block_id, c.drawer_id, d.user_id AS planet_owner, b.user_id AS file_owner FROM connections c '
+        'JOIN drawers d ON d.id = c.drawer_id JOIN blocks b ON b.id = c.block_id WHERE b.deleted_at IS NULL').fetchall()
+    owners = {}
+    for r in rows:
+        if r['drawer_id'] in open_ids:
+            owners.setdefault(root(r['block_id']), set()).update((r['planet_owner'], r['file_owner']))
+    pairs = {}
+    for files_root, people in owners.items():
+        people = sorted(people)
+        for i, a in enumerate(people):
+            for b in people[i + 1:]:
+                pairs[(a, b)] = pairs.get((a, b), 0) + 1
+    if not pairs:
+        return []
+    names = dict(req.db.execute('SELECT id, username FROM users').fetchall())
+    return sorted(({'a': names[a], 'b': names[b], 'n': n} for (a, b), n in pairs.items() if a in names and b in names),
+                  key=lambda l: (l['a'], l['b']))
 
 
 @route('GET', r'/api/galaxy')
@@ -958,6 +1041,7 @@ def list_galaxies(req):
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
     near = nearness_of(req)
     out = []
+    open_ids = set()
     for user in users:
         mine = user['id'] == req.user['id']
         rows = req.db.execute(
@@ -967,10 +1051,14 @@ def list_galaxies(req):
         for r in rows:
             open_ = mine or drawer_visible(req, r)
             hidden = not open_ and r['visibility'] != 'pin'
+            moons = moons_of(req, r['id']) if open_ else []
+            if open_:
+                open_ids.add(r['id'])
+                open_ids.update(m['id'] for m in moons if not m['locked'])
             worlds.append({'id': r['id'], 'c': json.loads(r['icon']).get('c'), 'n': 0 if hidden else r['n'],
                            'locked': not open_, 'private': hidden,
                            'look': r['look'], 'twelve': twelve(r), 'x': r['x'], 'y': r['y'],
-                           'moons': [] if not open_ else [{'id': m['id'], 'look': m['look']} for m in moons_of(req, r['id'])]})
+                           'moons': [{'id': m['id'], 'look': m['look']} for m in moons]})
         opened = [w for w in worlds if not w['locked']]
         private = sum(1 for w in worlds if w['private'])
         out.append({
@@ -982,7 +1070,7 @@ def list_galaxies(req):
             'near': 0 if mine else near.get(user['id'], 0),
         })
     out.sort(key=lambda g: (not g['you'], g['username']))
-    return json_response({'galaxies': out})
+    return json_response({'galaxies': out, 'links': galaxy_links(req, open_ids)})
 
 
 # ---------------------------------------------------------------- drawers

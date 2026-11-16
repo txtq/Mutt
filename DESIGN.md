@@ -92,6 +92,7 @@ Every name in this section is written once, in `public/assets/tokens.css`, which
 | `--pale` | `#e4e8f2` | What a planet's colour is mixed 34% toward to make a box's edge and glow (`--fg-tone` on the box). |
 | `--box-edge` `--box-edge-on` | `rgba(225,232,255,.18)` `.24` | A box's edge at rest and pointed at, before the planet's tint is mixed in. `--box-edge` is also a picture's edge. |
 | `--pic-edge-on` | `rgba(225,232,255,.4)` | A picture's edge, pointed at. |
+| `--thread` `--thread-on` | `rgb(222,212,240)` `rgb(240,236,252)` | The dust of a thread between planets that share files, at rest and with a planet at one end pointed at. Painted as dots whose strength is the painter's (`WISP_SHADES` in `views/galaxy.js`; brighter is more dots, never bigger ones). The universe's web is the same ink. |
 
 | `--mark-yellow` `--mark-green` `--mark-blue` `--mark-pink` `--mark-purple` | `#f2c43a` `#5cc86e` `#50a0ff` `#ff69a0` `#aa6ef0` | The five highlighters, shared by the reader and documents. Yellow is also a comment's colour (its count on a page, the edge of the comment in hand); words on it are `--mark-ink` `#2a2108`. A highlight on words is the marker at 36 to 40%. |
 | `--room-veil` | `rgba(5,8,24,.62)` | What a room lays over the sky (section 4, "Room"). |
@@ -294,6 +295,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | A file dropped on a planet | the bubble arrive on the spring; the gulp scene |
 | Moons | bob on the rest beat; born over scene; plumes on the slow beat |
 | Stars (loose files) arriving, leaving | arrive; leaves |
+| Threads between planets | still at rest; they arrive over scene after the planets, follow the planets while they glide or are carried (repainted only then), brighten in one step when a planet at one end is pointed at, and their counts fade in over move and out over change |
 | *The void* | |
 | Turning | painted (rule 10): about 30 pictures a second, every picture when it is big (sign-in); rests while the screen is changing; fades in over move once its pictures are worked out |
 | Opening, closing | scene open, arrive closed; its box arrives over arrive after move, and leaves |
@@ -308,7 +310,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Out to the universe and back | follows the scroll on a spring (rule 11): tight while you scroll, slow when it carries on by itself |
 | The universe appearing; its galaxies shifting | grand and scene; arrive |
 | Diving into someone's galaxy | arrive on the glide |
-| Beads, dust, stars | painted (rule 10) |
+| Beads, dust, stars | painted (rule 10); a bead goes first to the threads between galaxies that share files |
 | Changing sky | scene |
 | *The top bar* | |
 | The search box widening; the account's caret; the sky picker | arrive; move; move on the spring |
@@ -328,7 +330,7 @@ Pick by what the thing is, not by how it should look.
 | **Gloss** | Things you press: main and plain buttons, a switch that is on, the chosen segment. | Anything you don't press. |
 | **Well** | Sunken tracks you type in or slide along: text boxes, the switch's track, the segmented bar's channel. | Decoration. |
 | **Paper** | Writing: documents, book pages, the small pages on planets. | Panels and controls. |
-| **Print** | The void, and the sky's dust. | Anything else. |
+| **Print** | The void, the sky's dust, and the threads between planets and galaxies that share files. | Anything else. |
 
 Glass on glass can't frost and goes muddy: never put box glass inside a sheet or menu. Inside bar glass, rows are washes (`--tint`), not boxes.
 
@@ -413,7 +415,7 @@ Built in session 7 (`public/assets/js/sky.js`, the rules headed `.sky` in `galax
 - **Liquid light: a hint.** The sky is the surface of a dark liquid lit from above. A pale grainy sheen sits on the folds that face the light, and colour appears only as a thin line (2 to 14px) where each highlight ends, in the order red, amber, pale core, green, blue, violet, breaking up along its length. Never bands or floods of rainbow.
 - **Old film.** Grain over everything (it changes six times a second), a slightly warm and faded tone, blacks lifted a touch.
 - **Movement: slow.** One slow liquid field drives the river, the lanes and the light together, so the parts move as one.
-- **The universe.** Black (`--night-*`), with grain and **no stars**. Mutt's stippled web joins the galaxies (`js/uvweb.js`, painted once for a layout), each galaxy in its own halo of dots, and **beads of light** travel the threads that reach a galaxy: at most 14, one to a thread, 22 pixels a second, fading at both ends (`beads()` in `uvweb.js`, `.uv-bead`).
+- **The universe.** Black (`--night-*`), with grain and **no stars**. Mutt's stippled web joins the galaxies (`js/uvweb.js`, painted once for a layout), each galaxy in its own halo of dots, and **beads of light** travel the threads that reach a galaxy: at most 14, one to a thread, 22 pixels a second, fading at both ends (`beads()` in `uvweb.js`, `.uv-bead`). Galaxies that share files are joined by a wisp of their own instead of the web's thread between them (see "Threads" under Planets), and the beads go to those first.
 - **Four skies, tuned alike.** Vita, Nebula, Aurora, Dusk. A sky is only its four colours; every other part of the recipe is shared, and each step is as light as Vita's.
 - No ribbons and no colour clouds: the river replaced them.
 
@@ -478,6 +480,16 @@ Built in session 7 (`public/assets/js/planets.js`, painted by `planetgl.js`). Th
 **Use.** A planet shows how used it is, to everyone who can open it. What counts: a file added to it or changed on it (`planet_use` in `mutt/api.py`, from times Mutt already keeps). The scale: busy for a day (1), calm by a week (0.5), the first dust at a month (under 0.385), all of it at three (0). Busy is more weather, faster, and brighter light of its own; forgotten is no weather, thin air, drained colour and a coat of dust over ground and files. When something lands on a dusty world the dust lifts as weather does (2.5 seconds, once): a wind gets up, the coat breaks into patches and streams off as dust in the air, and the weather comes back behind it (`wakeUp`). Still shows the state without the movement.
 
 **Moving planets.** A planet is carried by its name to a free place on an orbit (the ghost and the guide show where). Carried over another planet, the two change places when you let go: the other one lights as a planet does when something is about to land on it, and the ghost sits on its place (`planetOver`, `place(…, also)` in `views/galaxy.js`).
+
+**Threads: planets that share files.** When a file is on two planets, a wisp joins them, so a galaxy shows how its planets are tied together. Decided with the user on 2026-11-15: "spacey wispy connections, not digital lines".
+
+- **What it is: print.** Two to four fine strands of dust that twist round each other, part in the middle and gather at the ends, wandering in width, thinning and returning along their length, with a faint haze and a few loose motes round them; each fades out into the air of the planet at either end. Brighter is more dots, never bigger ones, and never a glow or a line. One painter draws it everywhere: `wisp()` in `uvweb.js`, the same for planets (`views/galaxy.js`) and for galaxies (`paintWeb`). Each wisp has its own seed, so it is the same wisp however its planets move.
+- **Where it goes.** A gentle bow from the edge of one globe to the edge of the other, on the side away from the void, bowed just enough to clear it and kept inside the page (`threadCurve`). One that can't clear it (a planet above the void and one below, on a phone) passes behind the void. Behind the void and the planets; in front of the sky.
+- **How much.** Fuller (more strands, wider) the more files the two planets share: 1, 2 or 3, 4 or more. A moon's files count as its planet's.
+- **At rest** it is faint and still (`--thread`). **A planet pointed at or focused** paints its own wisps stronger (`--thread-on`) and shows how many files each carries (`2 files`, a Fact in `--ink-2` with `--sky-shadow`, just off the wisp's middle, on the outside of its bow). A screen reader hears the same on the planet (`aria-description`: "Shares 2 files with Holiday").
+- **Who sees what.** Everyone who can open both planets sees the wisp, on their own galaxy and on anyone else's. A wisp never leads to a planet the viewer can't open (private, locked, or People they aren't on); the server leaves it out (`planet_threads`).
+- **Cost.** One canvas, only as big as the wisps reach, repainted only while planets glide or are carried and when a planet is pointed at; nothing runs at rest. It fades with the planets' names on the way out to the universe, and dims with them while the void is open.
+- **Between galaxies.** In the universe, two galaxies that share files (a file on someone's planet that others can add to, or a copy one person saved from another's planet, both on planets the viewer can open) are joined by a fainter wisp instead of the web's thread, and seated side by side on the map: the one sharing most with those already seated takes the free place nearest them, then each pair is drawn a little closer where nothing else is in the way; yours stays put and everyone else keeps to A to Z (`seat`, `gather` in `views/galaxy.js`; `galaxy_links` in `mutt/api.py`).
 
 **Opening a planet** from a galaxy is a dive: the galaxy rushes past from where the planet is, the planet swells toward you and settles at the top of its page. Coming back is a pull away. Between two planets, pages just change. (`router.js`, the rules headed "Opening a planet" in `galaxy.css`; its lengths and curves are the named ones: the galaxy leaves over `--dur-arrive` on `--ease-leave`, the planet travels and swells over `--dur-scene` on `--ease-glide`, its page fades in over `--dur-arrive` after `--dur-move`; coming back the page fades over `--dur-change` and the galaxy closes in over `--dur-scene`. The user watched a sketch of it in session 8 and kept it as built.)
 
@@ -574,7 +586,7 @@ One frame for every kind of file, wherever files are shown (a planet's page, sea
 
 - **The frame**: a box four wide to five tall (`.cell-box`), corners 12, and 12 under it one line, the caption. Four boxes to a row, 24 apart each way; on a phone two to a row, 12 apart across and 16 down.
 - **The rule**: the box shows what is in the file and the caption says what it is called. Nothing is said twice: a name is never repeated inside its box, and a fact is never in both places.
-- **The caption** (`.cell-cap`): the name on the left in Caption `--ink-2` (`--ink` when the box is pointed at), cut with "…", and one fact on the right in Fact `--ink-3`; both carry `--sky-shadow`. The name is the file's own name; a link's title is in its box, so a link's caption is its site. The fact is the date for a note or a link, pages for a page or a book that knows them, and otherwise the size. Someone else's file adds `@name` after the name; a file with comments shows their count before the fact.
+- **The caption** (`.cell-cap`): the name on the left in Caption `--ink-2` (`--ink` when the box is pointed at), cut with "…", and one fact on the right in Fact `--ink-3`; both carry `--sky-shadow`. The name is the file's own name; a link's title is in its box, so a link's caption is its site. The fact is the date for a note or a link, pages for a page or a book that knows them, and otherwise the size. Someone else's file adds `@name` after the name; a file with comments shows their count before the fact. A file that is also on other planets (seen on one of its planets) shows, before those, a small dot (8 across) in each other planet's colour, three at most then `+N`, 2 apart; pointed at, it names them ("Also on Holiday and Walks"). The file view says the same in words: its planets section is headed "Also on 2 planets" (or "Only on this planet") when it was opened on one of them, lists only the others, and each opens this same file on that planet; opened anywhere else it stays "On N planets". A moon in that list says `moon` as a Fact.
 - **A face is one of three things.** To add a kind of file, decide which and build it from that:
   1. *It has a shape of its own* (a picture, a video, a page, a cover): it keeps that shape, in the middle of the box, never cropped (`shaped()` in `cells.js`). Corners 12, a 1px edge of `--box-edge`, `--shadow-rest`. Pointed at: 1.5% larger, edge `--pic-edge-on`, `--shadow-raised`.
      - *A page* (a PDF or a document with a first page): paper. Corners 4, `--paper-shadow`, at most 94% of the box so it reads as a sheet lying in it.

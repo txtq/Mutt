@@ -1501,6 +1501,29 @@ body.no-chrome #view { padding: 0; }
   transition: opacity var(--dur-change) var(--ease-settle), transform var(--dur-change) var(--ease-settle), width var(--dur-change) var(--ease-settle), height var(--dur-change) var(--ease-settle);
 }
 .gx-guide.is-on, .gx-ghost.is-on { opacity: 1; }
+/* Threads: planets that share files are joined by a wisp of print (dust in
+   two or three strands that twist and part, like the universe's web), painted
+   by views/galaxy.js on a canvas only as big as the wisps, behind the void and
+   the planets. Faint at rest; a planet pointed at brightens its own wisps and
+   says how many files each carries. They stand still: repainted only while
+   planets move or one is pointed at. */
+.gx-threads { position: absolute; left: 0; top: 0; z-index: 2; display: block; pointer-events: none; transition: opacity var(--dur-arrive) var(--ease-settle); }
+.gx-thread-notes { position: absolute; left: 0; top: 0; z-index: 4; width: 0; height: 0; pointer-events: none; transition: opacity var(--dur-arrive) var(--ease-settle); }
+.gx-thread-note {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  font: var(--type-fact);
+  color: var(--ink-2);
+  text-shadow: var(--sky-shadow);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--dur-change);
+}
+.gx-thread-note.is-on { opacity: 1; transition-duration: var(--dur-move); }
+.gx.is-adding .gx-threads, .gx.is-adding .gx-thread-notes { opacity: 0.4; }
+.world.is-far .gx-threads, .world.is-far .gx-thread-notes { opacity: 0; }
 .planet:hover, .planet:focus-visible { z-index: 5; }
 /* The whole planet (globe, halo, rings, moons) is what glides between the
    galaxy and its page, so the halo doesn't arrive ahead of its globe. */
@@ -2958,6 +2981,10 @@ body[data-page="planet"] .rd { --accent: var(--pa, var(--blue)); }
 .cell-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-fact, .cell-comments { flex: none; font: var(--type-fact); color: var(--ink-3); }
 .cell-comments { display: inline-flex; align-items: center; gap: var(--space-4); }
+/* also on other planets: a small dot in each one's colour, before the comments and the fact */
+.cell-also { flex: none; display: inline-flex; align-items: center; gap: var(--space-2); font: var(--type-fact); color: var(--ink-3); }
+.cell-also .planet-dot { width: var(--space-8); height: var(--space-8); margin: 0; }
+.cell-also-more { margin-left: var(--space-2); }
 .cell-owner { font-family: var(--mono); font-size: 0.9em; color: var(--ink-3); }
 .cell:hover .cell-cap, .cell:focus-visible .cell-cap { color: var(--ink); }
 
@@ -3330,6 +3357,7 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-conn { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-8); min-height: var(--h-regular); margin-left: calc(var(--space-8) * -1); padding: 0 var(--space-8); border-radius: var(--r-row); font: 400 var(--text-label)/16px var(--sans); color: var(--ink); transition: background var(--dur-change); }
 .vw-conn:hover { background: var(--tint-2); }
 .vw-conn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-conn .vw-conn-fact { flex: none; margin-left: auto; font: var(--type-fact); color: var(--ink-3); }
 .vw-conn-x { font-size: var(--text-lead); color: var(--ink-3); }
 .vw-conn-note { margin-top: var(--space-12); font: var(--type-caption); color: var(--ink-3); }
 .vw-danger { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); margin: var(--space-32) 0 0 calc(var(--space-8) * -1 - 2px); }

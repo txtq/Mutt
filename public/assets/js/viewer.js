@@ -594,6 +594,17 @@ function renderSide() {
       ? h('button', { type: 'button', class: 'btn', onclick: () => openDocEditor(block.id) }, 'Open as a document') : null);
 
   const count = connections?.length ?? block.connectionCount ?? 0;
+  // Opened on one of its planets: the others are "also on", and each opens
+  // this same file there. Opened anywhere else (search, a star): all of them.
+  const here = drawer && connections?.some((d) => d.id === drawer.id) ? drawer.id : null;
+  const others = connections ? connections.filter((d) => d.id !== here) : null;
+  const where = here
+    ? (others.length ? `Also on ${plural(others.length, 'planet')}` : 'Only on this planet')
+    : count ? `On ${plural(count, 'planet')}` : 'A loose star';
+  const go = (d) => (here ? `${drawerHref(d)}?b=${block.id}` : drawerHref(d));
+  const planetLink = (d) => h('a', {
+    href: go(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(go(d)); },
+  }, planetDot(d), h('span', null, d.title || 'Untitled'), d.parentId ? h('span', { class: 'vw-conn-fact' }, 'moon') : null);
 
   // Someone else's file, seen on one of their planets: look, keep a copy, don't touch.
   if (block.mine === false) {
@@ -605,13 +616,8 @@ function renderSide() {
       actions,
       saveButton(block),
       metaRows(block),
-      connections?.length ? h('section', { class: 'vw-conn-head' }, h('span', { class: 'vw-conn-label' }, `On ${plural(count, 'planet')}`)) : null,
-      connections?.length ? h('ul', { class: 'vw-conns' }, connections.map((d) => {
-        const href = drawerHref(d);
-        return h('li', null, h('a', {
-          href, class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(href); },
-        }, planetDot(d), h('span', null, d.title)));
-      })) : null,
+      others?.length ? h('section', { class: 'vw-conn-head' }, h('span', { class: 'vw-conn-label' }, where)) : null,
+      others?.length ? h('ul', { class: 'vw-conns' }, others.map((d) => h('li', null, planetLink(d)))) : null,
       comments(block));
     return;
   }
@@ -619,12 +625,11 @@ function renderSide() {
   const connectBtn = h('button', { type: 'button', class: 'btn btn-small', 'aria-haspopup': 'dialog' }, 'Planets', icon('caret'));
   connectBtn.addEventListener('click', () => openConnect(connectBtn, state.block, { align: 'end' }));
 
-  const list = connections == null
+  const list = others == null
     ? h('div', { class: 'vw-conn-note' }, '…')
-    : connections.length
-      ? h('ul', { class: 'vw-conns' }, connections.map((d) => h('li', null,
-        h('a', { href: drawerHref(d), class: 'vw-conn', onclick: (e) => { e.preventDefault(); hooks.go(drawerHref(d)); } },
-          planetDot(d), h('span', null, d.title)),
+    : others.length
+      ? h('ul', { class: 'vw-conns' }, others.map((d) => h('li', null,
+        planetLink(d),
         h('button', {
           type: 'button', class: 'btn btn-quiet btn-small btn-round vw-conn-x', 'aria-label': `Take off ${d.title}`, title: `Take off ${d.title}`,
           onclick: () => removeFromDrawer(state.block, d.id, d.title),
@@ -638,7 +643,7 @@ function renderSide() {
     metaRows(block),
     history(block),
     h('section', { class: 'vw-conn-head' },
-      h('span', { class: 'vw-conn-label' }, count ? `On ${plural(count, 'planet')}` : 'A loose star'),
+      h('span', { class: 'vw-conn-label' }, where),
       connectBtn),
     list,
     comments(block),

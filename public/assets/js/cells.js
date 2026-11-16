@@ -15,6 +15,7 @@ import { markdown } from './md.js';
 import { tintFor } from './theme.js';
 import { fmtBytes, fmtDate, fmtDuration, h, seeded } from './util.js';
 import { icon } from './icons.js';
+import { planetDot } from './planets.js';
 
 const BOX = 4 / 5;   // the frame's own shape (.cell-box in galaxy.css)
 
@@ -151,6 +152,19 @@ export function renderDivider(item) {
   return h('div', { class: 'grid-divider', dataset: { key: item.id } }, h('span', null, item.label));
 }
 
+// A file that is on other planets too, seen on one of them: a dot in each
+// other planet's colour (three at most) in the caption, and their names when
+// pointed at. The file view says the same in words ("Also on").
+function alsoOn(block) {
+  const others = block.alsoOn || [];
+  if (!others.length) return null;
+  const names = others.map((d) => d.title || 'Untitled');
+  const said = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return h('span', { class: 'cell-also', title: `Also on ${said}`, 'aria-label': `Also on ${said}` },
+    others.slice(0, 3).map((d) => planetDot(d)),
+    others.length > 3 ? h('span', { class: 'cell-also-more' }, `+${others.length - 3}`) : null);
+}
+
 // moderate: you made this community drawer, so you can take other people's files out.
 export function renderCell(block, { actions = block.mine !== false, moderate = false } = {}) {
   const face = blockFace(block);
@@ -177,6 +191,7 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
   box,
   h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, nameOf(block),
     block.owner ? h('span', { class: 'cell-owner' }, ` @${block.owner}`) : null),
+  alsoOn(block),
   block.commentCount ? h('span', {
     class: 'cell-comments', title: `${block.commentCount} comment${block.commentCount === 1 ? '' : 's'}`,
   }, icon('comment', 12), String(block.commentCount)) : null,

@@ -12,7 +12,10 @@ const TAU = Math.PI * 2;
 const SHADES = [0.1, 0.2, 0.34, 0.52];
 
 // `nodes` are the galaxies, in the canvas's own pixels: { x, y, r }.
-export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
+// `shared` are the galaxies that share files ({ i, j, n }, indexes into
+// `nodes`): each gets a thread of its own, finer and steadier than the web's,
+// a little brighter the more they share, and still faint.
+export function paintWeb(canvas, width, height, nodes, seedName = 'web', shared = []) {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
@@ -56,8 +59,11 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
       if (!links.has(key)) links.set(key, [Math.min(i, j), Math.max(i, j)]);
     }
   });
+  // a pair that shares files is joined by its own thread instead (below)
+  for (const { i, j } of shared) links.delete(i < j ? `${i}:${j}` : `${j}:${i}`);
   const degree = all.map(() => 0);
   for (const [i, j] of links.values()) { degree[i]++; degree[j]++; }
+  for (const { i, j } of shared) { degree[i]++; degree[j]++; }
 
   // A sprinkle of very faint dust everywhere.
   for (let n = Math.round((width * height) / 900); n > 0; n--) dot(rand() * width, rand() * height, 0);
@@ -97,6 +103,28 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
     }
   }
 
+  // Threads between galaxies that share files: a wisp of dust (`wisp`, below),
+  // a little fuller the more files they share, and still faint. Like the
+  // rest, they run from the edge of each galaxy's planets.
+  for (const { i, j, n } of shared) {
+    const a = nodes[i];
+    const b = nodes[j];
+    if (!a || !b) continue;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 4) continue;
+    const nx = -(b.y - a.y) / len;
+    const ny = (b.x - a.x) / len;
+    // always a little bowed, never ruled straight
+    const bend = (rand() < 0.5 ? -1 : 1) * len * (0.07 + rand() * 0.08);
+    const c = { x: (a.x + b.x) / 2 + nx * bend, y: (a.y + b.y) / 2 + ny * bend };
+    const ra = a.r * 0.95;
+    const rb = b.r * 0.95;
+    const from = toward(a, c, ra);
+    const to = toward(b, c, rb);
+    threads.unshift({ a: { ...a, r: ra / 0.8 }, b: { ...b, r: rb / 0.8 }, c, len, shared: true });
+    wisp(dot, rand, from, c, to, { strands: n >= 4 ? 4 : 3, width: 1.4 + Math.min(1.4, n * 0.25), spread: 5 + Math.min(5, n), bright: Math.min(0.85, 0.55 + n * 0.06), haze: 0.4 });
+  }
+
   // Knots where threads meet: a dense clump, denser in the middle.
   knots.forEach((k, n) => {
     const d = degree[nodes.length + n];
@@ -126,8 +154,72 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web') {
   return threads;
 }
 
+const toward = (p, c, r) => {
+  const l = Math.hypot(c.x - p.x, c.y - p.y) || 1;
+  return { x: p.x + ((c.x - p.x) / l) * r, y: p.y + ((c.y - p.y) / l) * r };
+};
+
+// A wisp of print along a gentle curve from `from` to `to` (bent toward `c`):
+// two or three fine strands of dust twisting about each other, parting in the
+// middle and gathering at the ends, wandering in width, with loose motes
+// drifting off, and fading out where it meets a planet. Like all print,
+// brighter places get more dots, never bigger ones or a glow. Shared by the
+// threads between planets (views/galaxy.js) and between galaxies (above).
+// `dot(x, y, b)` lays one dot of brightness 0 to 1; `rand` makes it the same
+// wisp every time it is drawn, wherever its ends are.
+export function wisp(dot, rand, from, c, to, { strands = 3, width = 1.6, spread = 6, bright = 1, haze = 0.5 } = {}) {
+  const gauss = () => {
+    const u = Math.max(1e-6, rand());
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * rand());
+  };
+  const len = Math.hypot(c.x - from.x, c.y - from.y) + Math.hypot(to.x - c.x, to.y - c.y);
+  if (len < 4) return;
+  const turns = Math.max(0.8, len / 190);
+  const twist = Array.from({ length: strands }, (_, k) => ({
+    f: turns * (0.5 + rand() * 0.9), phase: rand() * TAU + (k * TAU) / strands, amp: 0.35 + rand() * 0.75, thin: 0.5 + rand() * 0.6,
+  }));
+  const waves = 1 + rand() * 2.5;
+  const wavePhase = rand() * TAU;
+  const steps = Math.ceil(len / 1.1);
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const x = (1 - t) * (1 - t) * from.x + 2 * (1 - t) * t * c.x + t * t * to.x;
+    const y = (1 - t) * (1 - t) * from.y + 2 * (1 - t) * t * c.y + t * t * to.y;
+    const dx = 2 * (1 - t) * (c.x - from.x) + 2 * t * (to.x - c.x);
+    const dy = 2 * (1 - t) * (c.y - from.y) + 2 * t * (to.y - c.y);
+    const dl = Math.hypot(dx, dy) || 1;
+    const nx = -dy / dl;
+    const ny = dx / dl;
+    // the strands part in the middle and meet at the ends; the whole fades in out of each planet's air
+    const apart = Math.sin(Math.PI * t);
+    const edge = Math.min(1, t / 0.16, (1 - t) / 0.16);
+    const fade = edge * edge * (3 - 2 * edge);
+    const w = width * (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * TAU * waves + wavePhase)));
+    for (const { f, phase, amp, thin } of twist) {
+      const o = spread * amp * apart * Math.sin(t * TAU * f + phase);
+      // a strand thins out and comes back along its length, so it reads as drifting dust
+      const there = 0.5 + 0.5 * Math.sin(t * TAU * f * 1.7 + phase * 2);
+      for (let n = 0.1 + w * 0.3 * thin * (0.35 + there) + rand(); n >= 1; n--) {
+        const g = gauss();
+        const off = o + g * w * (0.6 + apart * 0.6);
+        dot(x + nx * off + (rand() - 0.5) * 0.5, y + ny * off + (rand() - 0.5) * 0.5, bright * fade * (1 - Math.min(0.85, Math.abs(g) / 2.6)));
+      }
+    }
+    // a faint haze round the strands, and loose motes further out
+    for (let n = haze * (0.4 + apart) + rand(); n >= 1; n--) {
+      const off = gauss() * (spread + w) * (0.9 + apart * 0.6);
+      dot(x + nx * off + (rand() - 0.5) * 2, y + ny * off + (rand() - 0.5) * 2, bright * fade * (0.15 + 0.3 * rand()));
+    }
+    if (rand() < 0.08) {
+      const off = gauss() * (spread + w) * 2.4;
+      dot(x + nx * off, y + ny * off, bright * fade * 0.5 * rand());
+    }
+  }
+}
+
 // Beads of light for the threads that reach a galaxy: one small bead each (at
-// most MAX_BEADS), travelling slowly from end to end and fading at both. They
+// most MAX_BEADS, the threads between galaxies that share files first, then
+// the longest), travelling slowly from end to end and fading at both. They
 // are plain elements moved by the browser, so they cost nothing to keep going.
 // `host` shares the web's own box, so they move with the picture. None under Still.
 const MAX_BEADS = 14;
@@ -136,7 +228,7 @@ export function beads(host, threads, still) {
   host.replaceChildren();
   if (still) return;
   const rand = seeded(`beads:${threads.length}`);
-  const longest = [...threads].sort((p, q) => q.len - p.len).slice(0, MAX_BEADS);
+  const longest = [...threads].sort((p, q) => (q.shared ? 1 : 0) - (p.shared ? 1 : 0) || q.len - p.len).slice(0, MAX_BEADS);
   longest.forEach(({ a, b, c, len }, n) => {
     // stay clear of each end's galaxy, as the dots do
     const from = Math.min(0.45, (a.r * 0.8) / len);

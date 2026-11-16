@@ -89,6 +89,11 @@
   --box-light-on: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --tag-frost: blur(12px) brightness(0.7);                  /* behind the tag and the buttons that sit on a file box (their fill is --bar-fill) */
 
+  /* threads: wisps of print between planets that share files (the universe's web is the same ink);
+     how strong each dot is, is the painter's (WISP_SHADES in views/galaxy.js) */
+  --thread: rgb(222, 212, 240);                             /* at rest */
+  --thread-on: rgb(240, 236, 252);                          /* a planet at one end pointed at: the same dots, stronger */
+
   /* paper */
   --paper: #f8f5ee;      /* one cream, flat: documents, a page in a file box, the reader's Paper page */
   --paper-edge: #e9e4d8;

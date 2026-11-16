@@ -273,6 +273,13 @@ def migrate(conn):
                  'device_hash TEXT NOT NULL, '
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'seen_at REAL NOT NULL, PRIMARY KEY (device_hash, user_id))')
+    # How close someone's galaxy sits to yours in the universe: raised when you
+    # visit it or save one of its files, fading as time passes (api.draw_near).
+    conn.execute('CREATE TABLE IF NOT EXISTS nearness ('
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'score REAL NOT NULL, at REAL NOT NULL, visited_at REAL NOT NULL DEFAULT 0, '
+                 'PRIMARY KEY (user_id, other_id))')
 
 
 @contextmanager

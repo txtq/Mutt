@@ -62,3 +62,6 @@ empty list: 400
 after bad: [(2000.0, -12.0), (-320.4, 180.0)]
 reset: 200
 after reset: [(None, None), (None, None), (None, None), (None, None), (None, None), (None, None)]
+near, bo (visited alma, saved one file): [('bo', 0), ('alma', 4.0), ('cy', 0)]
+near, cy (visited alma): [('cy', 0), ('alma', 1.0), ('bo', 0)]
+near, alma (visited no one): [('alma', 0), ('bo', 0), ('cy', 0)]

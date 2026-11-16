@@ -817,7 +817,9 @@ def my_galaxy(req):
 
 @route('GET', r'/api/galaxy/' + USERNAME_PATH)
 def get_galaxy(req, username):
-    return json_response(galaxy_of(req, find_user(req, username)))
+    owner = find_user(req, username)
+    draw_near(req, owner['id'], NEAR_VISIT, visit=True)
+    return json_response(galaxy_of(req, owner))
 
 
 @route('POST', r'/api/galaxy/' + USERNAME_PATH + r'/unlock')
@@ -911,12 +913,50 @@ def list_users(req):
     return json_response({'users': [r[0] for r in rows]})
 
 
+# ---------------------------------------------------------------- nearness
+
+# Galaxies you visit or save files from are drawn closer to yours in the
+# universe. A save weighs more than a visit; a visit counts once an hour; and
+# the pull halves every month, so the universe follows what you do now.
+NEAR_SAVE = 3.0
+NEAR_VISIT = 1.0
+NEAR_VISIT_EVERY = 3600
+NEAR_HALF_LIFE = 30 * 86400
+
+
+def faded(score, at, t):
+    return score * 0.5 ** (max(0.0, t - at) / NEAR_HALF_LIFE)
+
+
+def draw_near(req, other_id, weight, visit=False):
+    me = req.user['id'] if req.user else None
+    if not me or not other_id or other_id == me:
+        return
+    t = now()
+    row = req.db.execute('SELECT score, at, visited_at FROM nearness WHERE user_id = ? AND other_id = ?',
+                         (me, other_id)).fetchone()
+    if visit and row and t - row['visited_at'] < NEAR_VISIT_EVERY:
+        return
+    score = (faded(row['score'], row['at'], t) if row else 0.0) + weight
+    visited = t if visit else (row['visited_at'] if row else 0)
+    req.db.execute('INSERT INTO nearness (user_id, other_id, score, at, visited_at) VALUES (?, ?, ?, ?, ?) '
+                   'ON CONFLICT (user_id, other_id) DO UPDATE SET score = excluded.score, at = excluded.at, '
+                   'visited_at = excluded.visited_at', (me, other_id, score, t, visited))
+
+
+def nearness_of(req):
+    t = now()
+    return {r['other_id']: round(faded(r['score'], r['at'], t), 3) for r in req.db.execute(
+        'SELECT other_id, score, at FROM nearness WHERE user_id = ?', (req.user['id'],))}
+
+
 @route('GET', r'/api/galaxies')
 def list_galaxies(req):
     """The universe: everyone, you first, then everyone else A to Z. Anyone's
     galaxy can be opened; a code is only asked for on a locked planet, and
     planets you can't see at all (private, or shared with others) show blurred."""
     users = req.db.execute('SELECT * FROM users ORDER BY username').fetchall()
+    near = nearness_of(req)
     out = []
     for user in users:
         mine = user['id'] == req.user['id']
@@ -938,6 +978,8 @@ def list_galaxies(req):
             'files': sum(w['n'] for w in opened), 'open': len(opened),
             'locked': len(worlds) - len(opened) - private, 'private': private,
             'worlds': worlds[:16],
+            # How strongly your visits and saves pull this galaxy toward yours.
+            'near': 0 if mine else near.get(user['id'], 0),
         })
     out.sort(key=lambda g: (not g['you'], g['username']))
     return json_response({'galaxies': out})
@@ -1037,6 +1079,7 @@ def get_drawer(req, drawer_id):
     drawer = planet_json(req, row, len(blocks))
     if not drawer['mine']:
         drawer['owner'] = row['owner_name']
+        draw_near(req, row['user_id'], NEAR_VISIT, visit=True)
     if row['parent_id']:
         parent = req.db.execute('SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
                                 'FROM drawers d WHERE d.id = ?', (row['parent_id'],)).fetchone()
@@ -1839,6 +1882,7 @@ def save_block(req, block_id):
             mime=row['mime'], ext=row['ext'], size=row['size'],
             thumb_key=link_file(row['user_id'], req.user['id'], row['thumb_key']),
             width=row['width'], height=row['height'], duration=row['duration'], meta=meta)
+        draw_near(req, row['user_id'], NEAR_SAVE)
     if drawer_id:
         connect(req.db, copy_id, drawer_id)
     return json_response({'block': reload_block(req, copy_id), 'already': bool(existing)}, status=201)

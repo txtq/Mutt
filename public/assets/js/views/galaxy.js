@@ -685,12 +685,12 @@ function blurCopy(el, voidPic) {
 
 // Where every galaxy sits on the map, round yours (`home`), and how far the
 // camera pulls back to fit them all on screen.
-function universeLayout(plans, home, width, viewH, names) {
+function universeLayout(plans, home, width, viewH, names, near) {
   // Names stay one size however far out, so the spacing keeps room for
   // them at the scale the map is drawn at: look for the largest scale at
   // which the map, names and all, still fits the screen.
   const size = width < 640 ? LABEL.narrow : LABEL.wide;
-  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k }, names);
+  const at = (k) => spreadUniverse(plans, home, width, viewH, { x: size.x / k, y: size.y / k }, names, near);
   let lo = K_MIN;
   let hi = K_MAX;
   let best = at(lo);
@@ -709,12 +709,14 @@ const K_MAX = 0.34;
 // only the name).
 const LABEL = { wide: { x: 150, y: 46 }, narrow: { x: 96, y: 26 } };
 
-// The map: galaxies in loose rows, centred like lines of a poem, everyone
-// A to Z in reading order with yours in the middle of the middle row. Each
-// row is as tall as its tallest galaxy and its name; the number of rows is
-// whichever fits this screen's shape best, so nobody is drawn smaller than
-// they need to be.
-function spreadUniverse(plans, home, width, viewH, label, names = []) {
+// The map: galaxies in loose rows, centred like lines of a poem, with yours
+// in the middle of the middle row. The galaxies you visit and save files
+// from (`near`, from the server) are drawn closest round yours, the
+// strongest pull nearest; everyone else fills the places left A to Z in
+// reading order. Each row is as tall as its tallest galaxy and its name;
+// the number of rows is whichever fits this screen's shape best, so nobody
+// is drawn smaller than they need to be.
+function spreadUniverse(plans, home, width, viewH, label, names = [], near = []) {
   const n = plans.length;
   const narrow = width < 640;
   // A phone has little room to spare; a computer keeps space round the map.
@@ -727,14 +729,44 @@ function spreadUniverse(plans, home, width, viewH, label, names = []) {
   const gy = typical((i) => plans[i].ey * 2) * 0.22;
   const others = plans.map((_, i) => i).filter((i) => i !== home)
     .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')) || a - b);
+  const pull = (i) => near[i] || 0;
+  const close = others.filter((i) => pull(i) > 0).sort((a, b) => pull(b) - pull(a));
+  // Where each galaxy in the rows sits on the map.
+  const place = (grid) => {
+    const spots = plans.map(() => ({ x: 0, y: 0 }));
+    let y = -(grid.reduce((t, row) => t + Math.max(...row.map(tall)), 0) + gy * (grid.length - 1)) / 2;
+    for (const row of grid) {
+      const top = Math.max(...row.map((i) => plans[i].ey));
+      const W = row.reduce((t, i) => t + wide(i), 0) + gx * (row.length - 1);
+      let x = -W / 2;
+      for (const i of row) {
+        spots[i] = { x: x + wide(i) / 2, y: y + top };
+        x += wide(i) + gx;
+      }
+      y += Math.max(...row.map(tall)) + gy;
+    }
+    return spots;
+  };
   // Rows of `per` galaxies, yours in the middle one.
   const build = (per) => {
     const count = Math.ceil(n / per);
     const sizes = Array.from({ length: count }, (_, r) => (r < count - 1 ? per : n - per * (count - 1)));
     const mid = (count - 1) >> 1;
-    const queue = others.slice();
     const grid = sizes.map((len, r) => Array.from({ length: len }, (_, c) => (r === mid && c === (len - 1) >> 1 ? home : null)));
-    for (const row of grid) row.forEach((v, c) => { if (v == null) row[c] = queue.shift(); });
+    const cells = [];
+    grid.forEach((row, r) => row.forEach((v, c) => { if (v == null) cells.push({ r, c }); }));
+    others.forEach((g, i) => { grid[cells[i].r][cells[i].c] = g; });
+    if (!close.length) return grid;
+    // The places nearest yours on the map go to the strongest pulls; the
+    // rest keep their A to Z order in the places left.
+    const spots = place(grid);
+    const at = spots[home];
+    const far = (cell) => { const s = spots[grid[cell.r][cell.c]]; return Math.hypot(s.x - at.x, s.y - at.y); };
+    const order = cells.map((cell, i) => ({ i, d: far(cell) })).sort((a, b) => a.d - b.d || a.i - b.i);
+    const taken = new Set(order.slice(0, close.length).map((o) => o.i));
+    close.forEach((g, j) => { const cell = cells[order[j].i]; grid[cell.r][cell.c] = g; });
+    const queue = others.filter((g) => !(pull(g) > 0));
+    cells.forEach((cell, i) => { if (!taken.has(i)) grid[cell.r][cell.c] = queue.shift(); });
     return grid;
   };
   const measure = (grid) => {
@@ -749,18 +781,7 @@ function spreadUniverse(plans, home, width, viewH, label, names = []) {
     const s = measure(g);
     if (per === 1 || s.k > size.k * 1.001) { grid = g; size = s; }
   }
-  const spots = plans.map(() => ({ x: 0, y: 0 }));
-  let y = -size.H / 2;
-  for (const row of grid) {
-    const top = Math.max(...row.map((i) => plans[i].ey));
-    const W = row.reduce((t, i) => t + wide(i), 0) + gx * (row.length - 1);
-    let x = -W / 2;
-    for (const i of row) {
-      spots[i] = { x: x + wide(i) / 2, y: y + top };
-      x += wide(i) + gx;
-    }
-    y += Math.max(...row.map(tall)) + gy;
-  }
+  const spots = place(grid);
   // Fit the whole map, centred below the heading, with room round it for
   // the names, which stay one size however far out.
   let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
@@ -1669,7 +1690,7 @@ class Galaxy {
     // The map is always laid out round you, whoever's page this is, so it's
     // the same map wherever you zoom out from.
     const you = this.list.findIndex((g) => g.you);
-    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.username));
+    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.username), this.list.map((g) => g.near || 0));
     const { height, cx, cy } = this.size;
     // Everything zooms about one point, F, chosen so that at the end the map
     // sits fitted on screen: a map point P ends at mid + k·P. At the start

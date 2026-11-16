@@ -96,3 +96,7 @@ LAY='{"planets":[]}'; echo "empty list: $(L "${A[@]}")"
 echo "after bad: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['x'], p['y']) for p in d['planets'] if p['x'] is not None]")"
 LAY='{"reset":true}'; echo "reset: $(L "${A[@]}")"
 echo "after reset: $(curl -s "${A[@]}" $B/api/galaxy | j "[(p['x'], p['y']) for p in d['planets']]")"
+# nearness: visits (once an hour) and saves pull a galaxy closer in your universe; only your own pulls show
+echo "near, bo (visited alma, saved one file): $(curl -s "${U[@]}" $B/api/galaxies | j "[(g['username'], round(g['near'], 1)) for g in d['galaxies']]")"
+echo "near, cy (visited alma): $(curl -s "${W[@]}" $B/api/galaxies | j "[(g['username'], round(g['near'], 1)) for g in d['galaxies']]")"
+echo "near, alma (visited no one): $(curl -s "${A[@]}" $B/api/galaxies | j "[(g['username'], g['near']) for g in d['galaxies']]")"

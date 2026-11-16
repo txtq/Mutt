@@ -646,7 +646,7 @@ function miniGalaxy(g, plan, here) {
   },
   sys,
   h('span', { class: 'uvg-label' },
-    h('span', { class: 'uvg-name' }, g.you ? 'You' : `@${g.username}`),
+    h('span', { class: 'uvg-name' }, g.you ? 'You' : g.name || `@${g.username}`),
     h('span', { class: 'uvg-meta' }, meta)));
   el.galaxy = g;
   el.plan = plan;
@@ -928,6 +928,7 @@ class Galaxy {
     this.data = data;
     this.mine = !!data.user.you;
     this.owner = data.user.username;
+    this.ownerName = data.user.name || null;   // the name they gave, if any
     this.planetEls = new Map();
     this.stars = data.stars || [];
     this.showAll = false;
@@ -2289,7 +2290,7 @@ class Galaxy {
       el: this.el,
       title: this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy`,
       chrome: 'galaxy',
-      who: { username: this.owner, you: this.mine },
+      who: { username: this.owner, name: this.ownerName, you: this.mine },
       home: !this.mine,
       goHome: this.mine ? () => this.goHome() : () => this.back(),
       list: () => this.stars,

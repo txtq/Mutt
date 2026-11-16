@@ -798,6 +798,26 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .sheet-deleted-files { --cols: 3; gap: var(--space-12); }
 .sheet-deleted .cell { cursor: pointer; }
 .sheet-deleted-more { margin-top: var(--space-12); }
+/* Name and recovery key rows: your own words on a bare text box; a fact and one small button */
+.sheet-name { margin-left: calc(var(--space-8) * -1); }
+.sheet-key { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.sheet-key-fact { font: var(--type-caption); color: var(--ink-3); }
+/* Asked for a reset (only for whoever runs Mutt): who, when, their note, and what to do */
+.sheet-resets { padding: var(--space-12) 0 var(--space-16); border-top: 1px solid var(--line); }
+.sheet-resets[hidden] { display: none; }
+.sheet-resets-list { display: grid; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
+.sheet-reset-who { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
+.sheet-reset-name { font: var(--type-label); color: var(--ink); }
+.sheet-reset-also { color: var(--ink-2); font-weight: 400; }
+.sheet-reset-when { font: var(--type-fact); color: var(--ink-3); }
+.sheet-reset-note { margin: var(--space-2) 0 var(--space-8); font: var(--type-caption); color: var(--ink-2); overflow-wrap: anywhere; }
+.sheet-reset-btns { display: flex; gap: var(--space-8); }
+/* A recovery key or a reset link in its dialog: read-only, in the mono face, to copy or save */
+.rk-key { width: 100%; margin-top: var(--space-12); font-family: var(--mono); text-align: center; letter-spacing: 0.06em; }
+.rk-link { font-size: var(--text-caption); text-align: left; letter-spacing: 0; }
+.rk-tools { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-8); }
+.pin-aside { margin: var(--space-8) auto 0; display: flex; }
+.pin-aside[hidden] { display: none; }
 @media (max-width: 720px) {
   .sheet { padding: var(--space-16); }
   .sheet .set-row { grid-template-columns: 1fr; gap: var(--space-8); }
@@ -2273,7 +2293,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 
 .login-form { width: 100%; margin-top: 6px; }
 .login-prompt { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.25; color: var(--ink); overflow-wrap: anywhere; }
-.login-name-row {
+.login-name-row, .login-line {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -2281,7 +2301,7 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   border-bottom: 1.5px solid var(--line-2);
   transition: border-color var(--dur-move) var(--ease-settle);
 }
-.login-name-row:focus-within { border-color: var(--ink); }
+.login-name-row:focus-within, .login-line:focus-within { border-color: var(--ink); }
 .login-at { font-size: 17px; color: var(--ink-4); }
 .login-name {
   flex: 1;
@@ -2321,7 +2341,19 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
   pointer-events: none;
 }
 .login-pin { display: none; margin-top: 6px; }
-.login-form:not([data-step="name"]) .login-pin { display: block; }
+.login-form:is([data-step="pin"], [data-step="confirm"]) .login-pin { display: block; }
+/* Can't remember it: a line of what to do, the two ways back in, and a line
+   for the key or the note, drawn like the name's. */
+.login-about { margin: var(--space-2) 0 0; line-height: 1.4; }
+.login-about:empty { display: none; }
+.login-line, .login-choices { display: none; }
+.login-form[data-step="key"] .login-key, .login-form[data-step="ask"] .login-ask { display: flex; }
+.login-form[data-step="help"] .login-choices { display: flex; flex-direction: column; align-items: center; margin-top: var(--space-4); }
+.login-choices .login-other { font-size: var(--text-label); color: var(--ink-2); }
+.login-key-input { font-family: var(--mono); font-size: var(--text-body); letter-spacing: 0.04em; text-transform: uppercase; }
+.login-key-input::placeholder { letter-spacing: 0.04em; }
+.login-note-input { font-size: var(--text-body); }
+.login-links { display: flex; justify-content: center; flex-wrap: wrap; }
 .login-label { margin: 0 0 var(--space-2); font-size: var(--text-caption); color: var(--ink-3); }
 
 /* The code is six ink rings on the light (two faint ones for older 4-digit codes); each fills as you type. */

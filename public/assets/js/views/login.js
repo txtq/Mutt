@@ -4,6 +4,11 @@
 // on its speckled cage. There's one thing to do: type a name. A name Mutt
 // knows is asked for its code; a new one is free to take by picking a code.
 // The void answers every key, and the right code lets its light take you.
+//
+// Forgetting your code: after two misses "Can’t remember it?" offers the two
+// ways back in that need no identity: the recovery key Mutt gave you, or
+// asking whoever runs Mutt for a reset (they send a one-time link, which opens
+// this page as /login?reset=…, asking only for a new code).
 
 import { phoneNote } from '../phonenote.js';
 import { askForLongerCode } from '../account.js';
@@ -273,9 +278,25 @@ function dustField() {
   };
 }
 
+// What a reset link (/login?reset=…) is for, read before the page is made.
+const resetOf = (url) => {
+  const token = url.searchParams.get('reset') || '';
+  if (!token) return null;
+  return api.get(`/api/auth/reset/${encodeURIComponent(token)}`)
+    .then((r) => ({ reset: { token, username: r.username } }), (err) => ({ reset: { token, error: err.message } }));
+};
+
+// Keys are 16 letters and digits; how they're typed (case, dashes, spaces) doesn't matter.
+const keyChars = (value) => value.toUpperCase().replace(/[\s\-_.]/g, '');
+
 export const loginView = {
+  load: (params, url) => resetOf(url),
   create(params, data, url) {
+    // signin, signup, recover (a new code with your recovery key) or reset (a new code from a link)
     let mode = 'signin';
+    let misses = 0;
+    let key = '';
+    const reset = data?.reset || null;
     let step = 'name';
     let firstPin = '';
     let busy = false;
@@ -297,14 +318,32 @@ export const loginView = {
     const prompt = h('h2', { class: 'login-prompt', 'aria-live': 'polite' });
     const pinLabel = h('p', { class: 'login-label' });
     const msg = h('p', { class: 'login-msg', 'aria-live': 'polite' });
-    const other = h('button', { type: 'button', class: 'login-other', onclick: () => { setStep('name'); nameInput.select(); } });
+    const other = h('button', { type: 'button', class: 'login-other', onclick: () => back() });
+    const help = h('button', { type: 'button', class: 'login-other', hidden: true, onclick: () => setStep('help') }, 'Can’t remember it?');
+    const about = h('p', { class: 'login-label login-about' });
+    const choices = h('div', { class: 'login-choices' },
+      h('button', { type: 'button', class: 'login-other', onclick: () => setStep('key') }, 'Use my recovery key'),
+      h('button', { type: 'button', class: 'login-other', onclick: () => setStep('ask') }, 'Ask for a reset'));
+    const keyInput = h('input', {
+      class: 'login-name login-key-input', type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false',
+      maxlength: '24', placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': 'Recovery key',
+    });
+    const noteInput = h('input', {
+      class: 'login-name login-note-input', type: 'text', autocomplete: 'off', maxlength: '300',
+      placeholder: 'who you are, how to reach you', 'aria-label': 'A note for whoever runs Mutt',
+    });
+    const goTo = (label) => h('button', { type: 'submit', class: 'login-go', 'aria-label': label, title: label }, icon('forward', 20));
 
     const form = h('form', { class: 'login-form', novalidate: true },
       prompt,
       h('div', { class: 'login-name-row' }, h('span', { class: 'login-at' }, '@'), nameInput, goBtn),
+      about,
+      choices,
+      h('div', { class: 'login-line login-key' }, keyInput, goTo('Continue')),
+      h('div', { class: 'login-line login-ask' }, noteInput, goTo('Send')),
       h('div', { class: 'login-pin' }, pinLabel, pin.el),
       msg,
-      other);
+      h('div', { class: 'login-links' }, other, help));
 
     // The logo, then what comes off it: a stippled haze of ink behind, and
     // two faint copies of the word that keep swelling outward and fading.
@@ -341,6 +380,19 @@ export const loginView = {
       dust.resize(Math.max(R * 2.5, light * CAGE_OPEN) * 1.08, innerWidth, innerHeight);
     }
 
+    // Where "Back" (or "Not you?", "Another name") goes from each step.
+    function back() {
+      if (step === 'help' || (mode === 'signin' && step === 'asked')) { setStep('pin'); return; }
+      if (step === 'key' || step === 'ask') { setStep('help'); return; }
+      if (mode === 'recover') { setStep('key'); return; }
+      if (step === 'gone') { history.replaceState(null, '', '/login'); mode = 'signin'; setStep(nameInput.value ? 'pin' : 'name'); return; }
+      mode = 'signin';
+      misses = 0;
+      setStep('name');
+      nameInput.select();
+    }
+
+    const PICK = { pin: 'Pick a 6-digit code', confirm: 'Once more, to be sure' };
     function setStep(next) {
       step = next;
       form.dataset.step = step;
@@ -349,28 +401,85 @@ export const loginView = {
       pin.clear();
       fed = 0;
       const name = nameInput.value;
+      about.textContent = '';
+      other.hidden = false;
+      help.hidden = !(mode === 'signin' && step === 'pin' && misses >= 2);
       if (step === 'name') {
         firstPin = '';
         prompt.textContent = 'Who’s there?';
+      } else if (step === 'help') {
+        prompt.textContent = 'Can’t remember it?';
+        about.textContent = `There are two ways back in to @${name}.`;
+        other.textContent = 'Back';
+      } else if (step === 'key') {
+        prompt.textContent = 'Your recovery key';
+        about.textContent = 'The one Mutt gave you when you made your account.';
+        other.textContent = 'Back';
+      } else if (step === 'ask') {
+        prompt.textContent = 'Ask for a reset';
+        about.textContent = 'Whoever runs Mutt checks it’s you, then sends you a link to pick a new code. Say who you are and where to reach you.';
+        other.textContent = 'Back';
+      } else if (step === 'asked') {
+        prompt.textContent = 'Asked';
+        about.textContent = 'Once they know it’s you, they’ll send you a link. It works once, for three days.';
+        other.textContent = 'Back to sign in';
+      } else if (step === 'gone') {
+        prompt.textContent = 'This link has run out';
+        about.textContent = 'It may have been used already, or be more than three days old. Ask for a new one.';
+        other.textContent = 'Sign in';
       } else if (mode === 'signin') {
         prompt.textContent = `Welcome back, @${name}`;
         pinLabel.textContent = 'Your code';
         other.textContent = 'Not you?';
-      } else {
+      } else if (mode === 'signup') {
         prompt.textContent = `@${name} is free`;
-        pinLabel.textContent = step === 'pin' ? 'Pick a 6-digit code' : 'Once more, to be sure';
+        pinLabel.textContent = PICK[step];
         other.textContent = 'Another name';
+      } else {
+        prompt.textContent = mode === 'reset' ? `A new code for @${name}` : 'Pick a new code';
+        pinLabel.textContent = PICK[step];
+        other.textContent = 'Back';
+        other.hidden = mode === 'reset';
       }
+      if (step === 'pin' && mode !== 'signup' && mode !== 'signin') firstPin = '';
       pin.input.autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
       // Signing in takes 6 digits, or 4 for older accounts; new codes are 6.
       pin.configure(mode === 'signin' ? { either: true } : { length: 6 });
       say('');
       if (!ready) return;
       appear(prompt);
-      if (step !== 'name') appear(pinLabel, 60);
+      if (about.textContent) appear(about, 60);
+      if (step === 'pin' || step === 'confirm') appear(pinLabel, 60);
       fit();
       if (step === 'name') nameInput.focus({ preventScroll: true });
-      else setTimeout(() => pin.focus(), 60);
+      else if (step === 'key') keyInput.focus({ preventScroll: true });
+      else if (step === 'ask') noteInput.focus({ preventScroll: true });
+      else if (step === 'help') choices.firstElementChild.focus({ preventScroll: true });
+      else if (step === 'pin' || step === 'confirm') setTimeout(() => pin.focus(), 60);
+    }
+
+    // The key is checked when the new code is sent, so a wrong one costs one try, not two.
+    function submitKey() {
+      const raw = keyChars(keyInput.value);
+      if (raw.length !== 16 || !/^[0-9A-Z]+$/.test(raw)) { say('A key is 16 letters and numbers.', 'error'); dust.repel(); return; }
+      key = raw;
+      mode = 'recover';
+      feed(0.5);
+      setStep('pin');
+    }
+
+    async function submitAsk() {
+      if (busy) return;
+      busy = true;
+      try {
+        await api.post('/api/auth/reset-request', { username: nameInput.value, note: noteInput.value.trim() });
+        feed(0.5);
+        setStep('asked');
+      } catch (err) {
+        say(err.message, 'error');
+      } finally {
+        busy = false;
+      }
     }
 
     async function submitName() {
@@ -406,7 +515,7 @@ export const loginView = {
       art.gulp();
       theSky()?.pull(at.x, at.y, { strength: 0.35, radius: R * 6, duration: DUR.scene });
     }
-    nameInput.addEventListener('input', () => { say(''); feed(0.14); });
+    for (const input of [nameInput, keyInput, noteInput]) input.addEventListener('input', () => { say(''); feed(0.14); });
     pin.input.addEventListener('input', () => {
       const n = pin.value.length;
       if (n > fed) feed(0.6);
@@ -451,7 +560,8 @@ export const loginView = {
 
     async function submitPin(digits) {
       if (busy) return;
-      if (mode === 'signup' && step === 'pin') {
+      const picking = mode !== 'signin';
+      if (picking && step === 'pin') {
         // Too easy to guess? Say so now, before asking for it twice.
         const problem = await api.post('/api/auth/check-pin', { pin: digits }).then((r) => r.problem, () => null);
         if (problem) { await fail(problem); return; }
@@ -460,7 +570,7 @@ export const loginView = {
         setStep('confirm');
         return;
       }
-      if (mode === 'signup' && digits !== firstPin) {
+      if (picking && digits !== firstPin) {
         firstPin = '';
         await fail('Those didn’t match. Pick it again.');
         setStep('pin');
@@ -471,8 +581,11 @@ export const loginView = {
       art.hungry(true);
       say('');
       try {
-        const body = { username: nameInput.value, pin: digits };
-        const res = await api.post(mode === 'signin' ? '/api/auth/login' : '/api/auth/signup', body);
+        const username = nameInput.value;
+        const res = await (
+          mode === 'recover' ? api.post('/api/auth/recover', { username, key, pin: digits })
+            : mode === 'reset' ? api.post(`/api/auth/reset/${encodeURIComponent(reset.token)}`, { pin: digits })
+              : api.post(mode === 'signin' ? '/api/auth/login' : '/api/auth/signup', { username, pin: digits }));
         pin.state('ok');
         remember(res.user?.username || nameInput.value);
         clearTimeout(twitch);
@@ -485,6 +598,8 @@ export const loginView = {
         await nav.go(next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
         phoneNote();
         askForLongerCode();
+        // A new account, or a new code without the old one: here is the key that gets you back in next time.
+        if (res.recoveryKey) import('../account.js').then((m) => m.showRecoveryKey(res.recoveryKey, res.user?.username));
         if (flash) {
           flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.scene, delay: DUR.quick, easing: 'ease', fill: 'forwards' })
             .finished.then(() => flash.remove(), () => flash.remove());
@@ -492,8 +607,14 @@ export const loginView = {
       } catch (err) {
         busy = false;
         const left = err.data?.attemptsLeft;
+        if (mode === 'signin' && (err.status === 401 || err.status === 429)) misses += 1;
         await fail(left ? `${err.message} ${left} ${left === 1 ? 'try' : 'tries'} left.` : err.message);
+        if (mode === 'signin' && misses >= 2 && help.hidden) { help.hidden = false; appear(help); fit(); }
         if (mode === 'signup' && err.status !== 429) setStep(err.status === 409 ? 'name' : 'pin');
+        if (mode === 'recover' && err.status === 401) { setStep('key'); keyInput.select(); say(err.message, 'error'); }
+        else if (mode === 'recover' && err.status === 400) setStep('pin');
+        if (mode === 'reset' && err.status === 404) { mode = 'signin'; setStep('gone'); }
+        else if (mode === 'reset') { const said = err.message; setStep('pin'); say(said, 'error'); }
         return;
       }
       busy = false;
@@ -502,6 +623,8 @@ export const loginView = {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       if (step === 'name') submitName();
+      else if (step === 'key') submitKey();
+      else if (step === 'ask') submitAsk();
     });
 
     // The void takes up most of the screen; on a phone its cage runs off both sides.
@@ -551,7 +674,14 @@ export const loginView = {
 
     // Someone who's signed in here before only has to give their code.
     const known = lastName();
-    if (known && url.searchParams.get('new') !== '1') {
+    if (reset?.username) {
+      nameInput.value = reset.username;
+      mode = 'reset';
+      setStep('pin');
+    } else if (reset) {
+      nameInput.value = known;
+      setStep('gone');
+    } else if (known && url.searchParams.get('new') !== '1') {
       nameInput.value = known;
       setStep('pin');
     } else {
@@ -573,7 +703,7 @@ export const loginView = {
         restless();
         ready = true;
         // A phone's keyboard would cover the void, so there it waits for a tap.
-        if (!touchScreen()) (step === 'name' ? nameInput : pin).focus({ preventScroll: true });
+        if (!touchScreen() && step !== 'gone') (step === 'name' ? nameInput : pin).focus({ preventScroll: true });
       },
       destroy: () => {
         gone = true;

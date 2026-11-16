@@ -375,6 +375,11 @@ def seed():
     other.open(urllib.request.Request(SITE + f'/api/blocks/{pier}/save', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
                                       data=json.dumps({'drawer': seaside}).encode()), timeout=20)
 
+    # someone who will forget their code; their recovery key is kept for the path that uses it
+    ids['key'] = json.load(urllib.request.build_opener().open(urllib.request.Request(
+        SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+        data=json.dumps({'username': 'forgetter', 'pin': '304857'}).encode()), timeout=20))['recoveryKey']
+
     # a postcard written twice, so it has a history (its first words kept)
     wish = next(b['id'] for b in send('GET', f'/api/drawers/{ids["Postcards"]}')['blocks'] if b['content'] == 'wish you were here')
     send('PATCH', f'/api/blocks/{wish}', {'content': 'wish you were here, love from the coast'})
@@ -408,11 +413,13 @@ def sign_up(s, seeded):
     s.wait('return /free/i.test(document.querySelector(".login-prompt")?.textContent || "")',
            'a new name was not told it is free')
     enter_code(s, '739193')
-    s.wait('return /once more/i.test(document.querySelector(".login-label")?.textContent || "")',
+    s.wait('return /once more/i.test(document.querySelector(".login-label:not(.login-about)")?.textContent || "")',
            'a new name was not asked for its code a second time')
     enter_code(s, '739193')
     s.wait('return location.pathname === "/" && !!document.querySelector(".void-core")',
            'picking a code did not land in the new galaxy', 12)
+    s.wait('return /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/.test(document.querySelector(".rk-key")?.value || "")',
+           'a new account was not shown its recovery key')
     s.settle(1.5)
     s.shot('galaxy-new')
 
@@ -439,6 +446,38 @@ def sign_in(s, seeded):
            'the right code did not open the galaxy with its 7 planets', 12)
     s.settle(1.5)
     s.shot('galaxy')
+
+
+def forgot_code(s, seeded):
+    """Two wrong codes offer a way back in; the recovery key picks a new code and gives a new key."""
+    s.go('/')
+    s.sign_out()
+    s.go('/login?new=1')
+    s.see('.login-name', 'the sign-in page did not appear')
+    s.settle(1.5)
+    give_name(s, 'forgetter')
+    s.wait('return /welcome back/i.test(document.querySelector(".login-prompt")?.textContent || "")',
+           'a known name was not welcomed back')
+    for _ in range(2):
+        enter_code(s, '000093')
+        s.wait('return (document.querySelector(".login-msg")?.textContent || "").trim().length > 0', 'a wrong code gave no message')
+        s.wait('const i = document.querySelector(".pin-input"); return i && !i.disabled && i.value === ""',
+               'the code box did not clear after a wrong code')
+        s.settle(1.2)
+    s.click(s.named('.login-other', 'Can’t remember it', 'two wrong codes did not offer a way back in'))
+    s.settle(0.8)
+    s.shot('forgot-help')
+    s.click(s.named('.login-other', 'Use my recovery key', 'there was no way to use a recovery key'))
+    s.type('.login-key-input', seeded['key'].lower().replace('-', ' ') + ENTER)
+    enter_code(s, '615283')
+    s.wait('return /once more/i.test(document.querySelector(".login-label:not(.login-about)")?.textContent || "")',
+           'the key did not lead to picking a new code')
+    enter_code(s, '615283')
+    s.wait('return location.pathname === "/" && /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/.test(document.querySelector(".rk-key")?.value || "")'
+           ' && document.querySelector(".rk-key").value !== arguments[0]',
+           'the recovery key did not open the account and give a new key', 12, (seeded['key'],))
+    s.settle(1)
+    s.shot('forgot-new-key')
 
 
 def comment_notes(s, seeded):
@@ -773,7 +812,7 @@ def send_to_top(s, seeded):
 
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top]
+         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top, forgot_code]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

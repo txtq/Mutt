@@ -1,5 +1,6 @@
 """HTTP API: accounts, settings, galaxies, drawers (planets), files (blocks), connections."""
 import gzip
+import hmac
 import json
 import os
 import random
@@ -22,6 +23,11 @@ MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '50')) * 1024 * 1024
 MAX_THUMB = 8 * 1024 * 1024
 UNLOCK_TTL = 12 * 60 * 60
 ALLOW_SIGNUPS = os.environ.get('MUTT_ALLOW_SIGNUPS', '1').lower() not in ('0', 'false', 'no', 'off')
+# Whoever runs this Mutt: the usernames told of reset requests on their own
+# galaxy (MUTT_ADMIN, comma-separated), and a key that lets a script outside
+# Mutt (a check run by Claude) read the requests and make links (MUTT_ADMIN_KEY).
+ADMINS = {n.strip().lower().lstrip('@') for n in os.environ.get('MUTT_ADMIN', '').split(',') if n.strip()}
+ADMIN_KEY = os.environ.get('MUTT_ADMIN_KEY', '').strip()
 
 ICON_RE = re.compile(r'^[0-3]{81}$')
 COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
@@ -78,14 +84,17 @@ def text_field(body, key, limit, label, strip=True):
 # ---------------------------------------------------------------- serializers
 
 def user_json(row):
-    return {'username': row['username'], 'createdAt': ms(row['created_at'])}
+    return {'username': row['username'], 'name': row['display_name'], 'createdAt': ms(row['created_at'])}
 
 
-def me_json(row, short=None):
-    """You, as you see yourself: `oldCode` when you still sign in with 4 digits."""
+def me_json(req, row, short=None):
+    """You, as your own pages see you: also whether you've a recovery key,
+    whether you run this Mutt (and so are told of reset requests), and
+    `oldCode` when you still sign in with 4 digits."""
     if short is None:
         short = bool(row['short_code']) if 'short_code' in row.keys() else False
-    return {**user_json(row), 'oldCode': short}
+    return {**user_json(row), 'hasKey': bool(row['recovery_hash']), 'admin': is_admin_name(row['username']),
+            'oldCode': short}
 
 
 def user_prefs(row):
@@ -497,7 +506,7 @@ def me(req):
     headers = []
     if not auth.known_device(req.db, req.user['id'], req.cookie(auth.DEVICE_COOKIE)):
         headers.append(auth.remember_device(req, req.db, req.user['id']))  # signed in before device cookies
-    return json_response({'user': me_json(req.user), 'prefs': user_prefs(req.user),
+    return json_response({'user': me_json(req, req.user), 'prefs': user_prefs(req.user),
                           'stats': user_stats(req.db, req.user['id'])}, headers=headers)
 
 
@@ -531,17 +540,21 @@ def signup(req):
     if problem:
         raise HttpError(400, problem, weakPin=True)
     pin_hash, salt = auth.new_pin_hash(pin)
+    key = auth.new_recovery_key()
+    key_hash, key_salt = auth.new_key_hash(key)
     try:
         with db.transaction(req.db):
             cursor = req.db.execute(
-                'INSERT INTO users (username, pin_hash, pin_salt, created_at) VALUES (?, ?, ?, ?)',
-                (username, pin_hash, salt, now()))
+                'INSERT INTO users (username, pin_hash, pin_salt, created_at, recovery_hash, recovery_salt, recovery_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (username, pin_hash, salt, now(), key_hash, key_salt, now()))
             token = auth.create_session(req.db, cursor.lastrowid)
     except sqlite3.IntegrityError:
         raise HttpError(409, 'That username is taken.')
     auth.signups_by_ip.hit(ip)
     user = req.db.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
-    return json_response({'user': me_json(user, False), 'prefs': {}, 'stats': {'files': 0, 'drawers': 0}},
+    return json_response({'user': me_json(req, user, False), 'prefs': {}, 'stats': {'files': 0, 'drawers': 0},
+                          'recoveryKey': key},
                          headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
 
@@ -593,7 +606,7 @@ def login(req):
     req.db.execute('UPDATE users SET short_code = ? WHERE id = ?', (1 if short else 0, user['id']))
     if random.random() < 0.05:
         auth.prune_sessions(req.db)
-    return json_response({'user': me_json(user, short), 'prefs': user_prefs(user),
+    return json_response({'user': me_json(req, user, short), 'prefs': user_prefs(user),
                           'stats': user_stats(req.db, user['id'])},
                          headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
 
@@ -617,7 +630,13 @@ def change_pin(req):
     body = req.json()
     if auth.login_failures_by_ip.retry_after(req.client_ip):
         raise HttpError(429, 'Too many tries. Wait a few minutes.')
-    require_pin(req, str(body.get('current') or ''), 'current code')
+    if body.get('forgot'):
+        # Forgotten it, but still signed in here: a browser that signed in to
+        # this account may set a new code without the old one.
+        if not auth.known_device(req.db, req.user['id'], req.cookie(auth.DEVICE_COOKIE)):
+            raise HttpError(403, 'Only a device you’ve signed in on before can do this.')
+    else:
+        require_pin(req, str(body.get('current') or ''), 'current code')
     new_pin = str(body.get('next') or '')
     problem = auth.pin_problem(new_pin)
     if problem:
@@ -648,6 +667,192 @@ def delete_account(req):
     req.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
     shutil.rmtree(os.path.join(db.FILES_DIR, str(int(user_id))), ignore_errors=True)
     return json_response({'ok': True}, headers=[auth.clear_cookie_header(req)])
+
+
+# ---------------------------------------------------------------- getting back in
+
+reset_requests_by_ip = auth.RateLimiter(limit=5, window=60 * 60)
+
+
+def is_admin_name(username):
+    return username in ADMINS
+
+
+def require_admin(req):
+    """You run this Mutt: signed in as one of MUTT_ADMIN, or carrying MUTT_ADMIN_KEY."""
+    given = req.header('X-Mutt-Admin') or ''
+    if ADMIN_KEY and given and hmac.compare_digest(given.encode(), ADMIN_KEY.encode()):
+        return
+    if req.user and is_admin_name(req.user['username']):
+        return
+    if given:
+        auth.login_failures_by_ip.hit(req.client_ip)
+    raise HttpError(404, 'Not found.')
+
+
+def set_new_code(req, user, pin):
+    """A new sign-in code for someone who couldn't get in: every other
+    sign-in ends, misses are forgotten, and they get a fresh recovery key.
+    Returns the response that signs them in here."""
+    problem = auth.pin_problem(pin)
+    if problem:
+        raise HttpError(400, problem, weakPin=True)
+    pin_hash, salt = auth.new_pin_hash(pin)
+    key = auth.new_recovery_key()
+    key_hash, key_salt = auth.new_key_hash(key)
+    with db.transaction(req.db):
+        req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ?, short_code = 0, recovery_hash = ?, recovery_salt = ?, recovery_at = ? '
+                       'WHERE id = ?', (pin_hash, salt, key_hash, key_salt, now(), user['id']))
+        req.db.execute('DELETE FROM sessions WHERE user_id = ?', (user['id'],))
+        req.db.execute('DELETE FROM login_failures WHERE user_id = ?', (user['id'],))
+        req.db.execute("UPDATE reset_requests SET state = 'done', answered_at = ? WHERE user_id = ? "
+                       "AND state IN ('waiting', 'sent')", (now(), user['id']))
+        token = auth.create_session(req.db, user['id'])
+    user = req.db.execute('SELECT * FROM users WHERE id = ?', (user['id'],)).fetchone()
+    return json_response({'user': me_json(req, user), 'prefs': user_prefs(user),
+                          'stats': user_stats(req.db, user['id']), 'recoveryKey': key},
+                         headers=[auth.cookie_header(req, token), auth.remember_device(req, req.db, user['id'])])
+
+
+@route('PUT', r'/api/me/name')
+def set_name(req):
+    """The name you'd like to be called. Any words, or none: it's never checked against anything."""
+    name = auth.clean_name(text_field(req.json(), 'name', 200, 'Your name'))
+    req.db.execute('UPDATE users SET display_name = ? WHERE id = ?', (name, req.user['id']))
+    return json_response({'name': name})
+
+
+@route('POST', r'/api/me/recovery-key')
+def make_recovery_key(req):
+    """A new recovery key, shown once; the old one stops working."""
+    key = auth.new_recovery_key()
+    key_hash, key_salt = auth.new_key_hash(key)
+    req.db.execute('UPDATE users SET recovery_hash = ?, recovery_salt = ?, recovery_at = ? WHERE id = ?',
+                   (key_hash, key_salt, now(), req.user['id']))
+    return json_response({'recoveryKey': key})
+
+
+@route('POST', r'/api/auth/recover', auth=False)
+def recover(req):
+    """Forgot your code: your recovery key lets you pick a new one. The key is
+    spent, and a new one is given."""
+    body = req.json()
+    ip = req.client_ip
+    wait = auth.login_failures_by_ip.retry_after(ip)
+    if wait:
+        raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
+    pin = str(body.get('pin') or '')
+    problem = auth.pin_problem(pin)
+    if problem:
+        raise HttpError(400, problem, weakPin=True)
+    user = req.db.execute('SELECT * FROM users WHERE username = ?',
+                          (auth.normalize_username(body.get('username')),)).fetchone()
+    if not user:
+        auth.burn_time(pin)
+        auth.login_failures_by_ip.hit(ip)
+        raise HttpError(401, "That key isn't right.")
+    failure = auth.try_key(req.db, user, body.get('key'), ip)
+    if failure:
+        status, message, extra = failure
+        raise HttpError(status, message, **extra)
+    return set_new_code(req, user, pin)
+
+
+@route('POST', r'/api/auth/reset-request', auth=False)
+def request_reset(req):
+    """Ask whoever runs Mutt for a link to set a new code. The answer is the
+    same whether or not the name is someone's, and one waiting request per
+    account is kept (asking again only updates its note)."""
+    ip = req.client_ip
+    wait = reset_requests_by_ip.retry_after(ip)
+    if wait:
+        raise HttpError(429, f'You’ve asked a few times already. Try again in {auth.format_wait(wait)}.', retryAfter=wait)
+    reset_requests_by_ip.hit(ip)
+    body = req.json()
+    note = text_field(body, 'note', 300, 'Your note') or ''
+    user = req.db.execute('SELECT id FROM users WHERE username = ?',
+                          (auth.normalize_username(body.get('username')),)).fetchone()
+    if user:
+        waiting = req.db.execute("SELECT id FROM reset_requests WHERE user_id = ? AND state = 'waiting'",
+                                 (user['id'],)).fetchone()
+        if waiting:
+            req.db.execute('UPDATE reset_requests SET note = ?, created_at = ? WHERE id = ?', (note, now(), waiting['id']))
+        else:
+            req.db.execute('INSERT INTO reset_requests (id, user_id, note, source, created_at) VALUES (?, ?, ?, ?, ?)',
+                           (new_id(), user['id'], note, auth.source_key(ip), now()))
+    return json_response({'ok': True})
+
+
+def reset_link_user(req, token):
+    row = req.db.execute('SELECT u.* FROM reset_links l JOIN users u ON u.id = l.user_id '
+                         'WHERE l.token_hash = ? AND l.used_at IS NULL AND l.expires_at > ?',
+                         (auth.reset_token_hash(token), now())).fetchone()
+    if not row:
+        raise HttpError(404, 'This link has run out or been used. Ask for a new one.')
+    return row
+
+
+@route('GET', r'/api/auth/reset/(?P<token>[\w-]{20,80})', auth=False)
+def reset_link(req, token):
+    user = reset_link_user(req, token)
+    return json_response({'username': user['username']})
+
+
+@route('POST', r'/api/auth/reset/(?P<token>[\w-]{20,80})', auth=False)
+def use_reset_link(req, token):
+    if auth.login_failures_by_ip.retry_after(req.client_ip):
+        raise HttpError(429, 'Too many tries. Wait a few minutes.')
+    user = reset_link_user(req, token)
+    pin = str(req.json().get('pin') or '')
+    response = set_new_code(req, user, pin)
+    req.db.execute('UPDATE reset_links SET used_at = ? WHERE token_hash = ?', (now(), auth.reset_token_hash(token)))
+    return response
+
+
+def admin_request_json(row):
+    return {'id': row['id'], 'username': row['username'], 'name': row['display_name'], 'note': row['note'],
+            'hasKey': bool(row['recovery_hash']), 'createdAt': ms(row['created_at'])}
+
+
+@route('GET', r'/api/admin/resets', auth=False)
+def admin_resets(req):
+    """Requests for a reset that no one has answered yet, oldest first."""
+    require_admin(req)
+    rows = req.db.execute("SELECT r.*, u.username, u.display_name, u.recovery_hash FROM reset_requests r "
+                          "JOIN users u ON u.id = r.user_id WHERE r.state = 'waiting' ORDER BY r.created_at").fetchall()
+    return json_response({'requests': [admin_request_json(r) for r in rows]})
+
+
+def make_reset_link(req, user_id):
+    """A one-time link to set a new code, good for three days. Any older
+    link for the same account stops working."""
+    token, token_hash = auth.new_reset_token()
+    req.db.execute('DELETE FROM reset_links WHERE user_id = ?', (user_id,))
+    req.db.execute('INSERT INTO reset_links (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+                   (token_hash, user_id, now(), now() + auth.RESET_LINK_TTL))
+    scheme = 'https' if req.is_secure else 'http'
+    return {'link': f'{scheme}://{req.host}/login?reset={token}', 'expiresAt': ms(now() + auth.RESET_LINK_TTL)}
+
+
+@route('POST', r'/api/admin/resets/(?P<request_id>[\w-]+)/(?P<answer>link|wave)', auth=False)
+def answer_reset(req, request_id, answer):
+    require_admin(req)
+    row = req.db.execute("SELECT * FROM reset_requests WHERE id = ? AND state = 'waiting'", (request_id,)).fetchone()
+    if not row:
+        raise HttpError(404, 'That request has already been answered.')
+    req.db.execute('UPDATE reset_requests SET state = ?, answered_at = ? WHERE id = ?',
+                   ('sent' if answer == 'link' else 'waved', now(), request_id))
+    return json_response(make_reset_link(req, row['user_id']) if answer == 'link' else {'ok': True})
+
+
+@route('POST', r'/api/admin/users/' + USERNAME_PATH + r'/reset-link', auth=False)
+def admin_link_for(req, username):
+    """A link for someone who asked some other way (in person, by message)."""
+    require_admin(req)
+    user = find_user(req, username)
+    req.db.execute("UPDATE reset_requests SET state = 'sent', answered_at = ? WHERE user_id = ? AND state = 'waiting'",
+                   (now(), user['id']))
+    return json_response(make_reset_link(req, user['id']))
 
 
 # ---------------------------------------------------------------- look & feel
@@ -1088,7 +1293,7 @@ def list_galaxies(req):
         opened = [w for w in worlds if not w['locked']]
         private = sum(1 for w in worlds if w['private'])
         out.append({
-            'username': user['username'], 'you': mine, 'planets': len(worlds),
+            'username': user['username'], 'name': user['display_name'], 'you': mine, 'planets': len(worlds),
             'files': sum(w['n'] for w in opened), 'open': len(opened),
             'locked': len(worlds) - len(opened) - private, 'private': private,
             'worlds': worlds[:16],
@@ -1184,12 +1389,12 @@ def create_drawer(req):
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)')
 def get_drawer(req, drawer_id):
-    row = req.db.execute('SELECT d.*, u.username AS owner_name FROM drawers d JOIN users u ON u.id = d.user_id '
-                         'WHERE d.id = ?', (drawer_id,)).fetchone()
+    row = req.db.execute('SELECT d.*, u.username AS owner_name, u.display_name AS owner_display FROM drawers d '
+                         'JOIN users u ON u.id = d.user_id WHERE d.id = ?', (drawer_id,)).fetchone()
     if not row or not drawer_visible(req, row):
         if row and row['visibility'] == 'pin':
             count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
-            raise HttpError(403, 'Locked.', locked=True, owner=row['owner_name'],
+            raise HttpError(403, 'Locked.', locked=True, owner=row['owner_name'], ownerName=row['owner_display'],
                             drawer=planet_json(req, row, count, locked=True))
         raise HttpError(404, 'That planet does not exist.')
     blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
@@ -1197,6 +1402,7 @@ def get_drawer(req, drawer_id):
     if not drawer['mine']:
         drawer['owner'] = row['owner_name']
         draw_near(req, row['user_id'], NEAR_VISIT, visit=True)
+        drawer['ownerName'] = row['owner_display']
     if row['parent_id']:
         parent = req.db.execute('SELECT d.*, (SELECT COUNT(*) FROM connections c WHERE c.drawer_id = d.id) AS n '
                                 'FROM drawers d WHERE d.id = ?', (row['parent_id'],)).fetchone()
@@ -3229,10 +3435,10 @@ COMMENT_LIMIT = 2000
 
 
 def file_comments(req, block_id, owner_id):
-    rows = req.db.execute('SELECT c.*, u.username FROM file_comments c JOIN users u ON u.id = c.user_id '
+    rows = req.db.execute('SELECT c.*, u.username, u.display_name FROM file_comments c JOIN users u ON u.id = c.user_id '
                           'WHERE c.block_id = ? ORDER BY c.created_at', (block_id,)).fetchall()
     me = req.user['id']
-    return [{'id': r['id'], 'body': r['body'], 'by': r['username'], 'createdAt': ms(r['created_at']),
+    return [{'id': r['id'], 'body': r['body'], 'by': r['username'], 'byName': r['display_name'], 'createdAt': ms(r['created_at']),
              'mine': r['user_id'] == me, 'byOwner': r['user_id'] == owner_id,
              'canRemove': me in (r['user_id'], owner_id)} for r in rows]
 

@@ -102,7 +102,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
     li.append(
       h('div', { class: 'vw-cm-meta' },
         h('span', { class: 'vw-cm-dot', 'aria-hidden': 'true' }),
-        h('a', { class: 'vw-cm-by', href: `/g/${c.by}`, onclick: (e) => { e.preventDefault(); go(`/g/${c.by}`); } }, `@${c.by}`),
+        h('a', { class: 'vw-cm-by', href: `/g/${c.by}`, onclick: (e) => { e.preventDefault(); go(`/g/${c.by}`); } }, c.byName || `@${c.by}`),
         c.byOwner ? h('span', { class: 'vw-cm-tag' }, owner && c.mine ? 'you' : 'owner') : (c.mine ? h('span', { class: 'vw-cm-tag' }, 'you') : null),
         h('time', { class: 'vw-cm-when', datetime: new Date(c.createdAt).toISOString(), title: fullDate(c.createdAt) }, timeAgo(c.createdAt)),
         c.canRemove ? removeButton(c, li) : null),

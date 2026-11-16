@@ -97,7 +97,8 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     history.replaceState(null, '', `/login${next}`);
     return render();
   }
-  if (session.user && url.pathname === '/login') {
+  // (a reset link opens the sign-in page even for someone signed in: it's for the account it names)
+  if (session.user && url.pathname === '/login' && !url.searchParams.has('reset')) {
     const next = url.searchParams.get('next');
     history.replaceState(null, '', next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
     return render();

@@ -282,6 +282,27 @@ def migrate(conn):
                      'WHERE o.block_id = file_comments.block_id AND o.user_id = b.user_id '
                      'AND o.created_at >= file_comments.created_at)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_file_comments_unseen ON file_comments(seen, block_id)')
+    # Getting back in without giving anyone your identity: a name you choose
+    # (any words, shown instead of @username where a person is shown), a
+    # recovery key (only its hash), requests for a reset sent from the sign-in
+    # page to whoever runs Mutt, and the one-time links they send back.
+    if 'display_name' not in user_columns:
+        conn.execute('ALTER TABLE users ADD COLUMN display_name TEXT')
+    if 'recovery_hash' not in user_columns:
+        conn.execute('ALTER TABLE users ADD COLUMN recovery_hash BLOB')
+        conn.execute('ALTER TABLE users ADD COLUMN recovery_salt BLOB')
+        conn.execute('ALTER TABLE users ADD COLUMN recovery_at REAL')
+    conn.execute('CREATE TABLE IF NOT EXISTS reset_requests ('
+                 'id TEXT PRIMARY KEY, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 "note TEXT NOT NULL DEFAULT '', source TEXT NOT NULL, "
+                 "state TEXT NOT NULL DEFAULT 'waiting', created_at REAL NOT NULL, answered_at REAL)")
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_reset_requests ON reset_requests(state, created_at)')
+    conn.execute('CREATE TABLE IF NOT EXISTS reset_links ('
+                 'token_hash TEXT PRIMARY KEY, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'created_at REAL NOT NULL, expires_at REAL NOT NULL, used_at REAL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_reset_links_user ON reset_links(user_id)')
     # Browsers that have signed in to an account; they skip its account-wide lock.
     conn.execute('CREATE TABLE IF NOT EXISTS devices ('
                  'device_hash TEXT NOT NULL, '

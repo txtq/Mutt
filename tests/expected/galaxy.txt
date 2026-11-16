@@ -3,7 +3,7 @@ tip put away: False  tip back on (expect 400): 400
 people set: ['bo']
 bad person: No one here is called @nobody.
 bad visibility: 400
-own galaxy: [('Diary', 'private', 1), ('Recipes', 'pin', 1), ('Zines', 'public', 1), ('Gifts', 'people', 1)] ['loose thought'] {'username': 'alma', 'createdAt': <time>, 'you': True}
+own galaxy: [('Diary', 'private', 1), ('Recipes', 'pin', 1), ('Zines', 'public', 1), ('Gifts', 'people', 1)] ['loose thought'] {'username': 'alma', 'name': None, 'createdAt': <time>, 'you': True}
 bo sees alma: [('', True, 0), ('Recipes', True, 0), ('Zines', False, 1), ('Gifts', False, 1)] False
 cy sees alma: [('', True), ('Recipes', True), ('Zines', False), ('', True)]
 bo galaxies: [('bo', True, 0, 0, 0, 0), ('alma', False, 4, 2, 1, 1), ('cy', False, 0, 0, 0, 0)]

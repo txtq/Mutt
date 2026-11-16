@@ -25,3 +25,18 @@ planet code miss 6: Too many wrong codes. Try again in 30 seconds.
 right planet code after misses (expect wait): Too many wrong codes. Try again in 30 seconds.
 other place, right planet code: ['<id>']
 sharer signs in from the guessing place (expect 200): 200
+sign-up gives a recovery key: 1
+name, as others see it: Sam from climbing
+forgot code on a browser that signed in before: 200
+rule holds: a session without that browser's device cookie set a code without the old one -> no
+wrong key: {"error":"That key isn't right."}
+key typed loosely sets a new code and gives a new key: yes
+rule holds: a recovery key worked twice -> no
+signs in with the new code: 200
+reset request (known / unknown name): {"ok":true} {"ok":true}
+rule holds: someone who doesn't run Mutt could read reset requests -> no
+requests, as the admin key sees them: [('forgetful', 'Sam from climbing', 'it is Sam, text me', True)]
+link opens for: {"username":"forgetful"}
+link sets a new code: 200
+rule holds: a reset link worked twice -> no
+requests left: {"requests":[]}

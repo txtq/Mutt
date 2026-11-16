@@ -12,7 +12,7 @@ import { closeTopLayer, confirmDialog, openContextMenu, openMenu, sectionHead, s
 import { BEAT, bus, DUR, EASE_LEAVE, h, plural } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
-import { changePin, deleteAccount, signOut } from './account.js';
+import { changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
 import { searchBody } from './search.js';
 import { icon } from './icons.js';
 import { commentNotes } from './commentnotes.js';
@@ -231,13 +231,58 @@ function recentlyDeleted() {
   return el;
 }
 
+// The name you'd like to be called: any words, or none. Saved when you leave the box.
+function nameField(paintHead) {
+  const input = h('input', {
+    class: 'field-bare sheet-name', type: 'text', maxlength: '40', value: session.user.name || '',
+    placeholder: 'What people call you', 'aria-label': 'Your name', spellcheck: 'false',
+  });
+  const commit = async () => {
+    const value = input.value.trim();
+    if (value === (session.user.name || '')) return;
+    try {
+      input.value = (await saveName(value)) || '';
+      paintHead();
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  return input;
+}
+
+// Your way back in if you forget your code.
+function keyRow(close) {
+  const has = !!session.user.hasKey;
+  return h('div', { class: 'sheet-key' },
+    h('span', { class: 'sheet-key-fact' }, has ? 'Kept outside Mutt' : 'None yet'),
+    h('button', { type: 'button', class: `btn btn-small${has ? ' btn-quiet' : ''}`, onclick: () => { close(); newRecoveryKey(); } },
+      has ? 'Make a new one' : 'Make one'));
+}
+
 function settingsBody(close) {
   const stats = { files: 0, drawers: 0, stars: 0, ...session.stats };
+  const whoEl = h('div', { class: 'sheet-who' });
+  const subEl = h('div', { class: 'sheet-sub' });
+  const paintHead = () => {
+    const { name, username } = session.user;
+    whoEl.textContent = name || `@${username}`;
+    subEl.textContent = `${name ? `@${username} · ` : ''}${plural(stats.files, 'file')} · ${plural(stats.drawers, 'planet')} · ${plural(stats.stars, 'star')}`;
+    paintWhoBar?.();
+  };
+  paintHead();
+  // For whoever runs Mutt: people waiting for a reset, above Recently deleted.
+  const resets = h('div', { class: 'sheet-resets-slot' });
+  if (session.user.admin) {
+    import('./resets.js').then(async (m) => {
+      const waiting = await m.waitingResets();
+      if (waiting.length) resets.replaceWith(m.resetRequests(waiting));
+    });
+  }
   return h('div', { class: 'sheet-in' },
     h('header', { class: 'sheet-head' },
-      h('div', null,
-        h('div', { class: 'sheet-who' }, `@${session.user.username}`),
-        h('div', { class: 'sheet-sub' }, `${plural(stats.files, 'file')} · ${plural(stats.drawers, 'planet')} · ${plural(stats.stars, 'star')}`)),
+      h('div', null, whoEl, subEl),
       location.pathname !== '/'
         ? h('button', { type: 'button', class: 'btn btn-main', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')
         : null),
@@ -246,6 +291,9 @@ function settingsBody(close) {
     row('Motion', choice('motion', [{ value: 'fluid', label: 'Lively' }, { value: 'calm', label: 'Calm' }, { value: 'off', label: 'Still' }])),
     row('Music', choice('music', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }])),
     row('Your files', downloadEverything()),
+    row('Name', nameField(paintHead)),
+    row('Recovery key', keyRow(close)),
+    resets,
     recentlyDeleted(),
     h('div', { class: 'sheet-actions' },
       h('button', { type: 'button', class: 'btn', onclick: () => { close(); tidyPlanets(); } }, 'Tidy planets'),
@@ -255,6 +303,8 @@ function settingsBody(close) {
 }
 
 // ---------------------------------------------------------------- the bar
+
+let paintWhoBar = null;   // the bar's "whose galaxy", repainted when your name changes
 
 export function createStatusbar() {
   const mark = logo();
@@ -313,11 +363,27 @@ export function createStatusbar() {
 
   function paintWho() {
     const w = current?.who || { username: session.user?.username, you: true };
+    // Someone's own name, if they gave one; else their @username.
+    const name = w.you ? session.user?.name : w.name;
     whoName.replaceChildren();
     if (out) whoName.append('Universe');
-    else whoName.append(h('span', { class: 'sb-at' }, `@${w.username}`), '’s Galaxy');
+    else whoName.append(h('span', { class: 'sb-at' }, name || `@${w.username}`), '’s Galaxy');
     who.classList.toggle('is-other', !out && !w.you);
   }
+  paintWhoBar = paintWho;
+
+  // Whoever runs Mutt is told on their own galaxy, once a visit, if someone asked for a reset.
+  let toldResets = false;
+  const tellResets = () => {
+    if (toldResets || !session.user?.admin || current?.chrome !== 'galaxy' || !current?.who?.you) return;
+    toldResets = true;
+    import('./resets.js').then((m) => m.waitingResets()).then((waiting) => {
+      if (!waiting.length) return;
+      const first = waiting[0];
+      toast(waiting.length === 1 ? `@${first.username} asked for a reset` : `${plural(waiting.length, 'person', 'people')} asked for a reset`,
+        { action: { label: 'See', run: () => settings.show(who) } });
+    });
+  };
 
   let glitched = false;
   return {
@@ -329,6 +395,7 @@ export function createStatusbar() {
       showHome();
       notes.hidePast();
       showNotes();
+      tellResets();
       if (session.user && !glitched) {
         glitched = true;
         requestAnimationFrame(() => glitch(mark));

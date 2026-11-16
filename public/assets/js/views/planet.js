@@ -999,8 +999,8 @@ export const planetView = {
         worldBox,
         h('div', { class: 'liv-info' },
           isMoon
-            ? h('p', { class: 'liv-owner' }, mine ? null : h('a', { href: home }, `@${drawer.owner}`), mine ? 'Moon of ' : '’s moon of ', h('a', { href: `/p/${drawer.parentId}` }, parent?.title || 'its planet'))
-            : mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
+            ? h('p', { class: 'liv-owner' }, mine ? null : h('a', { href: home }, drawer.ownerName || `@${drawer.owner}`), mine ? 'Moon of ' : '’s moon of ', h('a', { href: `/p/${drawer.parentId}` }, parent?.title || 'its planet'))
+            : mine ? null : h('p', { class: 'liv-owner' }, h('a', { href: home }, drawer.ownerName || `@${drawer.owner}`), '’s planet', community ? ' · anyone can add' : ''),
           title, desc, meta),
         mine ? h('div', { class: 'liv-tools' }, shareBtn, moreBtn) : null),
       body);

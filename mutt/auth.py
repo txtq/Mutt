@@ -85,6 +85,67 @@ def burn_time(pin):
     hash_pin(pin, _dummy_salt)
 
 
+# ---------------------------------------------------------------- getting back in
+
+# A recovery key: 16 letters and digits in four groups (80 bits), from an
+# alphabet with nothing that reads as something else (no I, L, O or U).
+KEY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+KEY_LENGTH = 16
+RESET_LINK_TTL = 3 * 24 * 60 * 60
+NAME_MAX = 40
+
+
+def new_recovery_key():
+    raw = ''.join(secrets.choice(KEY_ALPHABET) for _ in range(KEY_LENGTH))
+    return '-'.join(raw[i:i + 4] for i in range(0, KEY_LENGTH, 4))
+
+
+def normalize_key(value):
+    """A key as typed (any case, spaces or dashes, O for 0, I or L for 1) as
+    its 16 characters, or '' if it can't be one."""
+    raw = re.sub(r'[\s\-_.]', '', str(value or '')).upper()
+    raw = raw.translate(str.maketrans({'O': '0', 'I': '1', 'L': '1', 'U': 'V'}))
+    return raw if len(raw) == KEY_LENGTH and all(c in KEY_ALPHABET for c in raw) else ''
+
+
+def new_key_hash(key):
+    salt = secrets.token_bytes(16)
+    return hash_pin('key:' + normalize_key(key), salt), salt
+
+
+def try_key(conn, user, key, ip):
+    """Check a recovery key under the same lockout rules as a code (its misses
+    count with wrong codes). Returns None when it's right, else a failure."""
+    raw = normalize_key(key)
+
+    def ok():
+        if not raw or not user['recovery_hash']:
+            burn_time(raw)
+            return False
+        return check_pin('key:' + raw, user['recovery_salt'], user['recovery_hash'])
+    failure, _ = _guarded(conn, 'login_failures', user['id'], ip, ok)
+    if failure and failure[0] == 401:
+        return 401, "That key isn't right.", {}
+    return failure
+
+
+def new_reset_token():
+    """A one-time link's secret, and the hash that's stored."""
+    token = secrets.token_urlsafe(24)
+    return token, _token_hash(token)
+
+
+def reset_token_hash(token):
+    return _token_hash(token or '')
+
+
+def clean_name(value):
+    """A display name: any words someone wants to be called, or None."""
+    name = re.sub(r'\s+', ' ', str(value or '')).strip()
+    name = ''.join(c for c in name if c.isprintable())
+    return name[:NAME_MAX] or None
+
+
 def normalize_username(value):
     return (value or '').strip().lower().lstrip('@')
 

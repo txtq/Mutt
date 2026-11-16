@@ -343,6 +343,26 @@ def migrate(conn):
     # A star put on a planet, by any route, leaves its constellation.
     conn.execute('CREATE TRIGGER IF NOT EXISTS constellation_star_leaves AFTER INSERT ON connections BEGIN '
                  'DELETE FROM constellation_stars WHERE block_id = NEW.block_id; END')
+    # Board (a planet mode earned by arranging): each time the owner moves a
+    # file by hand on a planet shown as plain files, one row (kept a month;
+    # mutt/modes.py read_board counts them).
+    conn.execute('CREATE TABLE IF NOT EXISTS hand_moves ('
+                 'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_hand_moves ON hand_moves(drawer_id, at)')
+    # Where each thing sits on a planet's board, in board units: a file (its
+    # block id; h empty for a picture, whose height follows its shape) or the
+    # board's own words (an id starting "w-", with `words` and `style`:
+    # heading or label). A file's row stays when it leaves the planet, so it
+    # comes back to its place. `z` is the order they lie in, highest on top.
+    conn.execute('CREATE TABLE IF NOT EXISTS board_items ('
+                 'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'item_id TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL, w REAL NOT NULL, h REAL, '
+                 'z INTEGER NOT NULL DEFAULT 0, words TEXT, style TEXT, updated_at REAL NOT NULL, '
+                 'PRIMARY KEY (drawer_id, item_id))')
+    # Lines between two things on a board (files or words), a before b.
+    conn.execute('CREATE TABLE IF NOT EXISTS board_lines ('
+                 'drawer_id TEXT NOT NULL REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'a TEXT NOT NULL, b TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY (drawer_id, a, b))')
 
 
 @contextmanager

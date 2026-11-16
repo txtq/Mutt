@@ -265,6 +265,20 @@ def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder
     attention = {r['drawer_id']: {'weights': loads(r['weights'], {}), 'lessons': r['lessons']} for r in conn.execute(
         'SELECT a.drawer_id, a.weights, a.lessons FROM planet_attention a JOIN drawers d ON d.id = a.drawer_id '
         'WHERE d.user_id = ?', (uid,))}
+    # Where things sit on each planet that has been a board, and the lines between them.
+    boards = {}
+    for r in conn.execute('SELECT i.* FROM board_items i JOIN drawers d ON d.id = i.drawer_id '
+                          'WHERE d.user_id = ? ORDER BY i.z', (uid,)):
+        place = {'x': round(r['x']), 'y': round(r['y']), 'width': round(r['w'])}
+        if r['h'] is not None:
+            place['height'] = round(r['h'])
+        if r['item_id'].startswith('w-'):
+            place = {'words': r['words'], 'style': r['style'], **place}
+        else:
+            place = {'file': r['item_id'], **place}
+        boards.setdefault(r['drawer_id'], {'things': [], 'lines': []})['things'].append(place)
+    for r in conn.execute('SELECT l.* FROM board_lines l JOIN drawers d ON d.id = l.drawer_id WHERE d.user_id = ?', (uid,)):
+        boards.setdefault(r['drawer_id'], {'things': [], 'lines': []})['lines'].append([r['a'], r['b']])
     planets = [{
         'id': d['id'],
         'name': d['title'],
@@ -278,6 +292,7 @@ def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder
         'kindOfWorld': d['look'],
         'modes': loads(d['modes'], {}),
         'autosortLearned': attention.get(d['id']),
+        'board': boards.get(d['id']),
         'made': iso(d['created_at']),
         'changed': iso(d['updated_at']),
     } for d in drawers]

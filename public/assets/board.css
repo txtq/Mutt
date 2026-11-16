@@ -1,0 +1,169 @@
+/* ================================================================== BOARD
+   A planet arranged by hand, as a free surface (DESIGN.md "Board"; board.js).
+   Fetched with board.js, only when a planet is a board. Its files are the
+   file box (renderCell) at the size their owner gave them, its words are bare
+   words on the sky, its lines the threads' dust, and the field of dots behind
+   is the void's print. Mutt's tools on it are one pill of bar glass. Nothing
+   on it moves at rest. */
+
+/* The board takes the page from under the planet's header to the foot of the
+   window, and the whole width of the window (board.js measure()). */
+.liv.is-board { padding-bottom: 0; }
+.liv.is-board .liv-head { margin-bottom: var(--space-16); }
+
+.bd {
+  --z: 1;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.bd.is-joining { cursor: crosshair; }
+
+/* ---- the dots: the void's print, a fine grid that moves with the board and fades at its edges */
+.bd-ground {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--ink-4) 0 0.7px, transparent 1.1px);
+  opacity: 0.55;
+  -webkit-mask-image: linear-gradient(transparent, var(--void) var(--space-48), var(--void) calc(100% - var(--space-48)), transparent);
+  mask-image: linear-gradient(transparent, var(--void) var(--space-48), var(--void) calc(100% - var(--space-48)), transparent);
+}
+/* a little brighter round what is being carried */
+.bd-ground.is-near {
+  opacity: 0;
+  -webkit-mask-image: radial-gradient(160px circle at var(--hx, 50%) var(--hy, 50%), var(--void), transparent);
+  mask-image: radial-gradient(160px circle at var(--hx, 50%) var(--hy, 50%), var(--void), transparent);
+  transition: opacity var(--dur-change);
+}
+.bd.is-carrying .bd-ground.is-near { opacity: 1; transition-duration: var(--dur-move); }
+
+.bd-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.bd-lines { position: absolute; pointer-events: none; }
+
+/* ---- a thing on the board */
+.bd-item { position: absolute; outline: none; transition: scale var(--dur-change) var(--ease-spring); }
+.bd-item.is-file .cell, .bd-item.is-file .cell-box { width: 100%; height: 100%; }
+.bd .cell-box { aspect-ratio: auto; }
+.bd-item:focus-visible { outline: calc(2px / var(--z)) solid var(--blue-ink); outline-offset: calc(2px / var(--z)); border-radius: var(--r-box); }
+.bd-item.is-words:focus-visible { border-radius: var(--r-mark); }
+
+/* its name shows only while it is pointed at, chosen or reached by keyboard */
+.bd .cell-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: var(--space-8);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-change);
+}
+.bd-item:is(:hover, :focus-visible, .is-chosen) .cell-cap { opacity: 1; color: var(--ink); transition-duration: var(--dur-quick); }
+@media (hover: none) { .bd-item:hover:not(.is-chosen) .cell-cap { opacity: 0; } }
+
+/* picked up: it lifts, and looks as a box pointed at does */
+.bd-item.is-lifted { scale: 1.03; cursor: grabbing; }
+.bd-item.is-lifted :is(.face-text, .face-file, .face-link) { border-color: var(--fg-edge-hi); background: var(--fg-fill-hover); }
+.bd-item.is-over-target { scale: 0.5; }
+
+/* the corner to make it bigger or smaller: the switch's pearl, the same size on the screen at any zoom */
+.bd-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  width: calc(var(--space-16) / var(--z));
+  height: calc(var(--space-16) / var(--z));
+  translate: 40% 40%;
+  border-radius: var(--r-full);
+  background: var(--pearl);
+  box-shadow: var(--pearl-drop);
+  opacity: 0;
+  pointer-events: none;
+  cursor: nwse-resize;
+  transition: opacity var(--dur-change);
+}
+/* 40 to tap on a touch screen */
+.bd-grip::after { content: ""; position: absolute; inset: calc(var(--space-12) / var(--z) * -1); border-radius: var(--r-full); }
+.bd-item:is(:hover, :focus-visible, .is-chosen) .bd-grip { opacity: 1; pointer-events: auto; transition-duration: var(--dur-quick); }
+@media (hover: none) { .bd-item:hover:not(.is-chosen) .bd-grip { opacity: 0; pointer-events: none; } }
+.bd.is-carrying .bd-grip { opacity: 0; }
+
+/* ---- the board's own words: bare words on the sky; a well while they're written */
+.bd-item.is-words { width: max-content; }
+.bd-words {
+  max-width: 100%;
+  min-width: 2ch;
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--r-row);
+  color: var(--ink);
+  text-shadow: var(--sky-shadow);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+  transition: background var(--dur-change);
+}
+.bd-words.is-heading { font: var(--type-page); letter-spacing: -0.01em; }
+.bd-words.is-label { font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.bd-words:empty::before { content: attr(data-placeholder); color: var(--ink-3); }
+.bd.is-mine .bd-item.is-words:hover .bd-words, .bd-item.is-words.is-chosen .bd-words { background: var(--tint); }
+.bd-item.is-editing .bd-words { background: var(--well); box-shadow: var(--well-shadow); cursor: text; user-select: text; -webkit-user-select: text; text-shadow: none; }
+
+/* ---- lining up: a hairline in the planet's colour where an edge or a middle meets another */
+.bd-guide { position: absolute; left: 0; top: 0; z-index: 2; background: var(--pc); opacity: 0; pointer-events: none; transition: opacity var(--dur-quick); }
+.bd-guide.is-v { width: 1px; height: 100%; }
+.bd-guide.is-h { width: 100%; height: 1px; }
+.bd-guide.is-on { opacity: 0.7; }
+
+/* ---- Mutt's tools on the board: one pill of bar glass at the foot */
+.bd-bar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-16);
+  z-index: 4;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  padding: var(--space-4);
+  border-radius: var(--r-full);
+  cursor: default;
+  white-space: nowrap;
+}
+.bd-tools { display: flex; align-items: center; gap: var(--space-2); }
+.bd-tools[hidden] { display: none; }
+.bd-sep { width: 1px; height: var(--space-16); margin: 0 var(--space-4); background: var(--line-2); }
+.bd-zoom { min-width: var(--space-48); font: var(--type-fact); font-variant-numeric: tabular-nums; }
+.bd-join-words { padding: 0 var(--space-8) 0 var(--space-12); font: var(--type-label); color: var(--ink-2); }
+
+.bd-empty {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  translate: -50% -50%;
+  max-width: 32ch;
+  margin: 0;
+  text-align: center;
+  font: var(--type-body);
+  color: var(--ink-3);
+  text-shadow: var(--sky-shadow);
+  pointer-events: none;
+}
+
+/* a toast (Joined · Undo, Taken away · Undo) stands above the bar, not on it:
+   the board's foot (12 above the window's), the bar's own space, its height, and a gap */
+body:has(.liv.is-board .bd-bar) .toasts { bottom: calc(var(--space-12) + var(--space-16) + var(--h-regular) + var(--space-8) + var(--space-12)); }
+
+/* the add box, opened from the bar */
+.bd-add-pop .cell-entry .cell-box { aspect-ratio: auto; height: 168px; }
+.bd-add-pop .cell-entry .cell-fill { position: absolute; }
+
+@media (max-width: 720px) {
+  .bd-bar { bottom: var(--space-12); }
+  body:has(.liv.is-board .bd-bar) .toasts { bottom: calc(var(--space-12) + var(--space-12) + var(--h-large) + var(--space-8) + var(--space-12)); }
+  .bd-add-pop .cell-entry .cell-box { height: 152px; }
+}

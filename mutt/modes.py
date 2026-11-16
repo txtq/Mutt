@@ -20,6 +20,8 @@ An entry says:
            `stay`, so one odd file never switches it on and it never flickers.
   least    how many of its kind of file it needs before it can switch on.
   moons    whether a moon can be one.
+  keeps    for a mode earned by what the owner does rather than what the
+           planet holds (board): once answered it fits for good.
   arrives  'offer' (suggested once, in place; the owner accepts), 'undo'
            (switches on by itself and says so with an Undo) or 'quiet'
            (appears and leaves by itself).
@@ -31,6 +33,7 @@ the same way, signs() reports every planet mode from one reading of the
 planet, and moment() answers every moment mode for one piece of text.
 """
 import json
+import time
 
 from . import books, documents, quotes, recipes, sorting, split
 from .web import HttpError
@@ -40,7 +43,7 @@ ARRIVES = ('offer', 'undo', 'quiet')
 
 class Mode:
     def __init__(self, key, read, kind='planet', words=None, on=0.6, stay=0.4, least=1, moons=False,
-                 arrives='offer', settings=None, defaults=None, shows=True):
+                 arrives='offer', settings=None, defaults=None, shows=True, keeps=False):
         assert kind in ('planet', 'moment') and arrives in ARRIVES and 0 <= stay <= on <= 1
         self.key = key
         self.read = read
@@ -53,6 +56,8 @@ class Mode:
         self.arrives = arrives
         self.settings = settings or {}
         self.shows = shows             # False: accepting it acts once and it is never "on" (split)
+        self.keeps = keeps             # True: earned by what the owner does, not what's there (board):
+                                       # once answered it always fits and never offers to step back
         self.defaults = {'on': False, 'dismissed': False, **(defaults or {})}
 
 
@@ -164,6 +169,28 @@ def read_split(ctx):
     return found
 
 
+# Board: earned by arranging. A planet whose owner keeps moving its files by
+# hand (a drag to a new place, Send to top or bottom: `hand_moves`, written by
+# PUT /api/drawers/<id>/order) is being arranged, not stored.
+BOARD_MOVES = 12        # moves by hand within BOARD_DAYS...
+BOARD_ON_DAYS = 3       # ...on at least this many different days
+BOARD_DAYS = 14
+BOARD_FILES = 6         # and something to arrange
+
+
+def read_board(ctx):
+    since = time.time() - BOARD_DAYS * 86400
+    rows = ctx.conn.execute('SELECT at FROM hand_moves WHERE drawer_id = ? AND at >= ?', (ctx.id, since)).fetchall()
+    moves = len(rows)
+    days = len({time.strftime('%Y-%m-%d', time.localtime(r['at'])) for r in rows})
+    n = len(ctx.files)
+    fits = moves >= BOARD_MOVES and days >= BOARD_ON_DAYS and n >= BOARD_FILES
+    times = 'once' if moves == 1 else 'twice' if moves == 2 else f'{moves} times'
+    signs = [f'You’ve moved its files by hand {times} in the last two weeks, on {days} different days.'] if moves else []
+    return {'fits': fits, 'signs': signs, 'count': moves, 'days': days,
+            'share': min(1.0, moves / BOARD_MOVES)}
+
+
 def read_commonplace(ctx):
     found = quotes.signs(ctx.title, ctx.files, sorting.form)
     return {**found, 'share': _share(found['count'], len(ctx.files))}
@@ -185,6 +212,9 @@ PLANET_MODES = [
     # Not a way of showing the planet: accepting it splits the planet once (it
     # is never "on"), so its bars only say when to offer it and keep it in the menu.
     Mode('split', read_split, words='split', on=0.25, stay=0.15, least=4, shows=False),
+    # Earned by what the owner does (moving files by hand), not by what the
+    # planet holds, so its rule is read_board's own and it never steps back.
+    Mode('board', read_board, on=1.0, stay=0.0, least=BOARD_FILES, moons=True, keeps=True),
 ]
 
 
@@ -255,6 +285,8 @@ def fits(mode, found, saved, n):
     """Whether a planet fits a mode now. It takes the higher bar to switch on;
     once its owner has answered (it's on, or was waved away) the lower bar is
     enough to stay, and an empty planet stays whatever it was."""
+    if mode.keeps and mode.key in saved:
+        return True
     if 'fits' in found:
         rule = bool(found['fits'])
     else:

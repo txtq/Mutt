@@ -325,6 +325,9 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | Cookbook, desk, shelf: cards, pages, covers arriving | arrive, one step apart |
 | Commonplace book: cards arriving, one added; one taken away | each card slides up 16 over arrive while its words fade in a step later, one step apart; leaves |
 | A desk's page or a shelf's cover lifting | arrive (the cover on the spring) |
+| Board: files gliding from the grid into their places; a thing added; words or a line taken away | scene on the glide, one glide for all; arrive, rising 8; leaves |
+| Board: a thing picked up, carried over a planet, let go; the hairline when edges line up | change on the spring (lifts to 1.03, 0.5 over a target); quick |
+| Board: zooming with the bar or to fit; the dots round what is carried | move, through the scale; move in, change out |
 | *The galaxy and its planets* | |
 | The galaxy arriving | planets rise over arrive, one step apart; the hint over scene |
 | A planet pointed at | rises 3 and swells to 1.09 over arrive on the spring; spins up, then coasts |
@@ -745,7 +748,9 @@ An offer (a mode's "This planet looks like …") is box glass with corners 20 an
 
 - **Split into moons** is offered in the same box, though it acts once instead of showing the planet another way: "This planet holds two things" (three, four…), the signs with numbers ("4 files are about pottery and 4 about climbing.", "1 other fits neither."), and the note says which move to a moon of their own and which stay, then "Nothing is lost, and it can be undone." Its button and its ••• row (icon `moon`) say `Split into moons`. Accepting brings the new moons in beside the world one step apart, the files that went leave the grid in one glide, and a toast says `Split into 2 moons` with Undo. It is offered last of the offers, only while the planet shows as plain files, and never on a moon.
 
-**An offer's drawing** is one of seven in `icons.js` (`drawing(name)`: `list`, `shelf`, `cards`, `desk`, `moons`, `sky`, `quotes`), and they are all made the same way: a pane of glass in front (an outline in the icons' line, faintly filled) with the planet's paled colour along its top edge, another pane behind it, and a few marks that say which mode it is. A list is two strips with ticks, a bookshelf two covers, a cookbook a card behind its tab, a desk two pages, a split (`moons`) a planet with its small moon on the front pane (chosen by the user from three, 2026-11-16). Drawn on a 24 grid, shown at 28 in a 40 well with corners 11. A new mode's drawing is made this way and no other: add it to `DRAWINGS` in `icons.js`, name it in the mode's page entry (`drawing: '…'` in `modes.js`), and show the user first.
+- **Board** is offered by what the owner does, not by what the files are: after their files have been moved by hand 12 times in two weeks, on 3 different days, on a planet of 6 files or more. "You’ve been arranging this planet", the sign with its numbers ("You’ve moved its files by hand 12 times in the last two weeks, on 3 different days."), and the note: "It can become a board: put each file anywhere, at any size, with your own words and lines between them. The files themselves don’t change." Its button and its ••• row (icon `board`) say `Make it a board`. Once answered either way it never steps back by itself.
+
+**An offer's drawing** is one of eight in `icons.js` (`drawing(name)`: `list`, `shelf`, `cards`, `desk`, `moons`, `sky`, `quotes`, `board`), and they are all made the same way: a pane of glass in front (an outline in the icons' line, faintly filled) with the planet's paled colour along its top edge, another pane behind it, and a few marks that say which mode it is. A list is two strips with ticks, a bookshelf two covers, a cookbook a card behind its tab, a desk two pages, a split (`moons`) a planet with its small moon on the front pane (chosen by the user from three, 2026-11-16), a board three cards of different sizes laid loosely, a short line joining two, and two lines of words. Drawn on a 24 grid, shown at 28 in a 40 well with corners 11. A new mode's drawing is made this way and no other: add it to `DRAWINGS` in `icons.js`, name it in the mode's page entry (`drawing: '…'` in `modes.js`), and show the user first.
 
 ### Room
 
@@ -811,6 +816,22 @@ How each mode is built. A new mode follows the nearest of these.
 - **By who**: each person's quotes stand together under the shared section heading (their name, how many), and those groups are packed into the columns like cards; a card there leaves out the name. Quotes with no one named come last, under "No one named".
 - Pressing a card opens the slideshow at it, paused; its menu (right-click) is the file's own with "Show in the slideshow", or for someone else's planet that and "Open as a file".
 - **The slideshow is a room.** One quote large, centred on the sky with `--sky-shadow`: its words in the serif italic at `--text-reach` (longer ones smaller, see Type), who said it in the serif 600 at Lead `--ink-2`, where from in the serif italic at Label `--ink-3`. Close is a quiet button at the top right. At the foot one pill of bar glass (Mutt blue): `chevron-left`, where you are as a Fact (`3 / 8`), `chevron-right`, a hairline, Play/Pause (`play`/`pause`) and Shuffle (`shuffle`, lit while on), all quiet round buttons. Playing, it moves on every `--slide-pace` and keeps the screen awake; after a slow beat with the pointer still, the bar and Close step back until it moves. Arrow keys step, Space plays and pauses, Escape closes, a sideways swipe steps.
+
+**Board** (`board.js`; `board.css`, fetched with it the first time a planet is one; from `design/concepts/18-board.html`).
+- A planet arranged by hand, as a free surface. Under the planet's header the board takes the rest of the window, the window's full width, down to 12 above its foot; the page doesn't scroll past it. Nothing on it moves at rest.
+- **Its files are the file box** (`renderCell`), each at the size its owner gave it: a picture keeps its shape, anything else can be any shape from 64 to 1600 across. Their names show only while pointed at, chosen or reached by keyboard (chosen by the user), under the box as its caption.
+- **Its words are bare words on the sky** with `--sky-shadow`, in Mutt's own face (chosen by the user over the serif and the mono): a heading in Page, a label in Small spaced capitals `--ink-3`. Pointed at, a `--tint` behind them; while written, the well. Up to 300 characters.
+- **Lines between files** (the one extra the user chose; frames were left out) are the threads' dust (`wisp` from `uvweb.js`, `--thread`), from edge to edge with a slight bend, under the files. They are drawn once, on one canvas the size of what they reach, and again only when an end moves or the zoom changes by a quarter.
+- **The ground is the void's print**: a fine grid of faint dots (`--ink-4` at 55%) that moves and scales with the board (chosen by the user), fading in at its top and bottom edges. While something is carried, the dots round it brighten.
+- **Moving.** A file is carried by pressing and dragging it (holding a moment with a finger); carried, it lifts to 1.03 and looks as a box pointed at does. Its edges and middle catch other things' and show a hairline in the planet's colour where they line up. Carried to the edge, the board rolls. Let go on a planet, a moon or the void (in the planet header), it goes there, as from the grid. The corner pearl (the switch's, 16 on the screen at any zoom, 40 to touch) makes it bigger or smaller.
+- **Zoom** from 15% to 250%: pinch, ⌘ or Ctrl with the wheel, or the bar's `−` and `+`. The bar's zoom fact (`76%`) is a button that fits everything in sight. A plain wheel or two fingers on a trackpad move round it, and so does dragging the empty board. Where you were is kept per device.
+- **The bar** is one pill of bar glass at the foot: zoom out, the fact, zoom in, then for the owner `Words` (`textbox`) and for whoever may add `Add` (`plus`, the add box in a small panel). Joining turns it into "Pick what to join it to" and `Cancel`. A toast stands above it.
+- **Its menu** (right-click, or a held finger let go without moving) is the file's own with `Join with a line`, `Take its line away` and `Bring to front` for the owner; words have `Change the words`, `Make it a label` (or heading), `Join with a line`, `Take the words away`. Pressing a line offers `Take the line away`.
+- **The keyboard**: Tab walks the board in reading order, top left first; arrows move the chosen thing 8 (Shift, 48), `-` and `=` (or `[` and `]`) make it smaller and bigger, Enter opens a file or writes in words, the menu key opens its menu, Delete takes words away, Escape stops joining.
+- **Others**: a visitor sees the board as its owner laid it, with the zoom only; on a community planet a newcomer's file arrives below the rest and only the owner moves things. New files land in a row below everything; a file that leaves keeps its place for when it comes back.
+- **Only what is near is on the page**: things within a screen of the view are built, and those more than two screens away let their pictures go (Safari keeps every picture it holds).
+- **Leaving.** `Show as files again` keeps the board's reading order as the planet's order, and Undo brings the board back as it was. Making a board starts from where the files sat in the grid, and they glide from there into place.
+- On a phone the same board, zoomed to fit across; the bar's buttons are 40.
 
 **File view** (`viewer.js`; the section headed THE FILE VIEW).
 - A room. The file is as large as it can be on the left; a picture or a video keeps its shape with corners 12, a 1px `--box-edge` and `--shadow-raised`; a PDF's pages are white paper with `--paper-shadow`; a note is its words on the sky at the size of a list's items; a link is its address in a well, a picture of the page, then its title in Title; a file with nothing to show is a card of box glass.
@@ -893,11 +914,11 @@ One set, in one file: `public/assets/js/icons.js`. `icon(name)` is the only way 
 - **A tail to leave, a chevron to step.** `back` (an arrow with a tail) takes you somewhere else: to the galaxy, out of the editor. `chevron-left` and `chevron-right` step to the next thing of the same kind: the next file, the next recipe card. `chevron-up` and `chevron-down` step through matches. `caret` only ever means "this opens a menu".
 - **It lights when pointed at.** A part of an icon marked as its body (the inside of a lock, a page, a speech bubble) is empty at rest and fills with `--icon-lit` of its own colour when its button or menu row is pointed at, and stays filled while the button is held on (`.is-on`, `aria-pressed`, `aria-expanded`). This is automatic; a feature writes nothing for it.
 
-**The names** (102)
+**The names** (103)
 
 - *Everyday:* `plus` `minus` `close` `check` `more` `grip` `caret` `chevron-left` `chevron-right` `chevron-up` `chevron-down` `back` `forward` `up` `down` `out` `search` `zoom` `undo` `redo` `upload` `download` `sort` `link` `copy` `trash` `edit` `open` `play` `pause` `shuffle`
 - *Pictures:* `turn-left` `turn-right` `mirror` (side to side) `mirror-down` (top to bottom)
-- *Mutt's own things:* `planet` `moon` `star` (a file on no planet) `lock` (private, locked) `key` (opened with a code) `people` `globe` (public) `comment` `move` (to a planet) `onto` (put on a planet, save) `takeoff` (take off a planet) `files` (show as files) `page` `book` `bookmark` `note` `pot` `chapter` `camera` `picture` `colour` `tick` `untick`
+- *Mutt's own things:* `planet` `moon` `star` (a file on no planet) `lock` (private, locked) `key` (opened with a code) `people` `globe` (public) `comment` `move` (to a planet) `onto` (put on a planet, save) `takeoff` (take off a planet) `files` (show as files) `board` (a board: cards laid loosely, and words) `page` `book` `bookmark` `note` `pot` `chapter` `camera` `picture` `colour` `tick` `untick`
 - *In menus:* `history` `print` `setup` (options) `replace` `count` `spell`
 - *Writing:* `side` `bold` `italic` `underline` `strike` `align-left` `align-center` `align-right` `justify` `bullets` `dashes` `numbers` `letters` `roman` `checklist` `outdent` `indent` `spacing` `clear` `type` `highlight` `heading` `quote` `table` `rule` `pagebreak` `code` `auto` `prose` `poem` `script` `journal` `letter` `scene` `sign` `date` `pen` (draw by hand) `textbox` (a box of words placed on a page)
 
@@ -1061,5 +1082,12 @@ Decided by the user, 2026-11-16 (Constellations; the choices were put as questio
 Decided by the user, 2026-11-16 (the drop ring; three drawings were shown in the session):
 
 - The dashed circles round a thing being dropped onto were "too perfect". They are now a loop of dust ("Drop ring" in section 3), and so is the void's blue ring for files from the computer ("Yes, match it"). Dust drawn in toward the thing, and its air lighting up in dots, were offered.
+
+Decided by the user, 2026-11-16 (the board; asked as questions in the session, from `design/concepts/18-board.html`):
+
+- A file's name on a board shows only while it is pointed at, chosen or reached by keyboard (always, and never, were offered).
+- A board's own words are in Mutt's face, Red Hat Text (the serif, and the mono, were offered).
+- Of the extras, lines between files only (frames round a group were offered and left out).
+- The ground is faint dots that move with the board (plain sky, and a grid of lines, were offered).
 
 Still open: whether every move feels right at real speed (the user's eye: the watch list on session 8's page); the three things under "Not finished, and known" in section 2, "Motion".

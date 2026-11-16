@@ -40,7 +40,7 @@ export class Collection {
       sortable: sortable && !readOnly,
       onOpen: (id) => nav.openBlock(id),
       onAction: (act, id, btn) => this.action(act, id, btn),
-      onReorder: (ids) => this.saveOrder(ids),
+      onReorder: (ids) => this.saveOrder(ids, { hand: true }),
       onContext: (e, id, cell) => this.context(e, id, cell),
       targets,
       onDropTo: (target, id) => this.moveTo(target, id),
@@ -269,7 +269,7 @@ export class Collection {
     const rest = this.blocks.filter((b) => b !== block);
     this.blocks.splice(0, this.blocks.length, ...(where === 'top' ? [block, ...rest] : [...rest, block]));
     this.render('flip');
-    this.saveOrder(this.blocks.map((b) => b.id));
+    this.saveOrder(this.blocks.map((b) => b.id), { hand: true });
     toast(where === 'top' ? 'Sent to the top' : 'Sent to the bottom', {
       action: {
         label: 'Undo',
@@ -319,11 +319,13 @@ export class Collection {
     }
   }
 
-  async saveOrder(ids) {
+  // hand: the owner moved a file themselves (a drag, Send to top), which a
+  // planet counts toward becoming a board (mutt/modes.py read_board).
+  async saveOrder(ids, { hand = false } = {}) {
     const index = new Map(ids.map((id, i) => [id, i]));
     this.blocks.sort((a, b) => (index.get(a.id) ?? 1e9) - (index.get(b.id) ?? 1e9));
     try {
-      await api.put(`/api/drawers/${this.drawer.id}/order`, { ids });
+      await api.put(`/api/drawers/${this.drawer.id}/order`, hand ? { ids, hand } : { ids });
     } catch (err) {
       toast(err.message);
     }

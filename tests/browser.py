@@ -399,8 +399,22 @@ def seed(work):
     # two stars (files on no planet), for the constellation path to join
     ids['stars'] = [send('POST', '/api/blocks', {'content': text})['block']['id'] for text in ('sea glass', 'a smooth pebble')]
 
+    # a planet arranged by hand a lot, on three different days, for the board path
+    pin = planet('Pinboard', [f'{w} I keep coming back to this one when I think about the harbour and the week we spent there.'
+                              for w in ('The blue door by the chandlery.', 'Tide tables pinned in the café window.', 'A gull on the rail, watching.',
+                                        'Chips at noon on the sea wall.', 'The lighthouse keeper\'s cottage.', 'Rope and nets drying in the sun.',
+                                        'The last ferry out at six.')])
+    order = [b['id'] for b in send('GET', f'/api/drawers/{pin}')['blocks']]
+    for _ in range(12):
+        order = order[1:] + order[:1]
+        send('PUT', f'/api/drawers/{pin}/order', {'ids': order, 'hand': True})
+    with sqlite3.connect(os.path.join(work, 'data', 'mutt.db')) as c:
+        moves = [r[0] for r in c.execute('SELECT rowid FROM hand_moves WHERE drawer_id = ? ORDER BY rowid', (pin,))]
+        for n, row in enumerate(moves):
+            c.execute('UPDATE hand_moves SET at = at - ? WHERE rowid = ?', ((n % 3) * 2 * 86400, row))
+
     # the seed itself is checked: each planet must be offered the mode its path expects
-    for title, mode in (('Shopping', 'list'), ('Recipes to try', 'cookbook'), ('Essays', 'documents'), ('Shelf', 'reading')):
+    for title, mode in (('Shopping', 'list'), ('Recipes to try', 'cookbook'), ('Essays', 'documents'), ('Shelf', 'reading'), ('Pinboard', 'board')):
         if not send('GET', f'/api/drawers/{ids[title]}/modes')[mode].get('fits'):
             raise Fail(f'the made-up "{title}" planet is no longer offered {mode} mode, so its path can\'t run')
     return ids
@@ -1026,9 +1040,71 @@ def split_moons(s, seeded):
     if errors:
         raise Fail(f'the page had errors while splitting: {errors[:3]}')
 
+def board_mode(s, seeded):
+    """A planet arranged by hand on three days is offered a board; taking it lays the files out freely;
+    the keyboard moves one and it is kept; a reload opens on the board; Show as files again and Undo."""
+    pin = seeded['Pinboard']
+    items = 'return document.querySelectorAll(".bd-item.is-file").length'
+    watch = ('window.muttErrors = []; addEventListener("error", (e) => muttErrors.push(e.message));'
+             'addEventListener("unhandledrejection", (e) => muttErrors.push(String(e.reason)));')
+
+    def no_errors(where):
+        errors = s.js('return window.muttErrors || []')
+        if errors:
+            raise Fail(f'the page had errors {where}: {errors[:3]}')
+    # a plain planet fetches none of the board's code
+    s.go(f'/p/{seeded["Postcards"]}')
+    s.wait('return document.querySelectorAll(".cell[data-id]").length === 3', 'Postcards should show 3 files')
+    if s.js('return performance.getEntriesByType("resource").some((r) => /board\\.(js|css)/.test(r.name))'):
+        raise Fail('a plain planet fetched the board\'s code')
+    offer_then(s, seeded, 'Pinboard', 'Make it a board', '.bd-item.is-file', 'board mode')
+    s.js(watch)
+    s.wait(f'{items} === 7', 'the board should hold the 7 files')
+    # the keyboard: the first file is reached, an arrow moves it, and the move is kept
+    first = s.js('const e = document.querySelector(".bd-item[tabindex=\'0\']"); e.focus(); return [e.dataset.id, parseFloat(e.style.left)]')
+    s.press('ArrowRight')
+    s.press('ArrowRight')
+    s.wait('return (async () => { const b = await fetch(`/api/drawers/${arguments[0]}/board`).then((r) => r.json());'
+           ' const it = b.items.find((i) => String(i.id) === String(arguments[1])); return !!it && it.x === arguments[2]; })()',
+           'moving a file with the keyboard was not saved', 6, (pin, first[0], first[1] + 16))
+    no_errors('on the board')
+    s.go(f'/p/{pin}')
+    s.wait(f'{items} === 7', 'a reload did not open straight on the board')
+    s.settle(1)
+    s.shot('board')
+    s.size(PHONE)
+    try:
+        s.go(f'/p/{pin}')
+        s.wait(f'{items} === 7', 'the board did not open at phone width')
+        s.settle(1)
+        s.no_sideways_scroll('The board')
+        s.shot('phone-board')
+    finally:
+        s.size(DESK)
+    s.go(f'/p/{pin}')
+    s.wait(f'{items} === 7', 'the board did not open again')
+    s.js(watch)
+    s.click(s.see('[aria-label="Planet options"]', 'the board has no ••• menu'))
+    s.click(s.named('.pop button, .pop [role=menuitem]', 'Show as files again', 'the board\'s ••• menu has no "Show as files again"'))
+    s.wait('return !document.querySelector(".bd") && document.querySelectorAll(".cell[data-id]").length === 7',
+           '"Show as files again" did not bring back the 7 files')
+    s.click(s.named('.toast button', 'Undo', 'no Undo was offered after showing as files'))
+    s.wait(f'{items} === 7', 'Undo did not bring the board back')
+    no_errors('showing as files and back')
+    # Still: everything on the board is there at once
+    s.js('document.documentElement.dataset.motion = "off"')
+    s.go(f'/p/{pin}')
+    s.wait(f'{items} === 7', 'under Still, the board did not open')
+    s.settle(0.3)
+    faint = s.js('return [...document.querySelectorAll(".bd-item")].filter((e) => +getComputedStyle(e).opacity < 0.99).length')
+    s.js('delete document.documentElement.dataset.motion')
+    if faint:
+        raise Fail(f'under Still, {faint} thing(s) on the board were left faint')
+
+
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, send_to_top,
-         split_moons, forgot_code, key_nudge]
+         split_moons, board_mode, forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

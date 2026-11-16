@@ -2342,8 +2342,9 @@ def delete_drawer(req, drawer_id):
 
 @route('PUT', r'/api/drawers/(?P<drawer_id>[\w-]+)/order')
 def reorder_drawer(req, drawer_id):
-    own_drawer(req, drawer_id)
-    wanted = req.json().get('ids')
+    row = own_drawer(req, drawer_id)
+    body = req.json()
+    wanted = body.get('ids')
     if not isinstance(wanted, list):
         raise HttpError(400, 'Could not save that order.')
     current = [r[0] for r in req.db.execute(
@@ -2361,7 +2362,131 @@ def reorder_drawer(req, drawer_id):
             req.db.execute('UPDATE connections SET position = ? WHERE drawer_id = ? AND block_id = ?',
                            (index, drawer_id, block_id))
         req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (now(), drawer_id))
+        if body.get('hand') is True and order != current and not showing_mode(row):
+            note_hand_move(req.db, drawer_id)
     return json_response({'ok': True})
+
+
+# ---------------------------------------------------------------- board (a planet arranged by hand)
+#
+# The board mode (mutt/modes.py read_board) is earned by moving a planet's
+# files by hand. Once on, each thing sits where its owner put it: files and
+# the board's own words in `board_items`, lines between them in `board_lines`.
+
+BOARD_MOVES_KEPT = 31 * 86400      # a month of moves is plenty to read two weeks from
+BOARD_MOST = 2000                  # things on one board
+BOARD_REACH = 200000               # how far from the middle a thing may sit, in board units
+BOARD_WORDS = 300                  # letters in one piece of the board's words
+BOARD_STYLES = ('heading', 'label')
+
+
+def showing_mode(row):
+    """Whether the planet shows itself some other way than as plain files."""
+    saved = json.loads(row['modes'] or '{}')
+    return any((saved.get(m.key) or {}).get('on') for m in modes_registry.PLANET_MODES if m.shows)
+
+
+def note_hand_move(conn, drawer_id):
+    stamp = now()
+    conn.execute('INSERT INTO hand_moves (drawer_id, at) VALUES (?, ?)', (drawer_id, stamp))
+    conn.execute('DELETE FROM hand_moves WHERE drawer_id = ? AND at < ?', (drawer_id, stamp - BOARD_MOVES_KEPT))
+
+
+def board_of(conn, drawer_id, files=None):
+    """A planet's board: {'items': [...], 'lines': [[a, b], ...]}. Only files
+    still on the planet (`files`, a set of ids) are given; the rest keep their
+    row for when they come back."""
+    items = []
+    for r in conn.execute('SELECT * FROM board_items WHERE drawer_id = ? ORDER BY z, updated_at', (drawer_id,)):
+        word = r['item_id'].startswith('w-')
+        if not word and files is not None and r['item_id'] not in files:
+            continue
+        item = {'id': r['item_id'], 'x': r['x'], 'y': r['y'], 'w': r['w'], 'h': r['h'], 'z': r['z']}
+        if word:
+            item.update(words=r['words'] or '', style=r['style'] or 'heading')
+        items.append(item)
+    shown = {i['id'] for i in items}
+    lines = [[r['a'], r['b']] for r in conn.execute(
+        'SELECT a, b FROM board_lines WHERE drawer_id = ? ORDER BY created_at', (drawer_id,))
+        if r['a'] in shown and r['b'] in shown]
+    return {'items': items, 'lines': lines}
+
+
+def board_files(conn, drawer_id):
+    return {r[0] for r in conn.execute(
+        'SELECT c.block_id FROM connections c JOIN blocks b ON b.id = c.block_id '
+        'WHERE c.drawer_id = ? AND b.deleted_at IS NULL', (drawer_id,))}
+
+
+@route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/board')
+def drawer_board(req, drawer_id):
+    """Where everything sits on a planet's board, for anyone who can see the planet."""
+    visible_drawer(req, drawer_id)
+    return json_response(board_of(req.db, drawer_id, board_files(req.db, drawer_id)))
+
+
+def board_number(value, low, high):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        raise HttpError(400, 'Could not save the board.')
+    return max(low, min(high, float(value)))
+
+
+@route('PUT', r'/api/drawers/(?P<drawer_id>[\w-]+)/board')
+def save_board(req, drawer_id):
+    """Save what moved on a board: `items` [{id, x, y, w, h, z, words?, style?}]
+    (only those that changed), `gone` (ids of the board's words taken away),
+    `join` and `part` ([a, b] lines to add or take away)."""
+    own_drawer(req, drawer_id)
+    body = req.json()
+    items, gone = body.get('items') or [], body.get('gone') or []
+    join, part = body.get('join') or [], body.get('part') or []
+    if not all(isinstance(v, list) for v in (items, gone, join, part)):
+        raise HttpError(400, 'Could not save the board.')
+    files = board_files(req.db, drawer_id)
+    stamp = now()
+    with db.transaction(req.db):
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get('id'), str):
+                raise HttpError(400, 'Could not save the board.')
+            iid = item['id']
+            word = iid.startswith('w-')
+            if word and not re.fullmatch(r'w-[\w-]{4,40}', iid):
+                raise HttpError(400, 'Could not save the board.')
+            if not word and iid not in files:
+                continue  # taken off the planet meanwhile
+            x = board_number(item.get('x'), -BOARD_REACH, BOARD_REACH)
+            y = board_number(item.get('y'), -BOARD_REACH, BOARD_REACH)
+            w = board_number(item.get('w'), 24, 4000)
+            h = None if item.get('h') is None else board_number(item.get('h'), 16, 4000)
+            z = int(board_number(item.get('z', 0), -1e6, 1e6))
+            words = style = None
+            if word:
+                words = item.get('words')
+                style = item.get('style', 'heading')
+                if not isinstance(words, str) or len(words) > BOARD_WORDS or style not in BOARD_STYLES:
+                    raise HttpError(400, 'Could not save those words.')
+            req.db.execute('INSERT OR REPLACE INTO board_items (drawer_id, item_id, x, y, w, h, z, words, style, updated_at) '
+                           'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (drawer_id, iid, x, y, w, h, z, words, style, stamp))
+        for iid in gone:
+            if isinstance(iid, str) and iid.startswith('w-'):
+                req.db.execute('DELETE FROM board_items WHERE drawer_id = ? AND item_id = ?', (drawer_id, iid))
+                req.db.execute('DELETE FROM board_lines WHERE drawer_id = ? AND (a = ? OR b = ?)', (drawer_id, iid, iid))
+        on_board = {r[0] for r in req.db.execute('SELECT item_id FROM board_items WHERE drawer_id = ?', (drawer_id,))}
+        for pair in join + part:
+            if not (isinstance(pair, list) and len(pair) == 2 and all(isinstance(v, str) for v in pair) and pair[0] != pair[1]):
+                raise HttpError(400, 'Could not save that line.')
+        for a, b in part:
+            a, b = sorted((a, b))
+            req.db.execute('DELETE FROM board_lines WHERE drawer_id = ? AND a = ? AND b = ?', (drawer_id, a, b))
+        for a, b in join:
+            a, b = sorted((a, b))
+            if a in on_board and b in on_board:
+                req.db.execute('INSERT OR IGNORE INTO board_lines (drawer_id, a, b, created_at) VALUES (?, ?, ?, ?)',
+                               (drawer_id, a, b, stamp))
+        if len(on_board) > BOARD_MOST:
+            raise HttpError(400, 'That board is full.')
+        req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, drawer_id))
+    return json_response(board_of(req.db, drawer_id, files))
 
 
 # ---------------------------------------------------------------- autosort

@@ -1,6 +1,6 @@
 -- every mode from one place
-modes reported: ['commonplace', 'cookbook', 'documents', 'list', 'reading', 'split']
-how each arrives: ['commonplace: offer', 'cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer', 'split: offer']
+modes reported: ['board', 'commonplace', 'cookbook', 'documents', 'list', 'reading', 'split']
+how each arrives: ['board: offer', 'commonplace: offer', 'cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer', 'split: offer']
 nothing fits an empty planet: []
 -- settings, all checked one way
 unknown setting: Those reading settings could not be saved.
@@ -10,7 +10,7 @@ list keeps its defaults: {'on': False, 'dismissed': False, 'type': 'check', 'mar
 a mode nobody knows is left alone: ['list', 'shareTip']
 a moon can't be a cookbook: Moons can’t be that.
 a moon can be a list: True
-moon's modes reported: ['commonplace', 'documents', 'list']
+moon's modes reported: ['board', 'commonplace', 'documents', 'list']
 -- list: on at its own rule, stays down to 40%
 5 short things: (True, 1.0, False)
 5 of 9 (56%), never answered: (False, 0.56, False)
@@ -60,3 +60,32 @@ the quotes, read: [('Mum', '', 1, 'Just start. The rest'), ('Rick', 'Casablanca,
 a moon called Sayings, plain lines: (True, 1.0, False)
 a moon can be one: True
 on a moon called Sayings, plain lines count: 4
+-- board: earned by moving files by hand (12 moves in two weeks, on 3 days, 6+ files)
+never moved: (False, 0, 0, False)
+11 moves by hand today: (False, 11, 1, False)
+an order saved by Mutt (an upload, an Undo) isn't a move: 11
+the same order again isn't a move: 11
++1 three days ago, +4 twenty days ago (too long ago): (False, 12, 2, False)
++1 six days ago, so 13 on 3 days: (True, 13, 3, False)
+its signs: ['You’ve moved its files by hand 13 times in the last two weeks, on 3 different days.']
+18 moves on 3 days, but only 5 files: (False, 18, 3, False)
+waved away: {'on': False, 'dismissed': True}
+answered once, it stays in the menu with no moves left: (True, 0, 0, False)
+turned on: True
+moves while it's a board don't count: 0
+nothing placed yet: {'items': [], 'lines': []}
+a file and some words: [('file', 10.4, -20.0, 300.0, 180.0, None), ('words', 0.0, -90.0, 440.0, None, 'Light')]
+a line between them: True
+a line to something not on the board: 1
+too far, too small: [(10.4, 300.0), (200000.0, 24.0)]
+words of a kind nobody knows: Could not save those words.
+not a number: Could not save the board.
+a file that isn't on the planet is left out: 3
+a file taken off leaves the board and its line: 2 []
+put back, it comes back to its place, line and all: [(10.4, -20.0)] 1
+words taken away take their line: 2 []
+someone else can look: 2
+but not move things: That planet does not exist.
+nor count as moving: That planet does not exist.
+a moon can be a board: True
+in the download: 200 [(2, [])]

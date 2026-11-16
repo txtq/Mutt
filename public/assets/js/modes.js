@@ -223,17 +223,53 @@ export const MODES = {
     menu: (page) => [{ icon: 'play', label: 'Slideshow', run: () => page.modeView('commonplace')?.slideshow() }, showAsFiles(page, 'commonplace')],
   },
 
+  // Earned by arranging: a planet whose files keep being moved by hand by its
+  // owner becomes a free surface (mutt/modes.py read_board). Its view keeps
+  // where each thing sits on the server (/api/drawers/<id>/board).
+  board: {
+    label: 'Make it a board',
+    icon: 'board',
+    drawing: 'board',
+    name: 'a board',
+    moons: true,
+    ownEntrance: true,
+    pageClass: 'is-board',
+    // its stylesheet is fetched alongside, and the board waits for both
+    load: () => Promise.all([import('./board.js'), styles('board.css')]).then(([m]) => m),
+    view: (m, page, blocks, from = null) => new m.BoardView({
+      drawer: page.drawer, blocks, editable: page.mine, adds: page.mine || !!page.drawer.community,
+      targets: page.targets, onChange: page.changed, from,
+    }),
+    start: async (m, page) => {
+      const blocks = page.filesNow();
+      const from = m.gridRects();   // where each file sits in the grid now, so the board loosens from there
+      await page.patchMode('board', { on: true, dismissed: false });
+      return { view: MODES.board.view(m, page, blocks, from), say: 'Now a board' };
+    },
+    blocks: (v) => v.list(),
+    offer: () => ({
+      title: 'You’ve been arranging this planet',
+      note: 'It can become a board: put each file anywhere, at any size, with your own words and lines between them. The files themselves don’t change.',
+      accept: 'Make it a board',
+      busy: 'Laying it out…',
+    }),
+    menu: (page) => [
+      { icon: 'textbox', label: 'Write words', run: () => page.modeView('board')?.addWords() },
+      // the grid takes the board's order, left to right and row by row
+      { icon: 'files', label: 'Show as files again', run: async () => { await page.modeView('board')?.keepOrder(); page.turnOff('board'); } },
+    ],
+  },
 };
 
 // "climbing, pottery and knitting"
 const andList = (words) => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`);
 
 // A planet saved with more than one mode on shows the first of these.
-export const SHOW_ORDER = ['list', 'reading', 'documents', 'cookbook', 'commonplace'];
+export const SHOW_ORDER = ['list', 'reading', 'documents', 'cookbook', 'commonplace', 'board'];
 // Which is suggested first when a planet fits more than one.
-export const OFFER_ORDER = ['reading', 'cookbook', 'commonplace', 'documents', 'list', 'split'];
+export const OFFER_ORDER = ['reading', 'cookbook', 'commonplace', 'documents', 'list', 'board', 'split'];
 // The order they stand in the ••• menu.
-export const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents', 'commonplace', 'split'];
+export const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents', 'commonplace', 'board', 'split'];
 
 export const allowed = (key, drawer) => MODES[key].moons || !drawer.parentId;
 

@@ -120,3 +120,59 @@ for t in "Measure twice, cut once." "Fortune favours the bold." "Slow and steady
 echo "a moon called Sayings, plain lines: $(signs $QM "$QF")"
 echo "a moon can be one: $(mode $QM '{"commonplace":{"on":true}}' "d['drawer']['modes']['commonplace']['on']")"
 echo "on a moon called Sayings, plain lines count: $(curl -s "${C[@]}" $B/api/drawers/$QM/quotes 2>/dev/null | j "len(d.get('quotes', []))")"
+
+echo "-- board: earned by moving files by hand (12 moves in two weeks, on 3 days, 6+ files)"
+BD=$(planet "Living room")
+for t in lamp curtains wood rug chair shelf; do note $BD "the $t" >/dev/null; done
+BF="(d['board']['fits'], d['board']['count'], d['board']['days'], d['board'].get('left', False))"
+ids() { curl -s "${C[@]}" $B/api/drawers/$1 | j "' '.join(b['id'] for b in d['blocks'])"; }
+# turn the order round: a real move each time
+flip() { curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/drawers/$1/order -d "$(python3 -c "import json,sys; i=sys.argv[1].split(); print(json.dumps(dict(ids=i[1:] + i[:1], **(dict(hand=True) if sys.argv[2] == 'hand' else dict()))))" "$(ids $1)" "$2")" | j "d['ok']"; }
+olden() { python3 -c "import sqlite3,sys,time; c=sqlite3.connect(sys.argv[1]); [c.execute('INSERT INTO hand_moves (drawer_id, at) VALUES (?, ?)', (sys.argv[2], time.time() - float(sys.argv[3]) * 86400)) for _ in range(int(sys.argv[4]))]; c.commit()" "$SP/data/mutt.db" "$1" "$2" "$3"; }
+echo "never moved: $(signs $BD "$BF")"
+for i in 1 2 3 4 5 6 7 8 9 10 11; do flip $BD hand >/dev/null; done
+echo "11 moves by hand today: $(signs $BD "$BF")"
+flip $BD order >/dev/null
+echo "an order saved by Mutt (an upload, an Undo) isn't a move: $(signs $BD "d['board']['count']")"
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X PUT $B/api/drawers/$BD/order -d "{\"ids\":[$(ids $BD | python3 -c "import sys; print(','.join('\"%s\"' % i for i in sys.stdin.read().split()))")],\"hand\":true}"
+echo "the same order again isn't a move: $(signs $BD "d['board']['count']")"
+olden $BD 3 1; olden $BD 20 4
+echo "+1 three days ago, +4 twenty days ago (too long ago): $(signs $BD "$BF")"
+olden $BD 6 1
+echo "+1 six days ago, so 13 on 3 days: $(signs $BD "$BF")"
+echo "its signs: $(signs $BD "d['board']['signs']")"
+SM=$(planet "Five things")
+for t in a b c d e; do note $SM "thing $t" >/dev/null; done
+olden $SM 1 6; olden $SM 2 6; olden $SM 3 6
+echo "18 moves on 3 days, but only 5 files: $(signs $SM "$BF")"
+echo "waved away: $(mode $BD '{"board":{"dismissed":true}}' "d['drawer']['modes']['board']")"
+python3 -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute('DELETE FROM hand_moves WHERE drawer_id = ?', (sys.argv[2],)); c.commit()" "$SP/data/mutt.db" "$BD"
+echo "answered once, it stays in the menu with no moves left: $(signs $BD "$BF")"
+echo "turned on: $(mode $BD '{"board":{"on":true}}' "d['drawer']['modes']['board']['on']")"
+flip $BD hand >/dev/null
+echo "moves while it's a board don't count: $(signs $BD "d['board']['count']")"
+FIRST=$(ids $BD | cut -d' ' -f1); SECOND=$(ids $BD | cut -d' ' -f2)
+board() { curl -s "${C[@]}" "${J[@]}" -X PUT $B/api/drawers/$1/board -d "$2" | j "$3"; }
+# JSON from python (dict(...), never literal braces: old bash expands them inside $(...))
+body() { python3 -c "import json,sys; F,S,P=sys.argv[1:4]; print(json.dumps($1))" "$FIRST" "$SECOND" "$P4"; }
+echo "nothing placed yet: $(curl -s "${C[@]}" $B/api/drawers/$BD/board | j "d")"
+ONE=$(body "dict(items=[dict(id=F, x=10.4, y=-20, w=300, h=180, z=2), dict(id='w-abcd1234', x=0, y=-90, w=440, h=None, z=3, words='Light', style='heading')])")
+echo "a file and some words: $(board $BD "$ONE" "sorted(('words' if i['id'].startswith('w-') else 'file', i['x'], i['y'], i['w'], i['h'], i.get('words')) for i in d['items'])")"
+echo "a line between them: $(board $BD "$(body "dict(join=[['w-abcd1234', F]])")" "d['lines'] == [sorted(['w-abcd1234', '$FIRST'])]")"
+echo "a line to something not on the board: $(board $BD "$(body "dict(join=[['w-abcd1234', S]])")" "len(d['lines'])")"
+echo "too far, too small: $(board $BD "$(body "dict(items=[dict(id=S, x=9e9, y=0, w=1)])")" "sorted((i['x'], i['w']) for i in d['items'] if not i['id'].startswith('w-'))")"
+echo "words of a kind nobody knows: $(board $BD "$(body "dict(items=[dict(id='w-abcd1234', x=0, y=0, w=200, words='Hi', style='shout')])")" "d['error']")"
+echo "not a number: $(board $BD "$(body "dict(items=[dict(id=F, x='left', y=0, w=200)])")" "d['error']")"
+echo "a file that isn't on the planet is left out: $(board $BD "$(body "dict(items=[dict(id=P, x=0, y=0, w=200)])")" "len(d['items'])")"
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X DELETE $B/api/blocks/$FIRST/connections/$BD
+echo "a file taken off leaves the board and its line: $(curl -s "${C[@]}" $B/api/drawers/$BD/board | j "len(d['items']), d['lines']")"
+curl -s -o /dev/null "${C[@]}" "${J[@]}" -X POST $B/api/blocks/$FIRST/connections -d "$(body "dict(drawer='$BD')")"
+echo "put back, it comes back to its place, line and all: $(curl -s "${C[@]}" $B/api/drawers/$BD/board | j "[(i['x'], i['y']) for i in d['items'] if i['id'] == '$FIRST'], len(d['lines'])")"
+echo "words taken away take their line: $(board $BD "$(body "dict(gone=['w-abcd1234'])")" "len(d['items']), d['lines']")"
+curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"looker","pin":"482193"}' -c "$SP/c2.txt" >/dev/null
+echo "someone else can look: $(curl -s -b "$SP/c2.txt" $B/api/drawers/$BD/board | j "len(d['items'])")"
+echo "but not move things: $(curl -s -b "$SP/c2.txt" "${J[@]}" -X PUT $B/api/drawers/$BD/board -d '{"items":[]}' | j "d['error']")"
+echo "nor count as moving: $(curl -s -b "$SP/c2.txt" "${J[@]}" -X PUT $B/api/drawers/$BD/order -d '{"ids":[],"hand":true}' | j "d['error']")"
+BM=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"Corner\",\"parent\":\"$BD\"}" | j "d['drawer']['id']")
+echo "a moon can be a board: $(mode $BM '{"board":{"on":true}}' "d['drawer']['modes']['board']['on']")"
+echo "in the download: $(curl -s "${C[@]}" -o "$SP/all.zip" -w '%{http_code}' $B/api/me/export) $(python3 -c "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); d=json.loads(z.read([n for n in z.namelist() if n.endswith('Your data.json')][0])); print([(len(p['board']['things']), p['board']['lines']) for p in d['planets'] if p['name'] == 'Living room'])" "$SP/all.zip")"

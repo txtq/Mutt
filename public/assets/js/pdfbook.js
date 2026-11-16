@@ -203,7 +203,8 @@ function chapters(blocks, outline, pageCount) {
 
 export class NoText extends Error {}
 
-export async function pdfToBook(url, { onProgress = () => {}, signal } = {}) {
+// adjust(pageIndex, items) may hand back a page's words changed (a marked-up PDF's retyped lines).
+export async function pdfToBook(url, { onProgress = () => {}, signal, adjust = null } = {}) {
   const pdfjs = await loadPdfjs();
   const doc = await pdfjs.getDocument({ url, isEvalSupported: false, withCredentials: true }).promise;
   try {
@@ -214,7 +215,7 @@ export async function pdfToBook(url, { onProgress = () => {}, signal } = {}) {
       const page = await doc.getPage(i);
       const { height } = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();
-      const lines = linesOf(content.items, i - 1, height);
+      const lines = linesOf(adjust ? adjust(i - 1, content.items) : content.items, i - 1, height);
       chars += lines.reduce((n, l) => n + l.text.length, 0);
       pages.push(lines);
       page.cleanup();

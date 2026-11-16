@@ -11,23 +11,9 @@
 // lists, tables, pictures, links, page size and margins, header, footer and
 // page numbers.
 
+import { loadPdfLib } from './pdfjs.js';
+export { loadPdfLib } from './pdfjs.js';   // the photo editor's downloads fetch it from here
 import { BLOCK_SCALE, MARGIN_PT, PAGE_SIZES, SCRIPT_PLACE, cleanCopy, listMark, readBlocks, toMarkdown, toPlain } from './docformat.js';
-
-const PDF_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
-
-let pdfLib;
-function loadPdfLib() {
-  pdfLib ||= new Promise((resolve, reject) => {
-    if (window.PDFLib) { resolve(window.PDFLib); return; }
-    const s = document.createElement('script');
-    s.src = PDF_LIB;
-    s.crossOrigin = 'anonymous';
-    s.onload = () => (window.PDFLib ? resolve(window.PDFLib) : reject(new Error('The PDF maker didn’t load.')));
-    s.onerror = () => { pdfLib = null; reject(new Error('The PDF maker couldn’t be fetched. Check your connection.')); };
-    document.head.append(s);
-  });
-  return pdfLib;
-}
 
 export function fileNameOf(title) {
   return (title || 'Untitled document').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Document';

@@ -1,0 +1,147 @@
+/* ==================================================================== PDF MARKUP
+   Marking up a PDF in the file view (pdfedit.js). Fetched with its code, the first time
+   "Mark up" is pressed or words are picked on a PDF's page; nothing here loads before.
+   DESIGN.md "The file view: marking up a PDF" has the rules. Every value is a name from tokens.css. */
+
+.vw-pdf { position: relative; }
+
+/* ---- the layers on a page, bottom to top: the page, .pm-flat (ink, text boxes, changed words),
+   .pm-multiply (markers: multiplied, so the words show through), pdf.js's words, .pm-top. */
+.pm-flat, .pm-multiply { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.pm-multiply { mix-blend-mode: multiply; }
+.pm-top { position: absolute; inset: 0; pointer-events: none; }
+.pm-top > * { pointer-events: auto; }
+.pm-words { white-space: pre; }
+
+/* The three standard faces a PDF's words are retyped in. --asc is where the line's foot sits,
+   as a share of the size, when the line is as tall as the type: the editor lines up on it. */
+.pm-face-sans { font-family: var(--pdf-sans); --asc: 0.846; }
+.pm-face-serif { font-family: var(--pdf-serif); --asc: 0.838; }
+.pm-face-mono { font-family: var(--pdf-mono); --asc: 0.766; }
+.pm-words.is-bold, .pm-line.is-bold { font-weight: 700; }
+.pm-words.is-italic, .pm-line.is-italic { font-style: italic; }
+
+/* ---- a note on the page, and a highlight's note in the margin: a small marker-coloured tab */
+.pm-note, .pm-badge {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: max(var(--h-small), calc(var(--scale-factor, 1) * var(--size)));
+  height: max(var(--h-small), calc(var(--scale-factor, 1) * var(--size)));
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--mark-ink) 22%, transparent);
+  border-radius: var(--r-mark);
+  background: var(--c);
+  color: var(--mark-ink);
+  cursor: pointer;
+  translate: -50% -50%;
+  transition: transform var(--dur-change) var(--ease-spring);
+}
+.pm-note:hover, .pm-badge:hover { transform: scale(1.08); }
+.pm-note:focus-visible, .pm-badge:focus-visible { outline: 2px solid var(--paper-blue); outline-offset: 2px; }
+
+/* ---- the chosen mark: an outline in paper blue; what can move takes the pointer, and ink has a grip to grow it */
+.pm-sel { position: absolute; box-sizing: border-box; border: 1.5px solid var(--paper-blue); border-radius: var(--r-mark); pointer-events: none; animation: fade-in var(--dur-change) ease backwards; }
+.pm-top > .pm-sel { pointer-events: none; }
+.pm-top > .pm-sel.is-movable { pointer-events: auto; cursor: move; touch-action: none; }
+.pm-grip { position: absolute; right: calc(var(--space-4) * -1.5); bottom: calc(var(--space-4) * -1.5); width: var(--space-12); height: var(--space-12); box-sizing: border-box; border: 1.5px solid var(--paper-blue); border-radius: var(--r-full); background: var(--white); cursor: nwse-resize; pointer-events: auto; touch-action: none; }
+
+/* ---- a tool at work: a layer over the page that takes the pointer */
+.pm-catch { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.vw-pdf:is([data-tool="text"], [data-tool="edit"]) .pm-catch { cursor: text; }
+.vw-pdf[data-tool="note"] .pm-catch { cursor: cell; }
+.pm-hover { position: absolute; border-radius: var(--r-mark); outline: 1.5px dashed var(--paper-blue); outline-offset: 1px; background: color-mix(in srgb, var(--paper-blue) 8%, transparent); pointer-events: none; }
+
+/* ---- changing a line's words: the line itself, on its own paper, in its own ink and face */
+.pm-top > .pm-line {
+  position: absolute;
+  box-sizing: border-box;
+  min-width: calc(var(--scale-factor, 1) * var(--w));
+  height: calc(var(--scale-factor, 1) * var(--h));
+  padding-top: max(0px, calc(var(--scale-factor, 1) * (var(--base) - var(--asc) * var(--fs))));
+  background: var(--pm-paper);
+  color: var(--pm-ink);
+  caret-color: var(--paper-caret);
+  font-size: calc(var(--scale-factor, 1) * var(--fs));
+  line-height: 1;
+  white-space: pre;
+  outline: 1.5px solid var(--paper-blue);
+  outline-offset: 2px;
+  border-radius: var(--r-mark);
+  cursor: text;
+}
+/* ---- a text box being typed in: its lines sit where they will be written */
+.pm-top > .pm-typing {
+  position: absolute;
+  min-width: calc(var(--scale-factor, 1) * var(--fs) * 4);
+  color: var(--pm-ink);
+  caret-color: var(--paper-caret);
+  font-size: calc(var(--scale-factor, 1) * var(--fs));
+  line-height: 1.2;
+  white-space: pre;
+  outline: 1.5px dashed var(--paper-blue);
+  outline-offset: 3px;
+  border-radius: var(--r-mark);
+  cursor: text;
+}
+.pm-line::selection, .pm-typing::selection { background: color-mix(in srgb, var(--paper-blue) 24%, transparent); }
+
+/* ---- the bar: bar glass at the foot of the pages while marking up. It rises in and sinks away. */
+.vw-pdf.is-marking .vw-pdf-pages { padding-bottom: calc(var(--space-48) * 2); }
+.pm-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--space-16) + env(safe-area-inset-bottom));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - var(--space-24));
+  padding: var(--inset);
+  border-radius: var(--r-full);
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  translate: -50% 0;
+  animation: pm-rise var(--dur-arrive) var(--ease-settle) backwards;
+}
+.pm-bar.is-leaving { animation: pm-sink var(--dur-change) var(--ease-leave) forwards; pointer-events: none; }
+@keyframes pm-rise { from { opacity: 0; transform: translateY(var(--space-16)); } }
+@keyframes pm-sink { to { opacity: 0; transform: translateY(var(--space-8)); } }
+.pm-bar > * { flex: none; }
+.pm-sep { width: 1px; height: var(--h-small); margin: 0 var(--space-4); background: var(--line); }
+.pm-colour { margin: 0 var(--space-8); }
+.pm-status { min-width: 10ch; padding: 0 var(--space-8); font: var(--type-fact); color: var(--ink-3); text-align: center; white-space: nowrap; }
+.pm-status:empty { display: none; }
+.pm-done { margin-left: var(--space-4); }
+
+/* ---- the bubble over picked words or a chosen mark: the same as the editor's */
+.pm-bubble { position: fixed; z-index: var(--z-pop); display: flex; align-items: center; gap: var(--space-2); padding: var(--inset); border-radius: var(--r-full); transform-origin: 50% 100%; animation: pop-in var(--dur-move) var(--ease-spring) backwards; }
+.pm-bubble.is-leaving { animation: pop-out var(--dur-change) var(--ease-leave) both; pointer-events: none; }
+.pm-bubble .swatch { margin: 0 var(--space-4); }
+.pm-bubble .pm-sep { height: var(--space-16); margin: 0 var(--space-2); }
+
+/* ---- small panels: colour and line, a note */
+.pm-panel { display: grid; gap: var(--space-8); }
+.pm-label { margin: 0; font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.pm-panel .pm-label:not(:first-child) { margin-top: var(--space-4); }
+.pm-swatches { display: flex; flex-wrap: wrap; gap: var(--space-12); padding: var(--space-2) var(--space-2) var(--space-4); }
+.pm-note-panel { display: grid; gap: var(--space-8); width: min(300px, calc(100vw - var(--space-48))); }
+.pm-note-text { min-height: calc(var(--h-regular) * 3); resize: vertical; }
+.pm-note-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+
+/* ---- the signature: drawn on paper, kept on this device */
+.pm-pad { display: block; width: 100%; height: auto; margin-top: var(--space-12); border-radius: var(--r-mark); background: var(--paper); box-shadow: var(--paper-shadow); cursor: crosshair; touch-action: none; }
+.pm-pad-clear { margin-right: auto; }
+
+/* ---- a phone: the bar keeps its tools and Done in view; "Saved" steps out (a save that fails still says so) */
+@media (max-width: 480px) {
+  .pm-bar { gap: 0; max-width: calc(100% - var(--space-8)); }
+  .pm-bar .pm-sep, .pm-status { display: none; }
+  .pm-colour { margin: 0 var(--space-8); }
+}
+/* On touch screens the bar's and the bubble's buttons keep 32, so a row of them still fits
+   (the 40 to tap is in "Room for a fingertip" in galaxy.css), as the editor's toolbar does. */
+@media (pointer: coarse) {
+  .pm-bar .btn-round:not(.btn-small), .pm-bubble .btn-round { width: var(--h-regular); height: var(--h-regular); }
+}

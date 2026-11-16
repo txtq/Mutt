@@ -11,7 +11,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, toast } from './ui.js';
-import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
+import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, paperFaces, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
 import { icon } from './icons.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
@@ -177,7 +177,7 @@ function swipeable(stage) {
   stage.addEventListener('touchstart', (e) => {
     start = null;
     if (e.touches.length !== 1 || (window.visualViewport?.scale || 1) > 1.05) return;
-    if (e.target.closest('video, audio, iframe, input, textarea, select') || slides(e.target, stage)) return;
+    if (e.target.closest('video, audio, iframe, input, textarea, select, [contenteditable], .pm-catch, .pm-bar') || slides(e.target, stage)) return;
     const t = e.touches[0];
     start = { x: t.clientX, y: t.clientY, at: e.timeStamp };
   }, { passive: true });
@@ -245,11 +245,17 @@ function stageMedia(block) {
       h('div', { class: 'vw-card-name' }, displayTitle(block)),
       h('audio', { src: block.file, controls: true, preload: 'metadata' }));
   }
+  if (block.file && PAGED_DOCS.has((block.ext || '').toLowerCase())) return docStage(block);
   if (block.meta?.excerpt && block.file && block.size < 400 * 1024) {
     const pre = h('pre', { class: 'vw-code' }, block.meta.excerpt);
     fetch(block.file, { credentials: 'same-origin' }).then((r) => (r.ok ? r.text() : null)).then((t) => { if (t != null) pre.textContent = t; }).catch(() => {});
     return h('div', { class: 'vw-media vw-codebox' }, pre);
   }
+  return fileCard(block);
+}
+
+// A file with nothing to show: what it is, in box glass.
+function fileCard(block) {
   return h('div', { class: 'vw-media vw-card fglass' },
     h('div', { class: 'vw-card-ext' }, extLabel(block)),
     h('div', { class: 'vw-card-name' }, block.fileName || displayTitle(block)),
@@ -354,7 +360,11 @@ async function openDocEditor(id) {
 }
 
 // PDFs are drawn page by page with pdf.js, so they read the same in every
-// browser (phones won't show a PDF inside a page otherwise).
+// browser (phones won't show a PDF inside a page otherwise). Each page also
+// gets pdf.js's see-through text, so its words can be picked and copied. On
+// your own PDF, picking words or pressing "Mark up" fetches the markup tools
+// (pdfedit.js, which writes the changes into the file); `view` is what they
+// work with.
 const PDF_ZOOMS = [0.6, 0.8, 1, 1.3, 1.7];
 
 function pdfStage(block) {
@@ -362,9 +372,11 @@ function pdfStage(block) {
   const count = h('span', { class: 'vw-pdf-count' }, block.meta?.pages ? plural(block.meta.pages, 'page') : '');
   const zoomOut = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom out', title: 'Zoom out' }, icon('minus'));
   const zoomIn = h('button', { type: 'button', class: 'btn btn-quiet btn-round vw-btn', 'aria-label': 'Zoom in', title: 'Zoom in' }, icon('plus'));
-  const wrap = h('div', { class: 'vw-media vw-pdf' },
-    h('div', { class: 'vw-pdf-bar' }, count, h('span', { class: 'vw-pdf-zoom' }, zoomOut, zoomIn)),
-    pages);
+  const markBtn = block.mine === false ? null
+    : h('button', { type: 'button', class: 'btn btn-small vw-pdf-mark', 'aria-pressed': 'false', disabled: true }, icon('edit'), 'Mark up');
+  const tools = h('span', { class: 'vw-pdf-zoom' }, markBtn, zoomOut, zoomIn);
+  const bar = h('div', { class: 'vw-pdf-bar' }, count, tools);
+  const wrap = h('div', { class: 'vw-media vw-pdf' }, bar, pages);
   // The first page's preview (or a blank page) stands in while the real thing loads.
   const ratio = block.width && block.height ? `${block.width} / ${block.height}` : '8.5 / 11';
   pages.append(h('div', { class: 'vw-pdf-page is-shimmer', style: block.thumb ? {} : { aspectRatio: ratio } },
@@ -375,13 +387,83 @@ function pdfStage(block) {
   let gone = false;
   let zoom = 2;
   let redraw = 0;
+  let markup = null;
   const rendering = new Map();
+  // Each page's words sit in pdf.js's units; --scale-factor is how many of the page's own pixels make one of those.
+  const sized = new ResizeObserver((entries) => {
+    for (const { target } of entries) {
+      const pw = Number(target.dataset.pw);
+      if (pw) target.style.setProperty('--scale-factor', target.clientWidth / pw);
+    }
+    showPage();   // the count is right once the pages have their real height
+  });
+
+  const view = {
+    block, wrap, bar, pages, markBtn,
+    get doc() { return doc; },
+    info: new Map(),        // page number -> { vp: its viewport at scale 1, page }
+    text: new Map(),        // page number -> its words, as pdf.js reads them
+    onPage: null,           // the markup tools' hook: a page has been (re)drawn
+    boxOf: (n) => pages.querySelector(`.vw-pdf-page[data-n="${n}"]`),
+    // A new copy of the PDF to draw from (the markup tools draw their marks themselves).
+    async swap(data) {
+      const pdfjs = await loadPdfjs();
+      const next = await pdfjs.getDocument({ data: data.slice(), isEvalSupported: false }).promise;
+      if (gone) { next.destroy(); return; }
+      const old = doc;
+      doc = next;
+      view.info.clear();
+      view.text.clear();
+      rendering.clear();
+      // The words are read again too: the old copy may have held words the new one doesn't.
+      for (const box of pages.children) { delete box.dataset.w; box.querySelector('.vw-pdf-text')?.remove(); }
+      await Promise.all([...pages.querySelectorAll('.vw-pdf-page.is-near')].map(draw));
+      old?.destroy();
+    },
+    // The markup tools saved a new copy of the file.
+    saved(next) {
+      if (state?.block.id !== block.id) return;
+      state.block = { ...state.block, ...next };
+      state.list = state.list.map((b) => (b.id === next.id ? state.block : b));
+      view.block = state.block;
+      bus.emit('block:changed', state.block);
+      renderSide();
+    },
+  };
+  state.pdf = view;
   state.cleanup = () => {
     gone = true;
     clearTimeout(redraw);
     observer?.disconnect();
+    sized.disconnect();
+    markup?.then((m) => m?.destroy());
     doc?.destroy();
+    if (state?.pdf === view) state.pdf = null;
   };
+
+  // The tools are only fetched when they're wanted: words picked, or "Mark up".
+  const tools$ = () => {
+    markup ||= Promise.all([import('./pdfedit.js'), styles('pdfedit.css')])
+      .then(([m]) => (gone ? null : m.markup(view)))
+      .catch((err) => { markup = null; toast(err.message); return null; });
+    return markup;
+  };
+  if (markBtn) {
+    markBtn.addEventListener('click', async () => {
+      markBtn.classList.add('is-busy');
+      const m = await tools$();
+      markBtn.classList.remove('is-busy');
+      m?.toggle();
+    });
+    pages.addEventListener('pointerup', (e) => {
+      if (e.button || !doc) return;
+      setTimeout(() => {
+        const sel = getSelection();
+        if (sel.isCollapsed || !pages.contains(sel.anchorNode)) return;
+        tools$().then((m) => m?.picked());
+      });
+    });
+  }
 
   const targetWidth = (page) => Math.round(page.clientWidth * Math.min(devicePixelRatio || 1, 2));
 
@@ -390,19 +472,48 @@ function pdfStage(block) {
     const width = targetWidth(box);
     if (!width || box.dataset.w === String(width) || rendering.get(n) === width) return;
     rendering.set(n, width);
+    const from = doc;
     try {
-      const page = await doc.getPage(n);
+      const page = await from.getPage(n);
       const base = page.getViewport({ scale: 1 });
+      view.info.set(n, { vp: base, page });
       box.style.aspectRatio = `${base.width} / ${base.height}`;
+      box.dataset.pw = String(base.width);
+      box.style.setProperty('--scale-factor', box.clientWidth / base.width);
       const viewport = page.getViewport({ scale: width / base.width });
       const canvas = h('canvas', { width: Math.round(viewport.width), height: Math.round(viewport.height) });
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      if (gone || rendering.get(n) !== width) return;
-      box.replaceChildren(canvas);
+      if (gone || from !== doc || rendering.get(n) !== width) return;
+      const old = box.querySelector(':scope > canvas, :scope > img');
+      if (old) old.replaceWith(canvas);
+      else box.prepend(canvas);
       box.dataset.w = String(width);
       box.classList.remove('is-shimmer');
+      if (!box.querySelector('.vw-pdf-text')) words(box, n, page, base, canvas);
+      view.onPage?.(n, box);
     } catch {
       rendering.delete(n);
+    }
+  }
+
+  // pdf.js's see-through words over the picture of the page.
+  async function words(box, n, page, vp, canvas) {
+    const layer = h('div', { class: 'vw-pdf-text' });
+    (box.querySelector(':scope > .pm-multiply') || canvas).after(layer);
+    try {
+      const pdfjs = await loadPdfjs();
+      const content = await page.getTextContent();
+      if (gone) return;
+      view.text.set(n, content);
+      await new pdfjs.TextLayer({ textContentSource: content, container: layer, viewport: vp }).render();
+      layer.append(h('div', { class: 'endOfContent' }));
+      // While words are being picked, the empty part of the page doesn't jump the pick about.
+      layer.addEventListener('pointerdown', () => {
+        layer.classList.add('selecting');
+        addEventListener('pointerup', () => layer.classList.remove('selecting'), { once: true, capture: true });
+      });
+    } catch {
+      layer.remove();
     }
   }
 
@@ -413,7 +524,7 @@ function pdfStage(block) {
     zoomIn.disabled = zoom === PDF_ZOOMS.length - 1;
     // Pages on screen redraw sharp once they've grown; the rest when reached.
     clearTimeout(redraw);
-    redraw = setTimeout(() => pages.querySelectorAll('.vw-pdf-page.is-near').forEach(draw), 500);
+    redraw = setTimeout(() => pages.querySelectorAll('.vw-pdf-page.is-near').forEach(draw), DUR.arrive);
   }
   zoomOut.addEventListener('click', () => setZoom(zoom - 1));
   zoomIn.addEventListener('click', () => setZoom(zoom + 1));
@@ -447,6 +558,7 @@ function pdfStage(block) {
       const poster = pages.querySelector('img');
       if (poster) boxes[0].append(poster);
       pages.replaceChildren(...boxes);
+      boxes.forEach((box) => sized.observe(box));
       observer = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           entry.target.classList.toggle('is-near', entry.isIntersecting);
@@ -455,6 +567,7 @@ function pdfStage(block) {
         showPage();  // once the pages have their real size
       }, { root: pages, rootMargin: '900px 0px' });
       boxes.forEach((box) => observer.observe(box));
+      if (markBtn) markBtn.disabled = false;
     } catch {
       if (gone) return;
       wrap.replaceChildren(h('div', { class: 'vw-card fglass' },
@@ -464,6 +577,89 @@ function pdfStage(block) {
     }
   })();
   return wrap;
+}
+
+// A Word, OpenDocument or RTF file is shown as its pages: the server reads it
+// into a document's HTML (mutt/convert.py), set here on paper.
+const PAGED_DOCS = new Set(['docx', 'odt', 'rtf']);
+
+function docStage(block) {
+  const sheet = h('div', { class: 'vw-doc-sheet is-shimmer' });
+  const wrap = h('div', { class: 'vw-media vw-doc' }, sheet);
+  let gone = false;
+  state.cleanup = () => { gone = true; };
+  paperFaces();
+  api.get(`/api/blocks/${block.id}/document`).then(({ html }) => {
+    if (gone) return;
+    sheet.classList.remove('is-shimmer');
+    sheet.innerHTML = html;
+    if (!sheet.textContent.trim()) throw new Error('empty');
+  }).catch(() => {
+    if (gone) return;
+    const card = fileCard(block);
+    card.dataset.vtMedia = '';
+    wrap.replaceWith(card);
+    if (state.media === wrap) state.media = card;
+  });
+  return wrap;
+}
+
+// Writing kept as a file (Word, OpenDocument, RTF, text, Markdown) or a PDF
+// can be made into a Mutt document, which opens in the editor. The file stays.
+const DOC_FROM = new Set([...PAGED_DOCS, 'txt', 'text', 'md', 'markdown']);
+const canBeDocument = (block) => block.mine !== false && !!block.file
+  && (block.kind === 'pdf' || DOC_FROM.has((block.ext || '').toLowerCase()));
+
+async function makeDocument(btn) {
+  const block = state.block;
+  btn.classList.add('is-busy');
+  const label = btn.lastChild.textContent;
+  btn.lastChild.textContent = 'Making a document…';
+  try {
+    const body = { drawer: state.drawer?.id || null };
+    if (block.kind === 'pdf') Object.assign(body, await pdfAsDocument(block));
+    const res = await api.post(`/api/blocks/${block.id}/document`, body);
+    bus.emit('block:connected', { block: res.block, drawerId: res.drawer, connections: [], position: res.position });
+    toast(`Made a document from ${displayTitle(block) || 'the file'} · the file is kept`);
+    // On its planet's page the file view steps aside for the document (the planet's own ?doc=),
+    // so closing it lands on the planet, the new document beside the file. Elsewhere it opens on top.
+    const here = new URL(location.href);
+    if (res.drawer && here.pathname === `/p/${res.drawer}`) {
+      here.searchParams.delete('b');
+      here.searchParams.set('doc', res.block.id);
+      const { go } = await import('./router.js');
+      go(here.pathname + here.search, { replace: true });
+    } else openDocEditor(res.block.id);
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    if (btn.isConnected) { btn.classList.remove('is-busy'); btn.lastChild.textContent = label; }
+  }
+}
+
+// A PDF's words, read in the browser the way the reader reads one
+// (pdfbook.js), as a document's HTML and the note's Markdown.
+async function pdfAsDocument(block) {
+  const [{ pdfToBook }, { toMarkdown, escapeHtml }, { changedLines, withChangedLines }] = await Promise.all([
+    import('./pdfbook.js'), import('./docformat.js'), import('./pdfedit.js')]);
+  // Lines whose words were changed here still hold the old words under their patch: read the new ones.
+  const changed = await fetch(block.file).then((r) => r.arrayBuffer()).then(changedLines).catch(() => []);
+  const book = await pdfToBook(block.file, { adjust: (i, items) => withChangedLines(items, changed[i]) });
+  const titled = book.chapters.length > 1 && !book.chapters.every((c) => /^Pages \d/.test(c.title));
+  const parts = [];
+  for (const chapter of book.chapters) {
+    const first = chapter.blocks[0];
+    if (titled && chapter.title !== 'Opening' && !(first && /^h/.test(first.t) && first.x === chapter.title)) {
+      parts.push(`<h1>${escapeHtml(chapter.title)}</h1>`);
+    }
+    for (const b of chapter.blocks) {
+      const tag = b.t === 'h1' || b.t === 'h2' ? b.t : 'p';
+      parts.push(`<${tag}>${escapeHtml(b.x)}</${tag}>`);
+    }
+  }
+  const html = parts.join('');
+  const root = h('div', { html });
+  return { html, text: toMarkdown(root) };
 }
 
 // ---------------------------------------------------------------- side panel
@@ -591,7 +787,9 @@ function renderSide() {
     block.kind === 'link' ? h('a', { class: 'btn', href: block.content, target: '_blank', rel: 'noopener noreferrer' }, 'Visit', icon('out')) : null,
     // Writing longer than a sentence or two can be opened as a document.
     block.kind === 'text' && (block.content.trim().length >= 280 || (block.content.match(/[.!?](\s|$)/g) || []).length >= 3)
-      ? h('button', { type: 'button', class: 'btn', onclick: () => openDocEditor(block.id) }, 'Open as a document') : null);
+      ? h('button', { type: 'button', class: 'btn', onclick: () => openDocEditor(block.id) }, 'Open as a document') : null,
+    canBeDocument(block)
+      ? h('button', { type: 'button', class: 'btn', onclick: (e) => makeDocument(e.currentTarget) }, icon('page'), 'Make it a document') : null);
 
   const count = connections?.length ?? block.connectionCount ?? 0;
   // Opened on one of its planets: the others are "also on", and each opens

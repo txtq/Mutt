@@ -100,3 +100,28 @@ OLD=$(curl -s "${C[@]}" $B/api/docs/$N/versions | j "d['versions'][-1]['id']")
 echo "put back: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/docs/$N/versions/$OLD/restore | j "d['block']['content'], d['block']['versions']") $(texts $N)"
 echo "visitor puts back: $(curl -s "${O[@]}" "${J[@]}" -X POST $B/api/docs/$N/versions/$OLD/restore | j "d.get('error')")"
 echo "not a note: $(L=$(curl -s "${C[@]}" "${J[@]}" -X POST "$B/api/blocks" -d '{"content":"https://example.net"}' | j "d['block']['id']"); curl -s "${C[@]}" "${J[@]}" -X POST $B/api/docs/$L/versions/$OLD/restore | j "d.get('error')")"
+# Files made into documents: Word, OpenDocument and RTF read on the server (the file is kept,
+# the new document sits just after it); a marked-up PDF is written back over its file.
+python3 tests/make_docs.py "$SP/made"
+up() { curl -s "${C[@]}" -H X-Mutt:1 -H "Content-Type: $2" --data-binary @"$SP/made/$1" "$B/api/upload?drawer=$D&name=$1" | j "d['block']['id']"; }
+W=$(up harbour.docx application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+echo "docx preview: $(curl -s "${C[@]}" $B/api/blocks/$W/document | j "d['words'], d['pictures'], d['html'][:60], '&lt;script' in d['html'], '<script' in d['html']")"
+echo "docx -> document: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks/$W/document -d "{\"drawer\":\"$D\"}" | j "d['block']['title'], d['block']['content'].split(chr(10))[:3], d['position']")"
+for f in journal.odt:application/vnd.oasis.opendocument.text letter.rtf:application/rtf; do
+  X=$(up "${f%%:*}" "${f#*:}")
+  echo "${f%%:*} -> document: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/blocks/$X/document -d '{}' | j "d['block']['title'], repr(d['block']['content'][:40])")"
+done
+echo "visitor can't make one: $(curl -s "${O[@]}" "${J[@]}" -X POST $B/api/blocks/$W/document -d '{}' | j "d.get('error')")"
+python3 -c "
+import sys
+objs=['<</Type/Catalog/Pages 2 0 R>>','<</Type/Pages/Kids[3 0 R]/Count 1>>','<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>']
+out=b'%PDF-1.4\n'; offs=[]
+for i,o in enumerate(objs): offs.append(len(out)); out+=f'{i+1} 0 obj{o}endobj\n'.encode()
+x=len(out); out+=b'xref\n0 4\n0000000000 65535 f \n'+b''.join(b'%010d 00000 n \n'%o for o in offs)+b'trailer<</Size 4/Root 1 0 R>>\nstartxref\n%d\n%%%%EOF'%x
+open(sys.argv[1],'wb').write(out)" "$SP/made/a.pdf"
+F=$(up a.pdf application/pdf)
+echo "pdf rewritten: $(curl -s "${C[@]}" -H X-Mutt:1 -X PUT --data-binary @"$SP/made/a.pdf" $B/api/blocks/$F/file | j "d['block']['meta']['rev'], '/r1/' in d['block']['file']")"
+echo "pdf served at new address: $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' "$B$(curl -s "${C[@]}" $B/api/blocks/$F | j "d['block']['file']")")"
+echo "not a pdf: $(curl -s "${C[@]}" -H X-Mutt:1 -X PUT --data-binary @"$SP/made/letter.rtf" $B/api/blocks/$F/file | j "d.get('error')")"
+echo "docx can't be rewritten: $(curl -s "${C[@]}" -H X-Mutt:1 -X PUT --data-binary @"$SP/made/a.pdf" $B/api/blocks/$W/file | j "d.get('error')")"
+echo "visitor can't rewrite: $(curl -s "${O[@]}" -H X-Mutt:1 -X PUT --data-binary @"$SP/made/a.pdf" $B/api/blocks/$F/file | j "d.get('error')")"

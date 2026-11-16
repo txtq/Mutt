@@ -47,3 +47,13 @@ after a pause: 2 :third words|:first words|
 put back: first words 3 Before restoring:fourth words|:third words|:first words|
 visitor puts back: That file does not exist.
 not a note: Only text files have a history.
+docx preview: 42 1 <h1 class="title">Harbour notes</h1><h1>The first winter</h1 True False
+docx -> document: harbour ['# Harbour notes', '', '# The first winter'] -2.5
+journal.odt -> document: journal '# Field journal\n\nRain at noon, **heavy**'
+letter.rtf -> document: letter 'Dear Sam,\n\nThank you for the **map** and'
+visitor can't make one: That file does not exist.
+pdf rewritten: 1 True
+pdf served at new address: 200
+not a pdf: That isn’t a PDF.
+docx can't be rewritten: Only a PDF can be marked up.
+visitor can't rewrite: That file does not exist.

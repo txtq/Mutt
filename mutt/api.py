@@ -14,7 +14,7 @@ import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-from . import auth, books, db, documents, export, kinds, links, media, recipes, sight, sorting
+from . import auth, books, convert, db, documents, export, kinds, links, media, recipes, sight, sorting
 from . import modes as modes_registry
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
 
@@ -147,9 +147,13 @@ def clean_modes(value, current, moon=False):
 
 def block_json(row, mine=True, owner=None):
     keys = row.keys()
+    meta = public_meta(row['meta'], mine)
     file_url = None
     if row['file_key']:
-        file_url = f"/f/{row['id']}/{urllib.parse.quote(row['file_name'] or 'file')}"
+        # A PDF marked up in Mutt is written anew each time; its address changes with it.
+        rev = meta.get('rev')
+        file_url = (f"/f/{row['id']}/" + (f"r{int(rev)}/" if isinstance(rev, int) else '')
+                    + urllib.parse.quote(row['file_name'] or 'file'))
     thumb_url = f"/t/{row['id']}?v={row['thumb_key'][:8]}" if row['thumb_key'] else None
     data = {
         'id': row['id'],
@@ -166,7 +170,7 @@ def block_json(row, mine=True, owner=None):
         'width': row['width'],
         'height': row['height'],
         'duration': row['duration'],
-        'meta': public_meta(row['meta'], mine),
+        'meta': meta,
         'createdAt': ms(row['created_at']),
         'updatedAt': ms(row['updated_at']),
         'mine': mine,
@@ -1942,6 +1946,125 @@ def upload_thumb(req, block_id):
     return json_response({'block': reload_block(req, block_id)})
 
 
+@route('PUT', r'/api/blocks/(?P<block_id>[\w-]+)/file')
+def replace_file(req, block_id):
+    """A PDF marked up in the file view, written back over the old one (the
+    owner chose that the changes go into the file itself). Its address
+    changes with every save, so nothing shows a stale copy."""
+    row = own_block(req, block_id)
+    if row['kind'] != 'pdf' or not row['file_key']:
+        raise HttpError(400, 'Only a PDF can be marked up.')
+    key = secrets.token_hex(12) + f".{row['ext'] or 'pdf'}"
+    path = os.path.join(db.user_files_dir(req.user['id']), key)
+    size = stream_to_file(req, path, MAX_UPLOAD)
+    with open(path, 'rb') as f:
+        head = f.read(1024)
+    if b'%PDF-' not in head:
+        os.remove(path)
+        raise HttpError(400, 'That isn\u2019t a PDF.')
+    meta = json.loads(row['meta'] or '{}')
+    meta['rev'] = int(meta.get('rev') or 0) + 1
+    text = sorting.read_text(path, 'pdf', False)
+    if text:
+        meta['gist'] = sorting.gist(text)
+    req.db.execute('UPDATE blocks SET file_key = ?, size = ?, meta = ?, updated_at = ? WHERE id = ?',
+                   (key, size, json.dumps(meta, ensure_ascii=False), now(), block_id))
+    remove_block_files(req.user['id'], row['file_key'])  # someone's saved copy keeps its own link
+    return json_response({'block': reload_block(req, block_id)})
+
+
+def convertible(row):
+    return bool(row['file_key']) and (row['kind'] == 'pdf' or convert.can_convert(row['ext']))
+
+
+@route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/document')
+def document_preview(req, block_id):
+    """A Word, OpenDocument or RTF file's pages as HTML, to read in the file view."""
+    row, _ = readable_block(req, block_id)
+    if not row['file_key'] or (row['ext'] or '').lower() not in convert.CONVERTIBLE - convert.PLAIN:
+        raise HttpError(400, 'This file has no pages to show.')
+    path = os.path.join(db.user_files_dir(row['user_id']), row['file_key'])
+    try:
+        blocks, _ = convert.read_blocks(path, row['ext'])
+    except convert.Unreadable as err:
+        raise HttpError(400, str(err))
+    words = convert.to_markdown(blocks)
+    return json_response({'html': documents.clean_html(convert.to_html(blocks)),
+                          'words': documents.word_count(words), 'pictures': sum(b['t'] == 'img' for b in blocks)})
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/document')
+def make_document(req, block_id):
+    """A Mutt document made from a stored file, put just after it on the planet
+    it was opened from (or its first planet). The file itself is kept. A PDF
+    is read in the browser and arrives as `html` and `text`."""
+    row = own_block(req, block_id)
+    if not convertible(row):
+        raise HttpError(400, 'This file can\u2019t be made into a document.')
+    body = req.json()
+    ext = (row['ext'] or '').lower()
+    path = os.path.join(db.user_files_dir(req.user['id']), row['file_key'])
+    blocks, pictures, html_text = [], {}, None
+    if row['kind'] == 'pdf':
+        text = text_field(body, 'text', 200_000, 'Text', strip=False)
+        if not text or not text.strip() or not isinstance(body.get('html'), str):
+            raise HttpError(400, 'There were no words in this PDF to make a document from.')
+        html_text = body['html']
+    elif ext in convert.PLAIN:
+        text = convert.read_plain(path)
+    else:
+        try:
+            blocks, pictures = convert.read_blocks(path, ext)
+        except convert.Unreadable as err:
+            raise HttpError(400, str(err))
+        text = convert.to_markdown(blocks)
+    if not text.strip():
+        raise HttpError(400, 'There were no words in this file to make a document from.')
+    if len(text) > 200_000:
+        raise HttpError(400, 'This file is too long to be one document.')
+
+    drawer_id = body.get('drawer')
+    if drawer_id:
+        drawer_id = target_drawer(req, drawer_id)
+    else:
+        first = req.db.execute('SELECT drawer_id FROM connections WHERE block_id = ? ORDER BY connected_at LIMIT 1',
+                               (block_id,)).fetchone()
+        drawer_id = first['drawer_id'] if first else None
+    title = (row['title'] or convert.first_heading(blocks) or 'Untitled')[:200]
+    new = insert_block(req, kind='text', title=title, content=text.strip('\n'),
+                       meta={'madeFrom': {'id': block_id, 'ext': ext or row['kind']}})
+    position = None
+    if drawer_id:
+        position = place_in(req.db, drawer_id, after=block_id)
+        connect(req.db, new, drawer_id, position)
+        position = req.db.execute('SELECT position FROM connections WHERE block_id = ? AND drawer_id = ?',
+                                  (new, drawer_id)).fetchone()['position']
+
+    if blocks:
+        saved = {}
+
+        def picture_src(name):
+            if name not in saved:
+                found = pictures.get(name)
+                if not found or len(saved) >= convert.MAX_PICTURES:
+                    return None
+                image_id = new_id()
+                req.db.execute('INSERT INTO doc_images (id, block_id, mime, data, created_at) VALUES (?, ?, ?, ?, ?)',
+                               (image_id, new, found[0], found[1], now()))
+                saved[name] = f'/api/docs/{new}/img/{image_id}'
+            return saved[name]
+        html_text = convert.to_html(blocks, picture_src)
+    if html_text is not None:
+        try:
+            clean = documents.clean_html(html_text)
+        except ValueError:
+            raise HttpError(400, 'That document is too large to save.')
+        stamp = now()
+        req.db.execute('INSERT INTO docs (block_id, html, settings, synced_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                       (new, clean, json.dumps(documents.DEFAULTS), stamp, stamp))
+    return json_response({'block': reload_block(req, new), 'drawer': drawer_id, 'position': position}, status=201)
+
+
 @route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/share')
 def share_block(req, block_id):
     own_block(req, block_id)
@@ -2577,7 +2700,7 @@ def delete_book_text(req, block_id):
 FILE_CSP = "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"
 
 
-@route('GET', r'/f/(?P<block_id>[\w-]+)(?:/[^/]*)?')
+@route('GET', r'/f/(?P<block_id>[\w-]+)(?:/[^/]*){0,2}')
 def serve_file(req, block_id):
     row, _ = readable_block(req, block_id, deleted=True)
     if not row['file_key']:

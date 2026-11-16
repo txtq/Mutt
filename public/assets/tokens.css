@@ -159,6 +159,11 @@
   --mono: "Red Hat Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --serif: "Newsreader", "Iowan Old Style", Georgia, serif;   /* paper only (and a desk's own names) */
   --typewriter: "Courier Prime", "Courier New", Courier, monospace;   /* a script, and a document set in Typewriter */
+  /* Words written into a PDF (a text box, changed words) are set in the standard PDF faces, the ones
+     the file itself is written in, so what shows over the page is what the file will hold. */
+  --pdf-sans: Arial, Helvetica, sans-serif;
+  --pdf-serif: "Times New Roman", Times, serif;
+  --pdf-mono: "Courier New", Courier, monospace;
   --t: 1;                /* the owner's text-size setting (S 0.93, M 1, L 1.1), set by theme.js */
 
   /* the sizes */

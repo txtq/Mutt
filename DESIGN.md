@@ -106,6 +106,8 @@ Signals mean something or they aren't used. No other colour may be typed anywher
 
 Families: `--sans` Red Hat Text (400, 500, 700 only), `--mono` Red Hat Mono (400, 500), `--serif` `"Newsreader", "Iowan Old Style", Georgia, serif` (paper only, documents and the book reader alike), `--typewriter` `"Courier Prime", "Courier New", Courier, monospace` (a script, and a document its writer set in Typewriter). The two paper faces are fetched by `paperFaces()` in `util.js` the first time paper is about to show (a desk, a document, a book); call it from anything new that shows paper.
 
+A PDF's own words, when Mutt retypes a line or writes a text box into one, are set in one of the three standard faces every PDF reader has (`--pdf-sans` Arial/Helvetica, `--pdf-serif` Times, `--pdf-mono` Courier), the one closest to the line's own; these are the PDF's type, never Mutt's, and are used nowhere else.
+
 | Role | Name | Size / line | Weight | Use |
 | --- | --- | --- | --- | --- |
 | Display | `--type-display` | 34 / 38, `-0.02em` | 700 | Sign-in, a welcome, an empty galaxy. |
@@ -274,6 +276,8 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | *Rooms* | |
 | File view: side panel, connections, comments | arrive |
 | File view: a note's earlier copy coming onto the stage | its bar fades in over move, its words rise over arrive |
+| File view, marking up a PDF: the bar rising in at the foot, sinking away | arrive on the settle curve; leaves |
+| File view, marking up: the bubble over picked words or a chosen mark | move on the spring; leaves (the editor's bubble) |
 | Editor and recipe card: the page flying open and back | scene each way, on the glide |
 | Editor: bars dropping in; the sky rising behind | arrive; scene |
 | Editor: bars stepping back while you write | out over grand, back in move |
@@ -679,6 +683,14 @@ How each mode is built. A new mode follows the nearest of these.
 - **A note's history** (`history.js`, fetched only for your own note once it has an earlier copy): under the facts, a hairline, the small label `HISTORY` with `N earlier` as a Fact at the far end, then a 32-high row for `Now` and for each earlier copy (its name or `Today, 14:02` in Label, its words as a Fact on the right; a named copy's time joins the Fact), five then a quiet small `Show all N`. The row on the stage is `--tint-2`. Picking a copy puts it on the stage in place of the note, under a bar of Mutt's glass (`.bar-glass`, a pill 40 high; on a phone corners 20 with the buttons under the words): when it was written in Label, a key of the two marks as a Fact, a small plain "Back to now" and a small main "Put this back". The words are the note's own size on the sky, marked against now: **added since** washed 28% `--mark-green`, **taken out since** in `--ink-3` struck through in `--danger`. A phrase that changed reads as one mark, struck then added. "Put this back" keeps how it is now as "Before restoring" first. A note's ••• and right-click menus have a `History` row (`history` icon) that opens the file view straight on the latest copy. Nothing shows on a note never changed.
 - Top left, two chevrons (the file before, the next one) and `1 / 4` as a Fact; top right, a quiet "Close".
 - On a narrow screen it is one page to scroll, the file then its words, with the top row staying put on Mutt's bar glass.
+- **A PDF's words can be picked**: pdf.js's see-through words lie over each page, and a pick shows as `--blue` at 30% with the page's own words showing through.
+- **Marking up a PDF** (your own; `pdfedit.js` + `pdfedit.css`, fetched the first time you pick words or press "Mark up"). Everything is written into the PDF itself, as real PDF marks any reader shows, and saves by itself a moment after each change.
+  - "Mark up" is a small plain button beside the zoom, lit while marking. Picking words brings a bubble of bar glass, the editor's: the five marker swatches, underline, strike, a note, and (on one line) change these words. A chosen mark gets a 1.5 outline in `--paper-blue` (corners `--r-mark`), a grip to resize ink, and its own bubble (colours, note, delete).
+  - The bar is bar glass at the foot of the pages, pill-shaped: Pen, Text box, Note, Signature, Change words (quiet round buttons), the colour (a swatch that opens a small panel: colours, then Line or Size as a segmented bar), Undo, Redo, the save word as a Fact, and a small main "Done". Escape puts down the tool, then the choice, then finishes. On a phone the dividers and the save word step out so Done stays in view.
+  - Marks are paper colours: the markers are `--mark-*` laid on multiplied at 40%; ink and text are `--paper-ink`, `--paper-blue` or `--paper-caret`. A note is a small tab of its marker colour with the `comment` icon in `--mark-ink`; a highlight's note shows the same tab in the margin.
+  - Changing words covers the old line with a patch of the page's own colour and types the new words over it in the closest PDF face (Type), in the line's own ink; while typing, the line itself is the text box, outlined in `--paper-blue`.
+  - The signature is drawn once on a pad of paper in a dialog, kept on the device, and placed with a click.
+- **A Word, OpenDocument or RTF file** shows its pages read into paper (the document's look: `--serif`, headings at Page, Title and Lead). It, a PDF, a text or a Markdown file of your own has a plain "Make it a document" (icon `page`) under Download: a Mutt document is made beside the file (the file is kept), and opens.
 
 ### The parts as built, and the sample page
 
@@ -734,12 +746,12 @@ One set, in one file: `public/assets/js/icons.js`. `icon(name)` is the only way 
 - **A tail to leave, a chevron to step.** `back` (an arrow with a tail) takes you somewhere else: to the galaxy, out of the editor. `chevron-left` and `chevron-right` step to the next thing of the same kind: the next file, the next recipe card. `chevron-up` and `chevron-down` step through matches. `caret` only ever means "this opens a menu".
 - **It lights when pointed at.** A part of an icon marked as its body (the inside of a lock, a page, a speech bubble) is empty at rest and fills with `--icon-lit` of its own colour when its button or menu row is pointed at, and stays filled while the button is held on (`.is-on`, `aria-pressed`, `aria-expanded`). This is automatic; a feature writes nothing for it.
 
-**The names** (94)
+**The names** (96)
 
 - *Everyday:* `plus` `minus` `close` `check` `more` `grip` `caret` `chevron-left` `chevron-right` `chevron-up` `chevron-down` `back` `forward` `up` `down` `out` `search` `zoom` `undo` `redo` `upload` `download` `sort` `link` `copy` `trash` `edit` `open` `play`
 - *Mutt's own things:* `planet` `moon` `star` (a file on no planet) `lock` (private, locked) `key` (opened with a code) `people` `globe` (public) `comment` `move` (to a planet) `onto` (put on a planet, save) `takeoff` (take off a planet) `files` (show as files) `page` `book` `bookmark` `note` `pot` `chapter` `camera` `picture` `colour` `tick` `untick`
 - *In menus:* `history` `print` `setup` (options) `replace` `count` `spell`
-- *Writing:* `side` `bold` `italic` `underline` `strike` `align-left` `align-center` `align-right` `justify` `bullets` `dashes` `numbers` `letters` `roman` `checklist` `outdent` `indent` `spacing` `clear` `type` `highlight` `heading` `quote` `table` `rule` `pagebreak` `code` `auto` `prose` `poem` `script` `journal` `letter` `scene` `sign` `date`
+- *Writing:* `side` `bold` `italic` `underline` `strike` `align-left` `align-center` `align-right` `justify` `bullets` `dashes` `numbers` `letters` `roman` `checklist` `outdent` `indent` `spacing` `clear` `type` `highlight` `heading` `quote` `table` `rule` `pagebreak` `code` `auto` `prose` `poem` `script` `journal` `letter` `scene` `sign` `date` `pen` (draw by hand) `textbox` (a box of words placed on a page)
 
 In Mutt's own things a circle is a planet: an arrow into a circle moves a file to one, a plus in a circle puts it on one, a minus in a circle takes it off.
 

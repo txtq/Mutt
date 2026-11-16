@@ -329,7 +329,7 @@ html:is([data-vt="viewer"], [data-vt="room"])::view-transition-new(root) { anima
    type on the sky vs a small glass card), so the one leaving goes quickly
    rather than shrinking as a ghost over the one arriving. Pictures are the
    same both ways and keep the even crossfade. */
-.vw-text, .vw-card, .vw-link, .vw-pdf, .vw-codebox, .face-text, .face-file, .face-link { view-transition-class: card; }
+.vw-text, .vw-card, .vw-link, .vw-pdf, .vw-doc, .vw-codebox, .face-text, .face-file, .face-link { view-transition-class: card; }
 /* The same picture in its box and opened (a photo, a page, a cover): the old one stays whole
    underneath while the new one fades in over it. A plain cross-fade leaves the pair see-through
    part-way, and the picture darkened for a moment as it opened (seen in Safari, session 8). */
@@ -982,11 +982,11 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
    control joins this list rather than growing its own. */
 @media (pointer: coarse) {
   :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go is placed already */
-  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .de-tools .btn)::after {
+  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
     content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, var(--h-large)); height: max(100%, var(--h-large)); transform: translate(-50%, -50%);
   }
   /* in a row of them, only upward and downward: sideways belongs to the neighbour */
-  :is(.seg-btn, .de-tools .btn)::after { width: 100%; }
+  :is(.seg-btn, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round)::after { width: 100%; }
 }
 
 /* ================================================================== end of shared parts */
@@ -3293,6 +3293,39 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-pdf-pages { flex: 1; min-height: 0; overflow: auto; padding: var(--space-4) var(--space-4) var(--space-32); overscroll-behavior: contain; }
 .vw-pdf-page { position: relative; width: calc(min(860px, 100%) * var(--zoom, 1)); margin: 0 auto var(--space-16); border-radius: var(--r-mark); background: var(--white); box-shadow: var(--paper-shadow); transition: width var(--dur-arrive) var(--ease-settle); }
 .vw-pdf-page canvas, .vw-pdf-page img { display: block; width: 100%; height: auto; border-radius: inherit; }
+.vw-pdf-mark.is-busy { pointer-events: none; }
+.vw-pdf-mark[aria-pressed="true"] { border-color: var(--edge-on); background: var(--tint-2); color: var(--ink); }
+/* a PDF's words: pdf.js's see-through text laid over the page, so they can be picked and copied */
+.vw-pdf-text { position: absolute; inset: 0; z-index: 0; overflow: clip; line-height: 1; text-align: initial; -webkit-text-size-adjust: none; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; }
+.vw-pdf-text :is(span, br) { position: absolute; color: transparent; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+.vw-pdf-text span.markedContent { top: 0; height: 0; }
+.vw-pdf-text ::selection { background: color-mix(in srgb, var(--blue) 30%, transparent); color: transparent; }
+.vw-pdf-text br::selection { background: transparent; }
+.vw-pdf-text .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: -1; cursor: default; user-select: none; }
+.vw-pdf-text.selecting .endOfContent { top: 0; }
+.vw-pdf-text[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.vw-pdf-text[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.vw-pdf-text[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+/* a Word, OpenDocument or RTF file: its pages read into a document, set on paper */
+.vw-doc { align-self: stretch; width: min(860px, 100%); height: 100%; overflow-y: auto; padding: var(--space-4) var(--space-4) var(--space-32); overscroll-behavior: contain; }
+.vw-doc-sheet { min-height: 100%; padding: var(--space-48); border-radius: var(--r-mark); background: var(--paper); box-shadow: var(--paper-shadow); color: var(--paper-ink); font: 400 var(--text-lead)/1.6 var(--serif); overflow-wrap: anywhere; }
+.vw-doc-sheet > :first-child { margin-top: 0; }
+.vw-doc-sheet :is(h1, h2, h3) { margin: 1.4em 0 0.5em; font-weight: 600; line-height: 1.25; }
+.vw-doc-sheet h1 { font-size: var(--text-page); }
+.vw-doc-sheet h2 { font-size: var(--text-title); }
+.vw-doc-sheet h3 { font-size: var(--text-lead); }
+.vw-doc-sheet h1.title { font-size: var(--text-display); }
+.vw-doc-sheet .subtitle { font-size: var(--text-title); color: var(--paper-ink-2); }
+.vw-doc-sheet p { margin: 0 0 0.8em; }
+.vw-doc-sheet a { color: var(--paper-blue); text-decoration: underline; }
+.vw-doc-sheet blockquote { margin: 0 0 0.8em; padding-left: 1em; border-left: 2px solid var(--paper-rule); color: var(--paper-ink-2); }
+.vw-doc-sheet :is(ul, ol) { margin: 0 0 0.8em; padding-left: 1.5em; }
+.vw-doc-sheet table { width: 100%; margin: 0 0 1em; border-collapse: collapse; }
+.vw-doc-sheet td { padding: var(--space-4) var(--space-8); border: 1px solid var(--paper-rule); vertical-align: top; }
+.vw-doc-sheet figure { margin: 0 0 1em; }
+.vw-doc-sheet img { max-width: 100%; height: auto; }
+.vw-doc-sheet .pb { margin: 2em 0; border-top: 1px dashed var(--paper-rule); }
+.vw-doc-sheet.is-shimmer { min-height: 60svh; }
 /* a file with nothing to show: what it is, in box glass */
 .vw-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-8); width: min(460px, 100%); padding: var(--space-24); border-radius: var(--r-box); }
 .vw-card-ext { font: var(--type-display); letter-spacing: -0.02em; color: var(--ink); }
@@ -3401,7 +3434,8 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
   .vw-stage { min-height: 62svh; padding: var(--space-8) var(--space-16) var(--space-24); }
   .vw-side { padding: var(--space-8) var(--space-24) 64px; overflow: visible; }
   .vw-img, .vw-video { max-height: 70svh; }
-  .vw-pdf { height: 76svh; }
+  .vw-pdf, .vw-doc { height: 76svh; }
+  .vw-doc-sheet { padding: var(--space-24); }
   .vw-link-shot img { max-height: 56svh; }
   .vw-codebox { height: 70svh; }
 }

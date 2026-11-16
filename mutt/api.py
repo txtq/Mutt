@@ -2005,9 +2005,9 @@ def split_drawer(req, drawer_id):
                 moon_id = new_id()
                 req.db.execute(
                     'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, '
-                    'visibility, parent_id, modes, own_sharing) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0)',
+                    'visibility, parent_id, modes, own_sharing, look) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?)',
                     (moon_id, req.user['id'], g['name'], '', json.dumps(default_icon()), stamp, stamp, visibility,
-                     row['id'], json.dumps(modes)))
+                     row['id'], json.dumps(modes), fresh_look(req.db, req.user['id'], row['id'])))
                 for user_id in people:
                     req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (moon_id, user_id))
                 made.append(moon_id)

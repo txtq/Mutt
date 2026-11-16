@@ -91,4 +91,8 @@ someone else can look: 2
 but not move things: That planet does not exist.
 nor count as moving: That planet does not exist.
 a moon can be a board: True
+a new board is laid out by subject: [('Climbing', 4), ('Pottery', 4)]
+one with no clear subjects, by kind (no groups): []
+one already laid out isn't regrouped: False
+someone else is never told: False
 in the download: 200 [(2, [])]

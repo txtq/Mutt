@@ -1166,6 +1166,11 @@ def board_mode(s, seeded):
     s.wait('return (async () => { const b = await fetch(`/api/drawers/${arguments[0]}/board`).then((r) => r.json());'
            ' const it = b.items.find((i) => String(i.id) === String(arguments[1])); return !!it && it.x === arguments[2]; })()',
            'moving a file with the keyboard was not saved', 6, (pin, first[0], first[1] + 16))
+    # words written on the board can be taken away with their own button
+    s.click(s.named('.bd-bar button', 'Words', 'the board\'s bar has no "Words"'))
+    s.type(s.see('.bd-item.is-editing .bd-words', 'pressing Words gave nothing to write in'), 'Harbour')
+    s.click(s.see('.bd-item.is-editing .bd-drop', 'words being written have no button to take them away'))
+    s.wait('return !document.querySelector(".bd-item.is-words")', 'the words\' button did not take them away')
     no_errors('on the board')
     s.go(f'/p/{pin}')
     s.wait(f'{items} === 7', 'a reload did not open straight on the board')

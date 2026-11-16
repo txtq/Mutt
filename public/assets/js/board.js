@@ -57,6 +57,49 @@ function ratioOf(block) {
 }
 
 // Where each file sits in the grid now, on screen, so the board loosens from there (modes.js start).
+const LABEL_ROOM = 56;        // a group's heading and the space under it
+
+// What a file is, in the words a new board's groups use, in the order they come.
+const KIND_GROUPS = [['Pictures', ['image']], ['Videos', ['video']], ['Notes', ['text']], ['Links', ['link']],
+  ['Sound', ['audio']], ['Files', ['pdf', 'doc', 'code', 'archive', 'other']]];
+
+// A new board's groups: the planet's subjects when it has two or more clear
+// ones (the rest under "Everything else"), else what kind each file is.
+function groupsOf(blocks, subjects) {
+  const byId = new Map(blocks.map((b) => [b.id, b]));
+  const out = [];
+  if (subjects.length > 1) {
+    for (const g of subjects) {
+      const list = g.ids.map((id) => byId.get(id)).filter(Boolean);
+      list.forEach((b) => byId.delete(b.id));
+      if (list.length) out.push({ name: g.name, blocks: list });
+    }
+    const rest = blocks.filter((b) => byId.has(b.id));
+    if (rest.length) out.push({ name: 'Everything else', blocks: rest });
+    // in the planet's own order inside each group
+    const at = new Map(blocks.map((b, i) => [b.id, i]));
+    out.forEach((g) => g.blocks.sort((a, b) => at.get(a.id) - at.get(b.id)));
+    if (out.length > 1) return out;
+  }
+  for (const [name, kinds] of KIND_GROUPS) {
+    const list = blocks.filter((b) => kinds.includes(b.kind) || (name === 'Files' && !KIND_GROUPS.some(([, k]) => k.includes(b.kind))));
+    if (list.length) out.push({ name, blocks: list });
+  }
+  return out.length ? out : [{ name: '', blocks }];
+}
+
+// How big a file starts on a new board: a picture keeps its shape (a tall one
+// no taller than the grid's frame), a short note is short, a long one the frame.
+function sizeFor(b) {
+  const r = ratioOf(b);
+  if (r) return r >= UNIT / FRAME ? { w: UNIT, h: null } : { w: Math.round(FRAME * r), h: null };
+  if (b.kind === 'text') {
+    const n = (b.content || '').length;
+    return { w: UNIT, h: n <= 60 ? 132 : n <= 240 ? UNIT : FRAME };
+  }
+  return { w: UNIT, h: b.kind === 'link' ? FRAME : UNIT };
+}
+
 export function gridRects() {
   const out = new Map();
   for (const cell of document.querySelectorAll('.liv-body .grid > .cell[data-id]')) {
@@ -148,7 +191,7 @@ export class BoardView {
 
   async load() {
     let saved = { items: [], lines: [] };
-    try { saved = await api.get(`/api/drawers/${this.drawer.id}/board`); } catch { /* laid out afresh below */ }
+    try { saved = await api.get(`/api/drawers/${this.drawer.id}/board${this.editable ? '?arrange=1' : ''}`); } catch { /* laid out afresh below */ }
     const placed = new Map(saved.items.map((s) => [s.id, s]));
     const files = [...this.blocks.values()];
     const fresh = !saved.items.some((s) => !isWords(s.id));
@@ -159,7 +202,7 @@ export class BoardView {
     }
     this.lines = saved.lines || [];
     const loose = files.filter((b) => !placed.has(b.id));
-    if (fresh) this.lay(loose);
+    if (fresh) this.arrange(loose, saved.groups || []);
     else this.layBelow(loose);
     for (const b of loose) this.dirty(b.id);
     for (const it of this.pendingNow()) this.addPending(it);
@@ -175,13 +218,43 @@ export class BoardView {
 
   pendingNow() { return this.adds ? pendingFor(this.ctx) : []; }
 
-  // The grid as it was, so switching the board on moves nothing: four across, each in its frame.
-  lay(blocks) {
-    blocks.forEach((b, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-      this.items.set(b.id, { id: b.id, block: b, z: ++this.top, ...this.inFrame(b, col * (UNIT + GAP), row * (FRAME + GAP)) });
-    });
+  // A new board, laid out so it reads at a glance and is easy to change: the
+  // files gathered into groups (by subject when the planet has clear ones,
+  // else by kind), each under a heading that is the board's own words (so
+  // it can be changed or taken away), in even columns with even gaps, groups
+  // side by side as far as the window allows and then on the next row.
+  arrange(blocks, subjects = []) {
+    if (!blocks.length) return;
+    const groups = groupsOf(blocks, subjects);
+    const labelled = groups.length > 1;
+    const step = UNIT + GAP;
+    const across = clamp(Math.floor((innerWidth - 96) / step), 2, 6);   // columns a row of groups may take
+    let x = 0;
+    let y = 0;
+    let used = 0;
+    let rowH = 0;
+    for (const g of groups) {
+      const cols = Math.min(across, clamp(Math.ceil(Math.sqrt(g.blocks.length)), 1, 4));
+      if (used && used + cols > across) { x = 0; y += rowH + GAP * 3; used = 0; rowH = 0; }
+      let top = y;
+      if (labelled) {
+        const it = { id: `w-${uid()}`, words: g.name, style: 'heading', x: x - 8, y, w: WORDS_W, h: null, z: ++this.top };
+        this.items.set(it.id, it);
+        this.dirty(it.id);
+        top += LABEL_ROOM;
+      }
+      const depth = Array(cols).fill(top);
+      for (const b of g.blocks) {
+        const c = depth.indexOf(Math.min(...depth));
+        const size = sizeFor(b);
+        const left = x + c * step + (UNIT - size.w) / 2;
+        this.items.set(b.id, { id: b.id, block: b, z: ++this.top, x: left, y: depth[c], ...size });
+        depth[c] += (size.h ?? size.w / ratioOf(b)) + GAP;
+      }
+      rowH = Math.max(rowH, Math.max(...depth) - GAP - y);
+      x += cols * step + GAP * 2;
+      used += cols;
+    }
   }
 
   // A file in a grid frame whose corner is x, y: a picture keeps its shape in the middle of it.
@@ -399,7 +472,18 @@ export class BoardView {
       tabindex: it.id === this.focusId ? '0' : '-1',
       role: isWords(it.id) ? 'note' : 'link',
       'aria-label': isWords(it.id) ? it.words || 'Words' : displayTitle(it.block || {}) || 'File',
-    }, inner, this.editable && !isPending(it.id) ? h('span', { class: 'bd-grip', 'aria-hidden': 'true' }) : null);
+    }, inner, this.editable && !isPending(it.id) ? h('span', { class: 'bd-grip', 'aria-hidden': 'true' }) : null,
+    // the board's own words can always be taken away: a small round button at their corner
+    this.editable && isWords(it.id) ? h('button', {
+      type: 'button', class: 'btn btn-round btn-small bd-drop', tabindex: '-1', 'aria-label': 'Take the words away', title: 'Take the words away',
+      // pressed while the words are being written: let go of the writing first, then take them away
+      onpointerdown: (e) => e.preventDefault(),
+      onclick: (e) => {
+        e.stopPropagation();
+        if (it.editing) it.el?.querySelector('.bd-words')?.blur();
+        if (this.items.get(it.id) === it) this.dropWords(it);
+      },
+    }, icon('trash', 12)) : null);
     this.place(it);
     this.world.append(it.el);
     if (isWords(it.id)) { it.mh = it.el.offsetHeight; it.mw = it.el.offsetWidth; }

@@ -180,4 +180,10 @@ echo "but not move things: $(curl -s -b "$SP/c2.txt" "${J[@]}" -X PUT $B/api/dra
 echo "nor count as moving: $(curl -s -b "$SP/c2.txt" "${J[@]}" -X PUT $B/api/drawers/$BD/order -d '{"ids":[],"hand":true}' | j "d['error']")"
 BM=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"Corner\",\"parent\":\"$BD\"}" | j "d['drawer']['id']")
 echo "a moon can be a board: $(mode $BM '{"board":{"on":true}}' "d['drawer']['modes']['board']['on']")"
+GP=$(planet "Hobbies")
+for i in 1 2 3 4; do note $GP "Bouldering session $i at the crag, crimps and chalk" >/dev/null; note $GP "Threw bowls on the wheel ($i), glaze in the kiln" >/dev/null; done
+echo "a new board is laid out by subject: $(curl -s "${C[@]}" "$B/api/drawers/$GP/board?arrange=1" | j "sorted((g['name'], len(g['ids'])) for g in d['groups'])")"
+echo "one with no clear subjects, by kind (no groups): $(curl -s "${C[@]}" "$B/api/drawers/$SM/board?arrange=1" | j "d['groups']")"
+echo "one already laid out isn't regrouped: $(curl -s "${C[@]}" "$B/api/drawers/$BD/board?arrange=1" | j "'groups' in d")"
+echo "someone else is never told: $(curl -s -b "$SP/c2.txt" "$B/api/drawers/$GP/board?arrange=1" | j "'groups' in d")"
 echo "in the download: $(curl -s "${C[@]}" -o "$SP/all.zip" -w '%{http_code}' $B/api/me/export) $(python3 -c "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); d=json.loads(z.read([n for n in z.namelist() if n.endswith('Your data.json')][0])); print([(len(p['board']['things']), p['board']['lines']) for p in d['planets'] if p['name'] == 'Living room'])" "$SP/all.zip")"

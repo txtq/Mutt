@@ -114,6 +114,24 @@
 .bd.is-mine .bd-item.is-words:hover .bd-words, .bd-item.is-words.is-chosen .bd-words { background: var(--tint); }
 .bd-item.is-editing .bd-words { background: var(--well); box-shadow: var(--well-shadow); cursor: text; user-select: text; -webkit-user-select: text; text-shadow: none; }
 
+/* taking words away: a small plain round button at their top corner, the same size on the screen
+   at any zoom, while they are pointed at, picked or being written (40 to tap on a touch screen) */
+.bd-drop {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  translate: 50% -50%;
+  scale: calc(1 / var(--z));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-change);
+}
+.bd-drop::after { content: ""; position: absolute; inset: calc(var(--space-8) * -1); border-radius: var(--r-full); }
+.bd-item.is-words:is(:hover, :focus-visible, .is-chosen, .is-editing) .bd-drop { opacity: 1; pointer-events: auto; transition-duration: var(--dur-quick); }
+@media (hover: none) { .bd-item.is-words:hover:not(.is-chosen, .is-editing) .bd-drop { opacity: 0; pointer-events: none; } }
+.bd.is-carrying .bd-drop { opacity: 0; }
+
 /* ---- lining up: a hairline in the planet's colour where an edge or a middle meets another */
 .bd-guide { position: absolute; left: 0; top: 0; z-index: 2; background: var(--pc); opacity: 0; pointer-events: none; transition: opacity var(--dur-quick); }
 .bd-guide.is-v { width: 1px; height: 100%; }

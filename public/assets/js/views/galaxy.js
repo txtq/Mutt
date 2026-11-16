@@ -632,12 +632,15 @@ function ringLayout(planets, sizes, width, inner, m, turn = null) {
   const band = ringBand(m, sizes);
   const half = width / 2;
   // On a short screen (or under a comment's note) the planets give a little
-  // of their size before the void does, down to four fifths of it (a little
+  // of their size before the void does, down to seven tenths of it (a little
   // less on a phone shorter than a 13 mini, an SE).
-  const most = band.half - inner.ry - m.gap - (above(0) + below(0));
+  // The arcs keep clear of the void's glow; its stars are kept inside the band already (phoneStarSpots).
+  const vy = Math.min(inner.ry, m.ry * 0.72 + m.gap);
+  const most = band.half - vy - m.gap - (above(0) + below(0));
   const big0 = n ? Math.max(...sizes) : 0;
-  const k = big0 > most ? Math.max(0.8 * clamp(m.viewH / 577, 0.85, 1), most / big0) : 1;
-  if (k < 1) sizes = sizes.map((s) => Math.round(s * k));
+  const k = big0 > most ? Math.max(0.7 * clamp(m.viewH / 577, 0.85, 1), most / big0) : 1;
+  // (a constellation keeps its shape: its stars are a fingertip's size)
+  if (k < 1) sizes = sizes.map((s, i) => (planets[i].shape ? s : Math.round(s * k)));
   const items = planets.map((p, i) => {
     const w = footprint(sizes[i], m, p);
     return { i, s: sizes[i], w, need: Math.max(w, sizes[i] * 1.12) + m.gap };
@@ -645,8 +648,8 @@ function ringLayout(planets, sizes, width, inner, m, turn = null) {
   // The ring clears the void and its stars: the top arc's names and the bottom
   // arc's globes keep off them.
   const big = n ? Math.max(...sizes) : 0;
-  const B = Math.max(band.B, inner.ry + below(big) + m.gap, 1);
-  const Bb = Math.max(band.half - below(big), inner.ry + above(big) + m.gap, 1);
+  const B = Math.max(band.B, vy + below(big), 1);
+  const Bb = Math.max(band.half - below(big), vy + above(big), 1);
   // Order round the ring, from the computer.
   const desk = n ? deskSpots(planets).spots : [];
   const top = items.filter((it) => (desk[it.i]?.y ?? 0) < 0).sort((a, b) => desk[a.i].x - desk[b.i].x);
@@ -703,7 +706,16 @@ function ringLayout(planets, sizes, width, inner, m, turn = null) {
     return { x: pt.x, y: pt.y, size: it.s, rect: box(pt.x, pt.y, it.s, it.w) };
   });
   ring.turn = t;
-  return { spots, rects: spots.map((sp) => sp.rect), ring };
+  const rects = spots.map((sp) => sp.rect);
+  // A ring that turns can bring its biggest one to the very top or bottom, so
+  // the fit is judged with it there too, not only where things rest now.
+  if (!still && n) {
+    const bigW = Math.max(...items.map((it) => it.w));
+    const topY = at(0).y;
+    const lowY = at(path.L / 2).y;
+    rects.push(box(0, topY, big, bigW), box(0, lowY, big, bigW));
+  }
+  return { spots, rects, ring };
 }
 
 // The turn nearest `to` that leaves the top row tidy: a planet in its middle,
@@ -1937,7 +1949,13 @@ class Galaxy {
 
   shownStars() {
     const cap = innerWidth < 640 ? clamp(this.starRoom || STAR_CAP_PHONE, 4, STAR_CAP_PHONE) : STAR_CAP;
-    return this.showAll || this.stars.length <= cap ? this.stars : this.stars.slice(0, cap - 1);
+    // A constellation's stars always show in it; the cap is for the loose ones
+    // (on a phone a new constellation's stars took every place, leaving only "+N").
+    const inFig = (s) => !!this.sky?.has(s.id);
+    const loose = this.stars.filter((s) => !inFig(s));
+    if (this.showAll || loose.length <= cap) return this.stars;
+    const keep = new Set(loose.slice(0, cap - 1).map((s) => s.id));
+    return this.stars.filter((s) => inFig(s) || keep.has(s.id));
   }
 
   // With a mouse, stars rest as points of light and open into their cards as

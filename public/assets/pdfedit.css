@@ -145,3 +145,8 @@
 @media (pointer: coarse) {
   .pm-bar .btn-round:not(.btn-small), .pm-bubble .btn-round { width: var(--h-regular); height: var(--h-regular); }
 }
+/* On a phone the phone scale makes that 40, and a row of 40s runs off a 375 screen: there the small
+   size (32 on a phone) keeps every tool and Done in view, and the reach stays 40 (2026-11-16). */
+@media (max-width: 480px) and (pointer: coarse) {
+  .pm-bar .btn-round:not(.btn-small), .pm-bubble .btn-round { width: var(--h-small); height: var(--h-small); }
+}

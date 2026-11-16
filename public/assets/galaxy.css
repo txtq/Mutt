@@ -834,7 +834,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .sheet-back { flex: none; margin-left: calc(var(--space-8) * -1); }
 .sheet-page-name { flex: 1; min-width: 0; }
 .sheet-page-tools { flex: none; }
-.sheet-fact-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.sheet-fact-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .sheet-fact { font: var(--type-caption); color: var(--ink-3); }
 /* Name row, first in the sheet: your own words on a bare text box */
 .sheet-name { margin-left: calc(var(--space-8) * -1); }
@@ -856,7 +856,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .pin-aside[hidden] { display: none; }
 @media (max-width: 720px) {
   .sheet { padding: var(--space-12); }
-  .sheet .set-row { grid-template-columns: 88px minmax(0, 1fr); gap: var(--space-8); }   /* side by side still: every control fits beside its name */
+  .sheet .set-row { grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-8); }   /* side by side still: every control fits beside its name */
   .sheet-deleted-files { --cols: 3; }   /* four across, the days left run into each other */
 }
 
@@ -905,6 +905,9 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   flex-direction: column;
   align-items: center;
   gap: var(--space-8);
+  /* its own width: held at the middle, it could otherwise only be as wide as the right half (a phone's toasts wrapped at 187) */
+  width: max-content;
+  max-width: calc(100vw - 32px);
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -3948,6 +3951,17 @@ textarea.cbe-notes { width: 100%; resize: none; overflow: hidden; }
   .cbk-main { padding: var(--space-16) var(--space-4); }
   .cbk-foot { padding: var(--space-8) 0 var(--space-24); }
   .cbk-back, .cbk-next { min-width: 96px; }
+}
+/* A phone: the card's row (arrows, Cook, Edit, More, Put it back) fits 375 with every button at the
+   40 a fingertip needs; under 360 the arrows step aside, since a card swipes to the next (2026-11-16). */
+@media (max-width: 480px) {
+  .cbc-tools { gap: var(--space-4); }
+  .cbc-navs { gap: var(--space-2); }
+  .cbc-round { width: var(--h-regular); height: var(--h-regular); }
+  .cbc-btn, .cbc-cook { padding: 0 var(--space-8); }
+}
+@media (max-width: 359px) {
+  .cbc-navs { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cb-top-btn, .cb-tab { transition: none; }

@@ -44,9 +44,24 @@ export function figureOf(id, n, m, room) {
     links.push([from, k]);
   }
   let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
-  for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const box = () => {
+    x0 = Infinity; x1 = -Infinity; y0 = Infinity; y1 = -Infinity;
+    for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  };
+  box();
   // Too big for the room: drawn closer together, never so close that the wisps between them go.
-  const k = Math.max(Math.min(1, (room.w - m.chip) / Math.max(1, x1 - x0), (room.h - m.chip) / Math.max(1, y1 - y0)), (m.chip * 2.2) / d);
+  // (a phone's figure, which rides the ring among planets, may close to 1.7 stars apart)
+  const fit = () => Math.max(Math.min(1, (room.w - m.chip) / Math.max(1, x1 - x0), (room.h - m.chip) / Math.max(1, y1 - y0)), (m.chip * (m.narrow ? 1.7 : 2.2)) / d);
+  let k = fit();
+  // On a phone's ring height is what's short: a figure that comes out lower on its side lies on its side.
+  if (m.narrow) {
+    const tall = (y1 - y0) * k;
+    for (const p of pts) [p.x, p.y] = [p.y / 0.78, p.x * 0.78];
+    box();
+    const side = fit();
+    if ((y1 - y0) * side < tall) k = side;
+    else { for (const p of pts) [p.x, p.y] = [p.y / 0.78, p.x * 0.78]; box(); }
+  }
   const mx = (x0 + x1) / 2;
   const my = (y0 + y1) / 2;
   return {
@@ -112,7 +127,8 @@ export class Sky {
 
   // Each constellation as the layout sees it: a small planet with no files of its own.
   items(m, width) {
-    const room = { w: m.narrow ? width - 48 : Math.max(m.wide * 3, 420), h: m.narrow ? 240 : 320 };
+    // On a phone a figure rides the ring among the planets, so it gets about a planet's room.
+    const room = { w: m.narrow ? Math.min(width - 48, 200) : Math.max(m.wide * 3, 420), h: m.narrow ? 100 : 320 };
     return this.list.map((c) => {
       const shape = figureOf(c.id, c.stars.length, m, room);
       return { id: `sky:${c.id}`, sky: c, shape, count: 0, x: null, y: null };

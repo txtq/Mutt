@@ -407,6 +407,7 @@ function pdfStage(block) {
       if (pw) target.style.setProperty('--scale-factor', target.clientWidth / pw);
     }
     showPage();   // the count is right once the pages have their real height
+    if (innerWidth <= 720) catchUp();
   });
 
   const view = {
@@ -495,6 +496,13 @@ function pdfStage(block) {
       const canvas = h('canvas', { width: Math.round(viewport.width), height: Math.round(viewport.height) });
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
       if (gone || from !== doc || rendering.get(n) !== width) return;
+      // Scrolled away while it was being drawn: let it go at once.
+      if (innerWidth <= 720 && !markup && !box.classList.contains('is-near')) {
+        rendering.delete(n);
+        canvas.width = 0;
+        canvas.height = 0;
+        return;
+      }
       const old = box.querySelector(':scope > canvas, :scope > img');
       if (old) old.replaceWith(canvas);
       else box.prepend(canvas);
@@ -505,6 +513,24 @@ function pdfStage(block) {
     } catch {
       rendering.delete(n);
     }
+  }
+
+  // On a phone, whether a page is truly near is read from where it sits on the page,
+  // not from how it looks: while the view grows in from a file's small box, all of a
+  // long PDF looks near, and drawing it all at once is what made Safari reload.
+  function closeBy(box) {
+    if (innerWidth > 720) return true;
+    if (!box.offsetHeight || !pages.clientHeight) return false;   // not laid out yet
+    const top = box.offsetTop - (pages.firstElementChild?.offsetTop || 0) - pages.scrollTop;
+    return top + box.offsetHeight > -900 && top < pages.clientHeight + 900;
+  }
+  let queued = 0;
+  function catchUp() {
+    if (queued || !doc) return;
+    queued = requestAnimationFrame(() => {
+      queued = 0;
+      pages.querySelectorAll('.vw-pdf-page.is-near:not([data-w])').forEach((box) => { if (closeBy(box)) draw(box); });
+    });
   }
 
   // On a phone a page far off screen lets its picture go (about 3 MB each: a long PDF
@@ -548,7 +574,7 @@ function pdfStage(block) {
     zoomIn.disabled = zoom === PDF_ZOOMS.length - 1;
     // Pages on screen redraw sharp once they've grown; the rest when reached.
     clearTimeout(redraw);
-    redraw = setTimeout(() => pages.querySelectorAll('.vw-pdf-page.is-near').forEach(draw), DUR.arrive);
+    redraw = setTimeout(() => pages.querySelectorAll('.vw-pdf-page.is-near').forEach((box) => { if (closeBy(box)) draw(box); }), DUR.arrive);
   }
   zoomOut.addEventListener('click', () => setZoom(zoom - 1));
   zoomIn.addEventListener('click', () => setZoom(zoom + 1));
@@ -576,7 +602,7 @@ function pdfStage(block) {
       const first = (await doc.getPage(1)).getViewport({ scale: 1 });
       const boxes = [];
       for (let n = 1; n <= doc.numPages; n++) {
-        const box = h('div', { class: 'vw-pdf-page is-shimmer', dataset: { n }, style: { aspectRatio: `${first.width} / ${first.height}` } });
+        const box = h('div', { class: 'vw-pdf-page is-shimmer', dataset: { n }, style: { 'aspect-ratio': `${first.width} / ${first.height}` } });
         boxes.push(box);
       }
       const poster = pages.querySelector('img');
@@ -586,12 +612,17 @@ function pdfStage(block) {
       observer = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           entry.target.classList.toggle('is-near', entry.isIntersecting);
-          if (entry.isIntersecting) draw(entry.target);
+          if (entry.isIntersecting) { if (closeBy(entry.target)) draw(entry.target); }
           else if (innerWidth <= 720 && !markup) forgetPage(entry.target);
         }
         showPage();  // once the pages have their real size
       }, { root: pages, rootMargin: '900px 0px' });
       boxes.forEach((box) => observer.observe(box));
+      // A page held back while the view grew in is drawn once it settles, or when scrolled to.
+      if (innerWidth <= 720) {
+        pages.addEventListener('scroll', catchUp, { passive: true });
+        setTimeout(catchUp, DUR.scene);
+      }
       if (markBtn) markBtn.disabled = false;
     } catch {
       if (gone) return;

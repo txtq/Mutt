@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The handoff notes are **one shared file: `/Users/edan/Mutt-notes/PROGRESS.md`**, in a folder beside the project, not inside it. Most sessions run in a worktree under `.claude/worktrees/`, and the app blocks a worktree session from editing files in the main checkout (`/Users/edan/Mutt/...`), so the notes live outside the repo where every session can edit them. So:
 - Read `/Users/edan/Mutt-notes/PROGRESS.md` at the start of every session, on its own (the Read tool, not chained with other commands, so one bad path can't fail the read).
 - After finishing each task, update that same file with the Edit tool: what was done, what's next (name your branch if it isn't merged), and any new preferences the user gave.
+- **It holds only what is still open**, so it stays small enough to read (a session reads at most 256 KB at once; at 424 KB it couldn't be opened, 2026-11-16). When work goes live or is dropped, move its entry to the top of the newest file in `/Users/edan/Mutt-notes/history/` (a few lines) in the same edit; `/Users/edan/Mutt-notes/HISTORY.md` lists those files. Each stays under 200 KB; to look something up, `grep -rn 'word' /Users/edan/Mutt-notes/history/` and read those lines. Keep `PROGRESS.md` under 100 KB (`wc -c`).
 - The repo's own `PROGRESS.md` is only a pointer to it. Don't write notes there.
 - Preferences that should hold for all future work also go in the **User preferences** section below.
 - The notes aren't in git, so there's nothing to commit for them.

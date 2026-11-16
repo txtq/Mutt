@@ -113,6 +113,7 @@ export class Collection {
     try {
       const { block } = await api.post('/api/blocks', { content: text, drawer: this.drawer?.id, share: !!this.ctx.share });
       this.arrived(item.key, block);
+      return block;
     } catch (err) {
       this.grid.resolve(item.key, null, { keep: false });
       this.entry?.focusText(text);

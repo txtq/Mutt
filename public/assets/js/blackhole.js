@@ -11,6 +11,8 @@ import { DUR, h, isEditable, touchScreen } from './util.js';
 import { voidArt } from './voidart.js';
 import { sound } from './sound.js';
 import { icon } from './icons.js';
+import { momentLine } from './moments.js';
+import { tell } from './remind.js';
 
 const MODES = [
   { value: 'star', label: 'Star', hint: 'A loose star by the void' },
@@ -91,6 +93,10 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     list,
     picker);
   el.append(sheet);
+  // A day or time written in it: one quiet line offers to make it a comet that reminds you (moments.js).
+  const line = momentLine(input, { acts: { comet: { label: 'Make it a comet', run: () => { tell(); submit({ comet: true }); } } } });
+  field.after(line);
+  input.addEventListener('input', () => line.check(input.value));
 
   let mode = MODES.some((m) => m.value === startMode) ? startMode : 'star';
   let planetId = null;
@@ -274,16 +280,18 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   }
   const reset = () => {
     input.value = '';
+    line.check('');
     // A new planet exists once it's sent; next time it's just that planet.
     if (mode === 'new') { nameInput.value = ''; setMode('star', { save: false }); }
     sync();
   };
 
-  const submit = () => {
+  const submit = ({ comet = false } = {}) => {
     const value = input.value;
     if (!value.trim()) { input.focus(); return; }
     const dest = destination();
     if (!dest) return;
+    if (comet) dest.comet = true;
     const from = field.getBoundingClientRect();
     reset();
     swallow();

@@ -14,8 +14,9 @@ import traceback
 import urllib.parse
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
 
-from . import auth, books, convert, db, documents, export, hear, kinds, links, media, privacy, quotes, recipes, sight, sorting, transcode
+from . import auth, books, convert, db, documents, export, hear, kinds, links, media, privacy, quotes, recipes, sight, sorting, transcode, webpush, when
 from . import modes as modes_registry
 from . import split as split_moons
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
@@ -2395,7 +2396,314 @@ def moment_signs(req):
     if body.get('drawer'):
         row = own_drawer(req, str(body['drawer']))
         saved, moon = drawer_modes(row), bool(row['parent_id'])
-    return json_response(modes_registry.moment(text, held, saved, moon))
+    return json_response(modes_registry.moment(text, held, saved, moon, _local_now(_tz_arg(body.get('tz')))))
+
+
+# ---------------------------------------------------------------- comets
+
+# A note of yours with a day or time in it can be made a comet: a reminder that
+# crosses your own sky from the moment you made it to its time, and tells you
+# when it comes (DESIGN.md "Comets"; the days are read by mutt/when.py). Only the
+# owner ever sees one. It goes off at its time (9 am for a day alone) with a
+# heads-up first (an hour before a time, 7 pm the evening before a day), on the
+# devices that asked (mutt/webpush.py), under the clock in Mutt, and in the
+# owner's calendar if they added it there. A list item's comet ends when it's ticked.
+COMET_MORNING = '09:00'   # a day with no time goes off then
+COMET_EVENING = '19:00'   # and its heads-up the evening before
+COMET_LEAVING = 2         # days a comet dealt with takes to leave the sky
+COMET_MOST = 12
+COMET_PUSH_EVERY = 30     # seconds between looks for comets coming due
+
+
+def _tz_arg(value):
+    try:
+        return max(-14 * 60, min(14 * 60, int(value or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _local_now(tz):
+    return datetime.fromtimestamp(now(), timezone.utc).replace(tzinfo=None) + timedelta(minutes=tz)
+
+
+def _utc(local, tz):
+    """Seconds since 1970 for a naive local time in the zone `tz` minutes east."""
+    return (local - timedelta(minutes=tz)).replace(tzinfo=timezone.utc).timestamp()
+
+
+def comet_times(day, clock, tz):
+    """(at, ahead): when a comet on `day` (at `clock`, or none) goes off, and its heads-up."""
+    h, m = map(int, (clock or COMET_MORNING).split(':'))
+    local = datetime(day.year, day.month, day.day, h, m)
+    if clock:
+        before = local - timedelta(hours=1)
+    else:
+        eh, em = map(int, COMET_EVENING.split(':'))
+        before = datetime(day.year, day.month, day.day, eh, em) - timedelta(days=1)
+    return _utc(local, tz), _utc(before, tz)
+
+
+def first_day(text, tz):
+    """The first day a note's words name that is still to come (read as if written now), or None."""
+    local = _local_now(tz)
+    for f in when.read(text, local):
+        day = when.next_of(f, local.date())
+        at, _ = comet_times(day, f['time'], tz)
+        if at > now():
+            return f, day
+    return None
+
+
+def ticked(db_, block_id):
+    """A list item ticked off (on every list it is on)."""
+    rows = db_.execute('SELECT checked FROM connections WHERE block_id = ?', (block_id,)).fetchall()
+    return bool(rows) and all(r['checked'] for r in rows)
+
+
+def comet_json(r, planet=None):
+    first = (r['content'] or '').strip().split('\n', 1)[0]
+    return {'id': r['block_id'], 'title': first[:80] or 'A note', 'planet': planet, 'day': r['day'], 'time': r['time'],
+            'said': r['said'] or '', 'yearly': bool(r['yearly']), 'at': ms(r['at']), 'ahead': ms(r['ahead']),
+            'from': ms(r['made_at']), 'done': ms(r['done_at']) if r['done_at'] else None,
+            'due': r['at'] <= now() and not r['done_at'], 'soon': r['ahead'] <= now() < r['at'] and r['closed'] != r['at']}
+
+
+def roll_yearly(db_, user_id=None):
+    """A birthday's comet, dealt with and gone, comes round again for next year."""
+    gone = now() - COMET_LEAVING * 86400
+    rows = db_.execute('SELECT * FROM reminders WHERE yearly = 1 AND done_at IS NOT NULL AND done_at < ?'
+                       + (' AND user_id = ?' if user_id else ''), (gone, user_id) if user_id else (gone,)).fetchall()
+    for r in rows:
+        day = date.fromisoformat(r['day'])
+        day = when.next_of({'day': day, 'yearly': True}, day + timedelta(days=1))
+        at, ahead = comet_times(day, r['time'], r['tz'])
+        db_.execute('UPDATE reminders SET day = ?, at = ?, ahead = ?, made_at = ?, sent_ahead = 0, sent_at = 0, closed = NULL, '
+                    'done_at = NULL WHERE block_id = ?', (day.isoformat(), at, ahead, r['done_at'], r['block_id']))
+
+
+def live_comets(db_, user_id):
+    """Your comets still in the sky, nearest first, with the planet each is on."""
+    roll_yearly(db_, user_id)
+    rows = db_.execute('SELECT r.*, b.content FROM reminders r JOIN blocks b ON b.id = r.block_id '
+                       'WHERE r.user_id = ? AND b.deleted_at IS NULL AND (r.done_at IS NULL OR r.done_at > ?) '
+                       'ORDER BY r.at', (user_id, now() - COMET_LEAVING * 86400)).fetchall()
+    out = []
+    for r in rows:
+        on = db_.execute('SELECT c.drawer_id, c.checked, d.parent_id FROM connections c JOIN drawers d ON d.id = c.drawer_id '
+                         'WHERE c.block_id = ? ORDER BY c.connected_at', (r['block_id'],)).fetchall()
+        if on and all(c['checked'] for c in on) and not r['done_at']:
+            continue  # ticked off on its list: done with
+        out.append(comet_json(r, (on[0]['parent_id'] or on[0]['drawer_id']) if on else None))
+    return out
+
+
+@route('GET', r'/api/comets')
+def comets(req):
+    """Your comets: {comets: [...]}, waiting ones and the nearest first."""
+    out = live_comets(req.db, req.user['id'])
+    out.sort(key=lambda c: (c['done'] is not None, c['at']))
+    return json_response({'comets': out[:COMET_MOST]})
+
+
+@route('GET', r'/api/comets/due')
+def comets_due(req):
+    """What to tell you now: comets whose time has come and not been dealt with (`due`), and heads-ups
+    not yet waved away (`soon`). Asked by the page and by the device's service worker when a push wakes it."""
+    out = [c for c in live_comets(req.db, req.user['id']) if c['due'] or c['soon']]
+    return json_response({'comets': out})
+
+
+def _own_comet(req, block_id):
+    own_block(req, block_id)
+    r = req.db.execute('SELECT r.*, b.content FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
+                       (block_id,)).fetchone()
+    if not r:
+        raise HttpError(404, 'That note isn’t a comet.')
+    return r
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
+def make_comet(req, block_id):
+    """Make one of your notes a comet: {tz} (the page's minutes east of UTC). It reminds you of the first
+    day its words name that is still to come; made again, it starts over."""
+    row = own_block(req, block_id)
+    if row['kind'] != 'text':
+        raise HttpError(400, 'Only a note can be a comet.')
+    tz = _tz_arg(req.json().get('tz'))
+    got = first_day(row['content'], tz)
+    if not got:
+        raise HttpError(400, 'That note doesn’t name a day or time still to come.')
+    f, day = got
+    at, ahead = comet_times(day, f['time'], tz)
+    req.db.execute('INSERT OR REPLACE INTO reminders (block_id, user_id, day, time, said, yearly, tz, at, ahead, made_at, '
+                   'sent_ahead, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+                   (block_id, req.user['id'], day.isoformat(), f['time'], f['said'][:80], int(f['yearly']), tz, at, ahead, now(),
+                    int(ahead <= now())))
+    return json_response({'comet': comet_json(_own_comet(req, block_id))})
+
+
+@route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
+def get_comet(req, block_id):
+    """A note's comet, or {comet: null}; with `tz`, also what day its words name now (`could`), for the offer."""
+    row = own_block(req, block_id)
+    r = req.db.execute('SELECT r.*, b.content FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
+                       (block_id,)).fetchone()
+    could = None
+    if row['kind'] == 'text' and req.arg('tz') is not None:
+        got = first_day(row['content'], _tz_arg(req.arg('tz')))
+        if got:
+            could = {'day': got[1].isoformat(), 'time': got[0]['time'], 'said': got[0]['said']}
+    return json_response({'comet': comet_json(r) if r and not ticked(req.db, block_id) else None, 'could': could})
+
+
+@route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
+def stop_comet(req, block_id):
+    """No longer a comet (the note stays as it is)."""
+    _own_comet(req, block_id)
+    req.db.execute('DELETE FROM reminders WHERE block_id = ?', (block_id,))
+    return json_response({'ok': True})
+
+
+@route('POST', r'/api/blocks/(?P<block_id>[\w-]+)/comet/(?P<act>done|snooze|close|back)')
+def deal_with_comet(req, block_id, act):
+    """done: dealt with, it swings round and leaves. snooze {for: 'hour' | 'tomorrow'}: it backs out a
+    little and comes in again. close: the heads-up note waved away. back: Undo of done or snooze, with
+    {comet}: the comet as it was."""
+    r = _own_comet(req, block_id)
+    body = req.json()
+    if act == 'done':
+        req.db.execute('UPDATE reminders SET done_at = ? WHERE block_id = ?', (now(), block_id))
+    elif act == 'close':
+        req.db.execute('UPDATE reminders SET closed = at WHERE block_id = ?', (block_id,))
+    elif act == 'snooze':
+        span = body.get('for')
+        if span == 'hour':
+            at = now() + 3600
+        elif span == 'tomorrow':
+            local = _local_now(r['tz']) + timedelta(days=1)
+            h, m = map(int, (r['time'] or COMET_MORNING).split(':'))
+            at = _utc(datetime(local.year, local.month, local.day, h, m), r['tz'])
+        else:
+            raise HttpError(400, 'Snooze for an hour or until tomorrow.')
+        # it comes in again from most of the way there (its journey 85% gone)
+        req.db.execute('UPDATE reminders SET at = ?, ahead = ?, made_at = ?, sent_ahead = 1, sent_at = 0, done_at = NULL '
+                       'WHERE block_id = ?', (at, at, now() - (at - now()) * 0.85 / 0.15, block_id))
+    else:
+        was = body.get('comet') or {}
+        try:
+            at, ahead, made = float(was['at']) / 1000, float(was['ahead']) / 1000, float(was['from']) / 1000
+        except (KeyError, TypeError, ValueError):
+            raise HttpError(400, 'Nothing to put back.')
+        req.db.execute('UPDATE reminders SET at = ?, ahead = ?, made_at = ?, done_at = NULL, sent_ahead = ?, sent_at = ? '
+                       'WHERE block_id = ?', (at, ahead, made, int(ahead <= now()), int(at <= now()), block_id))
+    return json_response({'comet': comet_json(_own_comet(req, block_id))})
+
+
+def follow_words(db_, block_id, content):
+    """A note's words changed: its comet follows the day they now name (if they still name one)."""
+    r = db_.execute('SELECT * FROM reminders WHERE block_id = ? AND done_at IS NULL', (block_id,)).fetchone()
+    if not r:
+        return
+    got = first_day(content, r['tz'])
+    if not got:
+        return  # no day any more: it keeps the one it had until it's stopped
+    f, day = got
+    if day.isoformat() == r['day'] and f['time'] == r['time']:
+        return
+    at, ahead = comet_times(day, f['time'], r['tz'])
+    db_.execute('UPDATE reminders SET day = ?, time = ?, said = ?, yearly = ?, at = ?, ahead = ?, sent_ahead = ?, sent_at = 0, '
+                'closed = NULL WHERE block_id = ?',
+                (day.isoformat(), f['time'], f['said'][:80], int(f['yearly']), at, ahead, int(ahead <= now()), block_id))
+
+
+def _ics_text(text):
+    return re.sub(r'([,;\\])', r'\\\1', text).replace('\n', '\\n')
+
+
+@route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/comet\.ics')
+def comet_calendar(req, block_id):
+    """The comet as a calendar entry with its two alarms, so a phone's own Calendar can remind you too."""
+    r = _own_comet(req, block_id)
+    first = (r['content'] or '').strip().split('\n', 1)[0][:120] or 'A note'
+    stamp = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    day = date.fromisoformat(r['day'])
+    if r['time']:
+        when_lines = [f'DTSTART:{stamp(r["at"])}', f'DTEND:{stamp(r["at"] + 1800)}']
+        alarms = ['-PT1H', 'PT0M']
+    else:
+        when_lines = [f'DTSTART;VALUE=DATE:{day:%Y%m%d}', f'DTEND;VALUE=DATE:{day + timedelta(days=1):%Y%m%d}']
+        alarms = ['-PT5H', 'PT9H']   # 7 pm the evening before, 9 am on the day
+    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mutt//Comets//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+             f'UID:comet-{block_id}@mutt', f'DTSTAMP:{stamp(now())}', *when_lines, f'SUMMARY:{_ics_text(first)}',
+             f'DESCRIPTION:{_ics_text("A comet in Mutt: " + (r["content"] or "")[:1000])}']
+    if r['yearly']:
+        lines.append('RRULE:FREQ=YEARLY')
+    for trigger in alarms:
+        lines += ['BEGIN:VALARM', 'ACTION:DISPLAY', f'DESCRIPTION:{_ics_text(first)}', f'TRIGGER:{trigger}', 'END:VALARM']
+    lines += ['END:VEVENT', 'END:VCALENDAR']
+    body = ('\r\n'.join(lines) + '\r\n').encode()
+    name = re.sub(r'[^\w -]+', '', first)[:40].strip() or 'Comet'
+    return Response(200, [('Content-Type', 'text/calendar; charset=utf-8'), ('Content-Length', str(len(body))),
+                          ('Content-Disposition', f'attachment; filename="{name}.ics"'), ('Cache-Control', 'no-store')], [body])
+
+
+@route('GET', r'/api/push/key')
+def push_key(req):
+    """The key a device subscribes to comet pushes with (none when pushes are off)."""
+    return json_response({'key': webpush.public_key() if webpush.ON else None})
+
+
+@route('POST', r'/api/push')
+def push_subscribe(req):
+    """{endpoint}: this device wants to be told when a comet is due, even with Mutt closed."""
+    endpoint = req.json().get('endpoint')
+    if not isinstance(endpoint, str) or len(endpoint) > 1000 or not webpush.allowed(endpoint):
+        raise HttpError(400, 'That device can’t be told.')
+    req.db.execute('INSERT OR REPLACE INTO push_subs (endpoint, user_id, contact, made_at) VALUES (?, ?, ?, ?)',
+                   (endpoint, req.user['id'], f'https://{req.host}', now()))
+    return json_response({'ok': True})
+
+
+@route('DELETE', r'/api/push')
+def push_unsubscribe(req):
+    endpoint = req.json().get('endpoint')
+    if isinstance(endpoint, str):
+        req.db.execute('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?', (endpoint, req.user['id']))
+    return json_response({'ok': True})
+
+
+def push_due(conn):
+    """Send what has come due: heads-ups, then comets whose time has come, to every device each owner asked on."""
+    t = now()
+    roll_yearly(conn)
+    rows = conn.execute('SELECT r.block_id, r.user_id, r.at, r.ahead, r.sent_ahead, r.sent_at FROM reminders r '
+                        'JOIN blocks b ON b.id = r.block_id WHERE r.done_at IS NULL AND b.deleted_at IS NULL '
+                        'AND ((r.sent_ahead = 0 AND r.ahead <= ?) OR (r.sent_at = 0 AND r.at <= ?))', (t, t)).fetchall()
+    wake = set()
+    for r in rows:
+        conn.execute('UPDATE reminders SET sent_ahead = 1, sent_at = ? WHERE block_id = ?', (int(r['at'] <= t), r['block_id']))
+        if not ticked(conn, r['block_id']):
+            wake.add(r['user_id'])
+    for uid in wake:
+        for sub in conn.execute('SELECT endpoint, contact FROM push_subs WHERE user_id = ?', (uid,)).fetchall():
+            if webpush.send(sub['endpoint'], sub['contact']) == 'gone':
+                conn.execute('DELETE FROM push_subs WHERE endpoint = ?', (sub['endpoint'],))
+
+
+def start_comets():
+    """Every half a minute, tell the devices of anyone whose comet has come due."""
+    def loop():
+        while True:
+            try:
+                conn = db.connect()
+                try:
+                    push_due(conn)
+                finally:
+                    conn.close()
+            except Exception:
+                traceback.print_exc()
+            time.sleep(COMET_PUSH_EVERY)
+    threading.Thread(target=loop, name='comets', daemon=True).start()
 
 
 # ---------------------------------------------------------------- cookbooks
@@ -3629,6 +3937,7 @@ def update_block(req, block_id):
             raise HttpError(400, 'A text file needs some text.')
         updates['content'] = content.strip('\n')
         keep_before(req, row, updates['content'])
+        follow_words(req.db, block_id, updates['content'])
     for key, high in (('width', 100000), ('height', 100000), ('duration', 10 ** 7)):
         if key in body:
             value = int_arg(body[key], 0, high)

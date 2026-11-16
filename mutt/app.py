@@ -48,6 +48,15 @@ def static(req):
     return Response(status, headers, body)
 
 
+def root_file(name):
+    """The service worker (comets' notifications) and the Home Screen manifest, from the site's root
+    so the worker's reach is the whole site. Never cached long: a new one should arrive at once."""
+    with open(os.path.join(db.PUBLIC_DIR, name), 'rb') as f:
+        body = f.read()
+    kind = 'text/javascript; charset=utf-8' if name.endswith('.js') else 'application/manifest+json'
+    return Response(200, [('Content-Type', kind), ('Content-Length', str(len(body))), ('Cache-Control', 'no-cache')], body)
+
+
 def index(req):
     with open(os.path.join(db.PUBLIC_DIR, 'index.html'), encoding='utf-8') as f:
         body = assets.page(f.read()).encode('utf-8')
@@ -97,6 +106,8 @@ def dispatch(req):
         raise HttpError(405, 'Method not allowed.')
     if req.path.startswith('/assets/'):
         return static(req)
+    if req.path in ('/sw.js', '/manifest.webmanifest'):
+        return root_file(req.path[1:])
     if req.path in ('/favicon.ico', '/robots.txt'):
         return Response(404, [('Content-Length', '0')], b'')
     return index(req)

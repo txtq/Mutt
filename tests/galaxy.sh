@@ -157,3 +157,37 @@ echo "became a planet: $(echo "$P" | j "d['drawer']['title'], d['drawer']['count
 echo "no longer stars: $(curl -s "${A[@]}" $B/api/galaxy | j "[s['content'] for s in d['stars'] if s['content'].startswith('sky')]")"
 C=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"$(st "x one")\",\"$(st "x two")\"]}" | j "d['constellation']['id']")
 echo "broken up: $(curl -s "${A[@]}" "${J[@]}" -X DELETE $B/api/constellations/$C | j "d['constellations']")"
+# Comets (DESIGN.md "Comets"): the days a note names, read from when it was written (a Monday, 10:00)
+echo "comet days: $(python3 -c "
+import sys; sys.path.insert(0, '$(dirname "$0")/..')
+from datetime import datetime; from mutt import when
+w = datetime(2026, 11, 16, 10, 0)
+for t in ['Dentist Thursday 3pm', 'Rae birthday 24 Nov', 'flight 2 Dec 07:40', 'call the vet tomorrow at 4:30pm', 'today 4pm haircut',
+          'Sat 10am parkrun', 'meeting Mon 23 Nov 9:30', 'renew passport by 3/2/2027', 'in 2 weeks: seedlings', 'Mum b-day 3 Jan',
+          'May 3 garden show', 'next Monday notes',
+          'today I felt calm', 'Pilates every Tuesday 6pm', 'sat on the step in the sun', 'Sun cream', '16 Nov: ran 5k',
+          '1/2 cup sugar, bake at 180', 'the light at 6pm on the bridge', 'Day 1: flour', 'Monday notes from the meeting', 'it may 3 times']:
+    print(t + ' = ' + (', '.join(f['day'].isoformat() + (' ' + f['time'] if f['time'] else '') + (' yearly' if f['yearly'] else '') for f in when.read(t, w)) or '-'), end='; ')
+")"
+# A note doesn't become a comet by itself: writing a day offers it (a moment mode), and pressing it makes it one.
+CN=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"Dentist tomorrow 3pm, ask about the crown"}' | j "d['block']['id']")
+echo "no comet by itself: $(curl -s "${A[@]}" "$B/api/comets" | j "len(d['comets'])")  offered: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/moment -d '{"text":"Dentist tomorrow 3pm","tz":0}' | j "(d['comet']['fits'], d['comet']['say'])")  not for a plain note: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/moment -d '{"text":"the light on the bridge","tz":0}' | j "d['comet']['fits']")"
+echo "made a comet: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet -d '{"tz":0}' | j "(lambda c: (c['title'], c['time'], c['said'], c['due'], (c['at'] - c['ahead']) // 60000))(d['comet'])")  could: $(curl -s "${A[@]}" "$B/api/blocks/$CN/comet?tz=0" | j "(d['comet'] is not None, d['could']['said'])")"
+LIST=$(mk '{"title":"Errands"}')
+CL=$(add "post the parcel tomorrow" $LIST)
+echo "a day alone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CL/comet -d '{"tz":60}' | j "(lambda c: (c['time'], (c['at'] - c['ahead']) // 3600000))(d['comet'])")"
+echo "comets: $(curl -s "${A[@]}" "$B/api/comets" | j "[(c['title'], c['planet'] == '$LIST') for c in d['comets']]")"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$LIST/check -d "{\"block\":\"$CL\",\"checked\":true}"
+echo "ticked off, its comet gone: $(curl -s "${A[@]}" "$B/api/comets" | j "[c['title'] for c in d['comets']]")"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X PATCH $B/api/blocks/$CN -d '{"content":"Dentist in 3 days 4pm, ask about the crown"}'
+echo "follows its words: $(curl -s "${A[@]}" "$B/api/comets" | j "(d['comets'][0]['time'], d['comets'][0]['said'])")"
+WAS=$(curl -s "${A[@]}" "$B/api/comets" | j "json.dumps(d['comets'][0])")
+echo "snoozed: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet/snooze -d '{"for":"hour"}' | j "3500000 < d['comet']['at'] - $(date +%s)000 < 3700000")  done: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet/done | j "d['comet']['done'] is not None")  back: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet/back -d "{\"comet\":$WAS}" | j "(d['comet']['done'], d['comet']['time'])")"
+echo "calendar: $(curl -s "${A[@]}" "$B/api/blocks/$CN/comet.ics" | python3 -c "import sys; t = sys.stdin.read(); print(t.count('BEGIN:VEVENT'), t.count('BEGIN:VALARM'), 'SUMMARY:Dentist in 3 days 4pm' in t)")"
+PLAIN=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"the light on the bridge"}' | j "d['block']['id']")
+echo "no day, no comet: $(status "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$PLAIN/comet -d '{"tz":0}')  a made-up device: $(status "${A[@]}" "${J[@]}" -X POST $B/api/push -d '{"endpoint":"https://example.com/push"}')  a real push service: $(status "${A[@]}" "${J[@]}" -X POST $B/api/push -d '{"endpoint":"https://web.push.apple.com/QAbc"}')"
+curl -s -o /dev/null "${A[@]}" "${J[@]}" -X DELETE $B/api/push -d '{"endpoint":"https://web.push.apple.com/QAbc"}'
+rule "someone else's comets were shown" "$(curl -s "${U[@]}" "$B/api/comets" | j "len(d['comets'])")" "0"
+rule "someone could make another's note a comet" "$(status "${U[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet -d '{"tz":0}')" "404"
+rule "someone could see another's comet in a calendar" "$(status "${U[@]}" "$B/api/blocks/$CN/comet.ics")" "404"
+echo "stopped: $(curl -s "${A[@]}" "${J[@]}" -X DELETE $B/api/blocks/$CN/comet | j "d['ok']") $(curl -s "${A[@]}" "$B/api/comets" | j "len(d['comets'])")"

@@ -363,6 +363,11 @@ def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder
                 'SELECT block_id FROM constellation_stars WHERE constellation_id = ? ORDER BY position', (c['id'],))],
             'made': iso(c['created_at']),
         } for c in skies],
+        'comets': [{
+            'note': r['block_id'], 'day': r['day'], 'time': r['time'], 'said': r['said'], 'everyYear': bool(r['yearly']),
+            'remindsAt': iso(r['at']), 'headsUpAt': iso(r['ahead']), 'made': iso(r['made_at']),
+            'dealtWith': iso(r['done_at']) if r['done_at'] else None,
+        } for r in conn.execute('SELECT * FROM reminders WHERE user_id = ? ORDER BY at', (uid,))],
         'files': files,
         'commentsYouLeftOnOthersFiles': [
             {'on': r['title'] or r['kind'], 'owner': r['username'], 'said': r['body'], 'when': iso(r['created_at'])}

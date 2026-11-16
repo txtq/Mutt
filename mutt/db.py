@@ -402,6 +402,24 @@ def migrate(conn):
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
                  'at REAL NOT NULL, PRIMARY KEY (user_id, other_id))')
+    # Comets: a note of yours made a reminder (DESIGN.md "Comets", the "comets" section of api.py).
+    # One per note. `at` is when it goes off and `ahead` the heads-up before it (UTC seconds), worked
+    # out from its day and time in the owner's zone when it was made (`tz`, minutes east). `made_at` is
+    # where its journey across the sky starts (moved on by a snooze). `sent_*` say what has gone out,
+    # `closed` the heads-up note waved away (the `at` it was for), `done_at` when it was dealt with.
+    conn.execute('CREATE TABLE IF NOT EXISTS reminders ('
+                 'block_id TEXT PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'day TEXT NOT NULL, time TEXT, said TEXT, yearly INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 0, '
+                 'at REAL NOT NULL, ahead REAL NOT NULL, made_at REAL NOT NULL, '
+                 'sent_ahead INTEGER NOT NULL DEFAULT 0, sent_at INTEGER NOT NULL DEFAULT 0, closed REAL, done_at REAL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_reminders_at ON reminders(at)')
+    # Devices that asked to be told when a comet is due (Web Push, mutt/webpush.py).
+    conn.execute('CREATE TABLE IF NOT EXISTS push_subs ('
+                 'endpoint TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'contact TEXT NOT NULL, made_at REAL NOT NULL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subs(user_id)')
 
 
 @contextmanager

@@ -973,6 +973,25 @@ def constellation(s, seeded):
     s.shot('constellation-named')
 
 
+def comet(s, seeded):
+    """Write a day into a note in the void: a line offers to make it a comet (a reminder); pressed, it
+    crosses the sky tagged with what it is for and when, and the comet can be dealt with (Done)."""
+    s.go('/')
+    s.wait('return document.querySelectorAll(".planet").length >= 7 && 1', 'the galaxy did not load')
+    s.click('.void-core')
+    s.see('.vf-input', 'clicking the void did not open the add box')
+    s.type('.vf-input', 'Dentist tomorrow 3pm')
+    btn = s.named('.dk-hint-btn', 'Make it a comet', 'a note with a day in it did not offer to become a comet', 6)
+    s.shot('comet-offer')
+    s.js('arguments[0].click()', btn)
+    s.wait('return document.querySelector(`.gx-comet-hit[aria-label^="Dentist, tomorrow"]`)', 'the note did not come as a comet', 10)
+    s.named('.gx-comet-tag.is-shown .gx-comet-tag-name', 'Dentist', 'the comet\'s tag should name what it is for, without its day')
+    s.settle(1)
+    s.shot('comet')
+    made = s.fetch('/api/comets')['comets'][0]['id']
+    s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', made)
+
+
 def send_to_top(s, seeded):
     # a planet of its own, made here, so the others stay as seeded; last in PATHS for the same reason
     made = s.js('''return (async () => {
@@ -1250,7 +1269,7 @@ def throw_star(s, seeded):
 
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, send_to_top,
+         documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top,
          split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
 
 

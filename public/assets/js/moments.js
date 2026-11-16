@@ -14,7 +14,8 @@ import { DUR, EASE, h, reducedMotion } from './util.js';
 import { icon } from './icons.js';
 
 const PAUSE = 700;   // ms of quiet typing before the words are read
-const LEAST = 200;   // shorter than this, nothing is ever asked
+const LEAST = 200;   // shorter than this, nothing is ever asked (a comet's line asks from SHORT)
+const SHORT = 6;     // "tmrw 9": a comet (a day in a note) can be offered from a few letters
 const waved = new Set();
 
 // area: the textarea being written in.
@@ -53,9 +54,10 @@ export function momentLine(area, { acts, drawerId = null, onWave = null }) {
   async function read(text) {
     const mine = ++asked;
     try {
-      const found = await api.post('/api/moment', { text, held: shown ? [shown] : [], drawer: drawerId || undefined });
+      const found = await api.post('/api/moment', { text, held: shown ? [shown] : [], drawer: drawerId || undefined, tz: -new Date().getTimezoneOffset() });
       if (mine !== asked) return;  // more was typed since
-      const key = Object.keys(acts).find((k) => found[k]?.fits && !waved.has(k));
+      // a comet gives way to anything else the words call for
+      const key = Object.keys(acts).sort((a, b) => (a === 'comet') - (b === 'comet')).find((k) => found[k]?.fits && !waved.has(k));
       show(key || null, key ? found[key].say : '');
     } catch { /* no line, then */ }
   }
@@ -63,7 +65,7 @@ export function momentLine(area, { acts, drawerId = null, onWave = null }) {
   el.check = (value) => {
     const text = (value || '').trim();
     clearTimeout(timer);
-    if (text.length < LEAST) { asked += 1; show(null); return; }
+    if (text.length < ('comet' in acts ? SHORT : LEAST)) { asked += 1; show(null); return; }
     timer = setTimeout(() => read(text), PAUSE);
   };
   el.stop = () => { clearTimeout(timer); asked += 1; };

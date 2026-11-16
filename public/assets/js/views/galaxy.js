@@ -24,6 +24,7 @@ import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
 import { Sky } from '../constellations.js';
 import { holdSound, sound } from '../sound.js';
+import { makeComet, startComets } from '../remind.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
@@ -1550,6 +1551,7 @@ class Galaxy {
     this.starsEl.style.setProperty('--chip', `${m.chip}px`);
     this.found?.place();
     this.beams?.then((pile) => pile.place(m));
+    this.comets?.place();
 
     // The runway below: how far you scroll to get out to the universe.
     this.travel = Math.round(Math.max(1000, viewH * 2.2));
@@ -1972,7 +1974,8 @@ class Galaxy {
   // ------------------------------------------------------------ stars
 
   shownStars() {
-    const cap = innerWidth < 640 ? clamp(this.starRoom || STAR_CAP_PHONE, 4, STAR_CAP_PHONE) : STAR_CAP;
+    // on a phone, as many as the band has places for, the "+N" taking the last (a note at the top can leave few)
+    const cap = innerWidth < 640 ? clamp(this.starRoom || STAR_CAP_PHONE, 1, STAR_CAP_PHONE) : STAR_CAP;
     // A constellation's stars always show in it; the cap is for the loose ones
     // (on a phone a new constellation's stars took every place, leaving only "+N").
     const inFig = (s) => !!this.sky?.has(s.id);
@@ -2269,6 +2272,8 @@ class Galaxy {
     const request = (async () => {
       const planet = await this.target(dest);
       const res = await api.post('/api/blocks', { content: text, autosort: sort, drawer: planet?.id });
+      // sent with "Make it a comet" under the box: it reminds you too
+      if (dest.comet) makeComet(res.block.id, { told: true });
       return { ...res, planet };
     })();
     await spiralInto(chip, center(chip.getBoundingClientRect()), this.hole.center());
@@ -3191,6 +3196,15 @@ class Galaxy {
         this.beamsWaiting();
         // A constellation that holds enough offers to become a planet, once the page is up.
         if (this.sky) setTimeout(() => { if (this.live && this.p < 0.02) this.sky.maybeOffer(); }, DUR.move);
+        // Comets (notes with a day coming), only in your own sky, asked for once the page is up.
+        if (this.mine) startComets();
+        if (this.mine) this.cometsLoad ||= import('../comets.js').then(({ Comets }) => {
+          if (!this.live) return;
+          this.comets = new Comets(this);
+          this.threadsEl.after(this.comets.paintEl);
+          this.field.after(this.comets.hitsEl);
+          this.comets.load();
+        }).catch(() => {});
         if (!this.uvLoading) {
           if (window.requestIdleCallback) requestIdleCallback(() => this.loadUniverse(), { timeout: 2000 });
           else setTimeout(() => this.loadUniverse(), 800);
@@ -3209,6 +3223,7 @@ class Galaxy {
         this.diving = false;
         this.live = false;
         this.sky?.destroy();
+        this.comets?.destroy();
         this.joinTip?.remove();
         this.said?.remove();
         if (this.listening) this.letGoVoid(this.listening, true);

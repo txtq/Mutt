@@ -35,7 +35,7 @@ planet, and moment() answers every moment mode for one piece of text.
 import json
 import time
 
-from . import books, documents, quotes, recipes, sorting, split
+from . import books, documents, quotes, recipes, sorting, split, when
 from .web import HttpError
 
 ARRIVES = ('offer', 'undo', 'quiet')
@@ -235,8 +235,19 @@ def read_writing(text, form):
     return {'strength': strength, 'say': 'This reads like a piece of writing.'}
 
 
+def read_comet(text, form, written=None):
+    """A note that names a day or time still to come can be made a comet (a reminder; DESIGN.md
+    "Comets"). Read as if written now, in the writer's own zone (`written`)."""
+    if not written or len(text) > when.LONG * 3:
+        return {'strength': 0.0}
+    for found in when.read(text, written):
+        return {'strength': 1.0, 'say': f'“{found["said"]}”: a comet can remind you'}
+    return {'strength': 0.0}
+
+
 MOMENT_MODES = [
     Mode('writing', read_writing, kind='moment', on=0.6, stay=0.4, moons=True, arrives='quiet'),
+    Mode('comet', read_comet, kind='moment', on=0.5, stay=0.5, moons=True, arrives='quiet'),
 ]
 
 MODES = {m.key: m for m in PLANET_MODES + MOMENT_MODES}
@@ -323,7 +334,7 @@ def signs(conn, row, saved):
 MOMENT_LIMIT = 20000
 
 
-def moment(text, held=(), saved=None, moon=False):
+def moment(text, held=(), saved=None, moon=False, written=None):
     """Which moment modes answer what's being written: {key: {'fits', 'say'}}.
     `held` are the ones already showing, which stay down to their lower bar."""
     text = (text or '').strip()[:MOMENT_LIMIT]
@@ -332,7 +343,7 @@ def moment(text, held=(), saved=None, moon=False):
     for mode in MOMENT_MODES:
         if (moon and not mode.moons) or ((saved or {}).get(mode.key) or {}).get('dismissed'):
             continue
-        found = mode.read(text, form) if text else {'strength': 0.0}
+        found = (mode.read(text, form, written) if mode.key == 'comet' else mode.read(text, form)) if text else {'strength': 0.0}
         bar = mode.stay if mode.key in held else mode.on
         out[mode.key] = {'fits': found['strength'] >= bar and found['strength'] > 0, 'say': found.get('say')}
     return out

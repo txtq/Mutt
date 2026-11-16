@@ -956,9 +956,10 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   animation-delay: calc(var(--i, 0) * var(--stagger));
 }
 .cn-note.is-leaving { animation: cn-out var(--dur-change) var(--ease-leave) both; }
-/* the account sheet or search drops over where they sit: they step aside until it closes */
+/* the account sheet or search drops over where they sit, or a room opens (the file view, the editor):
+   they step aside until it closes, as the top bar does */
 .cn-notes { transition: opacity var(--dur-change) ease; }
-body:has(> .sheet.is-open) .cn-notes { opacity: 0; visibility: hidden; transition: opacity var(--dur-change) ease, visibility 0s var(--dur-change); }
+body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes { opacity: 0; visibility: hidden; transition: opacity var(--dur-change) ease, visibility 0s var(--dur-change); }
 @keyframes cn-in { from { opacity: 0; transform: translateY(-12px) scale(0.97); } }
 @keyframes cn-out { to { opacity: 0; transform: translateX(12px) scale(0.98); } }
 .cn-open {
@@ -990,6 +991,18 @@ body:has(> .sheet.is-open) .cn-notes { opacity: 0; visibility: hidden; transitio
   .cn-what { -webkit-line-clamp: 1; }
   .cn-said, .cn-when, .cn-handle { display: none; }
   .cn-x { top: 50%; right: var(--space-4); translate: 0 -50%; }
+}
+
+/* A comet that has come (or is an hour off), on any page: the same note, over the comment notes until
+   it's dealt with. Its mark is the comet's ember; under the words, Done and Later (remind.js). */
+body.has-comet-note .cn-notes:not(.cm-notes) { display: none; }
+.cm-lead { color: var(--comet-ember); }
+.cm-note .cn-said { white-space: normal; }
+.cm-acts { display: flex; gap: var(--space-8); padding: 0 var(--space-8) var(--space-8) calc(6px + 28px + var(--space-8)); }
+@media (max-width: 720px) {
+  .cm-note .cn-open { padding-right: var(--space-8); }
+  .cm-note .cn-said { display: block; }
+  .cm-acts { padding-left: var(--space-8); }
 }
 
 /* ---- tip: Mutt speaking once (the sharing tip, the recovery key ask). .tip > .tip-title, .tip-text, .tip-btns */
@@ -1427,6 +1440,12 @@ body.no-chrome #view { padding: 0; }
 .vf-upload { margin-left: -8px; }
 .vf-upload:hover, .vf-where:hover, .vf-where[aria-expanded="true"] { color: var(--light-ink); background: var(--light-tint); }
 .vf-where { min-width: 0; }
+/* the moment line under the void's box (a comet offered) is on the light: the light's inks */
+.vf .dk-hint { padding: var(--space-8) 0 0; color: var(--light-ink-3); }
+.vf .dk-hint-btn { color: var(--light-ink); background: var(--light-tint); }
+.vf .dk-hint-btn:hover { color: var(--light-ink); background: var(--light-tint); filter: brightness(0.94); }
+.vf .dk-hint-x { color: var(--light-ink-3); }
+.vf .dk-hint-x:hover { color: var(--light-ink); }
 .vf-where-to { opacity: 0.75; }
 .vf-where-text { color: var(--light-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16ch; }
 .vf-where-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
@@ -1842,6 +1861,64 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .gx-thread-note.is-on { opacity: 1; transition-duration: var(--dur-move); }
 .gx.is-adding .gx-threads, .gx.is-adding .gx-thread-notes { opacity: 0.4; }
 .world.is-far .gx-threads, .world.is-far .gx-thread-notes { opacity: 0; }
+/* Comets (DESIGN.md "Comets"): a note of yours with a day coming crosses your sky, from the day
+   it was written toward the void, rounding it on its day, hotter as the day nears. Each is one
+   canvas only as big as the comet, painted by js/comets.js when the galaxy is laid out; nothing
+   moves at rest. Over it, a button along its head and tail to point at or tap (the note's name
+   and its day in the tooltip), and within a day and a half its name beside it. */
+.gx-comets { position: absolute; left: 0; top: 0; z-index: 2; width: 0; height: 0; pointer-events: none; transition: opacity var(--dur-arrive) var(--ease-settle); }
+.gx-comet { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; animation: comet-in var(--dur-arrive) var(--ease-settle) both; transition: filter var(--dur-quick) var(--ease-settle), opacity var(--dur-arrive) var(--ease-settle); }
+.gx-comet.is-lit { filter: brightness(1.35); transition-duration: var(--dur-quick); }
+@keyframes comet-in { from { opacity: 0; } }
+.gx-comet-hits { position: absolute; left: 0; top: 0; z-index: 4; width: 0; height: 0; transition: opacity var(--dur-arrive) var(--ease-settle); }
+.gx-comet-hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: none;
+  cursor: pointer;
+}
+.gx-comet-hit:focus-visible { outline-offset: 0; }
+/* A comet's tag: its name in the planets' type, its day under it in the comet's own colour (the
+   heat it is painted in, --comet-ink), joined to its head by a dotted line of the same ink, like
+   a star chart's label. It sits on the side of the head away from its dust. */
+.gx-comet-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 220px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-change) var(--ease-leave);
+}
+.gx-comet-tag.is-right { align-items: flex-end; text-align: right; }
+/* where it can't help sitting on the void or a planet (a phone has little open sky), a pane of the bar's glass behind it */
+.gx-comet-tag.is-over { margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-8)); padding: var(--space-4) var(--space-8); border-radius: var(--r-row); background: var(--bar-fill); -webkit-backdrop-filter: var(--glass-frost); backdrop-filter: var(--glass-frost); }
+.gx-comet-tag-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font: var(--type-label); color: var(--ink); text-shadow: var(--sky-shadow); }
+.gx-comet-tag-when { font: var(--type-small); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: var(--comet-ink); text-shadow: var(--sky-shadow); }
+.gx-comet-lead {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  margin-top: -1px;
+  transform-origin: 0 50%;
+  background: radial-gradient(circle, var(--comet-ink) 0.7px, transparent 1px) 0 50% / 3px 2px repeat-x;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-change) var(--ease-leave);
+}
+:is(.gx-comet-tag, .gx-comet-lead):is(.is-shown, .is-lit) { opacity: 1; transition: opacity var(--dur-move) var(--ease-settle); }
+.gx.is-adding :is(.gx-comets, .gx-comet-hits) { opacity: 0.4; }
+.gx-scene.is-seeking :is(.gx-comets, .gx-comet-hits) { opacity: 0.36; }
+.world.is-far :is(.gx-comets, .gx-comet-hits) { opacity: 0; pointer-events: none; }
 .planet:hover, .planet:focus-visible { z-index: 5; }
 /* The whole planet (globe, halo, rings, moons) is what glides between the
    galaxy and its page, so the halo doesn't arrive ahead of its globe. */
@@ -3742,6 +3819,15 @@ html[data-vt="viewer"] .viewer { view-transition-name: viewer; }
 .vw-meta dt { color: var(--ink-3); }
 .vw-meta dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
 .vw-meta a { text-decoration: underline; text-decoration-color: var(--ink-4); text-underline-offset: 2px; }
+/* Your note with a day in it, in its file view: the offer to make it a comet, or the comet it is (viewer.js cometRow) */
+.vw-comet { display: flex; align-items: center; gap: var(--space-12); margin-top: var(--space-16); padding: var(--space-8) var(--space-12); border: 1px solid var(--line); border-radius: var(--r-box); background: var(--well); animation: rise var(--dur-arrive) var(--ease-settle) backwards; }
+.vw-comet-mark { flex: none; display: grid; color: var(--comet-ember); }
+.vw-comet.is-offer .vw-comet-mark { color: var(--ink-3); }
+.vw-comet-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.vw-comet-label { font: var(--type-label); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-comet-when { font: var(--type-small); letter-spacing: 0.06em; text-transform: uppercase; color: var(--star-amber); }
+.vw-comet.is-offer .vw-comet-when { font: var(--type-caption); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+.vw-comet-acts { flex: none; display: flex; gap: var(--space-4); }
 .vw-conn-head { display: flex; align-items: center; justify-content: space-between; min-height: var(--h-small); margin-top: var(--space-24); padding-top: var(--space-16); border-top: 1px solid var(--line); }
 .vw-conn-label { font: var(--type-small); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .vw-conns { list-style: none; margin: var(--space-8) 0 0; padding: 0; }

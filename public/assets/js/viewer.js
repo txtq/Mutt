@@ -2,6 +2,7 @@
 
 import { commentSection } from './comments.js';
 import { momentLine } from './moments.js';
+import { cometRows, cometWhen, dealWith, makeComet, tell } from './remind.js';
 import { deleteBlock, editPicture, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
 import { downloadMenu, formatsOf } from './downloads.js';
 import { api, session } from './api.js';
@@ -13,7 +14,7 @@ import { drawerHref } from './nav.js';
 import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { canTransition, transition } from './transitions.js';
-import { enterRoom, leaveRoom, toast } from './ui.js';
+import { enterRoom, leaveRoom, openMenu, toast } from './ui.js';
 import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, paperFaces, personLabel, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
 import { icon } from './icons.js';
 
@@ -387,7 +388,10 @@ function textStage(block) {
     });
     // Grown past what a note holds: offer the document editor.
     const long = momentLine(area, {
-      acts: { writing: { label: 'Open it as a document', run: async () => { await finish(true); openDocEditor(block.id); } } },
+      acts: {
+        writing: { label: 'Open it as a document', run: async () => { await finish(true); openDocEditor(block.id); } },
+        comet: { label: 'Make it a comet', run: async () => { tell(); await finish(true); makeComet(block.id, { told: true }); } },
+      },
     });
     area.addEventListener('input', () => long.check(area.value));
     long.check(area.value);
@@ -906,6 +910,48 @@ function history(block) {
   return slot.el;
 }
 
+// Your note with a day or time in it: the offer to make it a comet (a reminder), or the comet it is,
+// with what it does (DESIGN.md "Comets"). Kept in its place while the side panel is rebuilt.
+function cometRow(block) {
+  if (block.kind !== 'text' || block.mine === false) return null;
+  if (state.cometRow?.id !== block.id) {
+    const slot = { id: block.id, el: h('div', { class: 'vw-comet-slot' }), key: '' };
+    state.cometRow = slot;
+    const paint = async () => {
+      const key = `${state?.block?.updatedAt}`;
+      let got;
+      try { got = await api.get(`/api/blocks/${block.id}/comet?tz=${-new Date().getTimezoneOffset()}`); } catch { return; }
+      if (state?.cometRow !== slot) return;
+      slot.key = key;
+      const c = got.comet && { ...got.comet, title: state.block.content.split('\n')[0] };
+      if (c) {
+        const more = h('button', { type: 'button', class: 'btn btn-quiet btn-small', 'aria-haspopup': 'menu' }, 'Comet', icon('caret', 12));
+        more.addEventListener('click', () => openMenu(more, cometRows(c, { open: false })));
+        slot.el.replaceChildren(h('section', { class: 'vw-comet' },
+          h('span', { class: 'vw-comet-mark' }, icon('date')),
+          h('span', { class: 'vw-comet-text' },
+            h('span', { class: 'vw-comet-label' }, c.due ? 'A comet is reminding you' : 'A comet will remind you'),
+            h('span', { class: 'vw-comet-when' }, cometWhen(c).split(' · ')[0])),
+          h('span', { class: 'vw-comet-acts' },
+            c.due || c.soon ? h('button', { type: 'button', class: 'btn btn-small', onclick: () => dealWith(c, 'done') }, icon('check', 12), 'Done') : null,
+            more)));
+      } else if (got.could) {
+        slot.el.replaceChildren(h('section', { class: 'vw-comet is-offer' },
+          h('span', { class: 'vw-comet-mark' }, icon('date')),
+          h('span', { class: 'vw-comet-text' },
+            h('span', { class: 'vw-comet-label' }, `“${got.could.said}”`),
+            h('span', { class: 'vw-comet-when' }, 'A comet can remind you')),
+          h('span', { class: 'vw-comet-acts' },
+            h('button', { type: 'button', class: 'btn btn-small', onclick: () => makeComet(block.id) }, 'Make it a comet'))));
+      } else slot.el.replaceChildren();
+    };
+    slot.paint = paint;
+    paint();
+  } else if (state.cometRow.key !== `${block.updatedAt}`) state.cometRow.paint();
+  return state.cometRow.el;
+}
+bus.on('comet:changed', () => state?.cometRow?.paint?.());
+
 // replaceChildren would print a skipped (null) piece as the word “null”.
 const fill = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null && k !== false));
 
@@ -971,6 +1017,7 @@ function renderSide() {
     editable(block, 'title', { placeholder: 'Untitled', className: 'field-bare vw-title' }),
     editable(block, 'description', { placeholder: 'Add a note', className: 'field-bare vw-desc' }),
     actions,
+    cometRow(block),
     metaRows(block),
     history(block),
     h('section', { class: 'vw-conn-head' },

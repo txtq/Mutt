@@ -19,6 +19,7 @@ import { watchSpelling } from './spellfield.js';
 import { askForLongerCode } from './account.js';
 import { tooltips } from './tooltip.js';
 import { makeDropRing } from './dropring.js';
+import { startComets } from './remind.js';
 
 bootPrefs();
 startMusic();
@@ -189,6 +190,8 @@ async function boot() {
   // Once the page has settled, read pictures uploaded before the picture reader existed.
   if (session.user) setTimeout(() => catchUp(), 6000);
   if (session.user) askForLongerCode();
+  // Comets that have come say so under the clock, on any page (and their device is kept subscribed).
+  if (session.user) setTimeout(() => startComets(), 1500);
 }
 
 boot();

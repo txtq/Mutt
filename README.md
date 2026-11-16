@@ -215,6 +215,7 @@ Mutt and copy a backup over `mutt.db` (and delete `mutt.db-wal` and `mutt.db-shm
 | `MUTT_SEE_MODEL` | none | A local copy of the picture model to use instead of downloading it (for offline or test servers). |
 | `MUTT_HEAR` | `1` | Set to `0` to turn off writing out voice notes' words (the server won't fetch the voice reader, about 28 MB; recordings are still kept). |
 | `MUTT_HEAR_DIR` | none | A folder holding the voice reader's three files (`encoder_model_quantized.onnx`, `decoder_model_merged_quantized.onnx`, `tokenizer.json`) to use instead of downloading them. |
+| `MUTT_PUSH` | `1` | Set to `0` to stop sending comet reminders to devices (notifications). The notes under the clock still show. The signing key is made once and kept in the data folder as `push-key.json`. |
 | `MUTT_CONVERT` | `1` | Set to `0` to turn off converting sound and video when downloading (the server won't fetch the converter). Pictures, notes and PDFs still convert. |
 | `MUTT_CONVERT_DIR` | none | A folder holding a local copy of the converter's two files (`ffmpeg-core.js`, `ffmpeg-core.wasm`) to use instead of downloading them. |
 

@@ -53,6 +53,7 @@ def main():
     media.start_backfill()
     privacy.start_sweep()  # blank where photos and videos stored before this were taken
     api.start_purging()   # Recently deleted: files go for good after a week
+    api.start_comets()    # tell people's devices when a comet comes due
     with make_server(args.host, args.port, application,
                      server_class=ThreadingWSGIServer, handler_class=Handler) as httpd:
         shown = 'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host

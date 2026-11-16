@@ -1,0 +1,13 @@
+{
+  "name": "Mutt",
+  "short_name": "Mutt",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071440",
+  "theme_color": "#071440",
+  "icons": [
+    { "src": "/assets/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/assets/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

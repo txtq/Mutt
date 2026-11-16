@@ -152,6 +152,9 @@
   --sky-low: #1a56d0;
   /* the stars: about a third white, the rest warm and cool (js/sky.js) */
   --star-white: #ffffff; --star-amber: #ffbd80; --star-blue: #9eccff; --star-pink: #ffb8e6; --star-mint: #99ffe6;
+  /* a loose file resting as a point of light round the void: its rim and its light. Sized for
+     the face before it shrinks to a point (to 0.42), so on screen the rim is about 1 and the light about 10 */
+  --star-halo: 0 0 0 2.4px rgba(255, 255, 255, 0.24), 0 0 24px 7px rgba(158, 204, 255, 0.3), 0 0 52px 14px rgba(158, 204, 255, 0.1);
   /* the universe: black, with no stars */
   --night-mid: #070914; --night-deep: #020307; --night-edge: #000002;
 

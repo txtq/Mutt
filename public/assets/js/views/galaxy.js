@@ -981,6 +981,9 @@ class Galaxy {
     this.field.addEventListener('pointerleave', () => this.lightThreads(null));
     this.field.addEventListener('focusout', (e) => { if (!this.field.contains(e.relatedTarget)) this.lightThreads(null); });
     this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy` }, this.scene);
+    this.pointer = null;
+    this.stage.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') this.nearStars({ x: e.clientX, y: e.clientY }); });
+    this.stage.addEventListener('pointerleave', () => this.nearStars(null));
 
     // ------------------------------------------------------------ the universe below
     this.uvField = h('div', { class: 'uv-field' });
@@ -1311,10 +1314,20 @@ class Galaxy {
       if (el.classList.contains('is-moving')) return;
       el.style.transform = `translate(${cx + spot.x}px, ${cy + spot.y}px)`;
     }));
+    // Each star is lit from the void (--out: the way away from it), dimmer
+    // further out (--near), and tilted a little, always the same way for the same file.
+    const reach = starAt.map((at) => Math.hypot(at.x, at.y));
+    const lo = Math.min(...reach), span = Math.max(...reach) - lo || 1;
     [...this.starsEl.children].forEach((el, i) => {
       const at = starAt[i];
-      if (at) el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+      el.at = at;
+      if (!at) return;
+      el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+      el.style.setProperty('--near', (1 - (reach[i] - lo) / span).toFixed(2));
+      el.style.setProperty('--out', `${(Math.atan2(at.x, -at.y) * 180 / Math.PI).toFixed(0)}deg`);
+      if (el.block) el.style.setProperty('--tilt', `${((seeded(el.block.id)() - 0.5) * 18).toFixed(1)}deg`);
     });
+    this.nearStars(this.pointer);
     this.starsEl.style.setProperty('--chip', `${m.chip}px`);
 
     // The runway below: how far you scroll to get out to the universe.
@@ -1546,6 +1559,29 @@ class Galaxy {
 
   shownStars() {
     return this.showAll || this.stars.length <= STAR_CAP ? this.stars : this.stars.slice(0, STAR_CAP - 1);
+  }
+
+  // With a mouse, stars rest as points of light and open into their cards as
+  // the pointer comes near: within three chips, and back to a point past four.
+  nearStars(at) {
+    this.pointer = at;
+    if (this.nearFrame) return;
+    this.nearFrame = requestAnimationFrame(() => {
+      this.nearFrame = 0;
+      const at = this.pointer;
+      const carrying = document.body.classList.contains('is-carrying');
+      // (out towards the universe the galaxy is shrunk, and they all rest)
+      const o = at && !carrying && this.p < 0.02 ? this.starsEl.getBoundingClientRect() : null;
+      const chip = this.m?.chip || 38;
+      for (const el of this.starsEl.children) {
+        let near = false;
+        if (o && el.at) {
+          const d = Math.hypot(at.x - o.left - el.at.x, at.y - o.top - el.at.y);
+          near = d < chip * (el.classList.contains('is-near') ? 4 : 3);
+        }
+        if (near !== el.classList.contains('is-near')) el.classList.toggle('is-near', near);
+      }
+    });
   }
 
   starEl(block) {
@@ -2329,6 +2365,7 @@ class Galaxy {
         // waking its void and dimming the sky over the next page.
         cancelAnimationFrame(this.scrollFrame);
         cancelAnimationFrame(this.threadFrame);
+        cancelAnimationFrame(this.nearFrame);
         clearTimeout(this.snapTimer);
         this.off.forEach((off) => off());
         this.diving = false;

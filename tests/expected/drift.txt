@@ -1,9 +1,9 @@
 # Values typed by hand instead of taken from a name in tokens.css (tests/drift.py).
 # The first ten lines are the limits; the rest only help find where a new one crept in.
-styles | colours: 176
+styles | colours: 170
 styles | text sizes: 69
 styles | corners: 80
-styles | shadows: 62
+styles | shadows: 59
 styles | speeds: 0
 scripts | colours: 211
 scripts | text sizes: 0
@@ -14,9 +14,9 @@ docs.css | colours: 36
 docs.css | corners: 7
 docs.css | shadows: 2
 docs.css | text sizes: 21
-galaxy.css | colours: 140
+galaxy.css | colours: 134
 galaxy.css | corners: 72
-galaxy.css | shadows: 60
+galaxy.css | shadows: 57
 galaxy.css | text sizes: 48
 js/blackhole.js | colours: 3
 js/doceditor.js | colours: 19

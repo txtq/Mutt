@@ -1499,19 +1499,71 @@ body.no-chrome #view { padding: 0; }
 }
 .gx-stars .star { width: var(--chip); height: var(--chip); }
 .gx-scene.is-live .star { transition: transform var(--dur-scene) var(--ease-settle); }
+/* A star is the file's own face, in three states (DESIGN.md "Stars"):
+   a card, lit from the void's light (--out points away from it), tilted a little as if
+   caught in the swirl (--tilt) and smaller and dimmer further out (--near, 1 beside the void);
+   with a mouse, a point of light until the pointer comes near (.is-near, set by galaxy.js);
+   pointed at or reached by the keyboard, lifted and straight. --tilt, --out and --near are set by layout(). */
+.star:not(.star-more) {
+  --face: rotate(var(--tilt, 0deg)) scale(calc(0.78 + var(--near, 1) * 0.28));
+  --lit: calc(0.66 + var(--near, 1) * 0.3);
+}
 .star .ff {
   width: 100%;
   height: 100%;
-  border-radius: 7px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22), 0 4px 10px -3px rgba(0, 0, 16, 0.6);
-  transition: transform var(--dur-move) var(--ease-settle), box-shadow var(--dur-move);
+  border-radius: var(--r-mark);
+  box-shadow: var(--shadow-rest);
+  transform: var(--face);
+  filter: brightness(var(--lit)) saturate(0.82);
+  transition: transform var(--dur-move) var(--ease-settle), border-radius var(--dur-move) var(--ease-settle), box-shadow var(--dur-move), filter var(--dur-move);
+}
+.star .ff-text > *, .star .ff-text::after, .star .ff-kind > span { transition: opacity var(--dur-move); }
+.star:not(.star-more)::before, .star:not(.star-more)::after { content: ""; position: absolute; pointer-events: none; transition: opacity var(--dur-move); }
+/* the void's light across the card */
+.star:not(.star-more)::after {
+  inset: 0;
+  border-radius: var(--r-mark);
+  transform: var(--face);
+  background: linear-gradient(var(--out, 180deg), color-mix(in srgb, var(--star-white) 55%, transparent), transparent 45%, color-mix(in srgb, var(--night-deep) 55%, transparent));
+  mix-blend-mode: soft-light;
+  transition: opacity var(--dur-move), transform var(--dur-move) var(--ease-settle);
+}
+/* the point's four faint rays, shown only while it is a point */
+.star:not(.star-more)::before {
+  inset: -30%;
+  opacity: 0;
+  transform: rotate(var(--tilt, 0deg));
+  background:
+    linear-gradient(90deg, transparent 12%, color-mix(in srgb, var(--star-blue) 40%, transparent) 50%, transparent 88%) center / 100% 1px no-repeat,
+    linear-gradient(0deg, transparent 12%, color-mix(in srgb, var(--star-blue) 40%, transparent) 50%, transparent 88%) center / 1px 100% no-repeat;
 }
 .star:hover, .star:focus-visible { z-index: 6; }
-.star:focus-visible .ff { transform: scale(1.6); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5), 0 10px 20px -6px rgba(0, 0, 16, 0.6); }
-/* After a tap, a touch screen leaves things "hovered" until the next one, so
-   growing on hover is for a mouse only (the planets and galaxies too). */
-@media (hover: hover) { .star:hover .ff { transform: scale(1.6); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5), 0 10px 20px -6px rgba(0, 0, 16, 0.6); } }
-.star:focus-visible { outline: none; }
+.star.is-near { z-index: 2; }
+.star:focus-visible { --face: scale(1.6); --lit: 1; outline: none; }
+.star:focus-visible .ff { filter: none; box-shadow: var(--paper-shadow); }
+.star:focus-visible::after { opacity: 0; }
+/* After a tap, a touch screen leaves things "hovered" until the next one, so the
+   point and growing on hover are for a mouse only (the planets and galaxies too).
+   On a touch screen a star rests as its card. */
+@media (hover: hover) {
+  .star:hover { --face: scale(1.6); --lit: 1; }
+  .star:hover .ff { filter: none; box-shadow: var(--paper-shadow); }
+  .star:hover::after { opacity: 0; }
+  /* the point: what the file is shows only as its colour; going back to it is leaving */
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) {
+    --face: rotate(var(--tilt, 0deg)) scale(0.42);
+    --lit: calc(0.62 + var(--near, 1) * 0.38);
+  }
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) .ff {
+    border-radius: 50%;
+    box-shadow: var(--star-halo);
+    transition: transform var(--dur-change) var(--ease-leave), border-radius var(--dur-change) var(--ease-leave), box-shadow var(--dur-change), filter var(--dur-change);
+  }
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) :is(.ff-text > *, .ff-kind > span),
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible) .ff-text::after,
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible)::after { opacity: 0; transition-duration: var(--dur-change); }
+  .star:not(.star-more, .is-near, .is-ctx, :hover, :focus-visible)::before { opacity: calc(0.35 + var(--near, 1) * 0.65); }
+}
 .star.is-new { animation: star-in var(--dur-arrive) var(--ease-settle) backwards; }
 .star.is-leaving { animation: star-out var(--dur-change) var(--ease-leave) forwards; pointer-events: none; }
 @keyframes star-in { from { opacity: 0; } }

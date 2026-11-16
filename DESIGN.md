@@ -303,6 +303,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | A file dropped on a planet | the bubble arrive on the spring; the gulp scene |
 | Moons | bob on the rest beat; born over scene; plumes on the slow beat |
 | Stars (loose files) arriving, leaving | arrive; leaves |
+| A star opening from a point into its card as the pointer comes near; lifting when pointed at; back to a point | move on the settle curve; move; leaves |
 | Threads between planets | still at rest; they arrive over scene after the planets, follow the planets while they glide or are carried (repainted only then), brighten in one step when a planet at one end is pointed at, and their counts fade in over move and out over change |
 | *The void* | |
 | Turning | painted (rule 10): about 30 pictures a second, every picture when it is big (sign-in); rests while the screen is changing; fades in over move once its pictures are worked out |
@@ -511,6 +512,18 @@ Built in session 7 (`public/assets/js/planets.js`, painted by `planetgl.js`). Th
 5. Add its row to the table above.
 
 **To give a new kind of file, or a new mode, its drawing on a world**: add a drawing to `FACES` in `planets.js` (map pixels; bars, not words; colours from `INK`), a line to `faceOf` saying which files get it (a mode decides through `planet.modes`), and, if the cards should be taller than wide, its name to `UPRIGHT`. If the mode changes what the galaxy must know, add that mode's flag to the texture's key in `textureFor`. Add its row to the table above.
+
+### Stars
+
+A star is a file on no planet, kept round the void on its owner's own galaxy (`renderStars`, `layout` and `nearStars` in `views/galaxy.js`; the section of `galaxy.css` headed "stars"). It is the file's own face (`fileFace`), so it never needs a drawing of its own, and it belongs to the painted scene, never laid over it like an app's icon. Chosen by the user on 2026-11-16 from four drawings (lit cards, a stippled print, points of light, Vita bubbles; `/Users/edan/Mutt-notes/design/stars-2026-11-16/`): **points of light that open into lit cards**.
+
+- **At rest, with a mouse: a point of light.** The face shrinks to 0.42 of the chip and turns round (its words and the folded corner hidden), so a note is a cream point and a picture a point of its own colours. Its light is `--star-halo`, and it has four faint rays in `--star-blue`, turned by its tilt. Points further from the void are dimmer (brightness 1 beside the void, down to 0.62 at the outer edge, by `--near`). The halo is the star's light, part of the sky like the sky's own stars, not a glow on a control.
+- **As the pointer comes near: a card.** Within three chips of the pointer a star opens (`.is-near`), and it goes back to a point past four, so it never flickers at the edge. The card has corners `--r-mark` (4) like paper and sits on `--shadow-rest`. It is lit from the void's light, which is the light in the middle of the galaxy: a soft-light wash from `--star-white` on the side facing the void to `--night-deep` on the far side (`--out`). It leans a little, as if caught in the swirl, up to 9° either way and always the same way for the same file (`--tilt`, from its id). It is smaller and dimmer the further it is from the void (0.78 to 1.06 of the chip, brightness 0.66 to 0.96, by `--near`). These are the files on a planet's belt, off the planet.
+- **Pointed at, or reached by the keyboard: lifted.** It is straight, at 1.6, at full brightness, with no wash, on `--paper-shadow`, and its tooltip gives its name.
+- **On a touch screen** (no hover) every star rests as its card: there is no pointer to come near.
+- **Out towards the universe**, and while something is being carried, they all rest.
+- Opening is `--dur-move` on `--ease-settle`; going back to a point is leaving (`--dur-change` on `--ease-leave`). Nothing moves at rest.
+- The "+N" button for more stars is left as it was.
 
 ### The logo
 
@@ -920,5 +933,9 @@ Decided by the user, 2026-11-13 (design session 8; the page with the alternative
 - A page flies open on the even glide, eight tenths of a second each way (the arriving curve, and the editor's old curve of its own, were offered).
 - The phone note sits at the foot (a slim line under the top bar, and the top with the page below it, were offered).
 - The new names: `--dur-grand`, `--ease-leave`, `--stagger`, the three beats.
+
+Decided by the user, 2026-11-16 (the drawings are in `/Users/edan/Mutt-notes/design/stars-2026-11-16/`):
+
+- Stars (loose files) stuck out: flat, bright, rounded squares like app icons over a painted scene. They are now points of light that open into cards lit from the void as the pointer comes near ("Stars" in section 3). A stippled print, points alone, Vita bubbles and lit cards alone were offered.
 
 Still open: whether every move feels right at real speed (the user's eye: the watch list on session 8's page); the three things under "Not finished, and known" in section 2, "Motion".

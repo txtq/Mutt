@@ -1963,6 +1963,7 @@ BEAM_WAITING = 12          # files from one person waiting for someone at once
 BEAM_WAITING_QUIET = 3     # the same, from someone they never crossed paths with
 BEAM_DAY = 60              # files one person may beam in a day, to everyone
 BEAM_QUIET_DAYS = 30
+BEAM_LIST = 300            # people listed in Beam to…, to scroll through
 
 
 def crossed(conn, a, b):
@@ -1987,8 +1988,10 @@ def crossed_anyone(conn, user_id):
 
 @route('GET', r'/api/beam/people')
 def beam_people(req):
-    """Who you might beam a file to: the people you've crossed paths with,
-    nearest first; with `q`, anyone whose name or @username starts with it."""
+    """Who you might beam a file to: everyone, so no one has to know a
+    username. The people you've crossed paths with come first, nearest first,
+    then everyone else A to Z by the name they go by; with `q`, only those
+    whose name or @username starts with it."""
     me = req.user['id']
     near = nearness_of(req)
     theirs = {r['user_id']: r['score'] for r in req.db.execute('SELECT user_id, score FROM nearness WHERE other_id = ?', (me,))}
@@ -2003,11 +2006,9 @@ def beam_people(req):
             words = [u['username'].lower(), *(u['display_name'] or '').lower().split()]
             if not any(w.startswith(q) for w in words) and not (u['display_name'] or '').lower().startswith(q):
                 continue
-        elif not known:
-            continue
         out.append((not known, -pull, (u['display_name'] or u['username']).lower(), {**person(u), 'known': known}))
     out.sort(key=lambda t: t[:3])
-    return json_response({'people': [t[3] for t in out[:12]]})
+    return json_response({'people': [t[3] for t in out[:BEAM_LIST]]})
 
 
 BEAM_FORMS = ('recipe', 'document')

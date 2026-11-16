@@ -60,7 +60,7 @@ export function beamTo(block, { form = null } = {}) {
     h('span', { class: 'tick-box', 'aria-hidden': 'true' }))));
     list.hidden = !people.length;
     const q = input.value.trim();
-    note.textContent = people.length ? '' : q ? `No one here is called ${q}.` : 'Type a name to find someone.';
+    note.textContent = people.length ? '' : q ? `No one here is called ${q}.` : 'No one else is here yet.';
     note.hidden = !note.textContent;
     send.disabled = !chosen;
     send.textContent = chosen ? `Beam to ${shortName(chosen)}` : 'Beam';

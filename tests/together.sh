@@ -71,7 +71,7 @@ echo "dee's account gone, cy keeps the band: $(curl -s "${C[@]}" $B/api/drawers/
 # ---- beaming
 echo "once paths have crossed, it has: $(curl -s "${C[@]}" $B/api/me | j "d['user']['canBeam']")"
 NOTE=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"tea bowl, third firing"}' | j "d['block']['id']")
-echo "people to beam to (crossed paths): $(curl -s "${S[@]}" $B/api/beam/people | j "[(p['username'], p['known']) for p in d['people']]")  found by name: $(curl -s "${S[@]}" "$B/api/beam/people?q=c" | j "[(p['username'], p['known']) for p in d['people']]")"
+echo "people to beam to (everyone, met first): $(curl -s "${S[@]}" $B/api/beam/people | j "[(p['username'], p['known']) for p in d['people']]")  found by name: $(curl -s "${S[@]}" "$B/api/beam/people?q=c" | j "[(p['username'], p['known']) for p in d['people']]")"
 RAE_FILES=$(curl -s "${R[@]}" $B/api/galaxy | j "d['stats']['files']")
 BEAM=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$NOTE/beam -d '{"to":"rae","words":"the celadon one"}' | j "d['beam']['id']")
 echo "beamed twice (expect 400): $(status "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$NOTE/beam -d '{"to":"rae"}')  to yourself: $(status "${S[@]}" "${J[@]}" -X POST $B/api/blocks/$NOTE/beam -d '{"to":"sam"}')"

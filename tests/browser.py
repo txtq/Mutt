@@ -1274,6 +1274,22 @@ def beam_file(s, seeded):
     s.gone('.bm-star', 'the beamed file stayed by the void after Keep')
     s.wait('return [...document.querySelectorAll(".star")].some((e) => /tide times/.test(e.textContent))',
            'the kept file did not become one of your stars')
+    # Beam to… lists everyone without typing: someone met first, by the name they go by, then the rest
+    as_them('PUT', '/api/me/name', {'name': 'Nell Fisher'})
+    s.js('const v = (document.querySelector("script[src*=\'main.js\']")?.src.match(/\\?v=[^&]+/) || [""])[0];'
+         f'window.__beam = "";'
+         f'import("/assets/js/beams.js" + v).then((m) => m.beamTo({{ id: {json.dumps(note)}, content: "tide times" }})).catch((e) => {{ window.__beam = String(e); }});')
+    try:
+        s.wait('return document.querySelectorAll(".bm-people .pp-row").length >= 3', 'no rows')
+    except Fail:
+        raise Fail(f'Beam to… did not list people before anything was typed {s.js("return window.__beam")!r} '
+                   f'{s.js("return document.querySelector(\".bm-dialog\")?.textContent.slice(0, 200)")!r}')
+    first = s.js('return document.querySelector(".bm-people .pp-row .pp-name").textContent')
+    if not first.startswith('Nell Fisher'):
+        raise Fail(f'Beam to… did not put someone you know first by their name: {first!r}')
+    s.settle(0.5)
+    s.shot('beam-to')
+    s.press('Escape')
 
 
 def throw_star(s, seeded):

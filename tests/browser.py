@@ -1139,6 +1139,10 @@ def board_mode(s, seeded):
     s.wait('return document.querySelectorAll(".cell[data-id]").length === 3', 'Postcards should show 3 files')
     if s.js('return performance.getEntriesByType("resource").some((r) => /board\\.(js|css)/.test(r.name))'):
         raise Fail('a plain planet fetched the board\'s code')
+    # ...but any planet with a few files can be made one from its ••• menu
+    s.click(s.see('[aria-label="Planet options"]', 'the planet page has no ••• menu'))
+    s.named('.pop button, .pop [role=menuitem]', 'Make it a board', 'a plain planet\'s ••• menu has no "Make it a board"')
+    s.press('Escape')
     offer_then(s, seeded, 'Pinboard', 'Make it a board', '.bd-item.is-file', 'board mode')
     s.js(watch)
     s.wait(f'{items} === 7', 'the board should hold the 7 files')

@@ -172,10 +172,10 @@ def read_split(ctx):
 # Board: earned by arranging. A planet whose owner keeps moving its files by
 # hand (a drag to a new place, Send to top or bottom: `hand_moves`, written by
 # PUT /api/drawers/<id>/order) is being arranged, not stored.
-BOARD_MOVES = 12        # moves by hand within BOARD_DAYS...
-BOARD_ON_DAYS = 3       # ...on at least this many different days
+BOARD_MOVES = 8         # moves by hand within BOARD_DAYS, on any days
 BOARD_DAYS = 14
-BOARD_FILES = 6         # and something to arrange
+BOARD_FILES = 4         # and something to arrange
+BOARD_ANY = 2           # any planet with this many files can be made a board from its menu
 
 
 def read_board(ctx):
@@ -184,10 +184,11 @@ def read_board(ctx):
     moves = len(rows)
     days = len({time.strftime('%Y-%m-%d', time.localtime(r['at'])) for r in rows})
     n = len(ctx.files)
-    fits = moves >= BOARD_MOVES and days >= BOARD_ON_DAYS and n >= BOARD_FILES
+    fits = moves >= BOARD_MOVES and n >= BOARD_FILES
     times = 'once' if moves == 1 else 'twice' if moves == 2 else f'{moves} times'
-    signs = [f'You’ve moved its files by hand {times} in the last two weeks, on {days} different days.'] if moves else []
-    return {'fits': fits, 'signs': signs, 'count': moves, 'days': days,
+    signs = [f'You’ve moved its files around by hand {times} in the last two weeks.'] if moves else []
+    # the offer waits for the moves; the ••• menu has it for any planet with a few files (the user's word, 2026-11-16)
+    return {'fits': fits, 'signs': signs, 'count': moves, 'days': days, 'always': n >= BOARD_ANY,
             'share': min(1.0, moves / BOARD_MOVES)}
 
 

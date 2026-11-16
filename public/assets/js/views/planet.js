@@ -741,11 +741,12 @@ export const planetView = {
 
     const moreBtn = h('button', { type: 'button', class: 'btn btn-round', 'aria-label': isMoon ? 'Moon options' : 'Planet options', title: isMoon ? 'Moon options' : 'Planet options' }, icon('more'));
     // A mode shows up here only once the planet (or moon) has earned it, and
-    // stays here after its offer is waved away or it's turned off.
+    // stays here after its offer is waved away or it's turned off. One the
+    // server marks `always` (the board) is here for any planet with a few files.
     const modeItems = () => {
       const items = active
         ? MODES[active.key].menu(page)
-        : MENU_ORDER.filter((key) => fits[key]).map((key) => ({ icon: MODES[key].icon, label: MODES[key].label, run: () => turnOn(key) }));
+        : MENU_ORDER.filter((key) => fits[key] || (allowed(key) && signs[key]?.always)).map((key) => ({ icon: MODES[key].icon, label: MODES[key].label, run: () => turnOn(key) }));
       return items.length ? [...items, '-'] : [];
     };
     moreBtn.addEventListener('click', () => openMenu(moreBtn, isMoon ? [

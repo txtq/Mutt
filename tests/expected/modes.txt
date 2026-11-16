@@ -60,15 +60,18 @@ the quotes, read: [('Mum', '', 1, 'Just start. The rest'), ('Rick', 'Casablanca,
 a moon called Sayings, plain lines: (True, 1.0, False)
 a moon can be one: True
 on a moon called Sayings, plain lines count: 4
--- board: earned by moving files by hand (12 moves in two weeks, on 3 days, 6+ files)
+-- board: earned by moving files by hand (8 moves in two weeks, 4+ files); in the menu with 2+ files
 never moved: (False, 0, 0, False)
-11 moves by hand today: (False, 11, 1, False)
-an order saved by Mutt (an upload, an Undo) isn't a move: 11
-the same order again isn't a move: 11
-+1 three days ago, +4 twenty days ago (too long ago): (False, 12, 2, False)
-+1 six days ago, so 13 on 3 days: (True, 13, 3, False)
-its signs: ['You’ve moved its files by hand 13 times in the last two weeks, on 3 different days.']
-18 moves on 3 days, but only 5 files: (False, 18, 3, False)
+6 moves by hand today: (False, 6, 1, False)
+not offered yet, but in the menu: True
+an order saved by Mutt (an upload, an Undo) isn't a move: 6
+the same order again isn't a move: 6
++4 twenty days ago (too long ago): (False, 6, 1, False)
++1 three days ago, so 7: (False, 7, 2, False)
++1 more today, so 8: (True, 8, 2, False)
+its signs: ['You’ve moved its files around by hand 8 times in the last two weeks.']
+18 moves, but only 3 files: (False, 18, 3, False)
+in the menu with 3 files, with 1: True False
 waved away: {'on': False, 'dismissed': True}
 answered once, it stays in the menu with no moves left: (True, 0, 0, False)
 turned on: True

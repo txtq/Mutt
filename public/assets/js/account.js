@@ -4,8 +4,8 @@
 import { api, session } from './api.js';
 import { nav } from './nav.js';
 import { forgetPrefs } from './theme.js';
-import { confirmDialog, openDialog, pinField, toast } from './ui.js';
-import { DUR, EASE, h, reducedMotion, wait } from './util.js';
+import { confirmDialog, exit, openDialog, pinField, toast } from './ui.js';
+import { BEAT, DUR, EASE, h, reducedMotion, wait } from './util.js';
 import { icon } from './icons.js';
 
 export async function signOut() {
@@ -177,6 +177,70 @@ export function showRecoveryKey(key, username = session.user?.username) {
   });
   requestAnimationFrame(() => done.focus());
   return dialog;
+}
+
+// Accounts made before recovery keys (2026-11-15) have none. On your own galaxy,
+// once the page has settled and nothing else is asking you something, a tip at
+// the foot asks once: "Make one" or "Not now". Not now waits a week and asks
+// once more; a second Not now and it never asks again on that device. Going
+// elsewhere puts it away unanswered, so it comes back on the next visit.
+// An account still on a 4-digit code is asked for a longer code first.
+const WEEK = 7 * 24 * 3600 * 1000;
+const keyAskedAt = () => `mutt:key-asked:${session.user?.username}`;
+
+export function askForKey() {
+  let tip = null;
+  let timer = 0;
+  let here = false;
+  const asked = () => {
+    try { return JSON.parse(localStorage.getItem(keyAskedAt())) || null; } catch { return null; }
+  };
+  const due = () => {
+    const user = session.user;
+    if (!user || user.hasKey || user.oldCode) return false;
+    const before = asked();
+    return !before || (before.times < 2 && Date.now() - before.at >= WEEK);
+  };
+  // Something else is speaking or open: a dialog, a menu, a sheet, a room, the phone note, a toast with a button.
+  const busy = () => !!document.querySelector('.scrim, .pop, .sheet.is-open, .room, .phone-note, .toast.has-action');
+  const away = () => {
+    if (!tip) return;
+    const el = tip;
+    tip = null;
+    el.inert = true;
+    document.body.style.removeProperty('--key-tip-room');
+    exit(el);
+  };
+  const answer = (make) => {
+    if (!make) {
+      const before = asked();
+      try { localStorage.setItem(keyAskedAt(), JSON.stringify({ times: (before?.times || 0) + 1, at: Date.now() })); } catch { /* asked again next visit */ }
+    }
+    away();
+    if (make) newRecoveryKey();
+  };
+  const show = () => {
+    timer = 0;
+    if (!here || tip || !due()) return;
+    if (busy()) { timer = setTimeout(show, BEAT.slow); return; }
+    const make = h('button', { type: 'button', class: 'btn btn-main btn-small', onclick: () => answer(true) }, 'Make one');
+    const later = h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: () => answer(false) }, 'Not now');
+    tip = h('div', { class: 'tip key-tip', role: 'note' },
+      h('p', { class: 'tip-title' }, 'A way back in'),
+      h('p', { class: 'tip-text' }, 'If you ever forget your code, a recovery key gets you back in.'),
+      h('div', { class: 'tip-btns' }, make, later));
+    document.body.append(tip);
+    // On a phone it sits across the foot, so toasts stand above it.
+    document.body.style.setProperty('--key-tip-room', `${tip.offsetHeight + 24}px`);
+  };
+  return {
+    // true while you're on your own galaxy (not out in the universe)
+    set(on) {
+      here = on;
+      if (!on) { clearTimeout(timer); timer = 0; away(); return; }
+      if (!timer && !tip) timer = setTimeout(show, BEAT.slow);
+    },
+  };
 }
 
 export async function newRecoveryKey() {

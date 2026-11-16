@@ -312,7 +312,7 @@ RECIPE = ('Banana bread\nServes 8\n\nIngredients\n- 3 ripe bananas\n- 250 g flou
           'Method\n1. Mash the bananas.\n2. Fold in the flour.\n3. Bake 50 minutes at 180C.')
 
 
-def seed():
+def seed(work):
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
@@ -379,6 +379,14 @@ def seed():
     ids['key'] = json.load(urllib.request.build_opener().open(urllib.request.Request(
         SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
         data=json.dumps({'username': 'forgetter', 'pin': '304857'}).encode()), timeout=20))['recoveryKey']
+
+    # someone whose account is from before recovery keys: theirs is taken away, as if never given
+    urllib.request.build_opener().open(urllib.request.Request(
+        SITE + '/api/auth/signup', method='POST', headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+        data=json.dumps({'username': 'keyless', 'pin': '415926'}).encode()), timeout=20)
+    import sqlite3
+    with sqlite3.connect(os.path.join(work, 'data', 'mutt.db')) as c:
+        c.execute("UPDATE users SET recovery_hash = NULL WHERE username = 'keyless'")
 
     # a postcard written twice, so it has a history (its first words kept)
     wish = next(b['id'] for b in send('GET', f'/api/drawers/{ids["Postcards"]}')['blocks'] if b['content'] == 'wish you were here')
@@ -810,9 +818,47 @@ def send_to_top(s, seeded):
            'the new order was not kept after a reload', 8, (last,))
     s.shot('send-to-bottom-kept')
 
+def key_nudge(s, seeded):
+    """An account with no recovery key is asked once, on its own galaxy, to make one; Not now is remembered."""
+    s.go('/')
+    s.sign_out()
+    s.go('/login')
+    s.see('.login-name', 'the sign-in page did not appear')
+    s.settle(1.5)
+    give_name(s, 'keyless')
+    s.wait('return /welcome back/i.test(document.querySelector(".login-prompt")?.textContent || "")',
+           'a known name was not welcomed back')
+    enter_code(s, '415926')
+    s.wait('return location.pathname === "/" && !!document.querySelector(".void-core")', 'signing in did not open the galaxy', 12)
+    tip = s.see('.key-tip', 'an account with no recovery key was not asked to make one', 12)
+    if 'recovery key' not in s.js('return arguments[0].textContent', tip):
+        raise Fail('the tip does not say what a recovery key is for')
+    s.settle(1)
+    s.shot('key-tip')
+    s.size(PHONE)
+    try:
+        s.settle(0.6)
+        s.no_sideways_scroll('The galaxy with the key tip')
+        s.shot('phone-key-tip')
+    finally:
+        s.size(DESK)
+    s.click(s.named('.key-tip button', 'Not now', 'the tip had no Not now'))
+    s.gone('.key-tip', 'Not now did not put the tip away')
+    s.go('/')
+    s.wait('return !!document.querySelector(".void-core")', 'the galaxy did not load again')
+    s.settle(5.5)   # longer than the tip waits before it asks
+    if s.js('return !!document.querySelector(".key-tip")'):
+        raise Fail('the key tip came back right after Not now')
+    # a week later it asks once more, and Make one gives the key
+    s.js('localStorage.setItem("mutt:key-asked:keyless", JSON.stringify({ times: 1, at: Date.now() - 8 * 864e5 }))')
+    s.go('/')
+    s.click(s.named('.key-tip button', 'Make one', 'the tip did not ask again a week after Not now', 12))
+    s.wait('return /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/.test(document.querySelector(".rk-key")?.value || "")',
+           'Make one did not give a recovery key')
+
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top, forgot_code]
+         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top, forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):
@@ -825,7 +871,7 @@ def run(start_server, stop_server, verbose=False, keep=False, only=()):
     server = start_server(work, PORT)
     s, passed, fails = None, 0, []
     try:
-        seeded = seed()
+        seeded = seed(work)
         try:
             s = SafariEngine() if webkit else Browser()
         except Fail as e:

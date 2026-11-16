@@ -12,7 +12,7 @@ import { closeTopLayer, confirmDialog, openContextMenu, openMenu, sectionHead, s
 import { BEAT, bus, DUR, EASE_LEAVE, h, plural } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
-import { changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
+import { askForKey, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
 import { searchBody } from './search.js';
 import { icon } from './icons.js';
 import { commentNotes } from './commentnotes.js';
@@ -334,7 +334,13 @@ export function createStatusbar() {
   const notes = commentNotes();
   clock.addEventListener('click', () => { if (session.user) notes.togglePast(); });
   notes.onPast((on) => clock.setAttribute('aria-expanded', String(on)));
-  const showNotes = () => notes.set(!!session.user && current?.chrome === 'galaxy' && !!current?.who?.you && !out);
+  // A recovery key, asked for once on your own galaxy if you have none.
+  const keyTip = askForKey();
+  const showNotes = () => {
+    const home = !!session.user && current?.chrome === 'galaxy' && !!current?.who?.you && !out;
+    notes.set(home);
+    keyTip.set(home);
+  };
   const showHome = () => {
     home.hidden = !session.user || !current?.home;
     // On a phone the arrow sits in the bar, so the bar makes room for it.

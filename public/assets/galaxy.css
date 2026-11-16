@@ -941,7 +941,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .cn-when { flex: none; font: var(--type-fact); color: var(--ink-3); }
 .cn-said { font: var(--type-caption); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ---- tip: Mutt speaking once (the sharing tip, the phone note). .tip > .tip-title, .tip-text, .tip-btns */
+/* ---- tip: Mutt speaking once (the sharing tip, the phone note, the recovery key ask). .tip > .tip-title, .tip-text, .tip-btns */
 .tip { width: min(300px, calc(100vw - 32px)); padding: var(--space-16); border-radius: var(--r-panel); }
 .tip-title { font: var(--type-label); color: var(--ink); }
 .tip-text { margin-top: var(--space-4); font: 400 var(--text-label)/18px var(--sans); color: var(--ink-2); }
@@ -3869,6 +3869,17 @@ html[data-motion="off"] .cb-steam { display: none; }
 @keyframes phone-note-out { to { opacity: 0; translate: 0 6px; } }
 body:has(> .phone-note) .toasts { bottom: calc(env(safe-area-inset-bottom) + 104px); }
 .phone-note.is-leaving { pointer-events: none; }
+
+/* Asking for a recovery key (askForKey in account.js): Mutt speaking once, on your own galaxy. At the foot on
+   the left, clear of the Universe cue and of toasts; on a phone across the foot like the phone note, toasts above it. */
+.key-tip { position: fixed; left: var(--space-24); bottom: calc(env(safe-area-inset-bottom) + var(--space-24)); z-index: var(--z-sheet); }
+.key-tip > * { animation: phone-note-in var(--dur-arrive) var(--ease-settle) both; }
+.key-tip.is-leaving { pointer-events: none; }
+.key-tip.is-leaving > * { animation: phone-note-out var(--dur-change) var(--ease-leave) both; }
+@media (max-width: 720px) {
+  .key-tip { left: var(--space-16); right: var(--space-16); bottom: calc(env(safe-area-inset-bottom) + var(--space-16)); width: auto; }
+  body:has(> .key-tip) .toasts { bottom: calc(env(safe-area-inset-bottom) + var(--key-tip-room, var(--space-48))); }
+}
 
 /* ------------------------------------------------------------------ documents, before the desk loads
    The rest of the documents' styles are in docs.css, fetched only when a

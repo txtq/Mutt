@@ -1882,7 +1882,7 @@ body.no-chrome #view { padding: 0; }
 }
 .liv-world.has-left .moon.is-beside { left: 50%; }
 @keyframes moon-bob { from { transform: translateY(-3px); } to { transform: translateY(3px); } }
-.moon.is-beside.is-born { animation: moon-born var(--dur-scene) var(--ease-settle) backwards, moon-bob var(--beat-rest) ease-in-out var(--bob, 0s) infinite alternate; }
+.moon.is-beside.is-born { animation: moon-born var(--dur-scene) var(--ease-settle) var(--born-at, var(--dur-none)) backwards, moon-bob var(--beat-rest) ease-in-out var(--bob, 0s) infinite alternate; }
 @keyframes moon-born { from { opacity: 0; transform: scale(0.2); } }
 /* on a moon's page, its planet sits beside it, small */
 .liv-world .planet.liv-parent {

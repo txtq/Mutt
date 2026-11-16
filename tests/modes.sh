@@ -58,3 +58,37 @@ echo "a long list isn't writing: $(m "- eggs, milk, tea, jam, rice
 " 60 "" "")"
 echo "waved away on a planet: $(mode $L '{"writing":{"dismissed":true}}' "d['drawer']['modes']['writing']") -> $(m "$S" 16 "" "$L")"
 echo "no text: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/moment -d '{}' | j "d['error']")"
+
+echo "-- split into moons (two clearly different things, each 25%+ and 4+ files)"
+SF="(d['split']['fits'], d['split']['share'], d['split']['count'], [(g['name'], g['count'], g['stays']) for g in d['split']['groups']])"
+W=$(planet "Weekends")
+for i in 1 2 3; do note $W "Bouldering session $i at the crag, crimps and chalk" >/dev/null; note $W "Threw bowls on the wheel ($i), glaze in the kiln" >/dev/null; done
+echo "3 and 3 (too few): $(signs $W "$SF")"
+for i in 4 5 6 7 8 9 10 11 12 13; do note $W "Bouldering session $i at the crag, crimps and chalk" >/dev/null; done
+P4=$(note $W "Threw bowls on the wheel (4), glaze in the kiln")
+note $W "call the plumber about the tap" >/dev/null
+echo "13 and 4 of 18 (22%): $(signs $W "$SF")"
+for i in 1 2; do curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/blocks/$(curl -s "${C[@]}" $B/api/drawers/$W | j "[b['id'] for b in d['blocks'] if b['content'].startswith('Bouldering')][0]"); done
+echo "11 and 4 of 16 (25%): $(signs $W "$SF")"
+echo "its signs: $(signs $W "d['split']['signs']")"
+echo "it can't be switched on: $(mode $W '{"split":{"on":true}}' "d['error']")"
+echo "split waved away: $(mode $W '{"split":{"dismissed":true}}' "d['drawer']['modes']['split']")"
+BEFORE=$(curl -s "${C[@]}" $B/api/drawers/$W | j "[b['id'] for b in d['blocks']]")
+echo "split it: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$W/split -d '{}' | j "d['drawer']['count'], [(m['title'], m['count'], m['visibility']) for m in d['drawer']['moons']], sorted(len(v) for v in d['moved'].values())")"
+echo "left on the planet: $(curl -s "${C[@]}" $B/api/drawers/$W | j "[b['content'] for b in d['blocks']]") $(signs $W "d['split']['fits']")"
+MOON=$(curl -s "${C[@]}" $B/api/drawers/$W | j "d['drawer']['moons'][0]['id']")
+echo "what moved stays on the server: $(curl -s "${C[@]}" $B/api/drawers/$W | j "d['drawer']['modes']['split']")"
+echo "a moon is never offered a split: $(signs $MOON "'split' in d")"
+echo "undo: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$W/split/undo -d '{}' | j "d['drawer']['count'], d['drawer']['moons'], len(d['blocks']), len(d['back'])")"
+echo "back in their places: $(curl -s "${C[@]}" $B/api/drawers/$W | j "[b['id'] for b in d['blocks']] == $BEFORE")"
+echo "undo twice: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$W/split/undo -d '{}' | j "d['error']")"
+
+echo "-- named after one of them, and the most moons"
+K=$(planet "Climbing")
+for i in 1 2 3 4; do note $K "Bouldering session $i at the crag, crimps and chalk" >/dev/null; note $K "Threw bowls on the wheel ($i), glaze in the kiln" >/dev/null; done
+MOONS=$(for t in One Two Three Four Five Six Seven Eight; do curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"$t\",\"parent\":\"$K\"}" | j "d['drawer']['id']"; done)
+echo "8 moons already: $(signs $K "$SF")"
+echo "split refused: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$K/split -d '{}' | j "d['error']")"
+curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/drawers/$(echo $MOONS | cut -d' ' -f1)
+echo "7 moons: $(signs $K "$SF")"
+echo "split the climbing planet: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$K/split -d '{}' | j "d['drawer']['count'], [(m['title'], m['count']) for m in d['drawer']['moons']][-1]")"

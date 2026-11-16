@@ -11,7 +11,7 @@ import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { DUR, EASE, EASE_LEAVE, PALETTE, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
+import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
@@ -294,7 +294,8 @@ export const planetView = {
     const besideSize = Math.round(worldSize * 0.32);
     const worldBox = h('div', { class: 'liv-world', style: { '--ws': `${worldSize}px`, '--bs': `${besideSize}px` } }, world);
     const moonSlots = [];
-    function renderMoons({ born = null } = {}) {
+    function renderMoons({ born = [] } = {}) {
+      const fresh = [].concat(born);
       for (const m of moonSlots.splice(0)) m.remove();
       if (isMoon) return;
       (drawer.moons || []).forEach((m, i) => {
@@ -306,7 +307,10 @@ export const planetView = {
         el.style.setProperty('--bob', `${(seedOf(m.id) * -6).toFixed(2)}s`);
         moonSlots.push(el);
         worldBox.append(el);
-        if (m.id === born) el.classList.add('is-born');
+        if (fresh.includes(m.id)) {
+          el.classList.add('is-born');
+          el.style.setProperty('--born-at', `${fresh.indexOf(m.id) * STAGGER}ms`);
+        }
       });
       worldBox.classList.toggle('has-moons', moonSlots.length > 0);
       worldBox.classList.toggle('has-left', moonSlots.length > 1);
@@ -744,6 +748,7 @@ export const planetView = {
       turnOff: (key) => turnOff(key),
       modeView: (key) => modeView(key),
       docs: { open: (bid) => openDoc(bid), create: () => newDoc() },
+      split: () => splitIntoMoons(),
     };
     const allowed = (key) => modeAllowed(key, drawer);
     const build = (key, blocks) => MODES[key].view(codeOf(key), page, blocks);
@@ -813,6 +818,12 @@ export const planetView = {
 
     // undo: say it with an Undo (for a mode that switched on by itself).
     async function turnOn(key, { quiet = false, undo = false } = {}) {
+      if (MODES[key].act) {
+        // It acts once (split) rather than showing the planet another way.
+        const ok = await MODES[key].act(page);
+        if (ok) offer = null;
+        return ok;
+      }
       try {
         const made = await MODES[key].start(await loadMode(key), page);
         await swapTo(key, made.view);
@@ -837,6 +848,56 @@ export const planetView = {
       toast('Showing it as files again', {
         action: { label: 'Undo', run: async () => { if (!active && await saveMode(key, { on: true })) swapTo(key, build(key, blocks)); } },
       });
+    }
+
+    // ------------------------------------------------------------ split into moons
+    //
+    // A planet grown into clearly different things gives each a moon of its
+    // own, and its files go there (the server's mutt/split.py says which).
+    // The new moons arrive beside the world in turn, the files leave the grid
+    // in one glide, and Undo puts every file back where it was.
+    async function splitIntoMoons() {
+      if (active) return false;
+      let res;
+      try {
+        res = await api.post(`/api/drawers/${id}/split`, {});
+      } catch (err) {
+        toast(err.message);
+        return false;
+      }
+      const gone = new Set(Object.values(res.moved).flat());
+      setDrawer({ ...drawer, ...res.drawer });
+      renderMoons({ born: res.made });
+      collection?.setBlocks(collection.blocks.filter((b) => !gone.has(b.id)));
+      for (const m of moonSlots) if (res.moved[m.moon.id] && !res.made.includes(m.moon.id)) m.gulp?.();
+      bus.emit('drawer:changed', drawer);
+      readSigns();
+      const n = Object.keys(res.moved).length;
+      toast(res.made.length ? `Split into ${plural(n, 'moon')}` : `Moved to ${n === 1 ? 'its moon' : plural(n, 'moon')}`, {
+        action: { label: 'Undo', run: undoSplit },
+      });
+      return true;
+    }
+
+    async function undoSplit() {
+      let res;
+      try {
+        res = await api.post(`/api/drawers/${id}/split/undo`, {});
+      } catch (err) {
+        toast(err.message);
+        return;
+      }
+      const still = new Set((res.drawer.moons || []).map((m) => m.id));
+      const leaving = moonSlots.filter((m) => !still.has(m.moon.id));
+      if (!reducedMotion()) {
+        await Promise.all(leaving.map((m) => m.animate([{ opacity: 1 }, { opacity: 0 }],
+          { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {})));
+      }
+      setDrawer({ ...drawer, ...res.drawer });
+      renderMoons();
+      collection?.setBlocks(res.blocks);
+      bus.emit('drawer:changed', drawer);
+      readSigns();
     }
 
     // ------------------------------------------------------------ Mutt documents

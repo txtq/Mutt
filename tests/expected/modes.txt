@@ -1,6 +1,6 @@
 -- every mode from one place
-modes reported: ['cookbook', 'documents', 'list', 'reading']
-how each arrives: ['cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer']
+modes reported: ['cookbook', 'documents', 'list', 'reading', 'split']
+how each arrives: ['cookbook: offer', 'documents: offer', 'list: offer', 'reading: offer', 'split: offer']
 nothing fits an empty planet: []
 -- settings, all checked one way
 unknown setting: Those reading settings could not be saved.
@@ -29,3 +29,22 @@ a short note: {'fits': False, 'say': None}
 a long list isn't writing: {'fits': False, 'say': None}
 waved away on a planet: {'on': False, 'dismissed': True} -> None
 no text: Nothing to read.
+-- split into moons (two clearly different things, each 25%+ and 4+ files)
+3 and 3 (too few): (False, 0.5, 3, [('Pottery', 3, False), ('Climbing', 3, False)])
+13 and 4 of 18 (22%): (False, 0.22, 4, [('Climbing', 13, False), ('Pottery', 4, False)])
+11 and 4 of 16 (25%): (True, 0.25, 4, [('Climbing', 11, False), ('Pottery', 4, False)])
+its signs: ['11 files are about climbing and 4 about pottery.', '1 other fits neither.']
+it can't be switched on: Those split settings could not be saved.
+split waved away: {'on': False, 'dismissed': True}
+split it: 1 [('Climbing', 11, 'public'), ('Pottery', 4, 'public')] [4, 11]
+left on the planet: ['call the plumber about the tap'] False
+what moved stays on the server: {'on': False, 'dismissed': True}
+a moon is never offered a split: False
+undo: 16 [] 16 15
+back in their places: True
+undo twice: There’s no split to undo.
+-- named after one of them, and the most moons
+8 moons already: (False, 0.0, 0, [])
+split refused: There’s nothing here to split any more.
+7 moons: (True, 0.5, 4, [('Pottery', 4, False), ('Climbing', 4, True)])
+split the climbing planet: 4 ('Pottery', 4)

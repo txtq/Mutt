@@ -15,6 +15,8 @@
 //   start     (m, page) turns it on at the server; gives { view, say, after }
 //   blocks    (view) the files its view holds, for showing them as files again
 //   offer     (signs) the words of its offer: { title, note, accept, busy, icon }
+//   act       (page) for one that does something once instead of showing the
+//             planet another way (split): runs in place of load/view/start
 //   menu      (page) what the ••• menu holds while it's on
 //   leave     (page) puts away anything of its own when the page goes
 //   pageClass a class the page wears while it's on
@@ -168,14 +170,44 @@ export const MODES = {
     menu: (page) => [{ icon: 'plus', label: 'New document', run: () => page.docs.create() }, showAsFiles(page, 'documents')],
   },
 
+  // Not a way of showing the planet: accepting it splits the planet once into
+  // moons (`act` instead of `load`/`view`), so it needs no code of its own.
+  // The server's mutt/split.py says which files go where.
+  split: {
+    label: 'Split into moons',
+    icon: 'moon',
+    drawing: 'moons',
+    name: 'split into moons',
+    moons: false,
+    act: (page) => page.split(),
+    offer: (signs) => {
+      const groups = signs.groups || [];
+      const going = groups.filter((g) => !g.stays).map((g) => g.word);
+      const staying = groups.filter((g) => g.stays).map((g) => g.word);
+      const moves = going.length === 1
+        ? `${going[0]} moves to a moon of its own`
+        : `${andList(going)} each move to a moon of their own`;
+      const stays = staying.length ? `, and ${andList(staying)} ${staying.length === 1 ? 'stays' : 'stay'} here` : '';
+      return {
+        title: `This planet holds ${signs.thingsWord || 'two'} things`,
+        note: `${moves[0].toUpperCase()}${moves.slice(1)}${stays}. Nothing is lost, and it can be undone.`,
+        accept: 'Split into moons',
+        busy: 'Making the moons…',
+      };
+    },
+  },
+
 };
+
+// "climbing, pottery and knitting"
+const andList = (words) => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`);
 
 // A planet saved with more than one mode on shows the first of these.
 export const SHOW_ORDER = ['list', 'reading', 'documents', 'cookbook'];
 // Which is suggested first when a planet fits more than one.
-export const OFFER_ORDER = ['reading', 'cookbook', 'documents', 'list'];
+export const OFFER_ORDER = ['reading', 'cookbook', 'documents', 'list', 'split'];
 // The order they stand in the ••• menu.
-export const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents'];
+export const MENU_ORDER = ['list', 'reading', 'cookbook', 'documents', 'split'];
 
 export const allowed = (key, drawer) => MODES[key].moons || !drawer.parentId;
 

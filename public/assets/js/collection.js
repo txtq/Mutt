@@ -156,6 +156,14 @@ export class Collection {
     this.grid.update(this.blocks[i]);
   }
 
+  // Many files leaving or coming back at once (a planet split into moons, and
+  // its Undo): one glide for all of them.
+  setBlocks(blocks) {
+    this.blocks = blocks;
+    this.render('flip');
+    this.onChange?.(this.blocks);
+  }
+
   drop(id) {
     const i = this.blocks.findIndex((b) => b.id === id);
     if (i < 0) return;

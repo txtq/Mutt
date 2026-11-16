@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import auth, books, convert, db, documents, export, kinds, links, media, privacy, recipes, sight, sorting, transcode
 from . import modes as modes_registry
+from . import split as split_moons
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
 
 MAX_UPLOAD = int(float(os.environ.get('MUTT_MAX_UPLOAD_MB', '50')) * 1024 * 1024)
@@ -166,7 +167,7 @@ def drawer_json(row, count=None, previews=None):
         'x': row['x'] if 'x' in row.keys() else None,
         'y': row['y'] if 'y' in row.keys() else None,
         'parentId': row['parent_id'] if 'parent_id' in row.keys() else None,
-        'modes': drawer_modes(row),
+        'modes': shown_modes(row),
         'hasCode': bool(row['share_hash']) if 'share_hash' in row.keys() else False,
     }
     if count is not None:
@@ -204,6 +205,15 @@ def drawer_modes(row):
         return json.loads(row['modes'] or '{}') if 'modes' in row.keys() else {}
     except ValueError:
         return {}
+
+
+def shown_modes(row):
+    """A planet's modes as the page gets them: what a split moved (kept for
+    its Undo) stays on the server."""
+    saved = drawer_modes(row)
+    if isinstance(saved.get('split'), dict) and 'last' in saved['split']:
+        saved['split'] = {k: v for k, v in saved['split'].items() if k != 'last'}
+    return saved
 
 
 LIST_DEFAULTS = modes_registry.LIST_DEFAULTS
@@ -1453,6 +1463,21 @@ def list_drawers(req):
     return json_response({'drawers': drawers, 'totalBlocks': stats['files'], 'stats': stats})
 
 
+def moon_start(req, parent):
+    """How a new moon of `parent` starts: (visibility, people, modes). It
+    follows its planet's sharing, and a moon of a list starts as a list too,
+    marked the same way (its owner can show it as files like any planet)."""
+    people = []
+    if parent['visibility'] == 'people':
+        people = [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (parent['id'],))]
+    modes = {}
+    parent_list = drawer_modes(parent).get('list') or {}
+    if parent_list.get('on'):
+        modes = clean_modes({'list': {k: v for k, v in parent_list.items() if k in LIST_DEFAULTS}
+                             | {'on': True, 'dismissed': False}}, {})
+    return parent['visibility'], people, modes
+
+
 @route('POST', r'/api/drawers')
 def create_drawer(req):
     body = req.json()
@@ -1482,18 +1507,12 @@ def create_drawer(req):
             raise HttpError(400, f'A planet can have up to {MAX_MOONS} moons.')
         if body.get('community'):
             raise HttpError(400, 'Moons can only be added to by their owner.')
-        visibility = body.get('visibility') or parent['visibility']
-        if 'visibility' not in body and parent['visibility'] == 'people':
-            people = [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (parent['id'],))]
+        visibility, people, modes = moon_start(req, parent)
+        if 'visibility' in body:
+            visibility, people = body.get('visibility') or visibility, []
         if visibility not in VISIBILITY:
             raise HttpError(400, 'That sharing setting could not be saved.')
         parent_id = parent['id']
-        # A moon of a list starts as a list too, marked the same way. Its
-        # owner can show it as files like any planet.
-        parent_list = drawer_modes(parent).get('list') or {}
-        if parent_list.get('on'):
-            modes = clean_modes({'list': {k: v for k, v in parent_list.items() if k in LIST_DEFAULTS}
-                                 | {'on': True, 'dismissed': False}}, {})
     if body.get('community') and visibility != 'public':
         raise HttpError(400, 'Only a public planet can take files from others.')
     drawer_id = new_id()
@@ -1948,6 +1967,109 @@ def rename_chapter(req, drawer_id):
         modes = clean_modes({'cookbook': {'chapters': order}}, modes)
         req.db.execute('UPDATE drawers SET modes = ? WHERE id = ?', (json.dumps(modes), drawer_id))
     return json_response(recipe_box(req, own_drawer(req, drawer_id)))
+
+
+# ---------------------------------------------------------------- split into moons
+
+def save_split(req, row, last):
+    saved = drawer_modes(row)
+    state = {**(saved.get('split') or {})}
+    if last:
+        state['last'] = last
+    else:
+        state.pop('last', None)
+    saved['split'] = state
+    req.db.execute('UPDATE drawers SET modes = ? WHERE id = ?', (json.dumps(saved), row['id']))
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/split')
+def split_drawer(req, drawer_id):
+    """Give each clearly different thing on a planet a moon of its own and move
+    its files there (mutt/split.py says which). The planet keeps what fits no
+    group, the group it's named after, and other people's files. What moved is
+    kept on the planet (modes.split.last) so Undo can put it all back."""
+    row = own_drawer(req, drawer_id)
+    if row['parent_id']:
+        raise HttpError(400, 'A moon can’t have moons.')
+    plan = split_moons.plan(req.db, row, modes_registry.Reading(req.db, row).files, MAX_MOONS)
+    going = [g for g in plan['groups'] if not g['stays']]
+    if not going:
+        raise HttpError(400, 'There’s nothing here to split any more.')
+    stamp = now()
+    made, moved, moons = [], [], {}
+    with db.transaction(req.db):
+        visibility, people, modes = moon_start(req, row)
+        for g in going:
+            moon_id = g['moon']
+            if not moon_id:
+                moon_id = new_id()
+                req.db.execute(
+                    'INSERT INTO drawers (id, user_id, title, description, icon, created_at, updated_at, community, '
+                    'visibility, parent_id, modes, own_sharing) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0)',
+                    (moon_id, req.user['id'], g['name'], '', json.dumps(default_icon()), stamp, stamp, visibility,
+                     row['id'], json.dumps(modes)))
+                for user_id in people:
+                    req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (moon_id, user_id))
+                made.append(moon_id)
+            high = req.db.execute('SELECT MAX(position) FROM connections WHERE drawer_id = ?', (moon_id,)).fetchone()[0]
+            at = (high + 1) if high is not None else 0
+            for block_id in g['ids']:
+                spot = req.db.execute('SELECT position, checked FROM connections WHERE drawer_id = ? AND block_id = ?',
+                                      (row['id'], block_id)).fetchone()
+                if not spot:
+                    continue
+                there = req.db.execute('SELECT 1 FROM connections WHERE drawer_id = ? AND block_id = ?',
+                                       (moon_id, block_id)).fetchone()
+                req.db.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id = ?', (row['id'], block_id))
+                if not there:
+                    req.db.execute('INSERT INTO connections (block_id, drawer_id, position, connected_at, checked) '
+                                   'VALUES (?, ?, ?, ?, ?)', (block_id, moon_id, at, stamp, spot['checked']))
+                    at += 1
+                moved.append([block_id, moon_id, spot['position'], spot['checked'], bool(there)])
+                moons.setdefault(moon_id, []).append(block_id)
+            req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, moon_id))
+        req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, row['id']))
+        save_split(req, row, {'at': stamp, 'made': made, 'moved': moved})
+    row = own_drawer(req, drawer_id)
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (drawer_id,)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count), 'made': made, 'moved': moons})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/split/undo')
+def unsplit_drawer(req, drawer_id):
+    """Put a split back: every file it moved returns to its old place on the
+    planet, and the moons it made go, unless something new was put on one
+    since (that moon stays, with only the new things)."""
+    row = own_drawer(req, drawer_id)
+    last = (drawer_modes(row).get('split') or {}).get('last')
+    if not last:
+        raise HttpError(400, 'There’s no split to undo.')
+    stamp = now()
+    back = []
+    with db.transaction(req.db):
+        for block_id, moon_id, position, checked, was_there in last.get('moved') or []:
+            on_moon = req.db.execute('SELECT 1 FROM connections WHERE drawer_id = ? AND block_id = ?',
+                                     (moon_id, block_id)).fetchone()
+            alive = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND deleted_at IS NULL', (block_id,)).fetchone()
+            if not alive or (not on_moon and not was_there):
+                continue  # deleted, or moved on by hand since
+            if on_moon and not was_there:
+                req.db.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id = ?', (moon_id, block_id))
+            req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, checked) '
+                           'VALUES (?, ?, ?, ?, ?)', (block_id, row['id'], position, stamp, checked))
+            back.append(block_id)
+        for moon_id in last.get('made') or []:
+            left = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (moon_id,)).fetchone()[0]
+            if not left:
+                req.db.execute('DELETE FROM drawers WHERE id = ? AND parent_id = ? AND user_id = ?',
+                               (moon_id, row['id'], req.user['id']))
+            else:
+                req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, moon_id))
+        req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, row['id']))
+        save_split(req, row, None)
+    row = own_drawer(req, drawer_id)
+    blocks = blocks_in_drawer(req, drawer_id, community=bool(row['community']))
+    return json_response({'drawer': planet_json(req, row, len(blocks)), 'blocks': blocks, 'back': back})
 
 
 @route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/listify')

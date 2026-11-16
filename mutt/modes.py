@@ -32,7 +32,7 @@ planet, and moment() answers every moment mode for one piece of text.
 """
 import json
 
-from . import books, documents, recipes, sorting
+from . import books, documents, recipes, sorting, split
 from .web import HttpError
 
 ARRIVES = ('offer', 'undo', 'quiet')
@@ -40,7 +40,7 @@ ARRIVES = ('offer', 'undo', 'quiet')
 
 class Mode:
     def __init__(self, key, read, kind='planet', words=None, on=0.6, stay=0.4, least=1, moons=False,
-                 arrives='offer', settings=None, defaults=None):
+                 arrives='offer', settings=None, defaults=None, shows=True):
         assert kind in ('planet', 'moment') and arrives in ARRIVES and 0 <= stay <= on <= 1
         self.key = key
         self.read = read
@@ -52,6 +52,7 @@ class Mode:
         self.moons = moons
         self.arrives = arrives
         self.settings = settings or {}
+        self.shows = shows             # False: accepting it acts once and it is never "on" (split)
         self.defaults = {'on': False, 'dismissed': False, **(defaults or {})}
 
 
@@ -153,6 +154,16 @@ def read_documents(ctx):
     return {**signs, 'count': signs['long'], 'share': _share(signs['long'], len(ctx.files))}
 
 
+def read_split(ctx):
+    """A planet grown into two or more clearly different things: its second
+    biggest group is the share (so both are real), and only planets, never
+    moons, with room for another moon (mutt/split.py)."""
+    from .api import MAX_MOONS  # api imports this file; by now it's loaded
+    found = split.plan(ctx.conn, ctx.row, ctx.files, MAX_MOONS)
+    found['groups'] = [{k: v for k, v in g.items() if k != 'ids'} for g in found['groups']]
+    return found
+
+
 PLANET_MODES = [
     Mode('list', read_list, on=0.6, stay=0.4, moons=True,
          settings={'doneLast': flag, 'type': one_of('check', 'bullet', 'number', 'plain'),
@@ -164,6 +175,9 @@ PLANET_MODES = [
          settings={'chapters': names(40, recipes.MAX_CHAPTER)}),
     Mode('documents', read_documents, words='document', on=0.5, stay=0.3, moons=True,
          settings={'sort': one_of(*documents.SORTS)}),
+    # Not a way of showing the planet: accepting it splits the planet once (it
+    # is never "on"), so its bars only say when to offer it and keep it in the menu.
+    Mode('split', read_split, words='split', on=0.25, stay=0.15, least=4, shows=False),
 ]
 
 
@@ -220,6 +234,8 @@ def clean(value, current, moon=False):
                 merged[name] = check(v)
             except ValueError:
                 raise sorry from None
+        if merged.get('on') and not mode.shows:
+            raise sorry
         if moon and not mode.moons and merged.get('on'):
             raise HttpError(400, 'Moons can’t be that.')
         saved[key] = merged

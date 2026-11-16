@@ -857,8 +857,79 @@ def key_nudge(s, seeded):
            'Make one did not give a recovery key')
 
 
+
+def split_moons(s, seeded):
+    """A planet of two clearly different things offers to split into moons once, in place; Not now
+    keeps it in the ••• menu; splitting makes a moon for each and moves the files; Undo puts all back."""
+    made = s.js('''return (async () => {
+        const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const { drawer } = await post('/api/drawers', { title: 'Weekends' });
+        await fetch(`/api/drawers/${drawer.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify({ modes: { shareTip: false } }) });
+        for (let n = 1; n <= 4; n++) {
+          await post('/api/blocks', { content: `Bouldering session ${n} at the crag today. My fingers are sore from the crimps, and there was chalk everywhere by the end of it.`, drawer: drawer.id });
+          await post('/api/blocks', { content: `Threw bowls on the wheel this evening (${n}). They need trimming before the glaze, and then they go in the kiln on Saturday.`, drawer: drawer.id });
+        }
+        await post('/api/blocks', { content: 'The tap in the kitchen is dripping again. I should ask someone to come and look at it next week.', drawer: drawer.id });
+        return drawer.id;
+      })()''')
+    files = 'return document.querySelectorAll(".cell[data-id]").length'
+    moons = 'return document.querySelectorAll(".liv-world .moon.is-beside").length'
+    s.size(PHONE)
+    try:
+        s.go(f'/p/{made}')
+        s.see('.lm-offer', 'a planet of climbing and pottery was not offered a split at phone width')
+        s.settle(0.8)
+        s.no_sideways_scroll('The split offer')
+        s.shot('phone-split-offer')
+    finally:
+        s.size(DESK)
+    s.go(f'/p/{made}')
+    offer = s.see('.lm-offer', 'a planet of climbing and pottery was not offered a split')
+    words = s.js('return arguments[0].textContent', offer)
+    if 'two things' not in words or '4 files are about' not in words:
+        raise Fail(f'the split offer should say it holds two things, with the counts; it says: {words}')
+    s.settle(0.8)
+    s.shot('split-offer')
+    s.click(s.named('.lm-offer .btn-quiet', 'Not now', 'the split offer has no "Not now"'))
+    s.gone('.lm-offer', '"Not now" did not put the split offer away')
+    s.go(f'/p/{made}')
+    s.wait(f'{files} === 9', 'the planet should show its 9 files')
+    s.settle(1.5)
+    if s.js('return !!document.querySelector(".lm-offer")'):
+        raise Fail('the split offer came back after "Not now" and a reload')
+    s.js('window.muttErrors = []; addEventListener("error", (e) => muttErrors.push(e.message));'
+         'addEventListener("unhandledrejection", (e) => muttErrors.push(String(e.reason)));')
+    s.click(s.see('[aria-label="Planet options"]', 'the planet page has no ••• menu'))
+    s.click(s.named('.pop button, .pop [role=menuitem]', 'Split into moons', 'the ••• menu has no "Split into moons" after Not now'))
+    s.wait(f'{moons} === 2 && {files[7:]} === 1', 'splitting did not make two moons and leave one file on the planet')
+    s.settle(1.2)
+    s.shot('split-done')
+    got = sorted((m['title'], m['count']) for m in s.fetch(f'/api/drawers/{made}')['drawer']['moons'])
+    if got != [('Climbing', 4), ('Pottery', 4)]:
+        raise Fail(f'the moons should be Climbing and Pottery with 4 files each, got {got}')
+    s.click(s.named('.toast button', 'Undo', 'no Undo was offered after splitting'))
+    s.wait(f'{moons} === 0 && {files[7:]} === 9', 'Undo did not take the moons away and bring the 9 files back')
+    s.settle(1)
+    s.shot('split-undone')
+    # Still: the moons and the files that stay are there at once, nothing left invisible
+    s.js('document.documentElement.dataset.motion = "off"')
+    s.click(s.see('[aria-label="Planet options"]', 'the planet page has no ••• menu'))
+    s.click(s.named('.pop button, .pop [role=menuitem]', 'Split into moons', 'the ••• menu has no "Split into moons" after Undo'))
+    s.wait(f'{moons} === 2 && {files[7:]} === 1', 'under Still, splitting did not make two moons')
+    s.settle(0.3)
+    faint = s.js('return [...document.querySelectorAll(".liv-world .moon.is-beside, .cell[data-id]")]'
+                 '.filter((e) => +getComputedStyle(e).opacity < 0.99).length')
+    if faint:
+        raise Fail(f'under Still, {faint} moon(s) or file(s) were left faint after splitting')
+    errors = s.js('return window.muttErrors')
+    if errors:
+        raise Fail(f'the page had errors while splitting: {errors[:3]}')
+
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top, forgot_code, key_nudge]
+         documents_mode, undo, document_editor, open_book, universe, shared_files, phone, sample_page, keyboard, send_to_top, split_moons,
+         forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

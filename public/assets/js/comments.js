@@ -5,7 +5,7 @@
 
 import { api } from './api.js';
 import { toast } from './ui.js';
-import { DUR, EASE_LEAVE, autosize, fullDate, h, nameColor, reducedMotion, timeAgo, touchScreen } from './util.js';
+import { DUR, EASE_LEAVE, autosize, fullDate, h, nameColor, personLabel, reducedMotion, timeAgo, touchScreen } from './util.js';
 import { icon } from './icons.js';
 
 const LIMIT = 2000;
@@ -23,7 +23,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
   const list = h('ol', { class: 'vw-cm-list', 'aria-live': 'polite' });
   const area = h('textarea', {
     class: 'vw-cm-input', rows: 1, maxlength: LIMIT, spellcheck: 'true',
-    placeholder: owner ? 'Reply…' : `Say something to @${block.owner}…`, 'aria-label': 'Write a comment',
+    placeholder: owner ? 'Reply…' : `Say something to ${block.ownerName || `@${block.owner}`}…`, 'aria-label': 'Write a comment',
   });
   const post = h('button', { type: 'button', class: 'btn btn-main btn-small vw-cm-post', disabled: true }, 'Post');
   const left = h('span', { class: 'vw-cm-left' });
@@ -82,7 +82,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
 
   // The × asks once in place ("Remove?") before it removes anything.
   function removeButton(c, row) {
-    const btn = h('button', { type: 'button', class: 'vw-cm-x', title: c.mine ? 'Take back' : 'Remove comment', 'aria-label': c.mine ? 'Take back your comment' : `Remove @${c.by}'s comment` }, icon('close', 12));
+    const btn = h('button', { type: 'button', class: 'vw-cm-x', title: c.mine ? 'Take back' : 'Remove comment', 'aria-label': c.mine ? 'Take back your comment' : `Remove ${c.byName || `@${c.by}`}’s comment` }, icon('close', 12));
     let armed = 0;
     btn.addEventListener('click', () => {
       if (armed) { clearTimeout(armed); remove(c, row); return; }
@@ -102,7 +102,7 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
     li.append(
       h('div', { class: 'vw-cm-meta' },
         h('span', { class: 'vw-cm-dot', 'aria-hidden': 'true' }),
-        h('a', { class: 'vw-cm-by', href: `/g/${c.by}`, onclick: (e) => { e.preventDefault(); go(`/g/${c.by}`); } }, c.byName || `@${c.by}`),
+        h('a', { class: 'vw-cm-by', href: `/g/${c.by}`, onclick: (e) => { e.preventDefault(); go(`/g/${c.by}`); } }, personLabel(c.by, c.byName)),
         c.byOwner ? h('span', { class: 'vw-cm-tag' }, owner && c.mine ? 'you' : 'owner') : (c.mine ? h('span', { class: 'vw-cm-tag' }, 'you') : null),
         h('time', { class: 'vw-cm-when', datetime: new Date(c.createdAt).toISOString(), title: fullDate(c.createdAt) }, timeAgo(c.createdAt)),
         c.canRemove ? removeButton(c, li) : null),

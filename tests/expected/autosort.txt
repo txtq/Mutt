@@ -22,7 +22,7 @@ and it stays
 all morning' -> Writing (new)
 note '8 Nov. Woke early and wrote for an hour. I felt calm.' -> Morning pages
 note 'Sea bass with lemon and capers: 2 fillets, 1 lemon, 1 tbsp capers. Pan fry 4 min each side.' -> Recipes
-someone else asking: That drawer does not exist.
+someone else asking: That planet does not exist.
 photo details: {'camera': 'SONY ILCE-7M3', 'device': 'camera', 'taken': 1791813791, 'gps': [35.0116, 135.7681]}
 file DSC_0413.jpg -> Kyoto  gist: 0
 file 02 Blue in Green.mp3 -> Records  gist: 0

@@ -12,7 +12,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, toast } from './ui.js';
-import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, paperFaces, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
+import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, paperFaces, personLabel, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
 import { icon } from './icons.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
@@ -726,9 +726,11 @@ function metaRows(block) {
 }
 
 // Someone, as a file's story names them: the name they gave, else their handle; you are "you".
+// A row of its own ("Made by") gives both, "Bob Ray (@bob)"; the fact beside a planet, the name.
 const personName = (p) => (p.username === session.user?.username ? 'you' : p.name || `@${p.username}`);
 function personLink(p) {
-  return h('a', { href: `/g/${p.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${p.username}`); } }, personName(p));
+  const shown = p.username === session.user?.username ? 'you' : personLabel(p.username, p.name);
+  return h('a', { href: `/g/${p.username}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${p.username}`); } }, shown);
 }
 
 // Copies of this same file (saved from it, or what it was saved from) on
@@ -853,7 +855,7 @@ function renderSide() {
     fill(state.side,
       h('h2', { class: 'vw-title vw-title-static' }, displayTitle(block) || 'Untitled'),
       block.description ? h('p', { class: 'vw-desc vw-desc-static' }, block.description) : null,
-      h('a', { class: 'vw-owner', href: `/g/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${owner}`); } }, block.ownerName || `@${owner}`),
+      h('a', { class: 'vw-owner', href: `/g/${owner}`, onclick: (e) => { e.preventDefault(); hooks.go(`/g/${owner}`); } }, personLabel(owner, block.ownerName)),
       actions,
       saveButton(block),
       metaRows(block),

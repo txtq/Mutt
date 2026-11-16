@@ -21,8 +21,8 @@ others can add, on a private planet (expect refused): Only a public planet can t
 open planet made private: False 0
 rule holds: a planet stayed open to all after it was made private -> no
 locked body: True alma Recipes
-no planet code yet: @alma hasn't given this planet a code yet. True
-sign-in code as planet code: That's your sign-in code. Pick a different one, so sharing this planet doesn't share your account.
+no planet code yet: @alma hasn’t given this planet a code yet. True
+sign-in code as planet code: That’s your sign-in code. Pick a different one, so sharing this planet doesn’t share your account.
 bad planet code: 400
 bo sets alma's code: 404
 set planet code: True False

@@ -1,6 +1,6 @@
 moon made: Food True public False
 9th moon: A planet can have up to 8 moons.
-moon of moon: Moons can't have moons.
+moon of moon: Moons can’t have moons.
 community moon: Moons can only be added to by their owner.
 oto can't add moon to mira's: 404
 moon look io: io

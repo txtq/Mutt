@@ -1,9 +1,9 @@
 signup: 200
 device cookie: 1
-1.1.1.1 miss 1: {"error":"That username and code don't match."}
-1.1.1.1 miss 2: {"error":"That username and code don't match."}
-1.1.1.1 miss 3: {"error":"That username and code don't match.","<id>":2}
-1.1.1.1 miss 4: {"error":"That username and code don't match.","<id>":1}
+1.1.1.1 miss 1: {"error":"That username and code don’t match."}
+1.1.1.1 miss 2: {"error":"That username and code don’t match."}
+1.1.1.1 miss 3: {"error":"That username and code don’t match.","<id>":2}
+1.1.1.1 miss 4: {"error":"That username and code don’t match.","<id>":1}
 1.1.1.1 miss 5: {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
 1.1.1.1 miss 6: {"error":"Too many wrong codes. Try again in 30 seconds.","retryAfter":30}
 1.1.1.1 right code (expect 429): 429
@@ -27,6 +27,7 @@ other place, right planet code: ['<id>']
 sharer signs in from the guessing place (expect 200): 200
 sign-up gives a recovery key: 1
 name, as others see it: Sam from climbing
+name, in the people search finds: Sam from climbing
 forgot code on a browser that signed in before: 200
 rule holds: a session without that browser's device cookie set a code without the old one -> no
 wrong key: {"error":"That key isn't right."}

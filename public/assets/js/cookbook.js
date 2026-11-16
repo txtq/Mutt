@@ -360,9 +360,12 @@ export class RecipeBoxView {
   destroy() {
     this.off.forEach((off) => off());
     this.card?.close({ instant: true });
+    closeCooking?.({ instant: true });   // the page went (Back): cooking goes with it
     this.collection.destroy();
   }
 }
+
+let closeCooking = null;
 
 function askName(title, value, confirm) {
   return new Promise((resolve) => {
@@ -998,16 +1001,19 @@ function cook(r, serves, units) {
     ingToggle.setAttribute('aria-expanded', String(open));
   });
 
-  const close = () => {
+  const close = ({ instant = false } = {}) => {
+    if (closeCooking !== close) return;
+    closeCooking = null;
     unlayer();
     release();
     document.removeEventListener('visibilitychange', wake);
     // The room goes and the page comes back as one even fade (a picture of each, so the page's glass keeps its frost).
     const done = () => { el.remove(); leaveRoom(); };
-    if (canTransition()) transition(done, { type: 'room', before: () => [], after: () => [] });
+    if (!instant && canTransition()) transition(done, { type: 'room', before: () => [], after: () => [] });
     else done();
   };
-  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbk-close', 'aria-label': 'Stop cooking', title: 'Stop cooking', onclick: close }, icon('close', 20));
+  closeCooking = close;
+  const closeBtn = h('button', { type: 'button', class: 'btn btn-round cbk-close', 'aria-label': 'Stop cooking', title: 'Stop cooking', onclick: () => close() }, icon('close', 20));
   const main = h('main', { class: 'cbk-main' }, stepNo, sectionEl, text);
   const el = h('div', { class: 'cbk room', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Cooking ${r.title}` },
     h('header', { class: 'cbk-head' }, h('h2', { class: 'cbk-title' }, r.title), ingToggle, closeBtn),

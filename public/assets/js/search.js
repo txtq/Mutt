@@ -9,7 +9,7 @@ import { COLORS, TRAITS, arrange, ensureLooks } from './look.js';
 import { nav } from './nav.js';
 import { planetEl } from './planets.js';
 import { openPopover } from './ui.js';
-import { DUR, debounce, h, nameColor, nameMatch } from './util.js';
+import { DUR, debounce, h, nameColor, nameMatch, personLabel } from './util.js';
 import { icon } from './icons.js';
 
 // ---------------------------------------------------------------- what can be picked
@@ -165,9 +165,10 @@ export const dropHeldSearch = () => { held = null; };
 // How many files gather round the void (gravity.js CAP); a phone is a galaxy under 640 wide.
 const capFor = () => (innerWidth < 640 ? 8 : 12);
 
-// Everyone else's username, fetched once a visit, so you can jump to a galaxy.
+// Everyone else's username (and the name they gave, if any), fetched once a visit, so you can jump to a galaxy.
 let everyone = null;
-const loadEveryone = () => (everyone ||= api.get('/api/users').then((r) => r.users).catch(() => { everyone = null; return []; }));
+const loadEveryone = () => (everyone ||= api.get('/api/users').then((r) => r.users.map((username) => ({ username, name: r.names?.[username] || null })))
+  .catch(() => { everyone = null; return []; }));
 
 // `here` is the page search opened on. On a galaxy (`here.seek`), what it finds doesn't come as a list:
 // it lifts off the planets and gathers round the void (gravity.js), and someone else's galaxy is
@@ -331,7 +332,7 @@ export function searchBody(close, { here = null, sheetEl = null } = {}) {
       e.preventDefault();
       // "@name" and Enter goes straight to that galaxy.
       const top = matchPeople()[0];
-      if (top && /^@/.test(input.value.trim())) { visit(top); return; }
+      if (top && /^@/.test(input.value.trim())) { visit(top.username); return; }
       if (absorb(true)) run.now();
     } else if (e.key === 'ArrowDown' && grav?.active) {
       // on a galaxy, straight to the files round the void (Tab gets there too, past the choices)
@@ -388,23 +389,28 @@ export function searchBody(close, { here = null, sheetEl = null } = {}) {
     }
   }
 
-  // People whose username answers the words typed (no chips: those are about files).
+  // People whose username or own name answers the words typed (no chips: those are about files).
   let users = [];
   function matchPeople() {
     const raw = input.value.trim().toLowerCase();
     const q = raw.replace(/^@/, '');
     if (!raw || /\s/.test(q) || chips().length) return [];
     if (!q) return users.slice(0, 12); // just "@": a few of everyone
-    return users.map((name) => ({ name, score: nameMatch(name, q) }))
-      .filter((u) => u.score !== null)
-      .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name))
-      .slice(0, 8).map((u) => u.name);
+    const best = (u) => {
+      const scores = [u.username, ...(u.name ? u.name.toLowerCase().split(/\s+/) : [])].map((w) => nameMatch(w, q)).filter((x) => x !== null);
+      return scores.length ? Math.min(...scores) : null;
+    };
+    return users.map((u) => ({ u, score: best(u) }))
+      .filter((m) => m.score !== null)
+      .sort((a, b) => a.score - b.score || (a.u.name || a.u.username).localeCompare(b.u.name || b.u.username))
+      .slice(0, 8).map((m) => m.u);
   }
-  const visit = (name) => { close(); nav.go(`/g/${name}`); };
-  const personEl = (name) => h('button', {
-    type: 'button', class: 'search-person', title: `Visit @${name}’s galaxy`,
-    onclick: () => visit(name),
-  }, h('i', { class: 'search-person-dot', style: { '--c': nameColor(name) } }), h('span', { class: 'search-person-name' }, `@${name}`),
+  const visit = (username) => { close(); nav.go(`/g/${username}`); };
+  // "Bob Ray (@bob)", or "@bob" for someone who gave no name.
+  const personEl = ({ username, name }) => h('button', {
+    type: 'button', class: 'search-person', title: `Visit ${name || `@${username}`}’s galaxy`,
+    onclick: () => visit(username),
+  }, h('i', { class: 'search-person-dot', style: { '--c': nameColor(username) } }), h('span', { class: 'search-person-name' }, personLabel(username, name)),
   h('span', { class: 'search-person-go' }, 'Galaxy', icon('chevron-right', 12)));
 
   let planets = [];

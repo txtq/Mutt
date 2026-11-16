@@ -44,6 +44,6 @@ bad setting: Those cookbook settings could not be saved.
 visitor: [('Banana bread', False), ('Chicken curry', False), ('Chocolate mousse', False), ('Lemonade', False)]
 visitor photo: 200
 visitor can't save: That file does not exist.
-visitor can't cookify: That drawer does not exist.
+visitor can't cookify: That planet does not exist.
 private again: That planet does not exist.
 off: {'on': False, 'dismissed': True, 'chapters': ['Desserts', 'Weeknights']}

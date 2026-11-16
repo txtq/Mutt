@@ -172,7 +172,7 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
   const tag = tagFor(block);
   // on the picture itself when its shape is known, else in the corner of the box
   if (tag) (face.classList.contains('face-shape') ? face : box).append(tag);
-  if (block.sharedAt && block.mine !== false) box.append(h('span', { class: 'cell-shared', title: 'Shared to Community' }));
+  if (block.sharedAt && block.mine !== false) box.append(h('span', { class: 'cell-shared', title: 'Shared with everyone' }));
   if (block.mine === false) {
     // Someone else's file: the one thing to do is keep a copy.
     box.append(h('div', { class: 'cell-actions' },
@@ -190,7 +190,7 @@ export function renderCell(block, { actions = block.mine !== false, moderate = f
   },
   box,
   h('div', { class: 'cell-cap' }, h('span', { class: 'cell-title' }, nameOf(block),
-    block.owner ? h('span', { class: 'cell-owner' }, ` @${block.owner}`) : null),
+    block.owner ? h('span', { class: 'cell-owner' }, ` ${block.ownerName || `@${block.owner}`}`) : null),
   alsoOn(block),
   block.commentCount ? h('span', {
     class: 'cell-comments', title: `${block.commentCount} comment${block.commentCount === 1 ? '' : 's'}`,

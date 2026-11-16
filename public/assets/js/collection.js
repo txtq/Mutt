@@ -10,7 +10,7 @@ import { nav } from './nav.js';
 import { sparkle } from './theme.js';
 import { confirmDialog, openContextMenu, openMenu, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor, retry } from './uploads.js';
-import { bus, debounce, uid } from './util.js';
+import { bus, debounce, personLabel, uid } from './util.js';
 
 const isUrl = (s) => /^https?:\/\/\S+$/i.test(s.trim());
 
@@ -215,7 +215,7 @@ export class Collection {
         { icon: 'open', label: 'Open', run: () => nav.openBlock(id) },
         { icon: 'onto', label: 'Save…', run: () => openSave(btn, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
         '-',
-        { icon: 'takeoff', label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) },
+        { icon: 'takeoff', label: `Remove ${block.ownerName || `@${block.owner}`}’s file`, danger: true, run: () => this.takeOut(block) },
       ], { align: 'end' });
       return;
     }
@@ -235,7 +235,7 @@ export class Collection {
         { icon: 'open', label: 'Open', run: open },
         { icon: 'onto', label: 'Save…', run: () => openSave(cell, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
         this.moderate ? '-' : null,
-        this.moderate ? { icon: 'takeoff', label: `Remove @${block.owner}’s file`, danger: true, run: () => this.takeOut(block) } : null,
+        this.moderate ? { icon: 'takeoff', label: `Remove ${block.ownerName || `@${block.owner}`}’s file`, danger: true, run: () => this.takeOut(block) } : null,
       ], { title: block.title || undefined, target: cell });
       return;
     }
@@ -285,7 +285,7 @@ export class Collection {
   async takeOut(block) {
     const ok = await confirmDialog({
       title: 'Take it out?',
-      message: `It stays with @${block.owner}.`,
+      message: `It stays with ${personLabel(block.owner, block.ownerName)}.`,
       confirm: 'Remove',
       danger: true,
     });

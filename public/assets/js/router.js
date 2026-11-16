@@ -26,11 +26,16 @@ export function redirect(pattern, to) {
 
 export const currentView = () => current?.inst || null;
 
+// What was missing, said for the address that was asked for.
+const missing = (path) => path.startsWith('/p/') ? 'That planet may have been deleted, or kept private.'
+  : path.startsWith('/g/') ? `No one here goes by @${decodeURIComponent(path.slice(3))}.`
+  : 'There’s no page at this address.';
+
 const notFound = {
   create: () => ({
     el: h('div', { class: 'page page-missing' },
       h('h1', { class: 'page-title' }, 'Nothing out here.'),
-      h('p', { class: 'page-meta' }, 'That planet may have been deleted, or kept private.'),
+      h('p', { class: 'page-meta' }, missing(location.pathname)),
       h('a', { class: 'btn btn-main', href: '/', onclick: (e) => { e.preventDefault(); go('/'); } }, 'Back to your galaxy')),
     title: 'Not found',
   }),

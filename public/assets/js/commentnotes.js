@@ -10,7 +10,7 @@
 import { api } from './api.js';
 import { nav } from './nav.js';
 import { exit, toast } from './ui.js';
-import { h, nameColor, timeAgo } from './util.js';
+import { h, nameColor, personLabel, timeAgo } from './util.js';
 import { icon } from './icons.js';
 import { KIND_ONE, displayTitle, imageSrc } from './kinds.js';
 import { showCommentsOf } from './comments.js';
@@ -25,10 +25,11 @@ const nameOf = (block) => {
   return words ? (words.length > 40 ? `${words.slice(0, 38)}…` : words) : `your ${(KIND_ONE[block.kind] || 'file').toLowerCase()}`;
 };
 
-// "@sam commented on", "@sam left 3 comments on", "@sam and @jo commented on", "@sam and 2 others commented on"
+// "@sam commented on", "@sam left 3 comments on", "@sam and @jo commented on", "@sam and 2 others commented on";
+// each person by the name they gave with their username, if they gave one ("Sam Ray (@sam) commented on").
 function who(f) {
   const [first, second] = f.people;
-  const at = (name) => h('span', { class: 'cn-at' }, `@${name}`);
+  const at = (name) => h('span', { class: 'cn-at' }, personLabel(name, f.names?.[name]));
   if (f.people.length === 1) return [at(first), f.count > 1 ? ` left ${f.count} comments on ` : ' commented on '];
   if (f.people.length === 2) return [at(first), ' and ', at(second), ' commented on '];
   return [at(first), ` and ${f.people.length - 1} others commented on `];

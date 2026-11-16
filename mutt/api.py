@@ -352,7 +352,7 @@ def own_drawer(req, drawer_id):
     row = req.db.execute('SELECT * FROM drawers WHERE id = ? AND user_id = ?',
                          (drawer_id, req.user['id'])).fetchone()
     if not row:
-        raise HttpError(404, 'That drawer does not exist.')
+        raise HttpError(404, 'That planet does not exist.')
     return row
 
 
@@ -406,7 +406,7 @@ def writable_drawer(req, drawer_id):
     row = req.db.execute("SELECT * FROM drawers WHERE id = ? AND (user_id = ? OR (community = 1 AND visibility = 'public'))",
                          (drawer_id, req.user['id'])).fetchone()
     if not row:
-        raise HttpError(404, 'That drawer does not exist.')
+        raise HttpError(404, 'That planet does not exist.')
     return row
 
 
@@ -652,12 +652,12 @@ def login(req):
             raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
         auth.burn_time(pin)
         auth.login_failures_by_ip.hit(req.client_ip)
-        raise HttpError(401, "That username and code don't match.")
+        raise HttpError(401, 'That username and code don’t match.')
     try:
         pin_gate(req, user, pin, device=req.cookie(auth.DEVICE_COOKIE))
     except HttpError as err:
         if err.status == 401:
-            err.message = "That username and code don't match."
+            err.message = 'That username and code don’t match.'
         raise
     token = auth.create_session(req.db, user['id'])
     short = len(pin) == 4
@@ -700,7 +700,7 @@ def change_pin(req):
     if problem:
         raise HttpError(400, problem.replace('Your code', 'Your new code'), weakPin=True)
     if uses_planet_code(req, new_pin):
-        raise HttpError(400, "That's the code for one of your planets. Pick a different one.")
+        raise HttpError(400, 'That’s the code for one of your planets. Pick a different one.')
     pin_hash, salt = auth.new_pin_hash(new_pin)
     req.db.execute('UPDATE users SET pin_hash = ?, pin_salt = ?, short_code = 0 WHERE id = ?', (pin_hash, salt, req.user['id']))
     auth.end_other_sessions(req.db, req.user['id'], req.session_token)
@@ -808,7 +808,7 @@ def recover(req):
     if not user:
         auth.burn_time(pin)
         auth.login_failures_by_ip.hit(ip)
-        raise HttpError(401, "That key isn't right.")
+        raise HttpError(401, 'That key isn’t right.')
     failure = auth.try_key(req.db, user, body.get('key'), ip)
     if failure:
         status, message, extra = failure
@@ -980,7 +980,7 @@ def drawer_previews(req, drawer_id, limit=8, owner=None, newest=False):
 
 def blocks_in_drawer(req, drawer_id, community=False):
     rows = req.db.execute(
-        f'SELECT {BLOCK_COLUMNS}, c.checked, u.username AS owner_name FROM connections c '
+        f'SELECT {BLOCK_COLUMNS}, c.checked, u.username AS owner_name, u.display_name AS owner_display FROM connections c '
         'JOIN blocks b ON b.id = c.block_id '
         'JOIN users u ON u.id = b.user_id '
         'WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC', (drawer_id,)).fetchall()
@@ -988,6 +988,8 @@ def blocks_in_drawer(req, drawer_id, community=False):
     blocks = []
     for r in rows:
         b = block_json(r, mine=r['user_id'] == me_id, owner=None if r['user_id'] == me_id else r['owner_name'])
+        if not b['mine'] and r['owner_display']:
+            b['ownerName'] = r['owner_display']   # the name they gave, shown in place of @username
         if community and not b['mine']:
             b['community'] = True
         blocks.append(b)
@@ -1296,7 +1298,7 @@ def unlock_galaxy(req, username):
             if not row:
                 raise HttpError(404, 'That planet does not exist.')
             if not row['share_hash']:
-                raise HttpError(403, f"@{owner['username']} hasn't given this planet a code yet.", noCode=True)
+                raise HttpError(403, f"@{owner['username']} hasn’t given this planet a code yet.", noCode=True)
         wait = auth.login_failures_by_ip.retry_after(req.client_ip)
         if wait:
             raise HttpError(429, f'Too many tries. Wait {auth.format_wait(wait)} and try again.', retryAfter=wait)
@@ -1323,8 +1325,8 @@ def set_planet_code(req, drawer_id):
     if not auth.CODE_RE.match(code):
         raise HttpError(400, 'The code needs to be 4 digits.')
     if auth.check_pin(code, req.user['pin_salt'], req.user['pin_hash']):
-        raise HttpError(400, "That's your sign-in code. Pick a different one, so sharing this planet "
-                             "doesn't share your account.")
+        raise HttpError(400, "That’s your sign-in code. Pick a different one, so sharing this planet "
+                             "doesn’t share your account.")
     with db.transaction(req.db):
         req.db.execute('UPDATE drawers SET share_hash = ?, updated_at = ? WHERE id = ?',
                        (auth.share_hash(req.user['id'], code), now(), drawer_id))
@@ -1538,9 +1540,11 @@ def constellation_to_planet(req, cid):
 
 @route('GET', r'/api/users')
 def list_users(req):
-    """Everyone else's username, A to Z, for picking who to share a planet with."""
-    rows = req.db.execute('SELECT username FROM users WHERE id != ? ORDER BY username', (req.user['id'],))
-    return json_response({'users': [r[0] for r in rows]})
+    """Everyone else's username, A to Z, for picking who to share a planet with;
+    and `names`, the name each gave (only those who gave one), which search shows."""
+    rows = req.db.execute('SELECT username, display_name FROM users WHERE id != ? ORDER BY username',
+                          (req.user['id'],)).fetchall()
+    return json_response({'users': [r[0] for r in rows], 'names': {r[0]: r[1] for r in rows if r[1]}})
 
 
 # ---------------------------------------------------------------- nearness
@@ -1657,7 +1661,7 @@ def create_drawer(req):
     body = req.json()
     title = text_field(body, 'title', 80, 'Drawer name') or ''
     if not title:
-        raise HttpError(400, 'Give your drawer a name.')
+        raise HttpError(400, 'Give your planet a name.')
     description = text_field(body, 'description', 2000, 'Description') or ''
     icon = clean_icon(body.get('icon')) or default_icon()
     block_ids = body.get('blockIds') or []
@@ -1675,7 +1679,7 @@ def create_drawer(req):
         modes = {}
         parent = own_drawer(req, str(parent_id))
         if parent['parent_id']:
-            raise HttpError(400, "Moons can't have moons.")
+            raise HttpError(400, 'Moons can’t have moons.')
         moons = req.db.execute('SELECT COUNT(*) FROM drawers WHERE parent_id = ?', (parent['id'],)).fetchone()[0]
         if moons >= MAX_MOONS:
             raise HttpError(400, f'A planet can have up to {MAX_MOONS} moons.')
@@ -1751,7 +1755,7 @@ def update_drawer(req, drawer_id):
     title = text_field(body, 'title', 80, 'Drawer name')
     if title is not None:
         if not title:
-            raise HttpError(400, 'Give your drawer a name.')
+            raise HttpError(400, 'Give your planet a name.')
         updates['title'] = title
     description = text_field(body, 'description', 2000, 'Description')
     if description is not None:
@@ -3991,7 +3995,7 @@ def new_comments(req):
     for r in rows:
         block = req.db.execute(f'SELECT {BLOCK_COLUMNS} FROM blocks b WHERE b.id = ?', (r['block_id'],)).fetchone()
         last = req.db.execute(
-            'SELECT c.body, c.created_at, u.username FROM file_comments c JOIN users u ON u.id = c.user_id '
+            'SELECT c.body, c.created_at, u.username, u.display_name FROM file_comments c JOIN users u ON u.id = c.user_id '
             f'JOIN blocks b ON b.id = c.block_id WHERE c.block_id = ? {unseen}AND c.user_id != b.user_id '
             'ORDER BY c.created_at DESC', (r['block_id'],)).fetchall()
         people = list(dict.fromkeys(x['username'] for x in last))
@@ -4003,6 +4007,7 @@ def new_comments(req):
             'block': block_json(block),
             'count': r['n'],
             'people': people,
+            'names': {x['username']: x['display_name'] for x in last if x['display_name']},   # the names they gave
             'latest': {'by': last[0]['username'], 'body': last[0]['body'][:140], 'createdAt': ms(last[0]['created_at'])},
             'planet': {'id': planet['id'], 'title': planet['title']} if planet else None,
         })

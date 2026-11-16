@@ -50,6 +50,7 @@ KEY=$(curl -s "${R[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"fo
 echo "sign-up gives a recovery key: $(echo "$KEY" | grep -c -E '^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$')"
 curl -s -o /dev/null "${R[@]}" "${J[@]}" -X PUT $B/api/me/name -d '{"name":"  Sam   from climbing "}'
 echo "name, as others see it: $(curl -s "${O[@]}" $B/api/galaxy/forgetful | python3 -c "import json,sys; print(json.load(sys.stdin)['user']['name'])")"
+echo "name, in the people search finds: $(curl -s "${O[@]}" $B/api/users | python3 -c "import json,sys; print(json.load(sys.stdin)['names'].get('forgetful'))")"
 echo "forgot code on a browser that signed in before: $(status "${R[@]}" "${J[@]}" -X POST $B/api/me/pin -d '{"forgot":true,"next":"583920"}')"
 rule "a session without that browser's device cookie set a code without the old one" "$(status -b "mutt_session=$(grep mutt_session "$SP/r.txt" | awk '{print $7}')" "${J[@]}" -X POST $B/api/me/pin -d '{"forgot":true,"next":"583921"}')" 403
 echo "wrong key: $(curl -s "${J[@]}" -H 'X-Forwarded-For: 7.7.7.1' -X POST $B/api/auth/recover -d '{"username":"forgetful","key":"AAAA-AAAA-AAAA-AAAA","pin":"719305"}')"

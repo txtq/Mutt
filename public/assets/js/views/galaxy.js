@@ -17,7 +17,7 @@ import { updatePrefs } from '../theme.js';
 import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
 import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, debounce, h, isEditable, personLabel, plural, reducedMotion, seeded, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
@@ -644,7 +644,7 @@ function miniGalaxy(g, plan, here) {
     class: `uvg${g.you ? ' is-you' : ''}${here ? ' is-here' : ''}`,
     dataset: { user: g.username },
     style: { left: `${-ex}px`, top: `${-ey}px`, width: `${ex * 2}px`, height: `${ey * 2}px` },
-    'aria-label': g.you ? 'Your galaxy' : `@${g.username}’s galaxy`,
+    'aria-label': g.you ? 'Your galaxy' : `${g.name || `@${g.username}`}’s galaxy`,
   },
   sys,
   h('span', { class: 'uvg-label' },
@@ -960,7 +960,7 @@ class Galaxy {
       });
       this.void = this.hole;
     } else {
-      this.void = stillVoid(`@${this.owner}`);
+      this.void = stillVoid(this.ownerName || `@${this.owner}`);
     }
     this.coreEl = this.void.el;
     this.art = h('div', { class: 'gx-art' }, this.void.art);
@@ -984,7 +984,7 @@ class Galaxy {
     this.field.addEventListener('focusin', lightFrom);
     this.field.addEventListener('pointerleave', () => this.lightThreads(null));
     this.field.addEventListener('focusout', (e) => { if (!this.field.contains(e.relatedTarget)) this.lightThreads(null); });
-    this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy` }, this.scene);
+    this.stage = h('section', { class: 'gx', 'aria-label': this.mine ? 'Your galaxy' : `${this.shownName()}’s galaxy` }, this.scene);
     this.pointer = null;
     this.stage.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') this.nearStars({ x: e.clientX, y: e.clientY }); });
     this.stage.addEventListener('pointerleave', () => this.nearStars(null));
@@ -1057,7 +1057,7 @@ class Galaxy {
     const el = planetEl(planet, { orbit: true });
     el.body.dataset.vt = `planet-${planet.id}`;
     if (planet.private) {
-      el.addEventListener('click', (e) => { e.preventDefault(); toast(`@${this.owner} keeps this planet private.`); });
+      el.addEventListener('click', (e) => { e.preventDefault(); toast(`${this.fullName()} keeps this planet private.`); });
     }
     else if (planet.locked) {
       el.addEventListener('click', (e) => { e.preventDefault(); this.unlock(el.planet); });
@@ -1370,7 +1370,7 @@ class Galaxy {
       const empty = !this.data.planets.length && !this.stars.length;
       this.hint.textContent = empty ? `Your galaxy is empty. ${touchScreen() ? 'Tap' : 'Click'} the void to put something in.` : '';
     } else if (!this.data.planets.length) {
-      this.hint.textContent = `@${this.owner} hasn’t shared any planets yet.`;
+      this.hint.textContent = `${this.fullName()} hasn’t shared any planets yet.`;
     } else this.hint.textContent = '';
     this.hint.hidden = !this.hint.textContent && !this.hint.children.length;
   }
@@ -1415,8 +1415,14 @@ class Galaxy {
 
   // A locked planet opens with its own code, which its owner gives out
   // (never their sign-in code). Their other planets with the same code open too.
+  // Someone's own name, if they gave one; else their @username.
+  shownName() { return this.ownerName || `@${this.owner}`; }
+  // On their own in a sentence: "Bob Ray (@bob)".
+  fullName() { return personLabel(this.owner, this.ownerName); }
+
   async unlock(planet, owner = this.owner) {
-    if (!planet.hasCode) { toast(`@${owner} hasn’t given this planet a code yet.`); return; }
+    const shown = owner === this.owner ? this.fullName() : `@${owner}`;
+    if (!planet.hasCode) { toast(`${shown} hasn’t given this planet a code yet.`); return; }
     const msg = h('p', { class: 'dialog-msg' });
     const field = pinField({
       autocomplete: 'off',
@@ -1447,7 +1453,7 @@ class Galaxy {
     const dialog = openDialog({
       title: `“${planet.title}” is locked`,
       className: 'dialog-code',
-      body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, `Enter the code @${owner} gave you. It stays open for you for 12 hours.`), field.el, msg),
+      body: h('div', { class: 'pin-dialog' }, h('p', { class: 'dialog-text' }, `Enter the code ${shown} gave you. It stays open for you for 12 hours.`), field.el, msg),
     });
     setTimeout(() => field.focus(), 60);
   }
@@ -2089,7 +2095,7 @@ class Galaxy {
     const index = new Map(this.list.map((g, i) => [g.username, i]));
     const pairs = (this.links || []).map((l) => ({ i: index.get(l.a), j: index.get(l.b), n: l.n }))
       .filter((p) => p.i != null && p.j != null && p.i !== p.j);
-    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.username),
+    const { spots, k, mid } = universeLayout(plans, you < 0 ? this.homeAt : you, width, viewH, this.list.map((g) => g.name || g.username),
       this.list.map((g) => g.near || 0), pairs);
     const { height, cx, cy } = this.size;
     // Everything zooms about one point, F, chosen so that at the end the map
@@ -2440,7 +2446,7 @@ class Galaxy {
   inst() {
     return {
       el: this.el,
-      title: this.mine ? 'Your galaxy' : `@${this.owner}’s galaxy`,
+      title: this.mine ? 'Your galaxy' : `${this.shownName()}’s galaxy`,
       chrome: 'galaxy',
       who: { username: this.owner, name: this.ownerName, you: this.mine },
       home: !this.mine,
@@ -2513,7 +2519,7 @@ class Galaxy {
 }
 
 // The galaxy on this page, as the universe lists it.
-const ownEntry = (data) => ({ username: data.user.username, you: !!data.user.you, planets: data.planets.length, open: data.planets.length, files: 0, worlds: [] });
+const ownEntry = (data) => ({ username: data.user.username, name: data.user.name || null, you: !!data.user.you, planets: data.planets.length, open: data.planets.length, files: 0, worlds: [] });
 
 // Everyone's galaxies, with the one on this page among them.
 function withOwner(galaxies, data) {

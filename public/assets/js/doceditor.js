@@ -346,7 +346,7 @@ class DocEditor {
       this.wire();
       this.spelling = new DocSpelling(this);
       this.record();
-      this.setStatus(this.mine ? `Saved ${timeAgo(this.doc.savedAt)}` : `@${this.block.owner}’s document`);
+      this.setStatus(this.mine ? `Saved ${timeAgo(this.doc.savedAt)}` : `${this.block.ownerName || `@${this.block.owner}`}’s document`);
       await document.fonts?.ready;
       this.layout();
       this.loading.hidden = true;

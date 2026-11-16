@@ -25,7 +25,7 @@ export function withinLimit(files) {
   const big = [];
   for (const file of files) (file.size > MAX_UPLOAD ? big : ok).push(file);
   if (big.length === 1) toast(`${big[0].name || 'That file'} is ${fmtBytes(big[0].size)}. Files can be up to ${MAX_UPLOAD_MB} MB.`);
-  else if (big.length) toast(`${big.length} files are over ${MAX_UPLOAD_MB} MB and weren't added.`);
+  else if (big.length) toast(`${big.length} files are over ${MAX_UPLOAD_MB} MB and weren’t added.`);
   return ok;
 }
 

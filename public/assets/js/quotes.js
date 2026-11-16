@@ -351,8 +351,11 @@ export class QuoteWall {
     this.off.forEach((off) => off());
     this.resize.disconnect();
     this.collection.destroy();
+    closeSlideshow?.({ instant: true });   // the page went (Back): its slideshow goes with it
   }
 }
+
+let closeSlideshow = null;
 
 // ------------------------------------------------------------ the slideshow
 
@@ -476,17 +479,20 @@ function openSlideshow(quotes, { start = 0, play = true, title = '' } = {}) {
   };
   const onVisible = () => { schedule(); keepAwake(); };
 
-  function close() {
+  function close({ instant = false } = {}) {
+    if (closeSlideshow !== close) return;
+    closeSlideshow = null;
     clearTimeout(timer);
     clearTimeout(idle);
     letSleep();
     removeEventListener('keydown', onKey, true);
     document.removeEventListener('visibilitychange', onVisible);
     const done = () => { el.remove(); leaveRoom(); };
-    if (canTransition()) transition(done, { type: 'room', before: () => [], after: () => [] });
+    if (!instant && canTransition()) transition(done, { type: 'room', before: () => [], after: () => [] });
     else done();
   }
 
+  closeSlideshow = close;
   addEventListener('keydown', onKey, true);
   document.addEventListener('visibilitychange', onVisible);
   const mount = () => {

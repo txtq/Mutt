@@ -367,7 +367,7 @@ export async function toggleShare(block) {
   try {
     const { block: saved } = await api.post(`/api/blocks/${block.id}/share`, { shared: !block.sharedAt });
     bus.emit('block:changed', saved);
-    toast(saved.sharedAt ? 'Shared to Community' : 'No longer shared');
+    toast(saved.sharedAt ? 'Shared with everyone' : 'No longer shared');
     return saved;
   } catch (err) {
     toast(err.message);

@@ -228,6 +228,12 @@ export function nameMatch(name, q) {
   return d <= room ? 3 + d : null;
 }
 
+// A person, named on their own (a byline, a list of people, a sentence about them):
+// "Bob Ray (@bob)" if they gave a name, else "@bob". In a possessive ("Bob Ray’s
+// planet") or a tight label (the universe, the void, the top bar) the name alone,
+// `name || @username`, is used instead (DESIGN.md "Names").
+export const personLabel = (username, name) => (name ? `${name} (@${username})` : `@${username}`);
+
 // A username's own colour, the same everywhere it's shown.
 export function nameColor(name) {
   const seed = [...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;

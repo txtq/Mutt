@@ -11,7 +11,7 @@ import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, h, nameColor, nameMatch, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
+import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, h, nameColor, nameMatch, personLabel, plural, reducedMotion, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
@@ -188,6 +188,8 @@ function pickCode(drawer) {
 
 function lockedPlanet(id, data) {
   const drawer = data.drawer;
+  const shown = data.ownerName || `@${data.owner}`;   // their own name, if they gave one (in a possessive)
+  const full = personLabel(data.owner, data.ownerName);   // on their own in a sentence: "Bob Ray (@bob)"
   const msg = h('p', { class: 'dialog-msg' });
   const field = pinField({
     autocomplete: 'off',
@@ -214,21 +216,21 @@ function lockedPlanet(id, data) {
     h('header', { class: 'liv-head' },
       h('div', { class: 'liv-world' }, world),
       h('div', { class: 'liv-info' },
-        h('p', { class: 'liv-owner' }, `@${data.owner}’s planet`),
+        h('p', { class: 'liv-owner' }, `${shown}’s planet`),
         h('h1', { class: 'liv-title-static' }, drawer.title),
         h('p', { class: 'liv-meta' }, icon('lock', 12), h('span', null, `Locked · ${plural(drawer.count, 'file')}`)),
         h('div', { class: 'liv-unlock' }, drawer.hasCode
-          ? [h('p', { class: 'liv-hint' }, `Enter the code @${data.owner} gave you for this planet.`), field.el, msg]
-          : h('p', { class: 'liv-hint' }, `@${data.owner} hasn’t given this planet a code yet.`)))));
+          ? [h('p', { class: 'liv-hint' }, `Enter the code ${full} gave you for this planet.`), field.el, msg]
+          : h('p', { class: 'liv-hint' }, `${full} hasn’t given this planet a code yet.`)))));
   return {
     el,
     title: drawer.title,
     chrome: 'planet',
     tint: tintOf(drawer),
-    who: { username: data.owner, you: false },
+    who: { username: data.owner, name: data.ownerName || null, you: false },
     home: true,
     // Back to the galaxy it belongs to, and from there out to the universe.
-    homeLabel: `@${data.owner}’s galaxy`,
+    homeLabel: `${shown}’s galaxy`,
     goHome: () => nav.go(`/g/${encodeURIComponent(data.owner)}`),
     mounted: () => { if (drawer.hasCode) setTimeout(() => field.focus(), 200); },
   };
@@ -1072,11 +1074,11 @@ export const planetView = {
       drawer,
       chrome: 'planet',
       tint: tintOf(drawer),
-      who: { username: mine ? session.user.username : drawer.owner, you: mine },
+      who: { username: mine ? session.user.username : drawer.owner, name: mine ? null : drawer.ownerName || null, you: mine },
       home: true,
       // Someone else's planet goes back to their galaxy first; from there the
       // arrow pulls out to the universe.
-      homeLabel: mine ? null : `@${drawer.owner}’s galaxy`,
+      homeLabel: mine ? null : `${drawer.ownerName || `@${drawer.owner}`}’s galaxy`,
       goHome: () => nav.go(home),
       list: () => filesNow(),
       // A moon takes new things just like a planet: typed, pasted or dropped.

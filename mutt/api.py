@@ -38,7 +38,7 @@ TWELVE_SINCE = 1795132800   # 2026-11-20: safely after the day the twelve kinds 
 def twelve(row):
     return row['created_at'] >= TWELVE_SINCE
 MOON_LOOKS = ('luna', 'io', 'europa', 'titan', 'enceladus', 'triton', 'phobos', 'hyperion', 'iapetus', 'callisto')
-MAX_MOONS = 4
+MAX_MOONS = 8
 LAYOUT_REACH = (2000, 4000)  # how far from the void a planet can be put (x, y)
 
 PREF_CHOICES = {

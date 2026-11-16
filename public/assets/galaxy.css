@@ -1796,6 +1796,7 @@ body.no-chrome #view { padding: 0; }
 .liv-world.has-moons { --pr: calc(var(--bs) + 22px); padding-right: var(--pr); }
 .liv-world.has-parent { --pr: calc(var(--ws) * 0.46 + 18px); padding-right: var(--pr); }
 .liv-world.has-left { padding-left: var(--pr); }
+.liv-world.has-outer { --pr: calc(var(--bs) * 2 + 22px + var(--space-8)); }
 .moon.is-beside {
   position: absolute;
   left: calc(50% - var(--pr) / 2);
@@ -1803,8 +1804,8 @@ body.no-chrome #view { padding: 0; }
   z-index: 3;
   margin: calc(var(--m) / -2) 0 0 calc(var(--m) / -2);
   translate:
-    calc(var(--side) * (var(--ws) / 2 + var(--m) / 2 + 12px + var(--lv) * 6px))
-    calc(var(--ws) * (var(--lv) * 0.6 - 0.24));
+    calc(var(--side) * (var(--ws) / 2 + var(--m) / 2 + 12px + var(--row) * 6px + var(--col) * (var(--m) + var(--space-8))))
+    calc(var(--ws) * (var(--row) * 0.6 - 0.24));
   animation: moon-bob var(--beat-rest) ease-in-out var(--bob, 0s) infinite alternate;
 }
 .liv-world.has-left .moon.is-beside { left: 50%; }
@@ -2418,6 +2419,10 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   .liv-tools { grid-column: 2; }
   /* a locked planet stacks, so all four code boxes fit */
   .liv-locked .liv-head { grid-template-columns: minmax(0, 1fr); }
+  /* five or more moons are too wide to sit beside the name: the world goes above it */
+  .liv-head:has(.liv-world.has-outer) { grid-template-columns: minmax(0, 1fr); }
+  .liv-head:has(.liv-world.has-outer) .liv-world { justify-self: start; }
+  .liv-head:has(.liv-world.has-outer) .liv-tools { grid-column: 1; }
   .liv-title, .liv-title-static { font-size: var(--text-title); }
   .search-grid { --cols: 2; }
   .search-swatches:not(.is-pop) { display: none; }

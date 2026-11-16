@@ -17,7 +17,9 @@ echo "moon made: $(j "d['drawer']['title'], d['drawer']['parentId'] == '$TRIP', 
 M2=$(mk "{\"title\":\"Temples\",\"parent\":\"$TRIP\",\"visibility\":\"private\"}")
 M3=$(mk "{\"title\":\"Trains\",\"parent\":\"$TRIP\",\"visibility\":\"pin\"}")
 M4=$(mk "{\"title\":\"Words\",\"parent\":\"$TRIP\"}")
-BODY="{\"title\":\"Too many\",\"parent\":\"$TRIP\"}"; echo "5th moon: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$BODY" | j "d['error']")"
+EXTRA=$(for t in Five Six Seven Eight; do mk "{\"title\":\"$t\",\"parent\":\"$TRIP\"}"; done)
+BODY="{\"title\":\"Too many\",\"parent\":\"$TRIP\"}"; echo "9th moon: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$BODY" | j "d['error']")"
+for m in $EXTRA; do curl -s -o /dev/null "${A[@]}" -H X-Mutt:1 -X DELETE $B/api/drawers/$m; done
 BODY="{\"title\":\"Tiny\",\"parent\":\"$FOOD\"}"; echo "moon of moon: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$BODY" | j "d['error']")"
 echo "community moon: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$FOOD -d '{"community":true}' | j "d['error']")"
 BODY="{\"title\":\"x\",\"parent\":\"$TRIP\"}"; echo "oto can't add moon to mira's: $(code "${U[@]}" "${J[@]}" -X POST $B/api/drawers -d "$BODY")"

@@ -1220,9 +1220,11 @@ function makeOrbit(el, host, slot) {
 }
 
 // Where a moon rests when nothing moves: in front, first right then left.
-// The inner pair sit lower and closer in, the outer pair further out, so they don't overlap.
+// The first pair sit lower and closer in, the second further out to the side,
+// the third low near the middle, the fourth out between them, so they don't overlap.
+const REST = [0.8, 0.1, 1.35, 0.6];
 const restPhase = (slot) => {
-  const a = slot >> 1 ? 0.1 : 0.8;
+  const a = REST[(slot >> 1) % REST.length];
   return slot % 2 ? Math.PI - a : a;
 };
 

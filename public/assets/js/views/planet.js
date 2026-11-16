@@ -289,6 +289,7 @@ export const planetView = {
     }
 
     // Beside the world: a planet's moons, first on the right, then the left,
+    // two high and two low on each side, the fifth to eighth in a column further out,
     // drifting a little. Click one to open it; drag a file onto one to move it there.
     const besideSize = Math.round(worldSize * 0.32);
     const worldBox = h('div', { class: 'liv-world', style: { '--ws': `${worldSize}px`, '--bs': `${besideSize}px` } }, world);
@@ -300,7 +301,8 @@ export const planetView = {
         const el = moonEl(m, { size: besideSize });
         el.classList.add('is-beside');
         el.style.setProperty('--side', i % 2 ? -1 : 1);
-        el.style.setProperty('--lv', i >> 1);
+        el.style.setProperty('--row', (i >> 1) & 1);
+        el.style.setProperty('--col', i >> 2);
         el.style.setProperty('--bob', `${(seedOf(m.id) * -6).toFixed(2)}s`);
         moonSlots.push(el);
         worldBox.append(el);
@@ -308,6 +310,7 @@ export const planetView = {
       });
       worldBox.classList.toggle('has-moons', moonSlots.length > 0);
       worldBox.classList.toggle('has-left', moonSlots.length > 1);
+      worldBox.classList.toggle('has-outer', moonSlots.length > 4);
     }
     renderMoons();
     // On a moon's page its planet sits beside it, small; drag a file onto it to move it back.
@@ -677,7 +680,7 @@ export const planetView = {
       ...modeItems(),
       { icon: 'planet', label: 'Planet type…', run: pickLook },
       { icon: 'colour', label: 'Planet colour…', run: pickColor },
-      (drawer.moons || []).length < 4 ? { icon: 'moon', label: 'Add a moon…', run: addMoon } : null,
+      (drawer.moons || []).length < 8 ? { icon: 'moon', label: 'Add a moon…', run: addMoon } : null,
       '-',
       { icon: 'trash', label: 'Delete planet…', danger: true, run: remove },
     ].filter(Boolean), { align: 'end' }));

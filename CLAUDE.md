@@ -41,7 +41,7 @@ Vocabulary, because the UI and the code use different words:
 | putting a file on a planet | a connection (`connections` table) |
 | the void (formerly the black hole) | `blackhole.js`, where things are added |
 | universe | everyone's galaxies, below your galaxy on the same page |
-| moon | a drawer with `parent_id` set (its planet); one level only, up to 4, never picked by autosort, hidden from planet lists; a list planet's moons start as lists; it follows its planet's sharing until its owner sets the moon's own (`drawers.own_sharing`) |
+| moon | a drawer with `parent_id` set (its planet); one level only, up to 8, never picked by autosort, hidden from planet lists; a list planet's moons start as lists; it follows its planet's sharing until its owner sets the moon's own (`drawers.own_sharing`) |
 
 ## Direction: features that appear when you need them (2026-11-05)
 

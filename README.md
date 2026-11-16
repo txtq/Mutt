@@ -44,7 +44,7 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   under a file's tile shows it has comments.
 - **Moons** are small worlds that belong to a planet, each holding its own
   files (a file on a moon isn't a star). Add one with **Add a moon…** in a
-  planet's ••• menu, up to four per planet. On the galaxy they orbit their
+  planet's ••• menu, up to eight per planet. On the galaxy they orbit their
   planet, passing in front and behind; hover the planet and they slow to a
   stop in front so you can click one. On the planet's page they sit beside
   it. Each is one of ten real moons (Luna, Io, Europa, Titan, Enceladus,

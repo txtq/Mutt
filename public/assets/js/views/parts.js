@@ -127,7 +127,7 @@ function menus() {
     return state ? held(el, state) : el;
   };
   const menu = h('div', { class: 'pop' }, h('div', { class: 'menu' },
-    item('Planet type…'), item('Planet colour… (pointed at)', { state: 'hover' }), item('Add a moon…', { hint: '2 of 4' }), item('Keyboard', { state: 'focus' }),
+    item('Planet type…'), item('Planet colour… (pointed at)', { state: 'hover' }), item('Add a moon…', { hint: '2 of 8' }), item('Keyboard', { state: 'focus' }),
     h('div', { class: 'menu-sep' }), item('Delete planet…', { danger: true }), item('Delete planet… (pointed at)', { danger: true, state: 'hover' })));
   const grouped = h('div', { class: 'pop' }, h('div', { class: 'menu' },
     h('div', { class: 'menu-head' }, 'Move to'), item('Postcards'), item('Recipes to try'), h('div', { class: 'menu-sep' }), item('Copy link')));
@@ -135,7 +135,7 @@ function menus() {
   const panelBody = () => h('div', { class: 'parts-stack' }, h('div', { class: 'liv-label' }, 'Who can see it'), who.el,
     h('input', { class: 'field', type: 'text', placeholder: 'Someone’s username', 'aria-label': 'Sample username' }));
   const live = [
-    { icon: 'edit', label: 'Rename', run: () => toast('Rename') }, { icon: 'moon', label: 'Add a moon…', hint: '2 of 4', run: () => toast('Add a moon') }, '-',
+    { icon: 'edit', label: 'Rename', run: () => toast('Rename') }, { icon: 'moon', label: 'Add a moon…', hint: '2 of 8', run: () => toast('Add a moon') }, '-',
     { icon: 'trash', label: 'Delete planet…', danger: true, run: () => toast('Nothing was deleted') }];
   const area = h('div', { class: 'parts-ctx fglass', tabindex: '0' }, 'Right-click here');
   area.addEventListener('contextmenu', (e) => openContextMenu(e, [{ heading: 'Move to' }, ...live], { title: 'pier-at-dusk.jpg', target: area }));

@@ -286,7 +286,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | A tip (the sharing tip, the recovery key ask, the name ask) | arrive; leaves |
 | The ring on a phone, turning | follows the finger; let go, glides on and settles on the spring in move; under Still it jumps |
 | A menu on a phone (a sheet at the foot) | rises in arrive on settle; leaves in change on leave, the shade under it fading the same |
-| An offer | move (the user found arrive a little slow); it is looked for `--dur-move` after the page is up; leaves |
+| An offer | move (the user found arrive a little slow); it is looked for `--dur-move` after the page is up, and again `--dur-scene` after the planet's files stop changing while it's open; leaves |
 | The line at the top while a page loads | creeps on the slow beat; finishes in change |
 | "Write it as a document"; a comment arriving, being removed | move; arrive; leaves |
 | *File boxes and the add box* | |
@@ -882,7 +882,7 @@ Decided with the user on 2026-11-16 (the proposal `Mutt-notes/design/search-grav
 
 ### Offer
 
-An offer (a mode's "This planet looks like …") is box glass with corners 20 and padding 16: its small drawing (below), then a line in Lead 700, the signs it noticed as Body `--ink-2` behind small `--ink-4` dots, one line of Caption `--ink-3` saying nothing is lost, and at the far end a quiet "Not now" then a main button in the planet's colour whose words match the menu's. It is the one box in `offers.js` (`modeOffer`); a mode only supplies words and the name of its drawing. On a phone the buttons sit under the words, the drawing sits beside the title, and the signs and note run the full width under both.
+An offer (a mode's "This planet looks like …") is box glass with corners 20 and padding 16: its small drawing (below), then a line in Lead 700, the signs it noticed as Body `--ink-2` behind small `--ink-4` dots, one line of Caption `--ink-3` saying nothing is lost, and at the far end a quiet "Not now" then a main button in the planet's colour whose words match the menu's. It is the one box in `offers.js` (`modeOffer`); a mode only supplies words and the name of its drawing. **It comes while you're there** (the user, 2026-11-16): a planet that becomes a list, a shelf, a cookbook… as you fill it is offered then, a moment after the last change, not on the next visit; and it guesses readily, since an offer waved away costs one tap and a planet never recognised costs the feature (three short things are a list, two books a shelf, two pieces of writing a desk, three quotes a commonplace book). The sharing tip makes way for it. On a phone the buttons sit under the words, the drawing sits beside the title, and the signs and note run the full width under both.
 
 - **Split into moons** is offered in the same box, though it acts once instead of showing the planet another way: "This planet holds two things" (three, four…), the signs with numbers ("4 files are about pottery and 4 about climbing.", "1 other fits neither."), and the note says which move to a moon of their own and which stay, then "Nothing is lost, and it can be undone." Its button and its ••• row (icon `moon`) say `Split into moons`. Accepting brings the new moons in beside the world one step apart, the files that went leave the grid in one glide, and a toast says `Split into 2 moons` with Undo. It is offered last of the offers, only while the planet shows as plain files, and never on a moon.
 

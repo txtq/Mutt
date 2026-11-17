@@ -128,7 +128,7 @@ def doc_signs(title, files):
     poems = sum(1 for f in long_notes if reads_as(f['content']) == 'poem')
     named = bool(DOC_NAMES.search(title or ''))
     only_text = n > 0 and len(notes) == n
-    mostly_text = n > 0 and len(notes) >= 0.8 * n
+    mostly_text = n > 0 and len(notes) >= 0.6 * n
 
     signs = []
     if named:
@@ -152,8 +152,8 @@ def doc_signs(title, files):
         signs.append('It holds only text.')
 
     fits = bool(long_notes) and bool(
-        (mostly_text and (huge or len(long_notes) >= 3 or named))
-        or (len(long_notes) >= 5 and len(long_notes) >= 0.5 * n)
+        (mostly_text and (huge or len(long_notes) >= 2 or named))
+        or (len(long_notes) >= 4 and len(long_notes) >= 0.4 * n)
         or (only_text and len(long_notes) >= 2 and len(long_notes) >= 0.5 * n))
     return {'fits': fits, 'signs': signs, 'long': len(long_notes), 'notes': len(notes), 'poems': poems}
 

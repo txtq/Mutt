@@ -242,9 +242,16 @@ ROLE_LIMIT = 800  # what a file is for shows in its first lines
 def form(text, ext=''):
     """How a note is written: form -> strength, 0 to 1. A planet whose notes
     share a form (all poems, all dated runs) is told apart by it, and a form
-    is what switches a feature on (a list, long writing)."""
-    found = Counter()
-    text = (text or '').strip()[:FORM_LIMIT]  # how a note is written shows in its opening
+    is what switches a feature on (a list, long writing).
+
+    Every mode reads the same notes when a planet is asked what it is, so the
+    answer for a text is kept (a copy is handed out, so no caller can change it)."""
+    return Counter(_form((text or '').strip()[:FORM_LIMIT], ext))
+
+
+@lru_cache(maxsize=8192)
+def _form(text, ext):
+    found = Counter()  # (only the opening is read: how a note is written shows there)
     if ext in CODE_EXTS:
         found['code'] = 1.0
     if ext in TABLE_EXTS:
@@ -1934,7 +1941,7 @@ def list_signs(conn, drawer_id):
     other = not named and bool(title_stems & {_stem(w) for w in NOT_LIST_NAMES})
     listish = len(listy) + len(short)  # files that read as a list or a thing on one
     texty = (len(notes) / n) if n else 1.0
-    mostly = n == 0 or listish >= 0.6 * n
+    mostly = n == 0 or listish >= 0.5 * n
 
     parent = None
     if 'parent_id' in row.keys() and row['parent_id']:
@@ -1950,7 +1957,7 @@ def list_signs(conn, drawer_id):
         signs.append(f'It’s a moon of “{parent["title"]}”, which is a list.')
     if named:
         signs.append(f'It’s called “{title}”, which sounds like a list.')
-    if len(short) >= 4 and len(short) >= 0.6 * n:
+    if len(short) >= 3 and len(short) >= 0.5 * n:
         signs.append(f'{len(short)} of its {n} files are short things, one per line.' if len(short) < n
                      else f'All {n} of its files are short things, one per line.')
     if listy:
@@ -1964,7 +1971,7 @@ def list_signs(conn, drawer_id):
         signs.append('Some things on it are ticked off.')
     fits = not other and (
         (bool(listy) and things >= 3 and mostly)
-        or (len(short) >= 4 and len(short) >= 0.6 * n)
+        or (len(short) >= 3 and len(short) >= 0.5 * n)
         or (named and texty >= 0.5 and (len(notes) < 2 or listish >= 0.5 * len(notes)))
         or (parent is not None and texty >= 0.5 and (n == 0 or listish >= 0.5 * n)))
     planet_role = None

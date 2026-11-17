@@ -30,20 +30,23 @@ echo "a moon can't be a cookbook: $(mode $M '{"cookbook":{"on":true}}' "d['error
 echo "a moon can be a list: $(mode $M '{"list":{"on":true}}' "d['drawer']['modes']['list']['on']")"
 echo "moon's modes reported: $(signs $M "sorted(d)")"
 
-echo "-- list: on at its own rule, stays down to 40%"
+echo "-- list: on at its own rule (half), stays down to 40%"
 L=$(planet "Bits")
 for t in "oat milk" "bin bags" "stamps" "light bulbs" "tea"; do note $L "$t" >/dev/null; done
 LF="(d['list']['fits'], round(d['list']['share'], 2), d['list'].get('left', False))"
 PROSE="I walked down to the river this morning and the light was low and gold over the water. Nobody else was there and I stayed a long while."
 echo "5 short things: $(signs $L "$LF")"
-for i in 1 2 3 4; do note $L "$PROSE ($i)" >/dev/null; done
-echo "5 of 9 (56%), never answered: $(signs $L "$LF")"
+for i in 1 2 3 4 5 6; do note $L "$PROSE ($i)" >/dev/null; done
+echo "5 of 11 (45%), never answered: $(signs $L "$LF")"
 echo "waved away: $(mode $L '{"list":{"dismissed":true}}' "d['drawer']['modes']['list']['dismissed']")"
-echo "5 of 9 (56%), answered: $(signs $L "$LF")"
-for i in 5 6 7 8; do note $L "$PROSE ($i)" >/dev/null; done
+echo "5 of 11 (45%), answered: $(signs $L "$LF")"
+for i in 7 8; do note $L "$PROSE ($i)" >/dev/null; done
 echo "5 of 13 (38%), answered: $(signs $L "$LF")"
 echo "turned on anyway: $(mode $L '{"list":{"on":true}}' "d['drawer']['modes']['list']['on']") -> under the lower bar, so it offers to step back: $(signs $L "$LF")"
 echo "kept: $(mode $L '{"list":{"kept":true}}' "d['drawer']['modes']['list']['kept']") -> $(signs $L "$LF")"
+T=$(planet "Odds")
+for t in "oat milk" "stamps" "call the bank"; do note $T "$t" >/dev/null; done
+echo "3 short things are a list: $(signs $T "(d['list']['fits'], d['list']['signs'])")"
 
 echo "-- the moment modes: what's being written now"
 m() { curl -s "${C[@]}" "${J[@]}" -X POST $B/api/moment -d "$(python3 -c "import json,sys; print(json.dumps(dict(text=sys.argv[1] * int(sys.argv[2]), held=sys.argv[3].split(), drawer=sys.argv[4] or None)))" "$1" "$2" "$3" "$4")" | j "d.get('writing')"; }
@@ -93,27 +96,28 @@ curl -s -o /dev/null "${C[@]}" -H X-Mutt:1 -X DELETE $B/api/drawers/$(echo $MOON
 echo "7 moons: $(signs $K "$SF")"
 echo "split the climbing planet: $(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers/$K/split -d '{}' | j "d['drawer']['count'], [(m['title'], m['count']) for m in d['drawer']['moons']][-1]")"
 
-echo "-- commonplace book, on at 60% with 4 quotes, stays down to 35%"
+echo "-- commonplace book, on at 50% with 3 quotes, stays down to 30%"
 Q=$(planet "Bits and pieces")
 QF="(d['commonplace']['fits'], d['commonplace']['share'], d['commonplace'].get('left', False))"
 note $Q "“Hope is the thing with feathers.” — Emily Dickinson" >/dev/null
 note $Q "\"We are such stuff as dreams are made on.\" - Shakespeare, The Tempest" >/dev/null
+note $Q "$PROSE (1)" >/dev/null
+echo "2 quotes of 3 (fewer than 3): $(signs $Q "$QF")"
 note $Q "Be patient toward all that is unsolved in your heart.
 — Rainer Maria Rilke, Letters to a Young Poet" >/dev/null
-for i in 1 2; do note $Q "$PROSE ($i)" >/dev/null; done
-echo "3 quotes of 5 (fewer than 4): $(signs $Q "$QF")"
+for i in 2 3 4; do note $Q "$PROSE ($i)" >/dev/null; done
+echo "3 of 7 (43%), never answered: $(signs $Q "$QF")"
 note $Q "“Here's looking at you, kid.”
 Rick (Casablanca, 1942)" >/dev/null
-note $Q "$PROSE (3)" >/dev/null
-echo "4 of 7 (57%), never answered: $(signs $Q "$QF")"
+echo "4 of 8 (50%): $(signs $Q "$QF")"
 note $Q "Mum: \"Just start. The rest follows.\"" >/dev/null
-echo "5 of 8 (62%): $(signs $Q "$QF") signs: $(signs $Q "d['commonplace']['signs']")"
+echo "5 of 9 (56%): $(signs $Q "$QF") signs: $(signs $Q "d['commonplace']['signs']")"
 echo "turned on: $(mode $Q '{"commonplace":{"on":true,"show":"who"}}' "d['drawer']['modes']['commonplace']")"
 echo "a show nobody knows: $(mode $Q '{"commonplace":{"show":"shelf"}}' "d['error']")"
-for i in 4 5 6 7 8; do note $Q "$PROSE ($i)" >/dev/null; done
-echo "5 of 13 (38%), on: $(signs $Q "$QF")"
-for i in 9 10; do note $Q "$PROSE ($i)" >/dev/null; done
-echo "5 of 15 (33%), on: $(signs $Q "$QF")"
+for i in 5 6 7 8 9; do note $Q "$PROSE ($i)" >/dev/null; done
+echo "5 of 14 (36%), on: $(signs $Q "$QF")"
+for i in 10 11 12; do note $Q "$PROSE ($i)" >/dev/null; done
+echo "5 of 17 (29%), on: $(signs $Q "$QF")"
 echo "the quotes, read: $(curl -s "${C[@]}" $B/api/drawers/$Q/quotes | j "[(q['who'], q['source'], q['size'], q['words'][:20]) for q in d['quotes']]")"
 QM=$(curl -s "${C[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"Sayings\",\"parent\":\"$Q\"}" | j "d['drawer']['id']")
 for t in "Measure twice, cut once." "Fortune favours the bold." "Slow and steady wins the race." "Look before you leap."; do note $QM "$t" >/dev/null; done

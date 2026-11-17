@@ -107,7 +107,7 @@ def shelf_signs(title, files):
             signs.append(f'Everything on it is a book: {what}.' if n > 1 else f'Its one file is a book ({what}).')
         else:
             signs.append(f'{len(books)} of its {n} files are books: {what}.')
-    fits = bool(books) and (len(books) >= 0.5 * n or (named and len(books) >= 1) or len(books) >= 3)
+    fits = bool(books) and (len(books) >= 0.4 * n or named or len(books) >= 2)
     return {'fits': fits, 'signs': signs, 'books': [r['id'] for r, _ in books], 'pdfs': pdfs}
 
 

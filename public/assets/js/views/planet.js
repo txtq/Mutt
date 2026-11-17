@@ -11,7 +11,7 @@ import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
-import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, h, nameColor, nameMatch, personLabel, plural, reducedMotion, shortName, styles, timeAgo, wait } from '../util.js';
+import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, debounce, h, nameColor, nameMatch, personLabel, plural, reducedMotion, shortName, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
 
 const seedOf = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7) / 9973;
@@ -804,6 +804,7 @@ export const planetView = {
       setMeta(blocks.length);
       world.update({ ...drawer, count: blocks.length, previews: blocks.slice(0, 12) });
       if (session.stats) session.stats.files = Math.max(session.stats.files, blocks.length);
+      lookAgain();   // what it holds changed: does it read as something now?
     };
     const makeCollection = (blocks, over = {}) => new Collection({
       blocks,
@@ -916,6 +917,7 @@ export const planetView = {
         if (ok) offer = null;
         return ok;
       }
+      switching = true;
       try {
         const made = await MODES[key].start(await loadMode(key), page);
         await swapTo(key, made.view);
@@ -926,6 +928,8 @@ export const planetView = {
       } catch (err) {
         toast(err.message);
         return false;
+      } finally {
+        switching = false;
       }
     }
 
@@ -1110,16 +1114,23 @@ export const planetView = {
     // Once the page is up: a mode the planet has grown into arrives the way
     // its entry says (offered once in place, or switched on with an Undo, or
     // quietly); a mode the planet has grown out of offers to step back, once.
-    async function lookForModes() {
+    // It's asked again whenever the planet's files change while it's open
+    // (added, taken off, deleted, edited), so a planet that becomes a list
+    // while you're filling it says so then, not the next time you come back.
+    let looking = null;
+    let switching = false;
+    async function lookForModes(asked = readSigns()) {
       if (!mine) return;
-      await readSigns();
-      if (offer || !el.isConnected) return;
+      await asked;
+      if (offer || switching || !el.isConnected) return;
       if (active) {
         if (left === active.key) stepBack(left);
         return;
       }
-      const key = OFFER_ORDER.find((k) => fits[k] && !drawer.modes?.[k]?.dismissed);
+      const key = OFFER_ORDER.find((k) => fits[k] && !drawer.modes?.[k]?.dismissed && !drawer.modes?.[k]?.on);
       if (!key) return;
+      // One thing at a time: the sharing tip makes way for what the planet has become.
+      putTipAway();
       const how = signs[key].arrives;
       if (how === 'undo' || how === 'quiet') {
         // It stays in the ••• menu if it's undone, and isn't switched on again.
@@ -1137,6 +1148,18 @@ export const planetView = {
         offer.show(body);
       } catch { offer = null; }
     }
+
+    const lookAgain = debounce(() => {
+      if (!mine || offer || switching || !el.isConnected) return;
+      looking = (looking || Promise.resolve()).then(() => lookForModes()).catch(() => {});
+    }, DUR.scene);
+    const offFiles = mine ? [
+      bus.on('upload:done', (item) => { if (item?.ctx?.drawerId === id) lookAgain(); }),
+      bus.on('block:connected', (e) => { if (e?.drawerId === id) lookAgain(); }),
+      bus.on('block:disconnected', (e) => { if (e?.drawerId === id) lookAgain(); }),
+      bus.on('block:deleted', ({ id: bid } = {}) => { if (filesNow().some((b) => b.id === bid)) lookAgain(); }),
+      bus.on('block:changed', (b) => { if (b && filesNow().some((f) => f.id === b.id)) lookAgain(); }),
+    ] : [];
 
     // A mode that's on, on a planet that's mostly something else now. Said
     // once, in the same quiet box; either answer is remembered.
@@ -1267,7 +1290,9 @@ export const planetView = {
       mounted: () => {
         // One thing at a time: the sharing tip waits while a mode is being offered
         // (it would hang over the offer's buttons).
-        setTimeout(async () => { await lookForModes(); showShareTip(); }, DUR.move);
+        // The signs are asked for at once and shown once the page has settled.
+        const asked = readSigns();
+        setTimeout(() => { looking = lookForModes(asked).then(showShareTip); }, DUR.move);
         // Asked for from the galaxy (a planet's right-click menu there): do it now that the page is here.
         const then = takeThen(id);
         const act = !isMoon && { look: pickLook, colour: pickColor, moon: addMoon, remove }[then];
@@ -1283,7 +1308,7 @@ export const planetView = {
         if (bid) { if (open?.id !== bid) showDoc(bid); } else if (open) { docPushed = false; open.close(); }
         return true;
       },
-      destroy: () => { offDesk(); removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); if (active) MODES[active.key].leave?.(page); docEditorOpen()?.close(); view().destroy(); },
+      destroy: () => { offDesk(); offFiles.forEach((off) => off()); removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); if (active) MODES[active.key].leave?.(page); docEditorOpen()?.close(); view().destroy(); },
     };
     return inst;
   },

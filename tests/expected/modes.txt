@@ -11,14 +11,15 @@ a mode nobody knows is left alone: ['list', 'shareTip']
 a moon can't be a cookbook: Moons can’t be that.
 a moon can be a list: True
 moon's modes reported: ['board', 'commonplace', 'documents', 'list']
--- list: on at its own rule, stays down to 40%
+-- list: on at its own rule (half), stays down to 40%
 5 short things: (True, 1.0, False)
-5 of 9 (56%), never answered: (False, 0.56, False)
+5 of 11 (45%), never answered: (False, 0.45, False)
 waved away: True
-5 of 9 (56%), answered: (True, 0.56, False)
+5 of 11 (45%), answered: (True, 0.45, False)
 5 of 13 (38%), answered: (False, 0.38, False)
 turned on anyway: True -> under the lower bar, so it offers to step back: (False, 0.38, True)
 kept: True -> (False, 0.38, False)
+3 short things are a list: (True, ['All 3 of its files are short things, one per line.'])
 -- the moment modes: what's being written now
 a short note: {'fits': False, 'say': None}
 650 characters, new: {'fits': False, 'say': 'This reads like a piece of writing.'}
@@ -48,14 +49,15 @@ undo twice: There’s no split to undo.
 split refused: There’s nothing here to split any more.
 7 moons: (True, 0.5, 4, [('Pottery', 4, False), ('Climbing', 4, True)])
 split the climbing planet: 4 ('Pottery', 4)
--- commonplace book, on at 60% with 4 quotes, stays down to 35%
-3 quotes of 5 (fewer than 4): (False, 0.6, False)
-4 of 7 (57%), never answered: (False, 0.57, False)
-5 of 8 (62%): (True, 0.62, False) signs: ['5 of its 8 files are quotes.', 'Said by Mum, Rick and 3 others.']
+-- commonplace book, on at 50% with 3 quotes, stays down to 30%
+2 quotes of 3 (fewer than 3): (False, 0.67, False)
+3 of 7 (43%), never answered: (False, 0.43, False)
+4 of 8 (50%): (True, 0.5, False)
+5 of 9 (56%): (True, 0.56, False) signs: ['5 of its 9 files are quotes.', 'Said by Mum, Rick and 3 others.']
 turned on: {'on': True, 'dismissed': False, 'show': 'who'}
 a show nobody knows: Those commonplace book settings could not be saved.
-5 of 13 (38%), on: (True, 0.38, False)
-5 of 15 (33%), on: (False, 0.33, True)
+5 of 14 (36%), on: (True, 0.36, False)
+5 of 17 (29%), on: (False, 0.29, True)
 the quotes, read: [('Mum', '', 1, 'Just start. The rest'), ('Rick', 'Casablanca, 1942', 1, "Here's looking at yo"), ('Rainer Maria Rilke', 'Letters to a Young Poet', 1, 'Be patient toward al'), ('Shakespeare', 'The Tempest', 1, 'We are such stuff as'), ('Emily Dickinson', '', 1, 'Hope is the thing wi')]
 a moon called Sayings, plain lines: (True, 1.0, False)
 a moon can be one: True

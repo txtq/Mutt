@@ -338,6 +338,7 @@ def seed(work):
 
     planet('Postcards', ['wish you were here', 'the pier at dusk', 'https://example.com'])
     planet('Shopping', ['milk', 'eggs', 'bread', 'butter'])
+    planet('Saturday', ['https://example.com'])
     planet('Recipes to try', [RECIPE])
     planet('Essays', [LONG, LONG.replace('harbour', 'station')])
     books = tempfile.mkdtemp(prefix='mutt-books-')
@@ -706,6 +707,23 @@ def list_mode(s, seeded):
     n = s.js('return document.querySelectorAll(".lm-item").length')
     if n != 4:
         raise Fail(f'the Shopping list should have 4 items, got {n}')
+
+
+def offer_while_adding(s, seeded):
+    """A planet that becomes a list while it's open says so then, not on the next visit."""
+    s.go(f'/p/{seeded["Saturday"]}')
+    s.see('.cell-entry textarea', 'the Saturday planet has no add box')
+    s.settle(1.2)
+    if s.js('return !!document.querySelector(".lm-offer")'):
+        raise Fail('a planet with one link should not be offered anything')
+    for i, thing in enumerate(('oat milk', 'stamps', 'call the bank')):
+        s.type('.cell-entry textarea', thing)
+        s.click('.entry-add')
+        s.wait(f'return document.querySelectorAll(".cell:not(.cell-entry):not(.is-pending)").length === {i + 2}',
+               f'"{thing}" was not added to Saturday')
+    s.see('.lm-offer', 'adding three short things to an open planet did not offer list mode there and then', seconds=5)
+    s.settle(0.8)
+    s.shot('offer-while-adding')
 
 
 def reading_mode(s, seeded):
@@ -1594,7 +1612,7 @@ def live_updates(s, seeded):
            'a file deleted on another device stayed on the open planet')
 
 
-PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, live_updates, list_mode, reading_mode, cookbook_mode,
+PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, live_updates, list_mode, offer_while_adding, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
          split_moons, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge]
 

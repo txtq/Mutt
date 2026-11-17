@@ -27,7 +27,9 @@ os.environ['MUTT_TEST_PORT'] = str(PORT)   # the suites read it (B=localhost:$MU
 MAX_SHOWN = 12   # failures printed per suite, so a broken run stays cheap to read
 
 MASKS = [
-    (re.compile(r'(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*[0-9A-Z_-])(?=[A-Za-z0-9_-]*[a-z])[A-Za-z0-9_-]{12}(?![A-Za-z0-9_-])'), '<id>'),
+    # an id (`new_id`): any 12 url-safe characters that aren't a plain word or a plain number;
+    # until 2026-11-16 it needed a small letter, so a rare id with none (6BUWZH_1F72M) failed a run
+    (re.compile(r'(?<![A-Za-z0-9_-])(?![a-z]{12}(?![A-Za-z0-9_-]))(?![0-9]{12}(?![A-Za-z0-9_-]))[A-Za-z0-9_-]{12}(?![A-Za-z0-9_-])'), '<id>'),
     (re.compile(r'\b1[6-9]\d{11}\b'), '<time>'),
     (re.compile(r'\bt_[0-9a-f]{6}\b'), 't_<v>'),
 ]

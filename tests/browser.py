@@ -381,6 +381,7 @@ def seed(work):
                                       data=json.dumps({'drawer': seaside}).encode()), timeout=20)
 
     ids['neighbour'] = other   # (the beam_file path beams you a file as them)
+    ids['Seaside'] = seaside
 
     # someone who will forget their code; their recovery key is kept for the path that uses it
     ids['key'] = json.load(urllib.request.build_opener().open(urllib.request.Request(
@@ -818,6 +819,32 @@ def universe(s, seeded):
     s.js('return fetch("/api/me/name", { method: "PUT", headers: { "Content-Type": "application/json", "X-Mutt": "1" }, body: JSON.stringify({ name: "" }) }).then((r) => r.ok)')
     s.js('window.scrollTo(0, 0)')
     s.wait('return !document.querySelector(".world").classList.contains("is-out")', 'scrolling back did not come home')
+    # on someone else's galaxy, the name in the bar opens a sheet about them, not your own settings
+    s.go('/g/neighbour')
+    s.wait('return /neighbour/.test(document.querySelector(".sb-who")?.textContent || "")', 'the bar did not say whose galaxy')
+    s.click(s.see('.sb-who', 'the bar has no name to press'))
+    s.see('.sheet-person.is-open', 'pressing their name did not open a sheet about them')
+    s.wait('return /\\d+ planets?/.test(document.querySelector(".sheet-person .sheet-sub").textContent)',
+           'the sheet about them did not say how many planets they have')
+    if s.js('return !!document.querySelector(".sheet-settings.is-open") || /Sign out|Recently deleted/.test(document.querySelector(".sheet-person").textContent)'):
+        raise Fail('your own settings showed on someone else\'s galaxy')
+    s.shot('their-sheet')
+    s.size(PHONE)
+    try:
+        s.settle(0.6)
+        s.no_sideways_scroll('The sheet about someone else')
+        s.shot('phone-their-sheet')
+    finally:
+        s.size(DESK)
+    s.press('Escape')
+    s.gone('.sheet-person.is-open', 'Escape did not close the sheet about them')
+    # ...and on one of their planets too
+    s.go(f'/p/{seeded["Seaside"]}')
+    s.wait('return /neighbour/.test(document.querySelector(".sb-who")?.textContent || "")', 'the bar did not say whose planet')
+    s.click(s.see('.sb-who', 'the bar has no name to press'))
+    s.see('.sheet-person.is-open', 'pressing their name on their planet did not open a sheet about them')
+    s.press('Escape')
+    s.gone('.sheet-person.is-open', 'Escape did not close the sheet about them')
 
 
 def search_gravity(s, seeded):

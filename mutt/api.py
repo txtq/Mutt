@@ -1685,6 +1685,39 @@ def list_users(req):
     return json_response({'users': [r[0] for r in rows], 'names': {r[0]: r[1] for r in rows if r[1]}})
 
 
+@route('GET', r'/api/users/' + USERNAME_PATH)
+def person_card(req, username):
+    """Someone else, as the sheet under their name in the top bar shows them:
+    their name, when they joined, their planets (how many open, with a code,
+    private, as their galaxy already shows), and how many of their own files
+    you can see (on planets and moons you can open, theirs or anyone's; never
+    their stars or anything private). `keptWithYou` and `savedByYou` only
+    count what is between the two of you."""
+    owner = find_user(req, username)
+    planets = galaxy_rows(req.db, owner['id'])
+    open_ = sum(1 for r in planets if drawer_visible(req, r))
+    private = sum(1 for r in planets if not drawer_visible(req, r) and r['visibility'] != 'pin')
+    places = req.db.execute(
+        'SELECT DISTINCT d.* FROM drawers d JOIN connections c ON c.drawer_id = d.id JOIN blocks b ON b.id = c.block_id '
+        'WHERE b.user_id = ? AND b.deleted_at IS NULL', (owner['id'],)).fetchall()
+    seen = [r['id'] for r in places if drawer_visible(req, r)]
+    files = req.db.execute(
+        f'SELECT COUNT(DISTINCT c.block_id) FROM connections c JOIN blocks b ON b.id = c.block_id '
+        f'WHERE b.user_id = ? AND b.deleted_at IS NULL AND c.drawer_id IN ({",".join("?" * len(seen))})',
+        (owner['id'], *seen)).fetchone()[0] if seen else 0
+    me = req.user['id']
+    kept = req.db.execute(
+        'SELECT COUNT(*) FROM drawer_keepers k JOIN drawers d ON d.id = k.drawer_id '
+        'WHERE (d.user_id = ? AND k.user_id = ?) OR (d.user_id = ? AND k.user_id = ?)',
+        (owner['id'], me, me, owner['id'])).fetchone()[0] if owner['id'] != me else 0
+    saved = req.db.execute(
+        "SELECT COUNT(*) FROM blocks WHERE user_id = ? AND deleted_at IS NULL "
+        "AND json_extract(meta, '$.savedFrom.username') = ?", (me, owner['username'])).fetchone()[0] if owner['id'] != me else 0
+    return json_response({**user_json(owner), 'you': owner['id'] == me, 'files': files,
+                          'planets': len(planets), 'open': open_, 'locked': len(planets) - open_ - private,
+                          'private': private, 'keptWithYou': kept, 'savedByYou': saved})
+
+
 # ---------------------------------------------------------------- nearness
 
 # Galaxies you visit or save files from are drawn closer to yours in the

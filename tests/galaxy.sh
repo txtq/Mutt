@@ -39,6 +39,8 @@ rule "someone not on a People planet's list could open it" "$(status "${W[@]}" $
 rule "a visitor could read someone's star" "$(status "${W[@]}" $B/api/blocks/$STAR)" 404
 rule "a private planet's name showed in a visitor's view of the galaxy" "$(curl -s "${U[@]}" $B/api/galaxy/alma | j "'Diary' in json.dumps(d)")" False
 rule "someone signed out could read a galaxy" "$(status $B/api/galaxy/alma)" 401
+echo "bo's card of alma: $(curl -s "${U[@]}" $B/api/users/alma | j "(d['username'], d['you'], d['files'], d['planets'], d['open'], d['locked'], d['private'], d['keptWithYou'], d['savedByYou'], d['createdAt'] > 0)")  no one: $(status "${U[@]}" $B/api/users/nobody-here)"
+rule "a person's card counted files on a planet the viewer can't open" "$(curl -s "${W[@]}" $B/api/users/alma | j "d['files'] <= $(curl -s "${U[@]}" $B/api/users/alma | j "d['files']")")" True
 # "Others can add files" only ever goes with Public.
 echo "others can add, on a private planet (expect refused): $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$PRIV -d '{"community":true}' | j "d.get('error')")  new: $(status "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"No","visibility":"people","community":true}')"
 SWAP=$(mk '{"title":"Swap","visibility":"public","community":true}')

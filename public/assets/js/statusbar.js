@@ -356,6 +356,41 @@ function settingsBody(close) {
   return body;
 }
 
+// The sheet under someone else's name, on their galaxy or one of their planets: who they are
+// (their name, @username), how many of their files you can see, their planets, when they joined,
+// and what is between the two of you. Nothing of yours to change here; that is on your own galaxy.
+function personBody(close, who) {
+  const fact = (text = '') => h('span', { class: 'sheet-fact' }, text);
+  const subEl = h('div', { class: 'sheet-sub' }, who.name ? `@${who.username}` : '');
+  const planetsEl = fact();
+  const joinedEl = fact();
+  const withYou = row('With you', fact());
+  withYou.hidden = true;
+  const home = h('div', { class: 'sheet-page' },
+    h('header', { class: 'sheet-head' },
+      h('div', null, h('div', { class: 'sheet-who' }, who.name || `@${who.username}`), subEl),
+      h('button', { type: 'button', class: 'btn btn-main', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')),
+    row('Planets', planetsEl),
+    row('Joined', joinedEl),
+    withYou);
+  api.get(`/api/users/${encodeURIComponent(who.username)}`).then((p) => {
+    // Files on planets you can open; when some of theirs are closed to you, it says so.
+    const shut = p.locked + p.private;
+    const files = `${plural(p.files, 'file')}${shut ? ' you can see' : ''}`;
+    subEl.textContent = [p.name ? `@${p.username}` : null, files, plural(p.planets, 'planet')].filter(Boolean).join(' · ');
+    planetsEl.textContent = !p.planets ? 'None yet' : !shut ? 'All open to you'
+      : [p.open && `${p.open} open`, p.locked && `${p.locked} with a code`, p.private && `${p.private} private`].filter(Boolean).join(' · ');
+    joinedEl.textContent = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(new Date(p.createdAt));
+    const between = [
+      p.keptWithYou && `${plural(p.keptWithYou, 'planet')} kept together`,
+      p.savedByYou && `You saved ${plural(p.savedByYou, 'file')} of theirs`,
+    ].filter(Boolean);
+    withYou.querySelector('.sheet-fact').textContent = between.join(' · ');
+    withYou.hidden = !between.length;
+  }).catch(() => {});
+  return h('div', { class: 'sheet-in' }, home);
+}
+
 // ---------------------------------------------------------------- the bar
 
 let paintWhoBar = null;   // the bar's "whose galaxy", repainted when your name changes
@@ -424,8 +459,11 @@ export function createStatusbar() {
   const settings = sheet('sheet-settings', settingsBody);
   // Search belongs to a galaxy: what it finds gathers round that galaxy's void (gravity.js).
   const search = sheet('sheet-search-wrap', (close) => searchBody(close, { here: current, sheetEl: search.el }));
-  // Your account sheet opens from your galaxy's name; out in the universe the bar only says where you are.
-  who.addEventListener('click', () => { if (!out) settings.toggle(who); });
+  // Whoever's galaxy (or planet) you are on, when it isn't yours: who they are, not your settings.
+  const person = sheet('sheet-person', (close) => personBody(close, current.who));
+  // Your account sheet opens from your galaxy's name, theirs from theirs; out in the universe the bar only says where you are.
+  const whose = () => (current?.who && !current.who.you ? person : settings);
+  who.addEventListener('click', () => { if (!out) whose().toggle(who); });
   // Opened anywhere else, it first takes you to the galaxy it searches: from a planet, that planet's
   // galaxy (someone else's searches their files); from the universe or any other page, your own.
   let wantSearch = false;
@@ -466,6 +504,7 @@ export function createStatusbar() {
       who.setAttribute('aria-disabled', 'true');
       who.removeAttribute('aria-haspopup');
       settings.close();
+      person.close();
     } else {
       who.removeAttribute('aria-disabled');
       who.setAttribute('aria-haspopup', 'dialog');
@@ -502,6 +541,7 @@ export function createStatusbar() {
         requestAnimationFrame(() => glitch(mark));
       }
       settings.close();
+      person.close();
       search.close();
       dropHeldSearch();
       if (wantSearch && inst.seek) requestAnimationFrame(() => search.show(searchBtn));

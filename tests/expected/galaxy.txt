@@ -17,6 +17,8 @@ rule holds: someone not on a People planet's list could open it -> no
 rule holds: a visitor could read someone's star -> no
 rule holds: a private planet's name showed in a visitor's view of the galaxy -> no
 rule holds: someone signed out could read a galaxy -> no
+bo's card of alma: ('alma', False, 2, 4, 2, 1, 1, 0, 0, True)  no one: 404
+rule holds: a person's card counted files on a planet the viewer can't open -> no
 others can add, on a private planet (expect refused): Only a public planet can take files from others.  new: 400
 open planet made private: False 0
 rule holds: a planet stayed open to all after it was made private -> no

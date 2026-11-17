@@ -659,42 +659,47 @@ export const planetView = {
         }
       });
       paint();
-      // Keeping it together: offered for the people who already share it.
+      // A shared planet: offered for the people who already share it (picked under People, or
+      // who added files), and said plainly as soon as People is picked, before anyone is in it.
       const keepBox = h('div', { class: 'liv-keep' });
       paintKeep = () => {
         const asked = drawer.keepAsk;
         const rows = [];
         if (drawer.keptWith) {
-          rows.push(h('p', { class: 'liv-label' }, 'Kept together'),
-            h('p', { class: 'liv-keep-text' }, `With ${personLabel(drawer.keptWith.username, drawer.keptWith.name)}. You both can add to it, arrange it and share it.`));
-        } else if (!isMoon && (asked || drawer.keepWith?.length)) {
-          rows.push(h('p', { class: 'liv-label' }, 'Keep it together'),
-            h('p', { class: 'liv-keep-text' }, 'It will sit in both your galaxies, and you’ll both look after it.'));
-          if (asked) {
-            const back = h('button', { type: 'button', class: 'btn btn-small btn-quiet' }, 'Take back');
-            back.addEventListener('click', async () => {
-              try { ({ drawer } = await api.del(`/api/drawers/${id}/keep`)); inst.drawer = drawer; paintKeep(); } catch (err) { toast(err.message); }
+          rows.push(h('p', { class: 'liv-label' }, 'Shared planet'),
+            h('p', { class: 'liv-keep-text' }, `With ${personLabel(drawer.keptWith.username, drawer.keptWith.name)}. It’s in both your galaxies, and you both add to it and arrange it.`));
+        } else if (!isMoon && asked) {
+          rows.push(h('p', { class: 'liv-label' }, 'Shared planet'),
+            h('p', { class: 'liv-keep-text' }, `Waiting for ${shortName(asked.to)} to say yes. Then it’s in both your galaxies, and you both add to it and arrange it.`));
+          const back = h('button', { type: 'button', class: 'btn btn-small btn-quiet' }, 'Take back');
+          back.addEventListener('click', async () => {
+            try { ({ drawer } = await api.del(`/api/drawers/${id}/keep`)); inst.drawer = drawer; paintKeep(); } catch (err) { toast(err.message); }
+          });
+          rows.push(h('div', { class: 'liv-keep-row' }, h('span', { class: 'liv-keep-who' }, `Asked ${shortName(asked.to)}`), back));
+        } else if (!isMoon && drawer.keepWith?.length) {
+          rows.push(h('p', { class: 'liv-label' }, 'Make it a shared planet'),
+            h('p', { class: 'liv-keep-text' }, 'Share it with one of them: it goes in both your galaxies, and you both add to it and arrange it. They’re asked first.'));
+          for (const p of drawer.keepWith) {
+            const ask = h('button', { type: 'button', class: 'btn btn-small' }, icon('pair'), 'Share planet');
+            ask.setAttribute('aria-label', `Share this planet with ${shortName(p)}`);
+            ask.addEventListener('click', async () => {
+              ask.classList.add('is-busy');
+              ask.textContent = 'Asking…';
+              try {
+                ({ drawer } = await api.post(`/api/drawers/${id}/keep`, { with: p.username }));
+                inst.drawer = drawer;
+                toast(`Asked ${shortName(p)} to share “${drawer.title}” with you`);
+                paintKeep();
+              } catch (err) {
+                toast(err.message);
+                paintKeep();
+              }
             });
-            rows.push(h('div', { class: 'liv-keep-row' }, h('span', { class: 'liv-keep-who' }, `Asked ${shortName(asked.to)}`), back));
-          } else {
-            for (const p of drawer.keepWith) {
-              const ask = h('button', { type: 'button', class: 'btn btn-small' }, icon('pair'), 'Ask');
-              ask.addEventListener('click', async () => {
-                ask.classList.add('is-busy');
-                ask.textContent = 'Asking…';
-                try {
-                  ({ drawer } = await api.post(`/api/drawers/${id}/keep`, { with: p.username }));
-                  inst.drawer = drawer;
-                  toast(`Asked ${shortName(p)} to keep “${drawer.title}” together`);
-                  paintKeep();
-                } catch (err) {
-                  toast(err.message);
-                  paintKeep();
-                }
-              });
-              rows.push(h('div', { class: 'liv-keep-row' }, h('span', { class: 'liv-keep-who' }, personLabel(p.username, p.name)), ask));
-            }
+            rows.push(h('div', { class: 'liv-keep-row' }, h('span', { class: 'liv-keep-who' }, personLabel(p.username, p.name)), ask));
           }
+        } else if (!isMoon && drawer.visibility === 'people') {
+          rows.push(h('p', { class: 'liv-label' }, 'Make it a shared planet'),
+            h('p', { class: 'liv-keep-text' }, 'Add someone above, then you can share this planet with them: it goes in both your galaxies, and you both add to it.'));
         }
         keepBox.replaceChildren(...rows);
         keepBox.hidden = !rows.length;

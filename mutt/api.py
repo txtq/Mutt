@@ -1806,6 +1806,7 @@ def list_galaxies(req):
 # leaver takes a planet of the same name with their files and copies of the
 # other's, and the one who stays keeps the planet with copies of the leaver's.
 KEEP_ASK_AGAIN = 7 * 86400   # an ask that was put away can be made again after a week
+KEEP_WAITING = 3             # new planets made with one person that can wait for their answer at once
 NEAR_KEEP = 5.0              # keeping a planet together pulls two galaxies close
 
 
@@ -2323,6 +2324,21 @@ def create_drawer(req):
         parent_id = parent['id']
     if body.get('community') and visibility != 'public':
         raise HttpError(400, 'Only a public planet can take files from others.')
+    # A planet made with someone ("Make a planet with Sam"): shared with them by name
+    # straight away, and they're asked to keep it together; it's theirs too once they say yes.
+    partner = None
+    if body.get('with'):
+        if parent_id is not None or body.get('community'):
+            raise HttpError(400, 'A shared planet is made on its own.')
+        partner = req.db.execute('SELECT * FROM users WHERE username = ?',
+                                 (auth.normalize_username(str(body['with'])),)).fetchone()
+        if not partner or partner['id'] == req.user['id']:
+            raise HttpError(400, 'Pick someone else to share it with.')
+        waiting = req.db.execute('SELECT COUNT(*) FROM keep_asks WHERE from_id = ? AND to_id = ? AND waved = 0',
+                                 (req.user['id'], partner['id'])).fetchone()[0]
+        if waiting >= KEEP_WAITING:
+            raise HttpError(400, f'{partner["display_name"] or "@" + partner["username"]} hasn’t answered your last few yet.')
+        visibility, people, modes = 'people', [partner['id']], {}
     drawer_id = new_id()
     stamp = now()
     with db.transaction(req.db):
@@ -2334,6 +2350,11 @@ def create_drawer(req):
              1 if parent_id and 'visibility' in body else 0, fresh_look(req.db, owner_id, parent_id)))
         for user_id in people:
             req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (drawer_id, user_id))
+        if partner:
+            # Someone who stopped hearing from you is asked as anyone is, but never sees it.
+            req.db.execute('INSERT INTO keep_asks (drawer_id, from_id, to_id, asked_at, waved) VALUES (?, ?, ?, ?, ?)',
+                           (drawer_id, req.user['id'], partner['id'], stamp,
+                            1 if stopped(req.db, partner['id'], req.user['id']) else 0))
         position = 0
         for block_id in block_ids:
             owned = req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
@@ -2343,7 +2364,10 @@ def create_drawer(req):
                                'VALUES (?, ?, ?, ?)', (str(block_id), drawer_id, position, stamp))
                 position += 1
     row = own_drawer(req, drawer_id)
-    return json_response({'drawer': planet_json(req, row, position, [])}, status=201)
+    out = planet_json(req, row, position, [])
+    if partner:
+        out |= keep_state(req, row)
+    return json_response({'drawer': out}, status=201)
 
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)')

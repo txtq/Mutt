@@ -1,7 +1,7 @@
 // A set of files shown in the grid, kept in sync with uploads, edits made
 // elsewhere, and (in Everything) the chosen sort.
 
-import { blockContextMenu, blockMenu, lastPlanet, moveBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
+import { blockContextMenu, blockMenu, lastPlanet, moveBlock, openConnect, openSave, planetWithOwner, removeFromDrawer, watchPreview, withOwner } from './actions.js';
 import { api } from './api.js';
 import { entryCell } from './entry.js';
 import { Grid } from './grid.js';
@@ -12,7 +12,7 @@ import { confirmDialog, openContextMenu, openMenu, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor, retry } from './uploads.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
-import { bus, debounce, h, personLabel, uid } from './util.js';
+import { bus, debounce, h, personLabel, shortName, uid } from './util.js';
 
 const isUrl = (s) => /^https?:\/\/\S+$/i.test(s.trim());
 
@@ -221,6 +221,7 @@ export class Collection {
       openMenu(btn, [
         { icon: 'open', label: 'Open', run: () => nav.openBlock(id) },
         { icon: 'onto', label: 'Save…', run: () => openSave(btn, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
+        withOwner(block) && { icon: 'pair', label: `Make a planet with ${shortName(withOwner(block))}…`, run: () => planetWithOwner(block, { onSaved: () => this.grid.update(block) }) },
         '-',
         { icon: 'takeoff', label: `Remove ${block.ownerName || `@${block.owner}`}’s file`, danger: true, run: () => this.takeOut(block) },
       ], { align: 'end' });
@@ -241,6 +242,7 @@ export class Collection {
       openContextMenu(e, [
         { icon: 'open', label: 'Open', run: open },
         { icon: 'onto', label: 'Save…', run: () => openSave(cell, block, { align: 'end', onSaved: () => this.grid.update(block) }) },
+        withOwner(block) && { icon: 'pair', label: `Make a planet with ${shortName(withOwner(block))}…`, run: () => planetWithOwner(block, { onSaved: () => this.grid.update(block) }) },
         this.moderate ? '-' : null,
         this.moderate ? { icon: 'takeoff', label: `Remove ${block.ownerName || `@${block.owner}`}’s file`, danger: true, run: () => this.takeOut(block) } : null,
       ], { title: block.title || undefined, target: cell });

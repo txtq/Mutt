@@ -3,7 +3,7 @@
 import { commentSection } from './comments.js';
 import { momentLine } from './moments.js';
 import { cometRows, cometWhen, dealWith, makeComet } from './remind.js';
-import { deleteBlock, editPicture, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
+import { deleteBlock, editPicture, openConnect, openSave, planetWithOwner, removeFromDrawer, takeHistoryWish, watchPreview, withOwner } from './actions.js';
 import { downloadMenu, formatsOf } from './downloads.js';
 import { api, session } from './api.js';
 import { KIND_ONE, canEditPicture, displayTitle, extLabel, imageSrc } from './kinds.js';
@@ -15,7 +15,7 @@ import { loadPdfjs } from './pdfjs.js';
 import { planetDot } from './planets.js';
 import { canTransition, transition } from './transitions.js';
 import { enterRoom, leaveRoom, openMenu, toast } from './ui.js';
-import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, paperFaces, personLabel, plural, reducedMotion, styles, touchScreen, wait } from './util.js';
+import { DUR, EASE, autosize, bus, fmtBytes, fmtDuration, fullDate, h, inViewport, isEditable, paperFaces, personLabel, plural, reducedMotion, shortName, styles, touchScreen, wait } from './util.js';
 import { icon } from './icons.js';
 
 let hooks = { step: () => {}, close: () => {}, go: () => {} };
@@ -846,15 +846,18 @@ function elsewhere(block) {
 
 function saveButton(block) {
   const btn = h('button', { type: 'button', class: 'btn btn-main btn-save' }, icon(block.saved ? 'check' : 'onto'), block.saved ? 'Saved' : 'Save');
-  btn.addEventListener('click', () => openSave(btn, state.block, {
-    align: 'end',
-    onSaved: () => {
-      state.block = { ...state.block, saved: true };
-      bus.emit('block:saved', state.block);
-      renderSide();
-    },
-  }));
-  return h('div', { class: 'vw-save' }, btn);
+  const onSaved = () => {
+    state.block = { ...state.block, saved: true };
+    bus.emit('block:saved', state.block);
+    renderSide();
+  };
+  btn.addEventListener('click', () => openSave(btn, state.block, { align: 'end', onSaved }));
+  // A planet shared with whoever made it, starting with a copy of this file.
+  const who = withOwner(block);
+  const together = who && h('button', { type: 'button', class: 'btn btn-quiet btn-small', 'aria-haspopup': 'dialog' },
+    icon('pair'), `Make a planet with ${shortName(who)}`);
+  together?.addEventListener('click', () => planetWithOwner(state.block, { onSaved }));
+  return h('div', { class: 'vw-save' }, btn, together);
 }
 
 // The comments keep their place (and anything half written) while the rest

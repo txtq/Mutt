@@ -6,10 +6,11 @@ import { canEditPicture, displayTitle } from './kinds.js';
 import { drawerHref, nav } from './nav.js';
 import { planetDot } from './planets.js';
 import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './ui.js';
-import { bus, h, plural, styles, wait } from './util.js';
+import { bus, h, plural, shortName, styles, wait } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
 import { cometFor } from './remind.js';
+import { planetWith } from './keeping.js';
 
 // ---------------------------------------------------------------- connect picker
 
@@ -170,6 +171,10 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
     if (!q) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(null) },
         h('span', { class: 'cx-plus' }, icon('star')), h('span', { class: 'cx-title' }, 'Keep as a star')));
+      if (withOwner(block)) {
+        rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => { pop.close(); planetWithOwner(block, { onSaved }); } },
+          h('span', { class: 'cx-plus' }, icon('pair')), h('span', { class: 'cx-title' }, `A new planet with ${shortName(withOwner(block))}…`)));
+      }
     }
     for (const d of drawers.filter((x) => !q || x.title.toLowerCase().includes(q))) {
       rows.push(h('button', { type: 'button', class: 'cx-row', onclick: () => save(d) },
@@ -194,6 +199,23 @@ export async function openSave(anchor, block, { align = 'start', onSaved } = {})
   });
   render();
   return pop;
+}
+
+// Someone else's file: whose it is, to make a planet with them (never your own).
+export const withOwner = (block) => (block.mine === false && block.owner && block.owner !== session.user?.username
+  ? { username: block.owner, name: block.ownerName } : null);
+
+// "Make a planet with Sam" from one of Sam's files: a planet shared with Sam, starting with a copy of it.
+export function planetWithOwner(block, { onSaved } = {}) {
+  return planetWith(withOwner(block), {
+    what: displayTitle(block) || '',
+    start: async (drawer) => {
+      const res = await api.post(`/api/blocks/${block.id}/save`, { drawer: drawer.id });
+      block.saved = true;
+      sound('save');
+      onSaved?.(res.block);
+    },
+  });
 }
 
 // ---------------------------------------------------------------- after autosort

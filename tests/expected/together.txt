@@ -69,3 +69,10 @@ sam's own page isn't told of his own change: 0
 rule holds: a notice carried what a file holds -> no
 cy's page heard nothing: 0
 a stream needs a page id (expect 400): 400
+made with rae: people ['rae'] rae None
+rae can open it and is asked: 200 ['Recipes for two']
+made with yourself (expect 400): 400
+made with nobody (expect 400): 400
+a moon made with someone (expect 400): 400
+a fourth waiting for rae (expect 400): Rae Okafor hasn’t answered your last few yet.
+rae says yes, it's both of theirs: True sam

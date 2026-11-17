@@ -9,13 +9,13 @@ import { glitch, logo } from './logo.js';
 import { nav } from './nav.js';
 import { DEFAULTS, SKIES, updatePrefs } from './theme.js';
 import { closeTopLayer, confirmDialog, openContextMenu, openMenu, segmented, sheetPages, toast } from './ui.js';
-import { BEAT, bus, DUR, EASE_LEAVE, h, plural } from './util.js';
+import { BEAT, bus, DUR, EASE_LEAVE, h, plural, shortName } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
 import { askForKey, askForName, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
 import { dropHeldSearch, heldSearch, searchBody } from './search.js';
 import { icon } from './icons.js';
-import { askToKeep } from './keeping.js';
+import { askToKeep, planetWith } from './keeping.js';
 import { commentNotes } from './commentnotes.js';
 import { sound } from './sound.js';
 
@@ -372,7 +372,10 @@ function personBody(close, who) {
       h('button', { type: 'button', class: 'btn btn-main', onclick: () => { close(); nav.go('/'); } }, 'Your galaxy')),
     row('Planets', planetsEl),
     row('Joined', joinedEl),
-    withYou);
+    withYou,
+    // A planet the two of you keep together, started from them.
+    session.user && row('Together', h('button', { type: 'button', class: 'btn', onclick: () => { close(); planetWith(who); } },
+      icon('pair'), `Make a planet with ${shortName(who)}…`)));
   api.get(`/api/users/${encodeURIComponent(who.username)}`).then((p) => {
     // Files on planets you can open; when some of theirs are closed to you, it says so.
     const shut = p.locked + p.private;
@@ -507,7 +510,7 @@ export function createStatusbar() {
       person.close();
     } else {
       who.removeAttribute('aria-disabled');
-      who.setAttribute('aria-haspopup', 'dialog');
+      who.setAttribute('aria-haspopup', other() ? 'menu' : 'dialog');
     }
   }
   paintWhoBar = paintWho;

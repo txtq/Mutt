@@ -1134,7 +1134,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     if (name.textContent !== title) name.textContent = title;
     const vis = next.community ? 'community' : next.visibility;
     // A planet two people keep together: whom with (yours), or whose it is (someone else's).
-    const pair = next.private || !next.keepers ? '' : next.keptWith ? `kept with ${shortName(next.keptWith)}` : `kept by ${next.keepers.map(shortName).join(' and ')}`;
+    const pair = next.private || !next.keepers ? '' : next.keptWith ? `shared with ${shortName(next.keptWith)}` : `shared by ${next.keepers.map(shortName).join(' and ')}`;
     const metaKey = next.private ? 'private' : `${next.mine !== false && vis !== 'pin' && vis}|${!!next.locked}|${next.count || 0}|${pair}`;
     const label = next.private ? 'A private planet' : `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}${pair ? `, ${pair}` : ''}`;
     if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);

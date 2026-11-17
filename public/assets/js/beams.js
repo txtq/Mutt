@@ -20,6 +20,7 @@ import { displayTitle } from './kinds.js';
 import { fileFace, planetDot } from './planets.js';
 import { beamJourney } from './views/galaxy.js';
 import { dustFrame } from './uvweb.js';
+import { planetWith } from './keeping.js';
 
 const WORDS = 140;
 
@@ -388,13 +389,23 @@ export async function openBeams(id, group) {
     bus.emit('drawer:changed', null);
     toast('Saved as a star in your galaxy', { action: { label: 'Open', run: () => nav.openBlock(res.block.id) } });
   });
-  onto.addEventListener('click', () => pickPlanet(onto, async (planet) => {
-    const res = await answer(onto, { answer: 'keep', drawer: planet.id });
-    if (!res) return;
-    bus.emit('block:connected', { block: res.block, drawerId: planet.id, connections: res.connections });
-    bus.emit('drawer:changed', null);
-    toast(`Saved to ${planet.title}`, { action: { label: 'See it', run: () => nav.go(`/p/${planet.id}?b=${res.block.id}`) } });
-  }));
+  onto.addEventListener('click', () => {
+    const b = now();
+    pickPlanet(onto, async (planet) => {
+      const res = await answer(onto, { answer: 'keep', drawer: planet.id });
+      if (!res) return;
+      bus.emit('block:connected', { block: res.block, drawerId: planet.id, connections: res.connections });
+      bus.emit('drawer:changed', null);
+      toast(`Saved to ${planet.title}`, { action: { label: 'See it', run: () => nav.go(`/p/${planet.id}?b=${res.block.id}`) } });
+    }, {
+      // a new planet shared with whoever beamed it, kept there as its first file
+      with: b.from,
+      make: () => planetWith(b.from, {
+        what: displayTitle(b.block) || '',
+        start: (drawer) => answer(onto, { answer: 'keep', drawer: drawer.id }),
+      }),
+    });
+  });
   letGo.addEventListener('click', async () => {
     const b = now();
     const res = await answer(letGo, { answer: 'gone' });
@@ -495,7 +506,7 @@ function dustBorder(card) {
 }
 
 // Your planets (and those you keep with someone), to put a beamed file straight on one.
-async function pickPlanet(anchor, pick) {
+async function pickPlanet(anchor, pick, { with: who = null, make = null } = {}) {
   const input = h('input', { class: 'field cx-input', type: 'text', placeholder: 'Find a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
@@ -513,7 +524,9 @@ async function pickPlanet(anchor, pick) {
     const rows = drawers.filter((d) => !q || d.title.toLowerCase().includes(q)).map((d) => h('button', {
       type: 'button', class: 'cx-row', onclick: () => { pop.close(); pick(d); },
     }, planetDot(d), h('span', { class: 'cx-title' }, d.title), h('span', { class: 'cx-count' }, d.count ?? '')));
-    list.replaceChildren(...(rows.length ? rows : [h('div', { class: 'cx-note' }, drawers.length ? 'No planet by that name' : 'You have no planets yet')]));
+    const fresh = make && !q ? h('button', { type: 'button', class: 'cx-row', onclick: () => { pop.close(); make(); } },
+      h('span', { class: 'cx-plus' }, icon('pair')), h('span', { class: 'cx-title' }, `A new planet with ${shortName(who)}…`)) : null;
+    list.replaceChildren(...[fresh, ...(rows.length || fresh ? rows : [h('div', { class: 'cx-note' }, drawers.length ? 'No planet by that name' : 'You have no planets yet')])].filter(Boolean));
     pop.place();
   };
   input.addEventListener('input', render);

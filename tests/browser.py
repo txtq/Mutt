@@ -1449,6 +1449,94 @@ def drag_to_star(s, seeded):
         raise Fail('the file dropped on the corner is still on a planet')
 
 
+def planet_with(s, seeded):
+    """A planet made with someone: from their galaxy (their name in the bar), from their file, from a beam."""
+    def as_them(method, path, body=None):
+        return json.load(seeded['neighbour'].open(urllib.request.Request(
+            SITE + path, method=method, headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
+            data=json.dumps(body).encode() if body is not None else None), timeout=20))
+    made = lambda title: next((d for d in s.fetch('/api/drawers?lite=1')['drawers'] if d['title'] == title), None)
+    # their galaxy: the name in the bar offers it
+    s.go('/g/neighbour')
+    s.see('.sb-who.is-other', "the neighbour's galaxy did not load")
+    s.settle(1)
+    s.click('.sb-who')
+    row = s.named('.sheet-person .btn', 'Make a planet with', "their person sheet did not offer a planet made with them")
+    s.settle(0.5)
+    s.shot('planet-with-menu')
+    s.click(row)
+    s.type(s.see('.dialog .field', 'the box asking for its name did not open'), 'Walks together')
+    s.settle(0.4)
+    s.shot('planet-with')
+    s.click('.dialog .btn-main')
+    s.wait('return /is asked to share it/.test(document.querySelector(".toast")?.textContent || "")', 'no toast said they were asked')
+    planet = made('Walks together')
+    if not planet:
+        raise Fail('the planet made with them is not in your planets')
+    # its Share panel says it waits for them
+    s.go(f'/p/{planet["id"]}')
+    s.click(s.see('.liv-share-btn', 'the new planet has no Share button'))
+    s.wait('return /Waiting for @neighbour/.test(document.querySelector(".pop .liv-keep")?.textContent || "")',
+           'Share did not say the planet waits for them to say yes')
+    s.settle(0.5)
+    s.shot('planet-with-share')
+    # taken back, each person it's shared with can be asked; with no one, it says how
+    s.click(s.named('.pop .liv-keep .btn', 'Take back', 'no Take back while it waits'))
+    s.named('.pop .liv-keep .btn', 'Share planet', 'after Take back, no Share planet beside the person')
+    s.settle(0.5)
+    s.shot('planet-with-ask')
+    s.click('.pop .chip-x')
+    s.wait('return /Add someone above/.test(document.querySelector(".pop .liv-keep")?.textContent || "")',
+           'People with no one picked did not say a shared planet can be made')
+    s.settle(0.5)
+    s.shot('planet-with-empty')
+    s.press('Escape')
+    # their file: its view offers it, starting with a copy
+    seaside = next(d['id'] for d in s.fetch('/api/galaxy/neighbour')['planets'] if d['title'] == 'Seaside')
+    s.go(f'/p/{seaside}')
+    s.click(s.see('.cell', 'Seaside showed no file'))
+    s.named('.vw-save .btn', 'Make a planet with', "someone else's file did not offer a planet made with them")
+    s.settle(1.2)   # the side is drawn again once the file's story comes in
+    s.click(s.named('.vw-save .btn', 'Make a planet with', "someone else's file did not offer a planet made with them"))
+    s.type(s.see('.dialog .field', 'the box did not open from the file'), 'Piers')
+    s.click('.dialog .btn-main')
+    s.wait('return /is asked to share it/.test(document.querySelector(".toast")?.textContent || "")', 'no toast after making it from their file')
+    end = time.time() + 6
+    while not (made('Piers') or {}).get('count'):
+        if time.time() > end:
+            raise Fail('the planet made from their file did not start with a copy of it')
+        time.sleep(0.2)
+    s.press('Escape')
+    # something they beamed: "Put on a planet" starts with a new planet made with them
+    note = as_them('POST', '/api/blocks', {'content': 'bird list for the estuary'})['block']['id']
+    as_them('POST', f'/api/blocks/{note}/beam', {'to': NAME})
+    s.go('/')
+    s.click(s.see('.bm-star', 'the beamed file did not rest by the void'))
+    s.click(s.named('.bm-actions .btn', 'Save to a planet', 'the beam box has no Save to a planet'))
+    row = s.named('.pop .cx-row', 'A new planet with', 'Put on a planet did not offer a new planet made with them')
+    s.settle(0.5)
+    s.shot('planet-with-beam')
+    s.click(row)
+    s.type(s.see('.dialog .field', 'the box did not open from the beam'), 'Birds')
+    s.click(s.named('.dialog .btn-main', 'Make it with', 'the box has no Make it button'))
+    s.gone('.bm-star', 'the beam stayed waiting after it was kept on the new planet')
+    if not (made('Birds') or {}).get('count'):
+        raise Fail('the beamed file is not on the planet made with them')
+    s.size(PHONE)
+    try:
+        s.go('/g/neighbour')
+        s.see('.sb-who.is-other', "the neighbour's galaxy did not load at phone width")
+        s.settle(1)
+        s.click('.sb-who')
+        s.click(s.named('.sheet-person .btn', 'Make a planet with', 'no offer at phone width'))
+        s.see('.dialog .field', 'the box did not open at phone width')
+        s.settle(0.5)
+        s.no_sideways_scroll('The planet-with box')
+        s.shot('phone-planet-with')
+        s.press('Escape')
+    finally:
+        s.size(DESK)
+
 def throw_star(s, seeded):
     """Flick a star at the nearest planet: it flies there and is put on it, with an Undo (fling.js)."""
     star = s.js('''return fetch('/api/blocks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
@@ -1508,7 +1596,7 @@ def live_updates(s, seeded):
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, live_updates, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
-         split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
+         split_moons, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

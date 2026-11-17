@@ -158,3 +158,15 @@ echo "sam's own page isn't told of his own change: $(grep -c '^data:' "$SP/live-
 rule "a notice carried what a file holds" "$(cat "$SP/live-r.txt" "$SP/live-c.txt" | grep -c secret)" "0"
 echo "cy's page heard nothing: $(grep -c '^data:' "$SP/live-c.txt")"
 echo "a stream needs a page id (expect 400): $(status "${R[@]}" "$B/api/live?tab=x")"
+# ---- a planet made with someone ("Make a planet with Rae"): shared by name at once, and they're asked
+WITH=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Recipes for two","with":"rae"}')
+WR=$(echo "$WITH" | j "d['drawer']['id']")
+echo "made with rae: $(echo "$WITH" | j "d['drawer']['visibility'], d['drawer']['people'], d['drawer']['keepAsk']['to']['username'], d['drawer']['modes'].get('shareTip')")"
+echo "rae can open it and is asked: $(status "${R[@]}" $B/api/drawers/$WR) $(curl -s "${R[@]}" $B/api/keep | j "[a['drawer']['title'] for a in d['asks']]")"
+echo "made with yourself (expect 400): $(status "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"x","with":"sam"}')"
+echo "made with nobody (expect 400): $(status "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"x","with":"nobody"}')"
+MOONWITH="{\"title\":\"x\",\"with\":\"rae\",\"parent\":\"$WR\"}"
+echo "a moon made with someone (expect 400): $(status "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d "$MOONWITH")"
+for n in 2 3; do curl -s -o /dev/null "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d "{\"title\":\"For two $n\",\"with\":\"rae\"}"; done
+echo "a fourth waiting for rae (expect 400): $(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"For two 4","with":"rae"}' | j "d['error']")"
+echo "rae says yes, it's both of theirs: $(curl -s "${R[@]}" "${J[@]}" -X POST $B/api/keep/$WR -d '{"answer":"yes"}' | j "d['drawer']['mine'], d['drawer']['keptWith']['username']")"

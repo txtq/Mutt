@@ -884,7 +884,7 @@ function comments(block) {
 // A note's history (history.js), once your note has an earlier copy. Like the
 // comments, it keeps its place while the side panel is rebuilt around it.
 function history(block) {
-  if (block.kind !== 'text' || block.mine === false) return null;
+  if (block.mine === false) return null;   // any file of yours: a picture, a link, a PDF can be a comet too
   if (state.history?.id === block.id) {
     state.history.inst?.update(block);
     return state.history.el;
@@ -928,7 +928,7 @@ function cometRow(block) {
       try { got = await api.get(`/api/blocks/${block.id}/comet?tz=${-new Date().getTimezoneOffset()}`); } catch { return; }
       if (state?.cometRow !== slot) return;
       slot.key = key;
-      const c = got.comet && { ...got.comet, title: state.block.content.split('\n')[0] };
+      const c = got.comet && { ...got.comet, title: state.block.kind === 'text' ? state.block.content.split('\n')[0] : got.comet.title };
       if (c?.done) {
         // Done: ticked off, and its comet is leaving the sky (Undo is in the toast)
         slot.el.replaceChildren(h('section', { class: 'vw-comet' },

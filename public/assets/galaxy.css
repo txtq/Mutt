@@ -994,6 +994,19 @@ body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes {
 }
 
 /* "Make it a comet…" for a file whose words name no day (remind.js askWhen): a dialog with a day and a time side by side */
+/* A list item's comet, opened from the sky: the item as a list row (its tick box, which is Done), its
+   day and its list in the planets' count type, then what to do. */
+.cm-card-pop { width: min(340px, calc(100vw - var(--space-24))); }
+.cm-card { display: flex; flex-direction: column; gap: var(--space-8); }
+.cm-card-row { display: flex; align-items: flex-start; gap: var(--space-12); }
+.cm-card-tick { position: relative; flex: none; display: grid; place-items: center; width: var(--h-small); height: var(--h-small); margin: calc(var(--space-2) * -1) 0; padding: 0; border: 0; background: none; cursor: pointer; }
+.cm-card-text { min-width: 0; overflow-wrap: anywhere; font: var(--type-body); color: var(--ink); }
+.cm-card-meta, .cm-card-acts { padding-left: calc(var(--h-small) + var(--space-12)); }
+.cm-card-meta { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-12); font: 400 var(--text-small)/1.2 var(--mono); color: var(--ink-3); }
+.cm-card-meta > span { display: inline-flex; align-items: center; gap: var(--space-4); }
+.cm-card-when .ic { color: var(--comet-ember); }
+.cm-card-acts { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-4); }
+.cm-card-acts > :last-child { margin-left: auto; }
 .cm-ask-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); margin-top: var(--space-16); }
 .cm-ask-field { display: flex; flex-direction: column; min-width: 0; }
 .cm-ask-note { margin-top: var(--space-8); font: var(--type-caption); color: var(--ink-3); }
@@ -1112,7 +1125,7 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
 @media (pointer: coarse) {
   .slider-track { height: var(--h-large); }   /* the channel and knob keep their look; the area to slide is 40 */
   :is(.sky-pick, .vf-upload, .vf-where) { position: relative; }   /* .login-go and .lm-comet are placed already */
-  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .lm-comet, .gx-found-file, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
+  :is(.seg-btn, .sky-pick, .vf-upload, .vf-where, .login-go, .lm-comet, .cm-card-tick, .gx-found-file, .de-tools .btn, .pm-bar .btn-round, .pm-bubble .btn-round, .pm-note, .pm-badge, .pm-grip, .pm-bar .swatch, .pm-bubble .swatch)::after {
     content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, var(--h-large)); height: max(100%, var(--h-large)); transform: translate(-50%, -50%);
   }
   /* in a row of them, only upward and downward: sideways belongs to the neighbour */
@@ -1897,9 +1910,9 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   cursor: pointer;
 }
 .gx-comet-hit:focus-visible { outline-offset: 0; }
-/* A comet's tag: its name in the planets' type, its day under it in the comet's own colour (the
-   heat it is painted in, --comet-ink), joined to its head by a dotted line of the same ink, like
-   a star chart's label. It sits on the side of the head away from its dust. */
+/* A comet's tag, a caption like a planet's (DESIGN.md "Comets"): its name in the planets' type, and
+   under it when, in the planets' count type, after the date mark in the comet's own colour
+   (--comet-ink). It sits snug in the open sky beside its head, with no line to it. */
 .gx-comet-tag {
   position: absolute;
   left: 0;
@@ -1915,21 +1928,12 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .gx-comet-tag.is-right { align-items: flex-end; text-align: right; }
 /* where it can't help sitting on the void or a planet (a phone has little open sky), a pane of the bar's glass behind it */
 .gx-comet-tag.is-over { margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-8)); padding: var(--space-4) var(--space-8); border-radius: var(--r-row); background: var(--bar-fill); -webkit-backdrop-filter: var(--glass-frost); backdrop-filter: var(--glass-frost); }
-.gx-comet-tag-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font: var(--type-label); color: var(--ink); text-shadow: var(--sky-shadow); }
-.gx-comet-tag-when { font: var(--type-small); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: var(--comet-ink); text-shadow: var(--sky-shadow); }
-.gx-comet-lead {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 2px;
-  margin-top: -1px;
-  transform-origin: 0 50%;
-  background: radial-gradient(circle, var(--comet-ink) 0.7px, transparent 1px) 0 50% / 3px 2px repeat-x;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--dur-change) var(--ease-leave);
-}
-:is(.gx-comet-tag, .gx-comet-lead):is(.is-shown, .is-lit) { opacity: 1; transition: opacity var(--dur-move) var(--ease-settle); }
+.gx-comet-tag-name { display: flex; align-items: center; gap: var(--space-4); max-width: 100%; font-size: var(--text-label); font-weight: 500; line-height: 1.3; color: var(--ink); text-shadow: var(--sky-shadow); }
+.gx-comet-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gx-comet-tag-when { display: flex; align-items: center; gap: var(--space-4); white-space: nowrap; font: 400 var(--text-small)/1.2 var(--mono); color: var(--ink-3); text-shadow: var(--sky-shadow); }
+.gx-comet-tag-when .ic { color: var(--comet-ink); }
+.gx-comet-tag.is-right :is(.gx-comet-tag-name, .gx-comet-tag-when) { justify-content: flex-end; }
+.gx-comet-tag:is(.is-shown, .is-lit) { opacity: 1; transition: opacity var(--dur-move) var(--ease-settle); }
 .gx.is-adding :is(.gx-comets, .gx-comet-hits) { opacity: 0.4; }
 .gx-scene.is-seeking :is(.gx-comets, .gx-comet-hits) { opacity: 0.36; }
 .world.is-far :is(.gx-comets, .gx-comet-hits) { opacity: 0; pointer-events: none; }

@@ -7,7 +7,7 @@
 
 import { api, session } from './api.js';
 import { nav } from './nav.js';
-import { exit, openDialog, openMenu, toast } from './ui.js';
+import { exit, openDialog, openMenu, openPopover, toast } from './ui.js';
 import { DUR, bus, h } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
@@ -27,6 +27,22 @@ export function cometName(c) {
 }
 
 const clock = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: new Date(t).getMinutes() ? '2-digit' : undefined });
+
+// What a comet's file is: shown as that, never as a note when it isn't one (the user: "if a comet is a
+// list item show it as a list item, not a note; same goes for other formats").
+export function cometThing(c) {
+  const things = {
+    item: { noun: 'list item', icon: 'untick', open: c.list ? `Open ${c.list.title}` : 'Open list' },
+    text: { noun: 'note', icon: 'note', open: 'Open note' },
+    image: { noun: 'picture', icon: 'picture', open: 'Open picture' },
+    video: { noun: 'video', icon: 'play', open: 'Open video' },
+    audio: { noun: 'recording', icon: 'play', open: 'Open recording' },
+    link: { noun: 'link', icon: 'link', open: 'Open link' },
+    pdf: { noun: 'PDF', icon: 'page', open: 'Open PDF' },
+    doc: { noun: 'document', icon: 'page', open: 'Open document' },
+  };
+  return things[c.kind] || { noun: 'file', icon: 'files', open: 'Open file' };
+}
 
 // "Thursday, 3 PM · in 3 days", "today, 3 PM", "tomorrow", "Sat, 5 Dec · in 19 days"
 export function cometWhen(c, now = Date.now()) {
@@ -105,7 +121,7 @@ export function calendarFile(c) {
 // The rows a comet's menu adds (the sky's comet, the note's view, a note under the clock).
 export function cometRows(c, { open = true } = {}) {
   return [
-    ...(open ? [{ label: 'Open note', icon: 'open', run: () => openComet(c) }] : []),
+    ...(open ? [{ label: cometThing(c).open, icon: 'open', run: () => openWhole(c) }] : []),
     { label: 'Done', icon: 'check', run: () => dealWith(c, 'done') },
     { label: 'Change when…', icon: 'date', run: () => askWhen({ id: c.id, title: cometName(c) }, { comet: c }) },
     { label: 'Remind me in an hour', icon: 'history', run: () => dealWith(c, 'snooze', 'hour') },
@@ -220,9 +236,47 @@ export function askWhen(block, { could = null, comet = null } = {}) {
   update();
 }
 
-// A comet opens its note where you are (over your sky), not on its planet; the note has its comet row.
-export function openComet(c) {
-  nav.openBlock(c.id);
+// A comet opens where you are (over your sky), not on its planet, as what it is: a list item as a small
+// card with its tick box (ticking it is Done), anything else in the file view with its comet row.
+export function openComet(c, anchor = null) {
+  if (c.kind === 'item' && anchor) cometCard(anchor, c);
+  else openWhole(c);
+}
+
+// The whole thing: a list item on its list, anything else in the file view where you are.
+function openWhole(c) {
+  if (c.kind === 'item' && c.list) nav.go(`/p/${c.list.id}`);
+  else nav.openBlock(c.id);
+}
+
+// A list item's comet, as the item: its tick box and words, its list, when it reminds you, and what to do.
+export function cometCard(anchor, c) {
+  const when = cometWhen(c).split(' · ')[0];
+  const tick = h('button', { type: 'button', class: 'cm-card-tick', role: 'checkbox', 'aria-checked': 'false', 'aria-label': `Tick off ${c.title}` }, h('span', { class: 'tick-box' }));
+  tick.addEventListener('click', () => {
+    tick.setAttribute('aria-checked', 'true');
+    sound('tick');
+    dealWith(c, 'done');
+    setTimeout(() => pop.close(), DUR.move);
+  });
+  const later = h('button', { type: 'button', class: 'btn btn-small', 'aria-haspopup': 'menu' }, 'Later', icon('caret', 12));
+  later.addEventListener('click', () => openMenu(later, [
+    { label: 'In an hour', icon: 'history', run: () => dealWith(c, 'snooze', 'hour') },
+    { label: 'Tomorrow', icon: 'date', run: () => dealWith(c, 'snooze', 'tomorrow') },
+  ]));
+  const more = h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round', 'aria-label': 'More', title: 'More', 'aria-haspopup': 'menu' }, icon('more'));
+  more.addEventListener('click', () => openMenu(more, cometRows(c), { align: 'end' }));
+  const body = h('div', { class: 'cm-card' },
+    h('div', { class: 'cm-card-row' }, tick, h('span', { class: 'cm-card-text' }, c.title)),
+    h('div', { class: 'cm-card-meta' },
+      h('span', { class: 'cm-card-when' }, icon('date', 12), when),
+      c.list ? h('span', { class: 'cm-card-on' }, icon('planet', 12), c.list.title) : null),
+    h('div', { class: 'cm-card-acts' },
+      h('button', { type: 'button', class: 'btn btn-small', onclick: () => { pop.close(); askWhen({ id: c.id, title: c.title }, { comet: c }); } }, 'Change when…'),
+      later, more));
+  const pop = openPopover(anchor, body, { className: 'pop-panel cm-card-pop' });
+  if (anchor.matches?.(':focus-visible')) tick.focus({ preventScroll: true });   // from the keyboard: straight to the tick box
+  return pop;
 }
 
 // ------------------------------------------------------------------ being told with Mutt closed
@@ -277,11 +331,15 @@ function cometNote(c, { onDone, onLater, onClose, onOpen }) {
       h('span', { class: 'cn-line' },
         h('span', { class: 'cn-what' }, h('span', { class: 'cn-file' }, cometName(c))),
         h('span', { class: 'cn-when' }, c.due ? fromNow(c.at, now) : fromNow(c.at, now))),
-      h('span', { class: 'cn-said' }, c.due ? `A comet reminding you: ${cometWhen(c).split(' · ')[0]}` : `A comet’s heads-up: ${cometWhen(c).split(' · ')[0]}`)));
+      h('span', { class: 'cn-said' }, `${c.due ? 'A comet reminding you' : 'A comet’s heads-up'}: ${cometWhen(c).split(' · ')[0]}${c.kind === 'item' && c.list ? `, on ${c.list.title}` : ''}`)));
   const acts = h('div', { class: 'cm-acts' },
-    h('button', { type: 'button', class: 'btn btn-small', onclick: onDone }, icon('check', 12), 'Done'),
+    c.kind === 'item'
+      ? h('button', { type: 'button', class: 'btn btn-small', onclick: onDone }, icon('tick', 12), 'Tick off')
+      : h('button', { type: 'button', class: 'btn btn-small', onclick: onDone }, icon('check', 12), 'Done'),
     h('button', { type: 'button', class: 'btn btn-quiet btn-small', 'aria-haspopup': 'menu', onclick: onLater }, 'Later', icon('caret', 12)));
-  const close = c.due ? null : h('button', {
+  // every note can be closed (the user: "you should be able to dismiss the comet nudge"); a due comet
+  // still waits in the sky until it is done
+  const close = h('button', {
     type: 'button', class: 'btn btn-quiet btn-round btn-small cn-x', 'aria-label': 'Close', title: 'Close', onclick: onClose,
   }, icon('close', 12));
   return h('div', { class: 'cn-note cm-note', role: 'alert' }, open, acts, close);
@@ -305,7 +363,7 @@ function cometNotes() {
       if (shown.has(c.id)) continue;
       if (!rang) { rang = true; sound('news'); }
       const el = cometNote(c, {
-        onOpen: () => openComet(c),
+        onOpen: (e) => openComet(c, e.currentTarget),
         onDone: () => dealWith(c, 'done'),
         onLater: (e) => openMenu(e.currentTarget, [
           { label: 'In an hour', icon: 'history', run: () => dealWith(c, 'snooze', 'hour') },

@@ -15,6 +15,7 @@
 import { api } from './api.js';
 import { openContextMenu } from './ui.js';
 import { cometName, cometRows, cometWhen, openComet } from './remind.js';
+import { icon } from './icons.js';
 import { DUR, bus, debounce, h, seeded, sharpness, touchScreen } from './util.js';
 import { evenPoints, DOT } from './voidmake.js';
 import { planetTone } from './planets.js';
@@ -26,6 +27,7 @@ const MOST_PHONE = 3;
 const AFTER = 2;         // days it takes to leave after its day
 const PATH = 21;         // how far out along its parabola a journey starts (the path's shape, not days)
 const URGENT = 72;       // hours: within these it heats up however long its journey
+const SOON = 7;          // days: from this close it grows toward its full size, however new
 const NAMED = 3;         // days: this close, its tag shows beside it without pointing at it
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -83,7 +85,10 @@ function journey(c, now) {
   const from = Math.min(c.from || due - DAY, due - 60000);
   const p = clamp((now - from) / (due - from));
   const urgent = clamp(1 - (due - now) / (URGENT * 3600000));
-  return { due, t: -PATH * (1 - p), p, heat: clamp(Math.max(p ** 2, urgent)), fade: 1, after: -1, waiting: false };
+  // how big it shows: how far along its journey, or how soon its day is, whichever is more
+  // (a comet made today for tomorrow is close already, not a speck far out)
+  const soon = clamp(1 - (due - now) / (SOON * DAY));
+  return { due, t: -PATH * (1 - p), p, soon, heat: clamp(Math.max(p ** 2, urgent)), fade: 1, after: -1, waiting: false };
 }
 
 // ------------------------------------------------------------------ the print
@@ -209,9 +214,75 @@ function heated(c, heat) {
   return heat < 0.55 ? mix(c, ink.warm, heat / 0.55) : mix(ink.warm, ink.hot, (heat - 0.55) / 0.45);
 }
 
+// The streak: what makes it a shooting star. A clean wedge of light from the head, wide as the head
+// and drawn to a point, hot at the head and gone by two thirds of the tail, with a fine bright
+// thread down its middle that runs further. Crisp, not print, so it reads at once.
+function streak(x, cm, ink, core, strength) {
+  const nx = -cm.uy, ny = cm.ux;
+  const L = cm.len * 0.7, w = cm.coma * 0.75;
+  const ex = cm.x + cm.ux * L, ey = cm.y + cm.uy * L;
+  const g = x.createLinearGradient(cm.x, cm.y, ex, ey);
+  g.addColorStop(0, inked(core, 0.9 * strength));
+  g.addColorStop(0.18, inked(ink, 0.55 * strength));
+  g.addColorStop(0.6, inked(ink, 0.14 * strength));
+  g.addColorStop(1, inked(ink, 0));
+  x.fillStyle = g;
+  x.beginPath();
+  x.moveTo(cm.x + nx * w, cm.y + ny * w);
+  x.quadraticCurveTo(cm.x + cm.ux * L * 0.3 + nx * w * 0.6, cm.y + cm.uy * L * 0.3 + ny * w * 0.6, ex, ey);
+  x.quadraticCurveTo(cm.x + cm.ux * L * 0.3 - nx * w * 0.6, cm.y + cm.uy * L * 0.3 - ny * w * 0.6, cm.x - nx * w, cm.y - ny * w);
+  x.arc(cm.x, cm.y, w, Math.atan2(-ny, -nx), Math.atan2(ny, nx), cm.ux * ny - cm.uy * nx > 0);
+  x.fill();
+  const L2 = cm.len * 0.95;
+  const t = x.createLinearGradient(cm.x, cm.y, cm.x + cm.ux * L2, cm.y + cm.uy * L2);
+  t.addColorStop(0, inked(core, strength));
+  t.addColorStop(0.35, inked(core, 0.45 * strength));
+  t.addColorStop(1, inked(core, 0));
+  x.strokeStyle = t;
+  x.lineWidth = 0.6 + 0.5 * cm.near;
+  x.lineCap = 'round';
+  x.beginPath(); x.moveTo(cm.x, cm.y); x.lineTo(cm.x + cm.ux * L2, cm.y + cm.uy * L2); x.stroke();
+}
+
+// The head's glint, the sky's own flare (sky.js flarePicture): a white-hot core, a soft halo and four
+// arms, the long pair across its path, with red and blue pulled a little apart like an old lens.
+function glint(x, cm, tint, strength) {
+  const arm = glintReach(cm);
+  const across = Math.atan2(cm.uy, cm.ux) + Math.PI / 2 + 0.18;
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  for (const [dx, keep] of [[0.9, [1, 0.25, 0.25]], [0, [0.5, 1, 0.5]], [-0.9, [0.25, 0.25, 1]]]) {
+    const col = (a) => inked(tint.map((v, i) => v * keep[i]), a * strength);
+    x.save();
+    x.translate(cm.x + dx * cm.uy, cm.y - dx * cm.ux);
+    const halo = x.createRadialGradient(0, 0, 0, 0, 0, cm.coma * 2.2);
+    halo.addColorStop(0, col(0.45)); halo.addColorStop(0.35, col(0.14)); halo.addColorStop(1, col(0));
+    x.fillStyle = halo;
+    x.beginPath(); x.arc(0, 0, cm.coma * 2.2, 0, TAU); x.fill();
+    const size = 1.2 + cm.coma * 0.32;
+    const core = x.createRadialGradient(0, 0, 0, 0, 0, size);
+    core.addColorStop(0, col(1)); core.addColorStop(0.5, col(0.5)); core.addColorStop(1, col(0));
+    x.fillStyle = core;
+    x.beginPath(); x.arc(0, 0, size, 0, TAU); x.fill();
+    x.rotate(across);
+    for (const [reach, turn] of [[arm, 0], [arm * 0.55, Math.PI / 2]]) {
+      x.save();
+      x.rotate(turn);
+      const a = x.createLinearGradient(-reach, 0, reach, 0);
+      a.addColorStop(0, col(0)); a.addColorStop(0.38, col(0.22)); a.addColorStop(0.5, col(1)); a.addColorStop(0.62, col(0.22)); a.addColorStop(1, col(0));
+      x.fillStyle = a;
+      x.fillRect(-reach, -0.6, reach * 2, 1.2);
+      x.restore();
+    }
+    x.restore();
+  }
+  x.restore();
+}
+const glintReach = (cm) => 8 + cm.coma * 3.2;
+
 // The box a comet needs round its head, in points.
 function reach(cm) {
-  const pad = cm.coma * 3 + 10;
+  const pad = Math.max(cm.coma * 3, glintReach(cm)) + 10;
   const tx = cm.x + cm.ux * cm.len * 1.25, ty = cm.y + cm.uy * cm.len * 1.25;
   const fx = cm.x + (cm.ux + cm.sx * 0.9) * cm.len, fy = cm.y + (cm.uy + cm.sy * 0.9) * cm.len;
   return {
@@ -241,11 +312,12 @@ export function paintComet(canvas, cm) {
   stippled(out, box, dpr, (x) => dustTail(x, cm, dust, s), 1);
   stippled(out, box, dpr, (x) => ionTail(x, cm, ion, s * 1.05), 2);
   stippled(out, box, dpr, (x) => coma(x, cm, cm.coma, core, head, s), 3);
-  stippled(out, box, dpr, (x) => coma(x, cm, cm.coma * 0.45, ink.white, mix(core, ink.hot, heat * 0.6), s), 4, 1.25);
-  // the bright point at its heart, solid, so it reads as a star
+  // then what makes it a shooting star, crisp over the print: the streak and the glint at its head
   out.setTransform(dpr, 0, 0, dpr, -box.x0 * dpr, -box.y0 * dpr);
-  out.fillStyle = inked(ink.white, 0.9);
-  out.beginPath(); out.arc(cm.x, cm.y, 0.55 + 0.5 * cm.near, 0, TAU); out.fill();
+  out.globalCompositeOperation = 'lighter';
+  streak(out, cm, mix(head, ion, 0.4), core, 0.55 + 0.45 * cm.near);
+  out.globalCompositeOperation = 'source-over';
+  glint(out, cm, mix(ink.white, head, 0.25 + 0.35 * heat), 0.75 + 0.25 * cm.near);
   out.setTransform(1, 0, 0, 1, 0, 0);
   return box;
 }
@@ -306,63 +378,85 @@ export class Comets {
     const planets = new Map((page.data.planets || []).map((p) => [p.id, p]));
     const maxLen = narrow ? 90 : 190;
     const maxComa = narrow ? 7 : 11;
-    const heads = [];
+    const heads = [];     // every comet placed so far: its head and points along its tail
     const tagged = [];
     const keep = new Set();
+    // the loose stars round the void (their places are from the void's centre)
+    const starAt = [...(page.starsEl?.children || [])].filter((st) => st.at).map((st) => ({ x: cx + st.at.x, y: cy + st.at.y }));
+    const { rx, ry } = page.inner;
+    // How much open sky there is round a point, in pixels (less than nothing inside something):
+    // away from planets and their names, the void, the loose stars, the other comets and the edges.
+    const room = (x, y) => {
+      let d = 200;
+      for (const r of rects) {
+        const dx = Math.max(r.x0 - x, 0, x - r.x1), dy = Math.max(r.y0 - y, 0, y - r.y1);
+        d = Math.min(d, dx || dy ? Math.hypot(dx, dy) : -Math.min(x - r.x0, r.x1 - x, y - r.y0, r.y1 - y));
+      }
+      d = Math.min(d, (Math.hypot((x - cx) / rx, (y - cy) / ry) - 1) * Math.min(rx, ry));
+      for (const st of starAt) d = Math.min(d, Math.hypot(st.x - x, st.y - y) - 16);
+      for (const p of heads) d = Math.min(d, Math.hypot(p.x - x, p.y - y) - p.r);
+      return Math.min(d, x - 16, width - 16 - x, y - (top + 24), height - 40 - y);
+    };
     for (const { c, j } of live) {
       keep.add(c.id);
       const R = seeded(`comet:${c.id}`);
       const turn = R() < 0.5 ? -1 : 1;
       const base = R() * TAU;
-      // the way in that keeps clear of planets, today and over the rest of its fall
+      const near = j.after >= 0 ? 1 - j.after / AFTER * 0.5 : Math.max(j.p, j.soon);
+      const len = 5 + (maxLen - 5) * near ** 1.5;
+      // the way in that puts it, head and tail, in the most open sky (the user: "use blank space to
+      // place comets instead of putting them in crowded areas"); its own seed only breaks a tie
+      // and how far out its journey starts: the galaxy's edge, or a little inside it where the edge is crowded
       let best = null;
-      for (let k = 0; k < 48 && !(best && best.score < 0.1); k++) {
-        const phi = base + (k ? (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 24) : 0);
-        let score = k * 0.05;
-        for (const tt of [j.t, j.t * 0.6, j.t * 0.3, 0]) {
-          const o = orbit(tt, { q, edge, phi, aspect, turn });
+      for (const [si, scale] of [1, 0.88, 0.76].entries()) {
+        for (let k = 0; k < 72; k++) {
+          const phi = base + k * (TAU / 72);
+          const o = orbit(j.t, { q, edge: edge * scale, phi, aspect, turn });
           const x = cx + o.x, y = cy + o.y;
-          const now2 = tt === j.t;
-          for (const r of rects) if (x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1) score += now2 ? 10 : 2;
-          if (now2) {
-            for (const hd of heads) if (Math.hypot(hd.x - x, hd.y - y) < 70) score += 4;
-            if (x < 16 || x > width - 16 || y < top + 24 || y > height - 40) score += 20;
-          }
+          const ul = Math.hypot(o.x, o.y) || 1;
+          // the streak must stay clear too, nearly as much as the head: a shooting star across a planet reads as a mistake
+          const along = (k) => room(x + o.x / ul * len * k, y + o.y / ul * len * k);
+          const score = Math.min(room(x, y), along(0.25) + 8, along(0.5) + 14, along(0.75) + 20, along(1) + 28) - Math.min(k, 72 - k) * 0.02 - si * 8;
+          if (!best || score > best.score) best = { score, phi, scale };
         }
-        if (!best || score < best.score) best = { score, phi };
       }
-      const o = orbit(j.t, { q, edge, phi: best.phi, aspect, turn });
+      const o = orbit(j.t, { q, edge: edge * best.scale, phi: best.phi, aspect, turn });
       const x = cx + o.x, y = cy + o.y;
-      heads.push({ x, y });
       const ul = Math.hypot(o.x, o.y) || 1;
       const ux = o.x / ul, uy = o.y / ul;
+      heads.push({ x, y, r: 70, id: c.id }, { x: x + ux * len * 0.5, y: y + uy * len * 0.5, r: 40, id: c.id }, { x: x + ux * len, y: y + uy * len, r: 30, id: c.id });
       // the dust lags behind the way it's going
       let sx = -(o.mx - (o.mx * ux + o.my * uy) * ux), sy = -(o.my - (o.mx * ux + o.my * uy) * uy);
       const sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
-      const near = j.after >= 0 ? 1 - j.after / AFTER * 0.5 : j.p;
       const planet = planets.get(c.planet);
       const cm = {
         x, y, ux, uy, sx, sy, near, heat: j.heat, seed: c.id,
-        len: 5 + (maxLen - 5) * near ** 1.5, coma: 2 + (maxComa - 2) * near,
+        len, coma: 2 + (maxComa - 2) * near,
         col: planet ? hexRgb(planetTone(planet).tone) : inks().dust,
       };
       tagged.push(this.show(c, cm, j, now));
     }
-    // tags: the ones always shown first, nearest day first, then those shown only when pointed at
-    const clear = rects.map((r) => ({ ...r }));
-    // and the loose stars round the void (their places are from the void's centre)
-    for (const star of page.starsEl?.children || []) {
-      if (!star.at) continue;
-      const r = (page.m?.chip || 24) / 2 + 4;
-      clear.push({ x0: cx + star.at.x - r, x1: cx + star.at.x + r, y0: cy + star.at.y - r, y1: cy + star.at.y + r });
+    // tags: the ones always shown first, nearest day first, then those shown only when pointed at;
+    // each keeps a little way off planets, names, stars and every comet (heads and tails)
+    const clear = rects.map((r) => ({ x0: r.x0 - 8, x1: r.x1 + 8, y0: r.y0 - 8, y1: r.y1 + 8, real: r }));
+    const sr = (page.m?.chip || 24) / 2 + 10;
+    for (const st of starAt) clear.push({ x0: st.x - sr, x1: st.x + sr, y0: st.y - sr, y1: st.y + sr });
+    // the notes under the clock (comments, comets reminding you) lie over the sky: a tag never goes under one
+    const origin = this.hitsEl.getBoundingClientRect();
+    for (const n of document.querySelectorAll('.cn-notes .cn-note')) {
+      const r = n.getBoundingClientRect();
+      if (!r.height) continue;
+      const box = { x0: r.left - origin.left, x1: r.right - origin.left, y0: r.top - origin.top, y1: r.bottom - origin.top };
+      clear.push({ x0: box.x0 - 8, x1: box.x1 + 8, y0: box.y0 - 8, y1: box.y1 + 8, real: box });
     }
+    for (const p of heads) { const r = p.r * 0.25; clear.push({ x0: p.x - r, x1: p.x + r, y0: p.y - r, y1: p.y + r, id: p.id }); }
     // a phone has room for one tag of its own: the nearest day's
     const named = tagged.filter((t) => (t.j.after < 0 ? (t.j.due - now) / DAY < NAMED : t.j.after < 1)).slice(0, narrow ? 1 : MOST);
     for (const t of tagged) t.always = named.includes(t);
     for (const t of [...named, ...tagged.filter((t) => !t.always)]) this.tag(t.el, t.cm, t.j, t.title, t.words, now, clear, t.always);
     for (const [id, el] of this.els) {
       if (keep.has(id)) continue;
-      el.paint.remove(); el.hit.remove(); el.tag?.remove(); el.lead?.remove();
+      el.paint.remove(); el.hit.remove(); el.tag?.remove();
       this.els.delete(id);
     }
   }
@@ -374,14 +468,14 @@ export class Comets {
       // With a finger there's no pointing: the first tap shows what it is, the next opens it.
       hit.addEventListener('click', () => {
         if (touchScreen() && !el.tag?.classList.contains('is-shown') && !el.tag?.classList.contains('is-lit')) {
-          this.els.forEach((o) => o !== el && [o.paint, o.tag, o.lead].forEach((x) => x?.classList.remove('is-lit')));
-          [el.paint, el.tag, el.lead].forEach((x) => x?.classList.add('is-lit'));
+          this.els.forEach((o) => o !== el && [o.paint, o.tag].forEach((x) => x?.classList.remove('is-lit')));
+          [el.paint, el.tag].forEach((x) => x?.classList.add('is-lit'));
           return;
         }
-        openComet(el.c);
+        openComet(el.c, hit);
       });
       hit.addEventListener('contextmenu', (e) => this.menu(e, el.c, hit));
-      const lit = (on) => [el.paint, el.tag, el.lead].forEach((x) => x?.classList.toggle('is-lit', on));
+      const lit = (on) => [el.paint, el.tag].forEach((x) => x?.classList.toggle('is-lit', on));
       hit.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && lit(true));
       hit.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && lit(false));
       hit.addEventListener('focus', () => hit.matches(':focus-visible') && lit(true));
@@ -416,73 +510,74 @@ export class Comets {
     return { el, cm, j, title, words };
   }
 
-  // Its tag: what the note is for and when, joined to its head by a dotted line in the comet's own
-  // colour. Shown by itself within a few days of its day; otherwise while it's pointed at or focused.
-  // It goes where it covers least: not the void and its stars, a planet or its name, another tag
-  // or its own tail; first choice is the side of its head away from its dust.
+  // Its tag, a caption like a planet's: what it's for and when, snug beside its head (no line to it).
+  // Shown by itself within a few days of its day; otherwise while it's pointed at or focused.
+  // It goes where it covers least: not the void and its stars, a planet or its name, another tag,
+  // its own head or its tail; first choice is the side of its head away from its dust.
   tag(el, cm, j, title, words, now, clear, always) {
     if (!el.tag) {
-      el.tagName = h('span', { class: 'gx-comet-tag-name' });
-      el.tagWhen = h('span', { class: 'gx-comet-tag-when' });
+      el.tagText = h('span', { class: 'gx-comet-tag-text' });
+      el.tagName = h('span', { class: 'gx-comet-tag-name' }, el.tagText);
+      el.tagWords = h('span');
+      el.tagWhen = h('span', { class: 'gx-comet-tag-when' }, icon('date', 12), el.tagWords);
       el.tag = h('span', { class: 'gx-comet-tag', 'aria-hidden': 'true' }, el.tagName, el.tagWhen);
-      el.lead = h('i', { class: 'gx-comet-lead', 'aria-hidden': 'true' });
-      this.hitsEl.prepend(el.lead, el.tag);
+      this.hitsEl.prepend(el.tag);
     }
-    el.tagName.textContent = title.length > 32 ? `${title.slice(0, 30)}…` : title;
-    el.tagWhen.textContent = words.split(' · ')[0];
+    el.tagText.textContent = title.length > 32 ? `${title.slice(0, 30)}…` : title;
+    el.tagWords.textContent = words.split(' · ')[0];
     const { width, height, viewH, cx, cy } = this.page.size;
     const top0 = height - viewH;
     const onScreen = cm.x > 4 && cm.x < width - 4 && cm.y > top0 + 4 && cm.y < height - 4;
     let shown = onScreen && always;
-    el.tag.hidden = el.lead.hidden = !onScreen;
+    el.tag.hidden = !onScreen;
     if (!onScreen) {
       el.tag.classList.remove('is-shown');
-      el.lead.classList.remove('is-shown');
       return;
     }
     const tint = mix(heated(mix(inks().dust, cm.col, 0.3), cm.heat), inks().white, 0.2);
     el.tag.style.setProperty('--comet-ink', inked(tint));
-    el.lead.style.setProperty('--comet-ink', inked(tint, 0.8));
     el.tag.classList.remove('is-right');
     const w = el.tag.offsetWidth, tall = el.tag.offsetHeight;
     const { rx, ry } = this.page.inner;
     const inVoid = (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1;
-    const tail = [0.15, 0.3, 0.45, 0.6, 0.8].map((k) => [cm.x + cm.ux * cm.len * k, cm.y + cm.uy * cm.len * k]);
+    // along its streak, closely: a crisp line through words is worse than print dust
+    const tail = Array.from({ length: 18 }, (_, i) => 0.05 + i * 0.05).map((k) => [cm.x + cm.ux * cm.len * k, cm.y + cm.uy * cm.len * k]);
     const away = Math.atan2(-cm.sy, -cm.sx);
+    const glow = cm.coma * 1.6 + 4;
+    const own = { x0: cm.x - glow, x1: cm.x + glow, y0: cm.y - glow, y1: cm.y + glow };
     let best = null;
-    for (let k = 0; k < 16; k++) {
+    // three rings round its head, near first: a tag goes a little farther rather than sit on something,
+    // but never so far that it no longer reads as the comet's (there's no line to it)
+    for (let k = 0; k < 24; k++) {
       const a = away + (k % 8 ? (k % 2 ? 1 : -1) * Math.ceil((k % 8) / 2) * (Math.PI / 4) : 0);
-      const off = cm.coma * 2 + (k < 8 ? 22 : 44);
+      const off = glow + [6, 18, 34][Math.floor(k / 8)];
       const ox = Math.cos(a), oy = Math.sin(a);
       const px = cm.x + ox * off, py = cm.y + oy * off;
-      const want = { x: ox > 0.3 ? px : ox < -0.3 ? px - w : px - w / 2, y: oy > 0.3 ? py : oy < -0.3 ? py - tall : py - tall / 2 };
+      // above or below, it reaches out on the side away from its streak
+      const want = { x: ox > 0.3 ? px : ox < -0.3 ? px - w : px - w * (cm.ux < -0.3 ? 0.12 : cm.ux > 0.3 ? 0.88 : 0.5), y: oy > 0.3 ? py : oy < -0.3 ? py - tall : py - tall / 2 };
       const left = clamp(want.x, 8, width - w - 8), top = clamp(want.y, top0 + 8, height - tall - 8);
       const box = { x0: left - 4, y0: top - 2, x1: left + w + 4, y1: top + tall + 2 };
       const hits = (b) => Math.max(0, Math.min(box.x1, b.x1) - Math.max(box.x0, b.x0)) * Math.max(0, Math.min(box.y1, b.y1) - Math.max(box.y0, b.y0));
-      let score = (k % 8) * 40 + (k >= 8 ? 200 : 0) + Math.hypot(left - want.x, top - want.y) * 20;
-      for (const b of clear) score += hits(b) * 4;
-      for (const [x, y] of tail) if (x > box.x0 && x < box.x1 && y > box.y0 && y < box.y1) score += 600;
-      for (const [x, y] of [[box.x0, box.y0], [box.x1, box.y0], [box.x0, box.y1], [box.x1, box.y1], [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2]]) if (inVoid(x, y)) score += 900;
-      if (!best || score < best.score) best = { score, left, top, ox, oy, box, over: score - (k % 8) * 40 - (k >= 8 ? 200 : 0) >= 900 };
+      const cost = (k % 8) * 30 + Math.floor(k / 8) * 160;
+      let score = cost + Math.hypot(left - want.x, top - want.y) * 20;
+      for (const b of clear) if (b.id !== el.c.id) score += hits(b) * 6 + (b.real ? hits(b.real) * 12 : 0);   // its own head and tail are judged below; truly covering a planet or a name costs most
+      score += hits(own) * 12;
+      for (const [x, y] of tail) if (x > box.x0 && x < box.x1 && y > box.y0 && y < box.y1) score += 1500;
+      let onVoid = false;
+      for (const [x, y] of [[box.x0, box.y0], [box.x1, box.y0], [box.x0, box.y1], [box.x1, box.y1], [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2]]) if (inVoid(x, y)) { score += 900; onVoid = true; }
+      // the glass behind it only where it truly sits on the void or a planet, not where it only comes near one
+      const over = onVoid || clear.some((b) => b.real && hits(b.real) > 120);
+      if (!best || score < best.score) best = { score, left, top, ox, oy, box, over };
     }
-    const { left, top, ox, oy, box } = best;
+    const { left, top, ox, box } = best;
     // on a phone the void's middle is the add button: a tag that only fits over it waits to be tapped
     if (best.over && this.page.m?.narrow) shown = false;
     el.tag.classList.toggle('is-shown', shown);
-    el.lead.classList.toggle('is-shown', shown);
     el.tag.classList.toggle('is-over', best.over);
     if (shown) clear.push(box);
     const right = ox < -0.3;
     el.tag.classList.toggle('is-right', right);
     el.tag.style.transform = `translate(${left.toFixed(1)}px, ${top.toFixed(1)}px)`;
-    // the line: from just off its head to the nearest corner of the name's first line
-    const side = Math.abs(ox) > 0.3;
-    const ax = side ? (right ? left + w + 4 : left - 4) : left + w / 2;
-    const ay = side ? top + tall * 0.3 : oy > 0 ? top - 3 : top + tall + 3;
-    const start = cm.coma * 1.4 + 3;
-    const sx = cm.x + Math.cos(Math.atan2(ay - cm.y, ax - cm.x)) * start, sy = cm.y + Math.sin(Math.atan2(ay - cm.y, ax - cm.x)) * start;
-    const len = Math.hypot(ax - sx, ay - sy);
-    Object.assign(el.lead.style, { width: `${len.toFixed(1)}px`, transform: `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) rotate(${Math.atan2(ay - sy, ax - sx).toFixed(3)}rad)` });
   }
 
   menu(e, c, hit) {

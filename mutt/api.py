@@ -2523,11 +2523,29 @@ def comet_title(r):
     return r['file_name'] or (r['content'] if r['kind'] == 'link' else '') or 'A file'
 
 
-def comet_json(r, planet=None):
-    return {'id': r['block_id'], 'title': comet_title(r)[:80], 'planet': planet, 'day': r['day'], 'time': r['time'],
+def comet_on(db_, block_id):
+    """Where a comet's file is: (planet to open it on, the list it is an item of, or None)."""
+    on = db_.execute('SELECT c.drawer_id, c.checked, d.parent_id, d.title, d.modes FROM connections c '
+                     'JOIN drawers d ON d.id = c.drawer_id WHERE c.block_id = ? ORDER BY c.connected_at', (block_id,)).fetchall()
+    planet = (on[0]['parent_id'] or on[0]['drawer_id']) if on else None
+    lst = next(({'id': c['drawer_id'], 'title': c['title']} for c in on
+                if (json.loads(c['modes'] or '{}').get('list') or {}).get('on')), None)
+    return on, planet, lst
+
+
+def comet_json(r, planet=None, lst=None, db_=None):
+    """A comet as the page sees it, with what its file is (`kind`: list item, note, picture, link…),
+    so it is shown as what it is, never as a note when it isn't one."""
+    if db_ is not None:
+        _, planet, lst = comet_on(db_, r['block_id'])
+    kind = 'item' if lst and r['kind'] == 'text' else r['kind']
+    thumb = f"/t/{r['block_id']}?v={r['thumb_key'][:8]}" if r['thumb_key'] else None
+    return {'id': r['block_id'], 'title': comet_title(r)[:80], 'kind': kind, 'list': lst, 'thumb': thumb,
+            'planet': planet, 'day': r['day'], 'time': r['time'],
             'said': r['said'] or '', 'yearly': bool(r['yearly']), 'at': ms(r['at']), 'ahead': ms(r['ahead']),
             'from': ms(r['made_at']), 'done': ms(r['done_at']) if r['done_at'] else None,
-            'due': r['at'] <= now() and not r['done_at'], 'soon': r['ahead'] <= now() < r['at'] and r['closed'] != r['at']}
+            'due': r['at'] <= now() and not r['done_at'], 'soon': r['ahead'] <= now() < r['at'] and r['closed'] != r['at'],
+            'closed': r['closed'] == r['at']}
 
 
 def roll_yearly(db_, user_id=None):
@@ -2546,16 +2564,15 @@ def roll_yearly(db_, user_id=None):
 def live_comets(db_, user_id):
     """Your comets still in the sky, nearest first, with the planet each is on."""
     roll_yearly(db_, user_id)
-    rows = db_.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id '
+    rows = db_.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name, b.thumb_key FROM reminders r JOIN blocks b ON b.id = r.block_id '
                        'WHERE r.user_id = ? AND b.deleted_at IS NULL AND (r.done_at IS NULL OR r.done_at > ?) '
                        'ORDER BY r.at', (user_id, now() - COMET_LEAVING * 86400)).fetchall()
     out = []
     for r in rows:
-        on = db_.execute('SELECT c.drawer_id, c.checked, d.parent_id FROM connections c JOIN drawers d ON d.id = c.drawer_id '
-                         'WHERE c.block_id = ? ORDER BY c.connected_at', (r['block_id'],)).fetchall()
+        on, planet, lst = comet_on(db_, r['block_id'])
         if on and all(c['checked'] for c in on) and not r['done_at']:
             continue  # ticked off on its list: done with
-        out.append(comet_json(r, (on[0]['parent_id'] or on[0]['drawer_id']) if on else None))
+        out.append(comet_json(r, planet, lst))
     return out
 
 
@@ -2587,14 +2604,15 @@ def planet_comets(req, drawer_id):
 @route('GET', r'/api/comets/due')
 def comets_due(req):
     """What to tell you now: comets whose time has come and not been dealt with (`due`), and heads-ups
-    not yet waved away (`soon`). Asked by the page and by the device's service worker when a push wakes it."""
-    out = [c for c in live_comets(req.db, req.user['id']) if c['due'] or c['soon']]
+    (`soon`), unless their note was closed. Asked by the page and by the device's service worker when a push wakes it.
+    A closed note's comet still waits in the sky until it is done."""
+    out = [c for c in live_comets(req.db, req.user['id']) if (c['due'] or c['soon']) and not c['closed']]
     return json_response({'comets': out})
 
 
 def _own_comet(req, block_id):
     own_block(req, block_id)
-    r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
+    r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name, b.thumb_key FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
                        (block_id,)).fetchone()
     if not r:
         raise HttpError(404, 'That file isn’t a comet.')
@@ -2633,21 +2651,21 @@ def make_comet(req, block_id):
                    'sent_ahead, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
                    (block_id, req.user['id'], day.isoformat(), f['time'], f['said'][:80], int(f['yearly']), tz, at, ahead, now(),
                     int(ahead <= now())))
-    return json_response({'comet': comet_json(_own_comet(req, block_id))})
+    return json_response({'comet': comet_json(_own_comet(req, block_id), db_=req.db)})
 
 
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
 def get_comet(req, block_id):
     """A note's comet, or {comet: null}; with `tz`, also what day its words name now (`could`), for the offer."""
     row = own_block(req, block_id)
-    r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
+    r = req.db.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name, b.thumb_key FROM reminders r JOIN blocks b ON b.id = r.block_id WHERE r.block_id = ?',
                        (block_id,)).fetchone()
     could = None
     if req.arg('tz') is not None:
         got = first_day(words_of(row), _tz_arg(req.arg('tz')))
         if got:
             could = {'day': got[1].isoformat(), 'time': got[0]['time'], 'said': got[0]['said']}
-    return json_response({'comet': comet_json(r) if r and (r['done_at'] or not ticked(req.db, block_id)) else None, 'could': could})
+    return json_response({'comet': comet_json(r, db_=req.db) if r and (r['done_at'] or not ticked(req.db, block_id)) else None, 'could': could})
 
 
 @route('DELETE', r'/api/blocks/(?P<block_id>[\w-]+)/comet')
@@ -2695,7 +2713,7 @@ def deal_with_comet(req, block_id, act):
                        'WHERE block_id = ?', (at, ahead, made, int(ahead <= now()), int(at <= now()), block_id))
         if r['done_at']:   # what Done ticked off comes back too
             req.db.execute('UPDATE connections SET checked = NULL WHERE block_id = ? AND checked >= ?', (block_id, r['done_at']))
-    return json_response({'comet': comet_json(_own_comet(req, block_id))})
+    return json_response({'comet': comet_json(_own_comet(req, block_id), db_=req.db)})
 
 
 def follow_words(db_, block_id, content):

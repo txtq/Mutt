@@ -6,7 +6,7 @@ import traceback
 import urllib.parse
 
 from . import api  # noqa: F401  (registers routes)
-from . import assets, auth, db
+from . import assets, auth, db, live
 from .web import HttpError, Request, Response, json_response, match, status_line
 
 APP_CSP = '; '.join([
@@ -101,7 +101,14 @@ def dispatch(req):
             req.extra_headers.append(auth.cookie_header(req, req.session_token))
         if needs_user and not req.user:
             raise HttpError(401, 'Please sign in.')
-        return handler(req, **params)
+        if req.method in ('GET', 'HEAD'):
+            return handler(req, **params)
+        # Live (live.py): whoever is looking at what this changes hears of it.
+        seen = live.before(req, params) if req.user else None
+        resp = handler(req, **params)
+        if resp.status < 400:
+            live.after(req, params, seen, resp)
+        return resp
     if req.method not in ('GET', 'HEAD'):
         raise HttpError(405, 'Method not allowed.')
     if req.path.startswith('/assets/'):

@@ -81,6 +81,11 @@ export function askToKeep() {
     await asking;
   };
   return {
+    // Live (live.js): someone asked, answered or left; ask again.
+    refresh() {
+      fetchedAt = 0;
+      if (here) this.set(true);
+    },
     // true while you're on your own galaxy (not out in the universe)
     async set(on) {
       here = on;

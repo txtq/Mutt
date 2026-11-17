@@ -296,6 +296,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 | A video starting when pointed at | move |
 | A box being added | its line move; its shimmer on the quick beat |
 | A box leaving; the others closing up | leaves; arrive |
+| A change made elsewhere (someone else, or you on another device; `live.js`): a box coming, going, changing or the boxes rearranged | the same moves as made here: a box joins in the one glide of the rest, leaves the same way, its picture or words swap in place; no sound, no glow, nothing says who. A page built again (a mode turned on elsewhere) changes at once, where you were |
 | A box picked up, carried, dropped | lifts change; lands move or change |
 | *The screen changing* | |
 | One page to another | the old fades in move on the leaving curve; the new fades in over arrive. No blur. |

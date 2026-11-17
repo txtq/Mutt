@@ -133,3 +133,28 @@ echo "beamed as a list (expect it plain): $(curl -s "${S[@]}" "${J[@]}" -X POST 
 echo "sam's download lists what he beamed: $(curl -s "${S[@]}" -o "$SP/sam.zip" -w '%{http_code}' $B/api/me/export) $(python3 -c "
 import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); d=json.loads(z.read([n for n in z.namelist() if n.endswith('Your data.json')][0]))
 print([(b['to'], b['words']) for b in d['beamedOut']], 'answer' in json.dumps(d['beamedOut']))" "$SP/sam.zip")"
+
+# ---- live: an open page hears what changed elsewhere (mutt/live.py), never what it holds
+LP=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Live","visibility":"people"}' | j "d['drawer']['id']")
+curl -s -o /dev/null "${S[@]}" "${J[@]}" -X PATCH $B/api/drawers/$LP -d '{"people":["rae"]}'
+curl -s -N --max-time 3 "${R[@]}" "$B/api/live?tab=raelive0001" > "$SP/live-r.txt" &
+curl -s -N --max-time 3 "${S[@]}" "$B/api/live?tab=samlive0001" > "$SP/live-s.txt" &
+curl -s -N --max-time 3 "${C[@]}" "$B/api/live?tab=cylive00001" > "$SP/live-c.txt" &
+sleep 0.5
+# watch <who> <json>: what that person's page says it shows; prints what the server took
+watch() { local a; eval "a=(\"\${$1[@]}\")"; curl -s "${a[@]}" "${J[@]}" -X POST $B/api/live/watch -d "$2" | j "d.get('planet'), d.get('galaxy', d.get('error'))"; }
+RW=$(watch R '{"tab":"raelive0001","planet":"'$LP'"}')
+echo "rae watches the planet shared with her: $([[ $RW == "$LP False" ]] && echo yes || echo "$RW")"
+CW=$(watch C '{"tab":"cylive00001","planet":"'$LP'"}')
+rule "cy could watch a planet he can't see" "$CW" "None False"
+watch S '{"tab":"samlive0001","planet":"'$LP'"}' > /dev/null
+CT=$(watch C '{"tab":"raelive0001","galaxy":"cy"}')
+rule "cy took over rae's page" "$CT" "None False"
+LB=$(curl -s "${S[@]}" "${J[@]}" -H X-Mutt-Tab:samlive0001 -X POST $B/api/blocks -d '{"content":"a secret plan","drawer":"'$LP'"}' | j "d['block']['id']")
+curl -s -o /dev/null "${S[@]}" "${J[@]}" -H X-Mutt-Tab:samlive0001 -X POST $B/api/blocks/$LB/beam -d '{"to":"rae"}'
+wait
+echo "rae's page heard: $(grep -o '"t":"[a-z]*"' "$SP/live-r.txt" | sort -u | tr -d '"' | tr '\n' ' ')"
+echo "sam's own page isn't told of his own change: $(grep -c '^data:' "$SP/live-s.txt")"
+rule "a notice carried what a file holds" "$(cat "$SP/live-r.txt" "$SP/live-c.txt" | grep -c secret)" "0"
+echo "cy's page heard nothing: $(grep -c '^data:' "$SP/live-c.txt")"
+echo "a stream needs a page id (expect 400): $(status "${R[@]}" "$B/api/live?tab=x")"

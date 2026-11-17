@@ -1181,6 +1181,79 @@ export const planetView = {
         mine ? h('div', { class: 'liv-tools' }, shareBtn, moreBtn) : null),
       body);
 
+    // ------------------------------------------------------------ live (live.js)
+    //
+    // Something changed here elsewhere (someone adding to it, its other keeper, you
+    // on another device): ask for the planet again and let only the differences
+    // move, through the same bus events every view already follows.
+    let syncing = false;
+    let syncAgain = false;
+    const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const moonsKey = (d) => (d.moons || []).map((m) => `${m.id}:${m.title}:${m.look}:${m.count}`).join('|');
+    // Not while something is being carried, uploaded or typed into a file: it waits its turn.
+    const unsettled = () => document.body.classList.contains('is-carrying') || !!el.querySelector('.is-pending, .cell textarea:focus, .cell [contenteditable]:focus');
+    async function lookAgain() {
+      if (syncing) { syncAgain = true; return; }
+      if (!el.isConnected) return;
+      if (unsettled()) { setTimeout(lookAgain, DUR.scene); return; }
+      syncing = true;
+      try {
+        let data;
+        try { data = await api.get(`/api/drawers/${id}`); } catch (err) {
+          // Deleted, or no longer open to you: back to whoever's galaxy it was in.
+          if (el.isConnected && (err.status === 404 || err.status === 403)) { toast(`This ${word} is no longer here`); nav.go(home, { replace: true }); }
+          return;
+        }
+        if (!el.isConnected || !data.drawer) return;
+        const next = data.drawer;
+        // Shown another way now (a mode turned on or off elsewhere): the page is built again where you are.
+        if (startMode(next) !== startMode(drawer)) {
+          if (startMode(next)) await loadMode(startMode(next));
+          const y = scrollY;
+          await nav.go(location.pathname + location.search, { replace: true, fresh: true, motion: 'none' });
+          scrollTo(0, y);
+          return;
+        }
+        const moonsMoved = moonsKey(next) !== moonsKey(drawer);
+        setDrawer({ ...drawer, ...next });
+        inst.drawer = drawer;
+        if (document.activeElement !== title && title.value !== drawer.title) {
+          title.value = drawer.title;
+          inst.title = drawer.title;
+          document.title = `${drawer.title} — Mutt.`;
+        }
+        if (document.activeElement !== desc && desc.value !== (drawer.description || '')) desc.value = drawer.description || '';
+        if (moonsMoved) renderMoons();
+        // The files: what left, what came, what changed.
+        const now = filesNow();
+        const fresh = data.blocks.filter(notTmp);
+        const had = new Map(now.map((b) => [b.id, b]));
+        const has = new Set(fresh.map((b) => b.id));
+        for (const b of now) if (!has.has(b.id)) bus.emit('block:disconnected', { block: b, drawerId: id });
+        for (const b of fresh) {
+          const old = had.get(b.id);
+          if (!old) bus.emit('block:connected', { block: b, drawerId: id });
+          else if (Object.keys(b).some((k) => !same(b[k], old[k]))) {
+            bus.emit('block:changed', b);
+            if (!!b.checked !== !!old.checked) active?.view.ticked?.(b.id, b.checked);   // a list item ticked elsewhere
+          }
+        }
+        // Rearranged elsewhere: the plain files glide into the new order.
+        if (!active && collection.sort === 'manual') {
+          const order = fresh.map((b) => b.id).join();
+          if (collection.blocks.map((b) => b.id).join() !== order && collection.blocks.length === fresh.length) {
+            const byId = new Map(collection.blocks.map((b) => [b.id, b]));
+            collection.setBlocks(fresh.map((b) => byId.get(b.id) || b));
+          }
+        }
+        setMeta(filesNow().length);
+        world.update({ ...drawer, count: filesNow().length, previews: filesNow().slice(0, 12) });
+      } finally {
+        syncing = false;
+        if (syncAgain) { syncAgain = false; lookAgain(); }
+      }
+    }
+
     const inst = {
       el,
       title: drawer.title,
@@ -1194,6 +1267,9 @@ export const planetView = {
       homeLabel: mine ? null : `${drawer.ownerName || `@${drawer.owner}`}’s galaxy`,
       goHome: () => nav.go(home),
       list: () => filesNow(),
+      // Live (live.js): told when this planet changes elsewhere, or when the stream was down.
+      watch: { planet: id },
+      live: (msg) => { if ((msg.t === 'planet' && msg.id === id) || msg.t === 'again') lookAgain(); },
       // A moon takes new things just like a planet: typed, pasted or dropped.
       dropTarget: () => view().dropTarget(),
       pasteText: (text) => view().pasteText(text),

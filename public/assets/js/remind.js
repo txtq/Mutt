@@ -410,6 +410,8 @@ function cometNotes() {
 export function startComets() {
   if (notes || !session.user) return;
   notes = cometNotes();
+  // Live (live.js): a comet came due, or one changed on another device.
+  bus.on('live', ({ t }) => { if (t === 'comets' || t === 'again') notes.look(); });
   notes.look();
   refresh();
 }

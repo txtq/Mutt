@@ -10,13 +10,17 @@ export class ApiError extends Error {
   }
 }
 
+// This page, as the live stream knows it (live.js): changes it makes carry it, so
+// it isn't told of its own changes.
+export const TAB = (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`).replace(/[^\w-]/g, '');
+
 let onSignedOut = () => {};
 export function whenSignedOut(fn) {
   onSignedOut = fn;
 }
 
 async function request(method, url, body) {
-  const init = { method, headers: { 'X-Mutt': '1' }, credentials: 'same-origin' };
+  const init = { method, headers: { 'X-Mutt': '1', 'X-Mutt-Tab': TAB }, credentials: 'same-origin' };
   if (body !== undefined) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -50,6 +54,7 @@ export function sendFile(url, blob, { type, onProgress, signal } = {}) {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
     xhr.setRequestHeader('X-Mutt', '1');
+    xhr.setRequestHeader('X-Mutt-Tab', TAB);
     xhr.setRequestHeader('Content-Type', type || blob.type || 'application/octet-stream');
     xhr.responseType = 'json';
     if (onProgress) xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);

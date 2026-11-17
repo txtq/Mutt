@@ -1060,21 +1060,25 @@ function applyUpdate(block, { keepSide = false } = {}) {
 bus.on('block:changed', (block) => {
   if (state?.block.id !== block.id) return;
   const newPicture = (block.thumb !== undefined && block.thumb !== state.block.thumb) || (block.file !== undefined && block.file !== state.block.file);
-  if (state.block.sharedAt === block.sharedAt && !newPicture) return;
+  // A note's words changed elsewhere (live.js), while no one is writing in it here.
+  const newWords = block.content !== undefined && block.content !== state.block.content && !state.stage.contains(document.activeElement);
+  const newCount = block.commentCount !== undefined && block.commentCount !== state.block.commentCount;
+  if (state.block.sharedAt === block.sharedAt && !newPicture && !newWords && !newCount) return;
   state.block = { ...state.block, ...block };
   state.list = state.list.map((b) => (b.id === block.id ? state.block : b));
-  if (newPicture) renderStage();
+  if (newPicture || newWords) renderStage();
+  if (newCount && state.comments?.id === block.id) state.comments.reload();
   renderSide();
 });
 bus.on('block:connected', ({ block, connections }) => {
   if (state?.block.id !== block.id) return;
-  state.connections = connections;
+  if (connections) state.connections = connections;
   state.block = { ...state.block, ...block };
   renderSide();
 });
 bus.on('block:disconnected', ({ block, connections }) => {
   if (state?.block.id !== block.id) return;
-  state.connections = connections;
+  if (connections) state.connections = connections;
   state.block = { ...state.block, ...block };
   renderSide();
 });

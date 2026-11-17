@@ -142,5 +142,13 @@ export function commentSection(block, { go = () => {}, onCount = () => {} } = {}
     if (!comments) list.replaceChildren(h('li', { class: 'vw-cm-empty' }, 'Comments didn’t load.'));
   });
 
-  return { el, id: block.id };
+  // Someone commented elsewhere (live.js): the new one comes in moving, as your own does.
+  function reload() {
+    api.get(`/api/blocks/${block.id}/comments`).then((res) => {
+      const known = new Set((comments || []).map((c) => c.id));
+      show(res.comments, { arrived: res.comments.find((c) => !known.has(c.id))?.id || null });
+    }).catch(() => {});
+  }
+
+  return { el, id: block.id, reload };
 }

@@ -1768,6 +1768,33 @@ class Galaxy {
     this.setHint();
   }
 
+  // Live (live.js): something changed elsewhere. This galaxy (its planets, its stars, what was
+  // beamed to you) is asked for again; the universe below too, once it has been out there.
+  // Never while something is carried or search holds what it found: it waits its turn.
+  heard(msg) {
+    if (!this.el.isConnected) return;
+    const t = msg.t;
+    if (t === 'galaxy' || t === 'again' || (t === 'beams' && this.mine)) this.whenStill(() => this.refresh());
+    if (t === 'comets' || t === 'again') this.comets?.load();
+    if (t === 'universe' || t === 'again') {
+      this.universeAgain ||= debounce(() => {
+        if (!this.el.isConnected || !this.uvLoading) return;
+        this.uvLoading = null;
+        if (this.p > 0.02) this.loadUniverse();
+      }, DUR.scene);
+      this.universeAgain();
+    }
+  }
+
+  whenStill(fn) {
+    if (!this.el.isConnected) return;
+    if (document.body.classList.contains('is-carrying') || this.found?.active || this.heldAt != null) {
+      setTimeout(() => this.whenStill(fn), DUR.scene);
+      return;
+    }
+    fn();
+  }
+
   async reload() {
     try {
       const data = await api.get(this.mine ? '/api/galaxy' : `/api/galaxy/${encodeURIComponent(this.owner)}`);
@@ -3223,6 +3250,9 @@ class Galaxy {
         gravity: () => this.gravity(),
         gathered: () => !!this.found?.active,
       },
+      // Live (live.js): told when this galaxy, the universe or what waits for you changes elsewhere.
+      watch: { galaxy: this.owner },
+      live: (msg) => this.heard(msg),
       dropTarget: () => this.dropTarget(),
       pasteText: (text) => { if (this.p < 0.5) this.hole?.focusText(text); },
       mounted: ({ moved = false } = {}) => {

@@ -16,7 +16,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
-from . import auth, books, convert, db, documents, export, hear, kinds, links, media, privacy, quotes, recipes, sight, sorting, transcode, webpush, when
+from . import auth, books, convert, db, documents, export, hear, kinds, links, live, media, privacy, quotes, recipes, sight, sorting, transcode, webpush, when
 from . import modes as modes_registry
 from . import split as split_moons
 from .web import HttpError, Response, content_disposition, file_response, json_response, route, stream_to_file
@@ -578,6 +578,44 @@ def user_stats(conn, user_id):
         'SELECT COUNT(*) FROM blocks b WHERE b.user_id = ? AND b.deleted_at IS NULL AND NOT EXISTS '
         f'(SELECT 1 FROM connections c WHERE c.block_id = b.id) {DISH_KEPT}', (user_id,)).fetchone()[0]
     return {'files': files, 'drawers': drawers, 'stars': stars}
+
+
+# ---------------------------------------------------------------- live (mutt/live.py)
+
+@route('GET', r'/api/live')
+def live_stream(req):
+    """One open page's stream of notices: what changed elsewhere, to look at again."""
+    tab = (req.query.get('tab') or [''])[0]
+    if not live.TAB_RE.match(tab):
+        raise HttpError(400, 'Which page is this?')
+    body = live.stream(req.user['id'], tab)
+    if body is None:
+        raise HttpError(400, 'Which page is this?')
+    return Response(200, [
+        ('Content-Type', 'text/event-stream; charset=utf-8'),
+        ('Cache-Control', 'no-store'),
+        ('X-Accel-Buffering', 'no'),   # proxies pass each notice on at once
+    ], body)
+
+
+@route('POST', r'/api/live/watch')
+def live_watch(req):
+    """What an open page shows now: a planet (only one you may see) or someone's galaxy."""
+    body = req.json()
+    tab = str(body.get('tab') or '')
+    if not live.TAB_RE.match(tab):
+        raise HttpError(400, 'Which page is this?')
+    planet = galaxy = None
+    if body.get('planet'):
+        row = req.db.execute('SELECT * FROM drawers WHERE id = ?', (str(body['planet']),)).fetchone()
+        if row and drawer_visible(req, row):
+            planet = row['id']
+    if body.get('galaxy'):
+        row = req.db.execute('SELECT id FROM users WHERE username = ?', (str(body['galaxy']).lower(),)).fetchone()
+        galaxy = row['id'] if row else None
+    if not live.watch(req.user['id'], tab, planet=planet, galaxy=galaxy):
+        planet = galaxy = None   # someone else's page
+    return json_response({'planet': planet, 'galaxy': galaxy is not None})
 
 
 # ---------------------------------------------------------------- health
@@ -2802,6 +2840,7 @@ def push_due(conn):
         if not ticked(conn, r['block_id']):
             wake.add(r['user_id'])
     for uid in wake:
+        live.tell_person(uid, 'comets')
         for sub in conn.execute('SELECT endpoint, contact FROM push_subs WHERE user_id = ?', (uid,)).fetchall():
             if webpush.send(sub['endpoint'], sub['contact']) == 'gone':
                 conn.execute('DELETE FROM push_subs WHERE endpoint = ?', (sub['endpoint'],))

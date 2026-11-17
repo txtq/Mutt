@@ -61,3 +61,11 @@ a document arrives as its page: [(True, False, None)]
 kept with its pages and picture: True own 200
 beamed as a list (expect it plain): True [(False, False)]
 sam's download lists what he beamed: 200 [('rae', 'the celadon one'), ('rae', None), ('cy', None), ('rae', None), ('rae', None), ('rae', None)] False
+rae watches the planet shared with her: yes
+rule holds: cy could watch a planet he can't see -> no
+rule holds: cy took over rae's page -> no
+rae's page heard: t:beams t:planet
+sam's own page isn't told of his own change: 0
+rule holds: a notice carried what a file holds -> no
+cy's page heard nothing: 0
+a stream needs a page id (expect 400): 400

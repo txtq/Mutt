@@ -1418,7 +1418,27 @@ def throw_star(s, seeded):
         time.sleep(0.2)
 
 
-PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
+def live_updates(s, seeded):
+    """A file added elsewhere (another device: a change sent without this page's id) shows on the open planet, no reload."""
+    s.go('/')
+    s.click(s.named('.planet', 'Postcards', 'the Postcards planet is not in the galaxy'))
+    s.wait('return document.querySelectorAll(".cell:not(.cell-entry)").length === 3', 'Postcards should show 3 files')
+    s.settle(1)
+    elsewhere = """const id = location.pathname.split('/')[2];
+      window.__live = null;
+      fetch('/api/blocks', { method: 'POST', headers: { 'X-Mutt': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: 'Written on another device', drawer: id }) })
+        .then((r) => r.json()).then((d) => { window.__live = d.block.id; });"""
+    s.js(elsewhere)
+    s.wait('return window.__live && document.querySelector(`.cell[data-id="${window.__live}"]`)',
+           'a file added on another device did not show on the open planet')
+    s.shot('live-arrived')
+    s.js("""fetch(`/api/blocks/${window.__live}?forever=1`, { method: 'DELETE', headers: { 'X-Mutt': '1' } })""")
+    s.wait('return !document.querySelector(`.cell[data-id="${window.__live}"]:not(.is-leaving)`)',
+           'a file deleted on another device stayed on the open planet')
+
+
+PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, live_updates, list_mode, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
          split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
 

@@ -7,6 +7,7 @@ import { canTransition, transition, visibleShared } from './transitions.js';
 import { closeAllPopovers, toast } from './ui.js';
 import { DUR, EASE_LEAVE, bus, h, reducedMotion } from './util.js';
 import { sound } from './sound.js';
+import { watch } from './live.js';
 import { closeViewer, configureViewer, openViewer, viewerBlockId, viewerOpen } from './viewer.js';
 
 const routes = [];
@@ -156,6 +157,7 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     document.body.classList.toggle('no-chrome', inst.chrome === false);
     document.body.dataset.page = inst.chrome || 'page';
     chrome.update(inst, url);
+    watch(inst.watch || null);
     scrollTo(0, pop ? history.state?.scroll || 0 : 0);
   };
   // The very first page just plays its own entrance. After a page change
@@ -237,6 +239,8 @@ async function dusk(swap) {
 export function startRouter({ rootEl, topbar }) {
   root = rootEl;
   chrome = topbar;
+  // What changed elsewhere (live.js) goes to the page showing, which looks again.
+  bus.on('live', (msg) => current?.inst.live?.(msg));
   nav.go = go;
   nav.current = () => new URL(location.href);
   nav.rename = (path) => {

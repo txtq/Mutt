@@ -55,16 +55,19 @@ export class Collection {
     if (!readOnly) for (const item of pendingFor(this.ctx)) this.grid.addPending(item);
 
     this.resort = debounce(() => this.render('flip'), 300);
-    this.off = readOnly && !share ? [] : [
+    // Changes made elsewhere reach every planet, someone else's too (live.js sends them as these).
+    this.off = [
       bus.on('block:changed', (b) => this.patch(b)),
       bus.on('block:deleted', ({ id }) => this.drop(id)),
       bus.on('block:connected', (e) => this.connected(e)),
       bus.on('block:disconnected', (e) => this.disconnected(e)),
+    ];
+    if (!readOnly || share) this.off.push(
       bus.on('upload:add', (item) => this.mine(item) && this.grid.addPending(item)),
       bus.on('upload:progress', (item) => this.mine(item) && this.grid.updatePending(item)),
       bus.on('upload:fail', (item) => this.mine(item) && this.grid.updatePending(item)),
       bus.on('upload:done', (item) => this.mine(item) && this.arrived(item.key, item.block)),
-    ];
+    );
     // Saving someone's file (from the viewer) flips its pill here too.
     this.off.push(bus.on('block:saved', ({ id }) => {
       const block = this.blocks.find((b) => b.id === id);

@@ -221,6 +221,11 @@ export function commentNotes() {
       if (on) { ask(); return; }
       clear();
     },
+    // Live (live.js): a comment or a beam came in elsewhere; ask again (shown now if on your galaxy).
+    refresh() {
+      fetchedAt = 0;
+      if (wanted && !past) ask();
+    },
     // The clock: the last three, or back to the new ones.
     togglePast() { setPast(!past); },
     hidePast() { setPast(false); },

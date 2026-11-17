@@ -392,6 +392,11 @@ export function createStatusbar() {
   const keyTip = askForKey();
   // Someone asking you to keep a planet together, and news of planets you keep with someone.
   const keepTip = askToKeep();
+  // Live (live.js): what waits for you came in elsewhere.
+  bus.on('live', ({ t }) => {
+    if (t === 'comments' || t === 'beams' || t === 'again') notes.refresh();
+    if (t === 'keep' || t === 'again') keepTip.refresh();
+  });
   // A name, asked for each time you go out into the universe if you haven't given one.
   const nameTip = askForName({ onSaved: () => paintWho() });
   const showNotes = () => {

@@ -721,6 +721,16 @@ export class ListView {
     }
   }
 
+  // Ticked or unticked elsewhere (live.js): shown, not saved again.
+  ticked(id, checked) {
+    const block = this.find(id);
+    if (!block || !!block.checked === !!checked) return;
+    block.checked = checked;
+    this.paintTick(id);
+    this.updateCount();
+    if (this.opts.doneLast) this.arrange(checked ? id : null);
+  }
+
   paintTick(id) {
     const li = this.rows.get(id);
     const block = this.find(id);

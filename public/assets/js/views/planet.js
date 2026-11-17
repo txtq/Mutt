@@ -1232,10 +1232,10 @@ export const planetView = {
     const moonsKey = (d) => (d.moons || []).map((m) => `${m.id}:${m.title}:${m.look}:${m.count}`).join('|');
     // Not while something is being carried, uploaded or typed into a file: it waits its turn.
     const unsettled = () => document.body.classList.contains('is-carrying') || !!el.querySelector('.is-pending, .cell textarea:focus, .cell [contenteditable]:focus');
-    async function lookAgain() {
+    async function syncPage() {
       if (syncing) { syncAgain = true; return; }
       if (!el.isConnected) return;
-      if (unsettled()) { setTimeout(lookAgain, DUR.scene); return; }
+      if (unsettled()) { setTimeout(syncPage, DUR.scene); return; }
       syncing = true;
       try {
         let data;
@@ -1290,7 +1290,7 @@ export const planetView = {
         world.update({ ...drawer, count: filesNow().length, previews: filesNow().slice(0, 12) });
       } finally {
         syncing = false;
-        if (syncAgain) { syncAgain = false; lookAgain(); }
+        if (syncAgain) { syncAgain = false; syncPage(); }
       }
     }
 
@@ -1309,7 +1309,7 @@ export const planetView = {
       list: () => filesNow(),
       // Live (live.js): told when this planet changes elsewhere, or when the stream was down.
       watch: { planet: id },
-      live: (msg) => { if ((msg.t === 'planet' && msg.id === id) || msg.t === 'again') lookAgain(); },
+      live: (msg) => { if ((msg.t === 'planet' && msg.id === id) || msg.t === 'again') syncPage(); },
       // A moon takes new things just like a planet: typed, pasted or dropped.
       dropTarget: () => view().dropTarget(),
       pasteText: (text) => view().pasteText(text),

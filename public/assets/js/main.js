@@ -20,6 +20,7 @@ import { askForLongerCode } from './account.js';
 import { tooltips } from './tooltip.js';
 import { makeDropRing } from './dropring.js';
 import { startComets } from './remind.js';
+import { swipeOutOfPlanets } from './swipeout.js';
 
 bootPrefs();
 startMusic();
@@ -137,6 +138,9 @@ addEventListener('paste', (e) => {
 // Safari on a phone only shows a button being pressed if the page listens
 // for touches at all.
 addEventListener('touchstart', () => {}, { passive: true });
+
+// A long swipe up at the end of a planet's page goes back to its galaxy (swipeout.js).
+swipeOutOfPlanets(currentView);
 
 // How much of the screen a phone's keyboard leaves showing, so sheets and
 // dialogs can stay above it (--seen in the stylesheets). Pinching in isn't

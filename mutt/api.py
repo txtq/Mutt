@@ -1217,6 +1217,9 @@ def galaxy_of(req, owner):
             p = private_planet(r)
         if r['kept_here']:
             p['x'], p['y'] = r['kx'], r['ky']   # where its other keeper put it in their own galaxy
+        if p.get('keepers'):
+            # the one it is shared with, seen from this galaxy: its second light and "with Rae"
+            p['pairWith'] = next((k for k in p['keepers'] if k and k['username'] != owner['username']), None)
         planets.append(p)
     open_ids = {p['id'] for p in planets if not p.get('locked')}
     open_ids |= {m['id'] for p in planets for m in p.get('moons') or [] if not m.get('locked')}

@@ -18,7 +18,7 @@ import { updatePrefs } from '../theme.js';
 import { openContextMenu, openDialog, pinField, toast } from '../ui.js';
 import { askThen } from './planet.js';
 import { addFiles, withinLimit } from '../uploads.js';
-import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, covered, debounce, fmtDuration, h, isEditable, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
+import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, covered, debounce, fmtDuration, h, isEditable, nameColor, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
@@ -47,6 +47,8 @@ const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 // How far each galaxy's ring was turned on a phone, so coming back from a planet finds it as you left it.
 const turns = new Map();
 const smooth = (t) => t * t * (3 - 2 * t);
+// how tall a galaxy's name and facts stand under it in the universe, on screen (.uvg-label)
+const UV_NAME = 44;
 
 function excerpt(text, n = 90) {
   const t = (text || '').trim().replace(/\s+/g, ' ');
@@ -2883,52 +2885,113 @@ class Galaxy {
 
     // The web behind, drawn as it looks once you're all the way out.
     const nodes = spots.map((s, i) => ({ x: mid.x + k * s.x, y: mid.y + k * s.y, r: k * Math.max(plans[i].ex, plans[i].ey) * 0.8 }));
-    const webKey = `${width}×${viewH}:${nodes.map((n) => `${Math.round(n.x)},${Math.round(n.y)}`).join(';')}:${pairs.map((p) => `${p.i}-${p.j}-${p.n}`).join(',')}`;
+    // a pair that shares a planet: their thread runs through it
+    const webPairs = pairs.map((p) => {
+      const at = this.keptAt?.get(`${Math.min(p.i, p.j)}-${Math.max(p.i, p.j)}`);
+      return at ? { ...p, via: { x: mid.x + k * at.x, y: mid.y + k * at.y, r: k * at.size * 0.5 } } : p;
+    });
+    const webKey = `${width}×${viewH}:${nodes.map((n) => `${Math.round(n.x)},${Math.round(n.y)}`).join(';')}:${webPairs.map((p) => `${p.i}-${p.j}-${p.n}${p.via ? `@${Math.round(p.via.x)},${Math.round(p.via.y)}` : ''}`).join(',')}`;
     if (webKey !== this.webKey) {
       this.webKey = webKey;
       const M = 1.4;
       const W = width * M;
       const H = viewH * M;
       const off = { x: (width - W) / 2, y: (viewH - H) / 2 };
-      const threads = paintWeb(this.webCanvas, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner, pairs);
+      const threads = paintWeb(this.webCanvas, W, H, nodes.map((n) => ({ ...n, x: n.x - off.x, y: n.y - off.y })), session.user?.username || this.owner,
+        webPairs.map((p) => (p.via ? { ...p, via: { ...p.via, x: p.via.x - off.x, y: p.via.y - off.y } } : p)));
       this.webBeads.dataset.run = this.p > 0.02 ? 'yes' : 'no';
       beads(this.webBeads, threads, reducedMotion());
       Object.assign(this.web.style, { left: `${off.x}px`, top: `${off.y}px`, width: `${W}px`, height: `${H}px`, transformOrigin: `${(F.x - off.x).toFixed(1)}px ${(F.y - off.y).toFixed(1)}px` });
     }
   }
 
-  // A planet two people keep together is drawn once, in the gap between their
-  // two galaxies (which sit side by side: what they keep joins them strongly).
-  // When one of them is this page's galaxy, it stays where it is on the page
-  // and only leaves the other galaxy.
+  // A shared planet (two people keep it together) is drawn once, in the gap between their two
+  // galaxies (which sit side by side: what they keep joins them strongly), lit from each side in
+  // each one's colour. When one of them is this page's galaxy, its planet here fades as you pull
+  // back and the one in the gap comes in (`render`), so out in the universe it is only between them.
   keptBetween(spots, pairs) {
     for (const el of this.keptEls || []) el.remove();
     this.keptEls = [];
+    this.keptHome = [];
+    this.keptAt = new Map();   // "i-j" → where the pair's shared planet sits, so their thread runs through it
     const index = new Map(this.list.map((g, i) => [g.username, i]));
     const near = new Set(pairs.map((p) => `${Math.min(p.i, p.j)}-${Math.max(p.i, p.j)}`));
+    const seen = new Set();
     for (const link of this.links || []) {
       const i = index.get(link.a);
       const j = index.get(link.b);
       if (i == null || j == null || !link.kept || !near.has(`${Math.min(i, j)}-${Math.max(i, j)}`)) continue;
       for (const id of link.kept) {
+        if (seen.has(id)) continue;
+        seen.add(id);
         const dots = [i, j].map((n) => this.uvEls[n].worlds.find((d) => d.world.id === id));
         dots.forEach((d) => { if (d) d.hidden = true; });
-        if (i === this.homeAt || j === this.homeAt) continue;
-        const shown = dots.find(Boolean);
-        if (!shown) continue;
-        // the middle of the gap between the two, along the line joining them
+        const home = i === this.homeAt || j === this.homeAt;
+        const planet = home ? this.planetEls?.get(id) : null;
+        const world = dots.find(Boolean)?.world || planet?.planet;
+        if (!world || world.private) continue;
+        const size = dots.find(Boolean)?.at.size || this.uvEls[i === this.homeAt ? j : i].worlds[0]?.at.size || 10;
         const [a, b] = [spots[i], spots[j]];
         const [pa, pb] = [this.uvEls[i].plan, this.uvEls[j].plan];
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
         const ux = dx / d, uy = dy / d;
         const edge = (p) => 1 / Math.hypot(ux / p.ex, uy / p.ey);
         const ra = edge(pa), rb = edge(pb);
-        const t = d > ra + rb ? ra + (d - ra - rb) / 2 : d / 2;
-        const el = h('span', { class: 'uv-kept', 'aria-hidden': 'true', style: { transform: `translate(${(a.x + ux * t).toFixed(1)}px, ${(a.y + uy * t).toFixed(1)}px)` } },
-          worldPicture(shown.world, shown.at.size, Math.min(1, (devicePixelRatio || 1) * 0.6)));
+        const k = this.uv?.k || 1;
+        let x, y;
+        if (d - ra - rb > size * 4) {
+          // a real gap: its middle, along the line joining them
+          const t = ra + (d - ra - rb) / 2;
+          x = a.x + ux * t;
+          y = a.y + uy * t;
+        } else {
+          // too close for a gap: just outside the pair, beside the line between them, on the side away
+          // from everyone else, so the threads from both can be seen reaching it
+          const M = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          let n = { x: -uy, y: ux };
+          const rest = spots.filter((_, q) => q !== i && q !== j);
+          const away = rest.reduce((t, o) => t + (o.x - M.x) * n.x + (o.y - M.y) * n.y, 0);
+          if (away > 0) n = { x: -n.x, y: -n.y };
+          const clear = (px, py) => [[a, pa], [b, pb]].every(([g, pl]) => {
+            const inside = Math.abs(px - g.x) < pl.ex * 1.15 + size && Math.abs(py - g.y) < pl.ey * 1.15 + size;
+            const name = Math.abs(px - g.x) < UV_NAME * 1.8 / k && py > g.y + pl.ey - size && py < g.y + pl.ey + UV_NAME / k + size;
+            return !inside && !name;
+          });
+          let s = 0;
+          while (s < 4000 && !clear(M.x + n.x * s, M.y + n.y * s)) s += 4;
+          x = M.x + n.x * s;
+          y = M.y + n.y * s;
+        }
+        const el = h('span', {
+          class: 'uv-kept',
+          'aria-hidden': 'true',
+          style: {
+            transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`,
+            '--w': `${size}px`, '--a': nameColor(link.a), '--b': nameColor(link.b),
+            '--ux': `${(ux * 16).toFixed(1)}%`, '--uy': `${(uy * 16).toFixed(1)}%`,
+          },
+        }, h('span', { class: 'uv-kept-glow' }), worldPicture(world, size, Math.min(1, (devicePixelRatio || 1) * 0.6)));
         this.uvField.append(el);
         this.keptEls.push(el);
+        const key = `${Math.min(i, j)}-${Math.max(i, j)}`;
+        if (!this.keptAt.has(key)) this.keptAt.set(key, { x, y, size });
+        if (planet) this.keptHome.push({ planet, el });
       }
+    }
+    this.homeLeft = null;
+    this.leaveHome(this.p || 0);
+  }
+
+  // Out in the universe your shared planets leave your galaxy for the gap between you and the other.
+  leaveHome(p) {
+    if (!this.keptHome?.length) return;
+    const e = 0.4 * p + 0.6 * smooth(p);
+    const u = smooth(clamp((e - 0.18) / 0.4));
+    if (u === this.homeLeft) return;
+    this.homeLeft = u;
+    for (const { planet, el } of this.keptHome) {
+      planet.style.opacity = u ? (1 - u).toFixed(3) : '';
+      el.style.opacity = u.toFixed(3);
     }
   }
 
@@ -3030,6 +3093,7 @@ class Galaxy {
     this.uvStage.style.setProperty('--head', smooth(clamp((e - 0.55) / 0.3)).toFixed(3));
     if (lab) this.uvStage.style.setProperty('--ik', (1 / k).toFixed(3));
     this.el.classList.toggle('is-far', k < 0.55);
+    this.leaveHome(p);
     // On a galaxy taller than the screen it waits for the end, not over the planets.
     const below = this.size ? this.size.height - this.size.viewH - scrollY : 0;
     const cue = (1 - clamp(p * 5)) * (1 - clamp((below - 8) / 40));

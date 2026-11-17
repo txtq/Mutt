@@ -2065,6 +2065,11 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   pointer-events: none;
   transition: filter var(--dur-move);
 }
+/* A shared planet (two people keep it together) has a faint, small glow round its globe in the colour
+   of the one it is shared with (`--twin`, nameColor). Still; DESIGN.md "Kept together and beaming". */
+.planet-twin { display: none; position: absolute; inset: -16%; z-index: 1; pointer-events: none;
+  background: radial-gradient(circle closest-side, color-mix(in srgb, var(--twin) 26%, transparent) 62%, transparent 100%); }
+.planet.is-pair .planet-twin { display: block; }
 .planet:focus-visible .planet-ball { box-shadow: 0 0 0 2px var(--blue-ink), 0 6px 18px -6px rgba(0, 0, 10, 0.55); }   /* the keyboard's outline, as a ring round the globe */
 .has-dust .planet.is-target .planet-body::after { inset: -23%; }   /* the drop ring */
 .planet-lock { display: none; }
@@ -2342,6 +2347,11 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   color: var(--ink);
   text-shadow: var(--sky-shadow);
 }
+/* a shared planet's caption: "with Rae" (pair icon in their colour) before the count, which keeps its room */
+.planet-with { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--ink-2); }
+.planet-with .ic { flex: none; color: var(--twin); }
+.planet-with-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.planet-count { flex: none; }
 .planet-meta { display: flex; align-items: center; justify-content: center; gap: var(--space-4); margin-top: var(--space-2); font: 400 var(--text-small)/1.2 var(--mono); color: var(--ink-3); text-shadow: var(--sky-shadow); }
 
 .planet-body.is-gulping .planet-atmo { animation: atmo-flare var(--dur-scene) var(--ease-settle); }
@@ -2412,8 +2422,20 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .world.is-zooming .uv-stage { will-change: opacity; }
 .uv-scene { position: absolute; inset: 0; will-change: transform; }
 .uv-field { position: absolute; left: 0; top: 0; width: 0; height: 0; }
-/* a planet two people keep together, drawn once in the gap between their galaxies (keptBetween) */
+/* a shared planet, drawn once in the gap between the two galaxies (keptBetween), lit from each side
+   in each one's colour (`--a` toward the first, `--b` toward the second, nameColor) */
 .uv-kept { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.uv-kept-glow {
+  position: absolute;
+  left: calc(var(--w) * -1.1);
+  top: calc(var(--w) * -1.1);
+  width: calc(var(--w) * 2.2);
+  height: calc(var(--w) * 2.2);
+  border-radius: var(--r-full);
+  background:
+    radial-gradient(circle at calc(50% - var(--ux)) calc(50% - var(--uy)), color-mix(in srgb, var(--a) 24%, transparent) 0%, transparent 30%),
+    radial-gradient(circle at calc(50% + var(--ux)) calc(50% + var(--uy)), color-mix(in srgb, var(--b) 24%, transparent) 0%, transparent 30%);
+}
 /* the few that pass close by the camera on the way out */
 .uv-near { position: absolute; inset: 0; pointer-events: none; }
 .uv-near .uvg { will-change: transform; }

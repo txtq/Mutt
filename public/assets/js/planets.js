@@ -6,7 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
-import { BLUE, DUR, covered, fmtDuration, h, named, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
+import { BLUE, DUR, covered, fmtDuration, h, named, nameColor, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
 
@@ -1064,7 +1064,8 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const bubble = h('span', { class: 'planet-bubble', 'aria-hidden': 'true' });
   const name = h('span', { class: 'planet-name' });
   const meta = h('span', { class: 'planet-meta' });
-  const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, bubble);
+  // a shared planet has a faint glow in the colour of the one it is shared with
+  const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-twin', 'aria-hidden': 'true' }), h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, bubble);
   const el = h(tag, { class: `planet${canPaint() ? ' is-gl' : ''}${isMoon ? ' is-moon' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
     body,
     label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta) : null);
@@ -1138,8 +1139,11 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const title = next.private ? 'Private' : next.title;
     if (name.textContent !== title) name.textContent = title;
     const vis = next.community ? 'community' : next.visibility;
-    // A planet two people keep together: whom with (yours), or whose it is (someone else's).
-    const pair = next.private || !next.keepers ? '' : next.keptWith ? `shared with ${shortName(next.keptWith)}` : `shared by ${next.keepers.map(shortName).join(' and ')}`;
+    // A shared planet (two people keep it together): the other one, seen from this galaxy.
+    const other = next.private || !next.keepers ? null : next.pairWith || next.keptWith || next.keepers[1];
+    const pair = other ? `shared with ${shortName(other)}` : '';
+    el.classList.toggle('is-pair', !!other);
+    if (other) el.style.setProperty('--twin', nameColor(other.username || ''));
     const metaKey = next.private ? 'private' : `${next.mine !== false && vis !== 'pin' && vis}|${!!next.locked}|${next.count || 0}|${pair}`;
     const label = next.private ? 'A private planet' : `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}${pair ? `, ${pair}` : ''}`;
     if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
@@ -1152,8 +1156,8 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const bits = [];
     if (next.mine !== false && vis && vis !== 'pin') bits.push(icon(vis === 'community' ? 'plus' : VISIBILITY[vis].icon, 12));
     if (next.locked) bits.push(icon('lock', 12));
-    if (pair) bits.push(h('span', { class: 'planet-pair', title: pair[0].toUpperCase() + pair.slice(1) }, icon('pair', 12)));
-    bits.push(h('span', null, next.count ? plural(next.count, 'file') : 'empty'));
+    if (other) bits.push(h('span', { class: 'planet-with' }, icon('pair', 12), h('span', { class: 'planet-with-name' }, `with ${shortName(other)}`)));
+    bits.push(h('span', { class: 'planet-count' }, next.count ? plural(next.count, 'file') : 'empty'));
     meta.replaceChildren(...bits);
   };
   el.update(planet);

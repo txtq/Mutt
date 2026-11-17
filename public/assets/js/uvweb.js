@@ -106,10 +106,23 @@ export function paintWeb(canvas, width, height, nodes, seedName = 'web', shared 
   // Threads between galaxies that share files: a wisp of dust (`wisp`, below),
   // a little fuller the more files they share, and still faint. Like the
   // rest, they run from the edge of each galaxy's planets.
-  for (const { i, j, n } of shared) {
+  for (const { i, j, n, via } of shared) {
     const a = nodes[i];
     const b = nodes[j];
     if (!a || !b) continue;
+    // a planet the two keep together sits between them: the thread runs from each galaxy to it
+    if (via) {
+      for (const g of [a, b]) {
+        const len = Math.hypot(via.x - g.x, via.y - g.y);
+        if (len < 4) continue;
+        const bend = (rand() < 0.5 ? -1 : 1) * len * (0.05 + rand() * 0.06);
+        const c = { x: (g.x + via.x) / 2 - ((via.y - g.y) / len) * bend, y: (g.y + via.y) / 2 + ((via.x - g.x) / len) * bend };
+        const from = toward(g, c, g.r * 0.95);
+        const to = toward(via, c, via.r * 1.6);
+        wisp(dot, rand, from, c, to, { strands: 3, width: 1.4 + Math.min(1.4, n * 0.25), spread: 4 + Math.min(4, n), bright: Math.min(0.85, 0.6 + n * 0.06), haze: 0.4 });
+      }
+      continue;
+    }
     const len = Math.hypot(b.x - a.x, b.y - a.y);
     if (len < 4) continue;
     const nx = -(b.y - a.y) / len;

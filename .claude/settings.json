@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch -q origin)",
+      "Bash(git fetch -q)",
+      "Bash(tests/run.sh drift)",
+      "Bash(tests/run.sh)",
+      "Bash(tests/run.sh -v together)",
+      "Bash(tests/run.sh -v galaxy)",
+      "Bash(tests/run.sh -v browser)",
+      "Bash(tests/run.sh -v modes)",
+      "Bash(tests/run.sh browser)",
+      "Bash(tests/run.sh galaxy)",
+      "Bash(tests/run.sh smoke)",
+      "Bash(tests/run.sh api)",
+      "Bash(xcrun simctl list *)",
+      "Bash(defaults read *)",
+      "mcp__ccd_session_mgmt__list_sessions",
+      "mcp__ccd_session_mgmt__list_events",
+      "mcp__ccd_session_mgmt__get_session",
+      "mcp__computer-use__app_screenshot"
+    ]
+  }
+}

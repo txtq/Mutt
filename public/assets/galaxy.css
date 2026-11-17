@@ -292,6 +292,10 @@ body.no-chrome #view { max-width: none; }
 ::view-transition-old(topbar) { display: none; }
 ::view-transition-new(topbar) { animation: none; }
 
+/* Under the two pictures of a page change, the night sky. While one fades out and the other in (and
+   in the dive's gap between them) something shows through, and Safari 18 showed the window's own
+   white there: the screen went white for a moment on page changes (2026-11-16). */
+::view-transition { background: var(--sky-top); }
 ::view-transition-old(root) { animation: page-out var(--dur-move) var(--ease-leave) both; }
 ::view-transition-new(root) { animation: page-in var(--dur-arrive) var(--ease-settle) both; }
 @keyframes page-out { to { opacity: 0; } }

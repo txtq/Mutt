@@ -248,6 +248,7 @@ Scripts use the same numbers, read from `tokens.css` by `util.js`, never their o
 - **Starting the sound engine costs about 60.** It happens while sign-in's light has the whole screen, the one place it cannot be seen. Leave it there.
 - Sign-in at rest is the heaviest screen because the void fills it at the fineness the user chose; it is no heavier than before that choice. Don't lighten it by drawing it less finely.
 
+- **Under a page change is the night sky** (`::view-transition { background: var(--sky-top) }`). The two pictures of the pages are both part-way see-through while one fades out and the other in, and in the dive there is a gap between them; Safari 18 showed the window's own white through it, so the screen went white for a moment (2026-11-16). Nothing in a page change may rely on what the browser paints behind it.
 - **An entrance switched off only while a page change runs comes back when it ends.** A rule such as `html[data-vt] .thing { animation: none }` hands the animation back the moment `data-vt` is removed, and the thing plays its entrance then: the file view blinked out and in after every opening. Mark the thing itself instead (`.is-carried`).
 
 **How to measure** (the tools are in `/Users/edan/Mutt-notes/design/session8/`; the hidden test browser can draw with this Mac's real graphics chip, nothing on screen, at a true sixty pictures a second: `GL_REAL` in `kit.py`):

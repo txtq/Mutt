@@ -1381,6 +1381,15 @@ def board_mode(s, seeded):
     s.type(s.see('.bd-item.is-editing .bd-words', 'pressing Words gave nothing to write in'), 'Harbour')
     s.click(s.see('.bd-item.is-editing .bd-drop', 'words being written have no button to take them away'))
     s.wait('return !document.querySelector(".bd-item.is-words")', 'the words\' button did not take them away')
+    # Arrange lays it out again (here all one size), and its Undo puts it back
+    widths = 'return [...document.querySelectorAll(".bd-item.is-file")].map((e) => e.dataset.id + ":" + e.style.width).sort().join()'
+    was = s.js(widths)
+    s.click(s.named('.bd-bar button', 'Arrange', 'the board\'s bar has no "Arrange"'))
+    s.click(s.named('.pop .menu-item', 'All one size', 'Arrange has no "All one size"'))
+    s.wait('return new Set([...document.querySelectorAll(".bd-item.is-file")].map((e) => Math.round(parseFloat(e.style.width)))).size <= 2',
+           '"All one size" left the files at many sizes')
+    s.click(s.named('.toast button', 'Undo', 'no Undo was offered after arranging'))
+    s.wait(widths.replace('return ', 'return (') + ') === arguments[0]', 'Undo did not put the board back as it was', 8, (was,))
     no_errors('on the board')
     s.go(f'/p/{pin}')
     s.wait(f'{items} === 7', 'a reload did not open straight on the board')

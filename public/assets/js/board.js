@@ -22,7 +22,7 @@ import { entryCell } from './entry.js';
 import { icon } from './icons.js';
 import { imageSrc, displayTitle } from './kinds.js';
 import { nav } from './nav.js';
-import { confirmDialog, openContextMenu, openPopover, toast } from './ui.js';
+import { confirmDialog, openContextMenu, openMenu, openPopover, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor } from './uploads.js';
 import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, h, named, personLabel, reducedMotion, seeded, sharpness, uid } from './util.js';
 import { wisp } from './uvweb.js';
@@ -31,7 +31,6 @@ import { sound } from './sound.js';
 const UNIT = 220;            // a file's width in the grid
 const GAP = 24;              // between files in the grid
 const FRAME = UNIT * 5 / 4;  // the grid's frame, four wide to five tall
-const COLS = 4;
 const MIN_W = 64;
 const MAX_W = 1600;
 const MIN_H = 48;
@@ -89,17 +88,179 @@ function groupsOf(blocks, subjects) {
   return out.length ? out : [{ name: '', blocks }];
 }
 
-// How big a file starts on a new board: a picture keeps its shape (a tall one
-// no taller than the grid's frame), a short note is short, a long one the frame.
-function sizeFor(b) {
+// ------------------------------------------------------------ laying a board out for you
+//
+// A board Mutt lays out (a new one, Arrange, one that had become a long line)
+// is a collage in columns 220 wide: each file at the size that suits it, a few
+// of the best ones two columns wide (three for the very first on a big board),
+// the whole thing as wide as the screen is for its height, so it reads at a
+// glance on a computer and fills a phone's width. A note above a gap runs
+// down to close it. Groups, when there are any, sit side by side under their
+// headings in shelves as wide as the rest.
+
+const STEP = UNIT + GAP;
+const spanW = (k) => k * UNIT + (k - 1) * GAP;
+const STRETCH = 140;          // a note may run this much further down to close a gap under it
+const HOLE = 56;              // a wide file is laid narrower rather than leave a gap deeper than this
+const ORDERS = ['groups', 'kind', 'new', 'old', 'name', 'now'];
+const SIZES = ['mixed', 'even'];
+const SIZE_STEPS = [150, spanW(1), spanW(2), spanW(3), spanW(4)];   // Make it bigger / smaller
+
+// How a file sits in a place k columns wide: its width, its height (null: its
+// shape decides), how much room it takes down the column, and whether that can grow.
+function pieceIn(b, k) {
+  const W = spanW(k);
   const r = ratioOf(b);
-  if (r) return r >= UNIT / FRAME ? { w: UNIT, h: null } : { w: Math.round(FRAME * r), h: null };
+  if (r) {
+    // a tall picture is made narrower rather than taller than this
+    const most = W * (k > 1 ? 1.35 : 1.45);
+    const w = W / r > most ? Math.round(most * r) : W;
+    return { w, h: null, tall: w / r, stretch: false };
+  }
+  let hh;
   if (b.kind === 'text') {
     const n = (b.content || '').length;
-    return { w: UNIT, h: n <= 60 ? 132 : n <= 240 ? UNIT : FRAME };
-  }
-  return { w: UNIT, h: b.kind === 'link' ? FRAME : UNIT };
+    hh = k > 1 ? (n <= 700 ? 260 : 360) : n <= 60 ? 132 : n <= 240 ? UNIT : 300;
+  } else if (b.kind === 'audio') hh = UNIT;
+  else hh = k > 1 ? Math.round(W * 0.75) : FRAME;
+  return { w: W, h: hh, tall: hh, stretch: true };
 }
+
+// How much a file deserves to be shown large: a big picture or video most, a
+// long piece of writing, a link or page with a picture; talked-about files a little more.
+function standout(b) {
+  const r = ratioOf(b);
+  let s = 0;
+  if (r) s = !b.width || b.width >= 700 ? (r >= 0.75 ? 3 : 1.5) : 1;
+  else if (b.kind === 'text') s = (b.content || '').length > 500 ? 2 : 0;
+  else if (b.kind === 'link') s = b.thumb ? 1.5 : 0;
+  else if (b.thumb) s = 1;
+  return s + Math.min(2, b.commentCount || 0) * 0.5;
+}
+
+// How many columns each file takes: one, or now and then two (three for a big board's first).
+function spans(list, cols, mixed) {
+  if (!mixed || cols < 2) return list.map(() => 1);
+  let since = 99;
+  return list.map((b, i) => {
+    const s = standout(b);
+    let k = 1;
+    if (i === 0 && cols >= 5 && list.length >= 10 && s >= 3) k = 3;
+    else if (s >= 2 && since >= (cols <= 2 ? 5 : 3)) k = 2;
+    else if (s >= 1.5 && since >= 6) k = 2;
+    since = k > 1 ? 0 : since + 1;
+    return k;
+  });
+}
+
+// Files in `cols` columns from x0, y0, each into the shallowest place it fits.
+function masonry(list, cols, x0, y0, mixed) {
+  const ks = spans(list, cols, mixed);
+  const depth = Array(cols).fill(y0);
+  const last = Array(cols).fill(null);
+  const placed = [];
+  const fills = (j, top) => last[j]?.stretch && last[j].k === 1 && top - depth[j] <= STRETCH;
+  list.forEach((b, i) => {
+    let k = Math.min(ks[i], cols);
+    let best = null;
+    for (;;) {
+      for (let c = 0; c + k <= cols; c++) {
+        const top = Math.max(...depth.slice(c, c + k));
+        let hole = 0;
+        for (let j = c; j < c + k; j++) if (top > depth[j] && !fills(j, top)) hole += top - depth[j];
+        const cost = top + hole * 2;
+        if (!best || cost < best.cost) best = { c, top, hole, cost };
+      }
+      if (k === 1 || best.hole <= HOLE) break;
+      k = 1;
+      best = null;
+    }
+    // a note above a gap runs down to close it
+    for (let j = best.c; j < best.c + k; j++) {
+      if (best.top > depth[j] && fills(j, best.top)) { last[j].h += best.top - depth[j]; last[j].tall += best.top - depth[j]; }
+    }
+    const p = pieceIn(b, k);
+    const one = { b, k, x: x0 + best.c * STEP + (spanW(k) - p.w) / 2, y: best.top, w: p.w, h: p.h, tall: p.tall, stretch: p.stretch };
+    placed.push(one);
+    for (let j = best.c; j < best.c + k; j++) { depth[j] = best.top + p.tall + GAP; last[j] = one; }
+  });
+  return { placed, height: Math.max(...depth) - GAP - y0 };
+}
+
+// How many columns a set of files wants to be `aspect` times as wide as it is tall.
+function colsFor(list, aspect, most, mixed) {
+  const area = list.reduce((s, b) => s + (pieceIn(b, 1).tall + GAP) * STEP, 0) * (mixed ? 1.3 : 1);
+  return clamp(Math.round(Math.sqrt(area * aspect) / STEP), 1, Math.max(1, Math.min(most, list.length)));
+}
+
+// The whole plan: where every file goes, and a heading over each group.
+// `view` is the board's size on the screen.
+function layoutFor(groups, { mixed, view }) {
+  const all = groups.flatMap((g) => g.blocks);
+  // the room fit() has, a little wider as masonry runs long; as many columns as that shape takes
+  const pad = view.w < 640 ? 16 : 32;
+  const aspect = clamp(1.1 * (view.w - pad * 2) / Math.max(200, view.h - pad - 72), 0.45, 3.2);
+  const most = Math.max(2, Math.min(24, Math.floor((view.w - pad * 2) / (STEP / 4))));
+  const total = colsFor(all, aspect, most, mixed);
+  if (groups.length < 2) return { files: masonry(all, total, 0, 0, mixed).placed, heads: [] };
+  const lay = (g, x, y) => masonry(g.blocks, g.cols, x, y, mixed);
+  const areaOf = (list) => list.reduce((sum, b) => sum + (pieceIn(b, 1).tall + GAP) * STEP, 0) * (mixed ? 1.3 : 1);
+  for (const g of groups) g.area = areaOf(g.blocks);
+  // Groups in shelves at most `most` columns wide, each group given the
+  // columns that make it about `T` tall; the T whose whole comes out nearest
+  // the screen's shape wins.
+  const shelvesFor = (T) => {
+    const shelves = [];
+    let shelf = [];
+    let used = 0;
+    for (const g of groups) {
+      const cols = clamp(Math.ceil(g.area / (T * STEP)), 1, Math.min(most, g.blocks.length));
+      if (shelf.length && used + cols > most) { shelves.push(shelf); shelf = []; used = 0; }
+      shelf.push({ g, cols });
+      used += cols;
+    }
+    shelves.push(shelf);
+    const wide = Math.max(...shelves.map((row) => row.reduce((sum, p) => sum + p.cols * STEP + GAP * 2, -GAP * 2)));
+    const tall = shelves.reduce((sum, row) => sum + LABEL_ROOM + Math.max(...row.map((p) => p.g.area / (p.cols * STEP))) + GAP * 3, -GAP * 3);
+    return { shelves, miss: Math.abs(Math.log(wide / tall / aspect)) };
+  };
+  let best = null;
+  for (let T = 200; T < 20000; T *= 1.15) {
+    const one = shelvesFor(T);
+    if (!best || one.miss < best.miss - 0.01) best = one;
+  }
+  const N = Math.max(...best.shelves.map((row) => row.reduce((sum, p) => sum + p.cols, 0)));
+  const files = [];
+  const heads = [];
+  let y = 0;
+  for (const row of best.shelves) {
+    for (const p of row) p.g.cols = p.cols;
+    // the room a shelf has left goes to its tallest group, a column at a time
+    let left = N - row.reduce((sum, p) => sum + p.g.cols, 0);
+    while (left > 0) {
+      const can = row.map((p) => p.g).filter((g) => g.cols < g.blocks.length);
+      if (!can.length) break;
+      const tall = can.map((g) => lay(g, 0, 0).height);
+      can[tall.indexOf(Math.max(...tall))].cols += 1;
+      left -= 1;
+    }
+    let x = 0;
+    let rowH = 0;
+    for (const { g } of row) {
+      heads.push({ words: g.name, x: x - 8, y });
+      const done = lay(g, x, y + LABEL_ROOM);
+      files.push(...done.placed);
+      rowH = Math.max(rowH, LABEL_ROOM + done.height);
+      x += g.cols * STEP + GAP * 2;
+    }
+    y += rowH + GAP * 3;
+  }
+  return { files, heads };
+}
+
+// What the Arrange menu's choices put first.
+const titleOf = (b) => (displayTitle(b) || b.fileName || b.content || '').trim().toLowerCase();
+const byName = (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { numeric: true });
 
 export function gridRects() {
   const out = new Map();
@@ -126,8 +287,11 @@ function readingOrder(items) {
 export class BoardView {
   // editable: the owner, who arranges it. adds: can add files (the owner, or anyone on a planet others can add to).
   // from: where each file sat in the grid on screen, when the board was just switched on.
-  constructor({ drawer, blocks, editable, adds, targets, onChange, from = null }) {
+  // save: keeps the board's settings on the planet (its Arrange choices, whether Mutt has laid it out).
+  constructor({ drawer, blocks, editable, adds, targets, onChange, save = null, from = null }) {
     this.drawer = drawer;
+    this.save = save;
+    this.history = [];          // where everything was before each change, for Undo (⌘Z)
     this.editable = editable;
     this.adds = adds;
     this.targets = targets;
@@ -161,8 +325,9 @@ export class BoardView {
       this.zoomFact,
       round('plus', 'Zoom in', () => this.zoomBy(1.25)),
       editable || adds ? h('span', { class: 'bd-sep', 'aria-hidden': 'true' }) : null,
-      editable ? h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => this.addWords() }, icon('textbox'), 'Words') : null,
-      adds ? (this.addBtn = h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => this.openAdd() }, icon('plus'), 'Add')) : null);
+      editable ? (this.arrangeBtn = h('button', { type: 'button', class: 'btn btn-quiet', 'aria-haspopup': 'menu', 'aria-label': 'Arrange', title: 'Lay everything out again', onclick: () => this.openArrange() }, icon('sort'), h('span', { class: 'bd-label' }, 'Arrange'))) : null,
+      editable ? h('button', { type: 'button', class: 'btn btn-quiet', 'aria-label': 'Words', onclick: () => this.addWords() }, icon('textbox'), h('span', { class: 'bd-label' }, 'Words')) : null,
+      adds ? (this.addBtn = h('button', { type: 'button', class: 'btn btn-quiet', 'aria-label': 'Add', onclick: () => this.openAdd() }, icon('plus'), h('span', { class: 'bd-label' }, 'Add'))) : null);
     this.joinWords = h('span', { class: 'bd-join-words' }, 'Pick what to join it to');
     this.joinBar = h('div', { class: 'bd-tools bd-joinbar', hidden: true },
       this.joinWords,
@@ -203,81 +368,290 @@ export class BoardView {
     }
     this.lines = saved.lines || [];
     const loose = files.filter((b) => !placed.has(b.id));
-    if (fresh) this.arrange(loose, saved.groups || []);
-    else this.layBelow(loose);
+    this.measure();
+    // A board that had become a long line or a heap (laid out before Mutt did
+    // it this way, or files added in a run) is laid out once to fit the screen, with an Undo.
+    const messy = !fresh && this.editable && !this.settings().laid && this.messy();
+    let undo = null;
+    if (fresh || messy) {
+      const subjects = saved.groups || (messy && this.settings().order !== 'now' ? await this.subjects() : []);
+      if (messy) undo = this.snapshot();
+      this.lay(this.settings().order || 'groups', this.settings().sizes || 'mixed', subjects);
+    } else {
+      for (const b of loose) this.placeNew(b);
+    }
     for (const b of loose) this.dirty(b.id);
     for (const it of this.pendingNow()) this.addPending(it);
     this.ready = true;
     this.focusId = this.order()[0]?.id || null;
     if (this.from) scrollTo({ top: 0 });
     this.measure();
-    if (!this.restoreView()) this.fit();
+    this.fit();
     this.show({ entrance: true });
     this.emptyHint.hidden = this.items.size > 0;
     if (this.editable) this.flushSoon();
+    if (fresh || messy) this.saveSettings({ laid: true });
+    if (messy) {
+      this.history.push(undo);
+      toast('Laid out to fit your screen', { action: { label: 'Undo', run: () => this.undo(undo) } });
+    }
   }
 
   pendingNow() { return this.adds ? pendingFor(this.ctx) : []; }
 
-  // A new board, laid out so it reads at a glance and is easy to change: the
-  // files gathered into groups (by subject when the planet has clear ones,
-  // else by kind), each under a heading that is the board's own words (so
-  // it can be changed or taken away), in even columns with even gaps, groups
-  // side by side as far as the window allows and then on the next row.
-  arrange(blocks, subjects = []) {
-    if (!blocks.length) return;
-    const groups = groupsOf(blocks, subjects);
-    const labelled = groups.length > 1;
-    const step = UNIT + GAP;
-    const across = clamp(Math.floor((innerWidth - 96) / step), 2, 6);   // columns a row of groups may take
-    let x = 0;
-    let y = 0;
-    let used = 0;
-    let rowH = 0;
-    for (const g of groups) {
-      const cols = Math.min(across, clamp(Math.ceil(Math.sqrt(g.blocks.length)), 1, 4));
-      if (used && used + cols > across) { x = 0; y += rowH + GAP * 3; used = 0; rowH = 0; }
-      let top = y;
-      if (labelled) {
-        const it = { id: `w-${uid()}`, words: g.name, style: 'heading', x: x - 8, y, w: WORDS_W, h: null, z: ++this.top };
-        this.items.set(it.id, it);
-        this.dirty(it.id);
-        top += LABEL_ROOM;
+  settings() { return this.drawer.modes?.board || {}; }
+
+  saveSettings(patch) {
+    if (!this.editable || !this.save) return;
+    const now = this.settings();
+    if (Object.entries(patch).every(([k, v]) => now[k] === v)) return;
+    this.save(patch).catch(() => { /* only a convenience: the board itself is saved */ });
+  }
+
+  // The planet's subjects, as Split into moons reads them ([{name, ids}]; none when it has no clear ones).
+  async subjects() {
+    try { return (await api.get(`/api/drawers/${this.drawer.id}/board?groups=1`)).groups || []; } catch { return []; }
+  }
+
+  // A board that doesn't read at a glance: files heaped on each other, or a
+  // long line that only fits the screen at less than half size.
+  messy() {
+    const files = [...this.items.values()].filter((it) => it.block);
+    if (files.length < 4) return false;
+    const rects = files.map((it) => this.rect(it));
+    let heaped = 0;
+    if (rects.length <= 400) {
+      for (let i = 0; i < rects.length; i++) {
+        const a = rects[i];
+        for (let j = i + 1; j < rects.length; j++) {
+          const b = rects[j];
+          const ow = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+          const oh = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+          if (ow > 0 && oh > 0 && ow * oh > 0.3 * Math.min(a.w * a.h, b.w * b.h)) { heaped++; break; }
+        }
       }
-      const depth = Array(cols).fill(top);
-      for (const b of g.blocks) {
-        const c = depth.indexOf(Math.min(...depth));
-        const size = sizeFor(b);
-        const left = x + c * step + (UNIT - size.w) / 2;
-        this.items.set(b.id, { id: b.id, block: b, z: ++this.top, x: left, y: depth[c], ...size });
-        depth[c] += (size.h ?? size.w / ratioOf(b)) + GAP;
+    }
+    if (heaped >= Math.max(2, files.length * 0.2)) return true;
+    const box = this.bounds(files);
+    const view = this.viewSize();
+    const fits = Math.min((view.w - 96) / box.w, (view.h - 128) / box.h);
+    const shape = (box.w / box.h) / (view.w / Math.max(240, view.h - 72));
+    return fits < 0.45 && (shape > 2.5 || shape < 0.4);
+  }
+
+  viewSize() {
+    return this.size.w ? this.size : { w: document.documentElement.clientWidth, h: Math.max(300, innerHeight - 160) };
+  }
+
+  // Where everything sits now, so it can be put back.
+  snapshot() {
+    return [...this.items.values()].filter((it) => !isPending(it.id))
+      .map((it) => ({ id: it.id, x: it.x, y: it.y, w: it.w, h: it.h, z: it.z, words: it.words, style: it.style }));
+  }
+
+  // Kept before each change for ⌘Z: a run of arrow presses on one thing counts as one change.
+  remember(kind = 'move', id = null) {
+    if (!this.editable) return;
+    const now = performance.now();
+    if (kind === 'nudge' && this.nudging?.id === id && now - this.nudging.at < DUR.grand * 2) { this.nudging.at = now; return; }
+    this.nudging = kind === 'nudge' ? { id, at: now } : null;
+    this.history.push(this.snapshot());
+    if (this.history.length > 40) this.history.shift();
+  }
+
+  // Put the board back as it was before the last change (or before `snap`, an Arrange's own Undo).
+  undo(snap = null) {
+    if (snap) this.history = this.history.filter((s) => s !== snap);
+    else snap = this.history.pop();
+    if (!snap) { toast('Nothing to undo'); return; }
+    this.nudging = null;
+    const was = this.rects();
+    const keep = new Map(snap.map((s) => [s.id, s]));
+    for (const it of [...this.items.values()]) {
+      if (!isWords(it.id) || keep.has(it.id)) continue;
+      this.items.delete(it.id);
+      it.el?.remove();
+      this.lines = this.lines.filter(([a, b]) => a !== it.id && b !== it.id);
+      if (this.focusId === it.id) this.focusId = null;
+      if (this.chosen === it) this.chosen = null;
+      this.out.gone.add(it.id);
+    }
+    for (const s of snap) {
+      let it = this.items.get(s.id);
+      if (!it) {
+        if (!isWords(s.id)) continue;   // a file since taken off the planet stays off
+        it = { ...s, h: null };
+        this.items.set(s.id, it);
+        this.out.gone.delete(s.id);
       }
-      rowH = Math.max(rowH, Math.max(...depth) - GAP - y);
-      x += cols * step + GAP * 2;
-      used += cols;
+      Object.assign(it, { x: s.x, y: s.y, w: s.w, h: s.h, z: s.z });
+      if (isWords(s.id)) Object.assign(it, { words: s.words, style: s.style });
+      this.place(it);
+      this.dirty(s.id);
+    }
+    this.linesDirty = true;
+    this.show();
+    this.glideFrom(was);
+    this.flushSoon();
+    this.changed();
+  }
+
+  // Where each thing on the page is now, in board units, for gliding from.
+  rects() {
+    const out = new Map();
+    for (const it of this.items.values()) if (it.el) out.set(it.id, this.rect(it));
+    return out;
+  }
+
+  // Everything that moved glides from where it was to where it is (`was` from rects()).
+  glideFrom(was) {
+    if (!moving()) return;
+    for (const it of this.items.values()) {
+      const a = was.get(it.id);
+      if (!it.el) continue;
+      if (!a) {
+        it.el.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: DUR.arrive, easing: EASE, delay: DUR.change });
+        continue;
+      }
+      const b = this.rect(it);
+      if (Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5) continue;
+      it.el.animate([
+        { transform: `translate(${a.x - b.x}px, ${a.y - b.y}px) scale(${a.w / b.w}, ${a.h / b.h})`, transformOrigin: '0 0' },
+        { transform: 'none', transformOrigin: '0 0' },
+      ], { duration: DUR.scene, easing: EASE_GLIDE });
     }
   }
 
-  // A file in a grid frame whose corner is x, y: a picture keeps its shape in the middle of it.
-  inFrame(block, x, y) {
-    const r = ratioOf(block);
-    if (!r) return { x, y, w: UNIT, h: FRAME };
-    if (r >= UNIT / FRAME) return { x, y: y + (FRAME - UNIT / r) / 2, w: UNIT, h: null };
-    const w = FRAME * r;
-    return { x: x + (UNIT - w) / 2, y, w, h: null };
+  // The Arrange menu: what comes first, and whether the files are of mixed sizes or one.
+  openArrange() {
+    if (this.arrangePop) { this.arrangePop.close(); return; }
+    const { order = 'groups', sizes = 'mixed' } = this.settings();
+    const pick = (o, s) => () => this.rearrange(o, s);
+    const orders = [['groups', 'In groups'], ['kind', 'By kind'], ['new', 'Newest first'], ['old', 'Oldest first'], ['name', 'A to Z'], ['now', 'As they are now']];
+    this.arrangePop = openMenu(this.arrangeBtn, [
+      { heading: 'Order' },
+      ...orders.map(([key, label]) => ({ label, on: key === order, run: pick(key, sizes) })),
+      '-',
+      { heading: 'Sizes' },
+      { label: 'Mixed sizes', on: sizes === 'mixed', run: pick(order, 'mixed') },
+      { label: 'All one size', on: sizes === 'even', run: pick(order, 'even') },
+    ], { onClose: () => { this.arrangePop = null; } });
+  }
+
+  // Lay the whole board out again, gliding there, with an Undo.
+  async rearrange(order = 'groups', sizes = 'mixed') {
+    if (!this.editable || !this.ready) return;
+    if (!ORDERS.includes(order) || !SIZES.includes(sizes)) return;
+    // the subjects are asked for every time: they name the headings an earlier arrangement wrote
+    const found = await this.subjects();
+    const snap = this.snapshot();
+    const was = this.rects();
+    this.measure();
+    this.lay(order, sizes, found);
+    this.history.push(snap);
+    this.linesDirty = true;
+    this.show();
+    this.glideFrom(was);
+    this.fit({ glide: true });
+    this.flushSoon();
+    this.changed();
+    this.saveSettings({ order, sizes, laid: true });
+    sound('shift');
+    if (moving()) setTimeout(() => sound('drop'), DUR.scene * 0.7);
+    // one note at a time: a second choice replaces the first's
+    this.arrangedNote?.close();
+    this.arrangedNote = toast('Arranged', { action: { label: 'Undo', run: () => this.undo(snap) } });
+  }
+
+  // Place every file (and the group headings) by the chosen order and sizes.
+  // Mutt's own headings from before are taken away; the owner's other words
+  // wait in a row above, and lines stay with what they join.
+  lay(order, sizes, subjects = []) {
+    const files = order === 'now' ? this.list() : [...this.blocks.values()];
+    if (!files.length) return;
+    const newest = (a, b) => (b.createdAt || 0) - (a.createdAt || 0);
+    const groups = order === 'groups' ? groupsOf(files, subjects)
+      : order === 'kind' ? groupsOf(files, [])
+      : [{ name: '', blocks: order === 'new' ? [...files].sort(newest)
+        : order === 'old' ? [...files].sort((a, b) => newest(b, a))
+        : order === 'name' ? [...files].sort(byName) : files }];
+    const plan = layoutFor(groups, { mixed: sizes !== 'even', view: this.viewSize() });
+    // headings Mutt may have written: the groups' names, now or any time before
+    const names = new Set([...KIND_GROUPS.map(([n]) => n), 'Everything else', ...subjects.map((g) => g.name), ...plan.heads.map((hd) => hd.words)]);
+    const reuse = new Map();
+    const others = [];
+    for (const it of [...this.items.values()]) {
+      if (!isWords(it.id)) continue;
+      if (it.style !== 'label' && names.has((it.words || '').trim()) && !reuse.has(it.words.trim())) reuse.set(it.words.trim(), it);
+      else others.push(it);
+    }
+    for (const hd of plan.heads) {
+      let it = reuse.get(hd.words);
+      reuse.delete(hd.words);
+      if (!it) { it = { id: `w-${uid()}`, words: hd.words, style: 'heading', w: WORDS_W, h: null, z: ++this.top }; this.items.set(it.id, it); }
+      Object.assign(it, { x: hd.x, y: hd.y, style: 'heading' });
+      this.place(it);
+      this.dirty(it.id);
+    }
+    // headings left over from an earlier arrangement go; nothing else is taken away
+    for (const it of reuse.values()) {
+      if (this.linesOf(it.id).length) { others.push(it); continue; }
+      this.items.delete(it.id);
+      if (it.el) { const el = it.el; it.el = null; this.leave(el); }
+      if (this.focusId === it.id) this.focusId = null;
+      this.out.gone.add(it.id);
+    }
+    for (const p of plan.files) {
+      const it = this.items.get(p.b.id) || { id: p.b.id, block: p.b, z: ++this.top };
+      Object.assign(it, { x: p.x, y: p.y, w: p.w, h: p.h });
+      this.items.set(it.id, it);
+      this.place(it);
+      this.dirty(it.id);
+    }
+    // the owner's own words, in a row above everything
+    let x = 0;
+    for (const it of others.sort((a, b) => a.y - b.y || a.x - b.x)) {
+      const r = this.rect(it);
+      Object.assign(it, { x, y: -(LABEL_ROOM + Math.max(40, r.h)) });
+      x += r.w + GAP * 2;
+      this.place(it);
+      this.dirty(it.id);
+    }
+  }
+
+  leave(el) {
+    if (moving()) el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.change, easing: EASE_LEAVE }).finished.then(() => el.remove(), () => el.remove());
+    else el.remove();
+  }
+
+  // Where something with no place yet goes: the shallowest column at the foot
+  // of what's there (columns 220 wide across the files), so new files carry
+  // the board's columns on instead of starting a long row of their own.
+  slot(except = null) {
+    const things = [...this.items.values()].filter((it) => it.id !== except);
+    const box = this.bounds(things.filter((it) => !isWords(it.id)));
+    if (!box) return { x: 0, y: 0 };
+    const cols = Math.max(1, Math.round((box.w + GAP) / STEP));
+    const rects = things.map((it) => this.rect(it));
+    let best = null;
+    for (let c = 0; c < cols; c++) {
+      const x0 = box.x + c * STEP;
+      let bottom = box.y - GAP;
+      for (const r of rects) if (r.x < x0 + UNIT && r.x + r.w > x0) bottom = Math.max(bottom, r.y + r.h);
+      if (!best || bottom < best.bottom - 1) best = { x: x0, bottom };
+    }
+    return { x: best.x, y: best.bottom + GAP };
   }
 
   // Files that came from elsewhere (autosort, another planet, someone else on
-  // a planet others can add to) wait in a tidy row under everything.
-  layBelow(blocks) {
-    if (!blocks.length) return;
-    const box = this.bounds();
-    const left = box ? box.x : 0;
-    const top = box ? box.y + box.h + GAP * 3 : 0;
-    const across = Math.max(COLS, Math.floor((box ? box.w : 0) / (UNIT + GAP)));
-    blocks.forEach((b, i) => {
-      this.items.set(b.id, { id: b.id, block: b, z: ++this.top, ...this.inFrame(b, left + (i % across) * (UNIT + GAP), top + Math.floor(i / across) * (FRAME + GAP)) });
-    });
+  // a planet others can add to, the Add button) join the foot of the board.
+  placeNew(b) {
+    const p = pieceIn(b, 1);
+    const at = this.slot(b.id);
+    const it = this.items.get(b.id) || { id: b.id, block: b, z: ++this.top };
+    Object.assign(it, { block: b, x: at.x + (UNIT - p.w) / 2, y: at.y, w: p.w, h: p.h });
+    this.items.set(b.id, it);
+    return it;
   }
 
   // ------------------------------------------------------------ sizes and places
@@ -331,7 +705,7 @@ export class BoardView {
     this.size = { w: this.el.clientWidth, h: this.el.clientHeight };
   }
 
-  setView(next, { remember = true } = {}) {
+  setView(next) {
     const z = clamp(next.z, Z_MIN, Z_MAX);
     this.view = { x: next.x, y: next.y, z };
     this.world.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${z})`;
@@ -345,35 +719,20 @@ export class BoardView {
     this.zoomFact.textContent = `${Math.round(z * 100)}%`;
     this.showSoon();
     if (Math.abs(Math.log(z / (this.paintedAt || z))) > 0.25) this.paintLater();
-    if (remember) this.rememberSoon();
   }
 
-  rememberSoon() {
-    clearTimeout(this.rememberTimer);
-    this.rememberTimer = setTimeout(() => {
-      try { localStorage.setItem(`mutt:board:${this.drawer.id}`, JSON.stringify(this.view)); } catch { /* a convenience */ }
-    }, DUR.move);
-  }
-
-  restoreView() {
-    try {
-      const v = JSON.parse(localStorage.getItem(`mutt:board:${this.drawer.id}`) || 'null');
-      if (v && [v.x, v.y, v.z].every(Number.isFinite) && !this.from) { this.setView(v, { remember: false }); return true; }
-    } catch { /* fit instead */ }
-    return false;
-  }
-
-  // Everything in sight, at no more than 100%.
+  // Everything in sight, as large as it fits (never past 100%), in the middle
+  // of the room between the planet's header and the bar. The board opens this way.
   fit({ glide = false } = {}) {
     const box = this.bounds();
     const { w, h: hh } = this.size;
-    if (!box || !w) { this.setView({ x: 48, y: 48, z: 1 }, { remember: false }); return; }
-    const pad = w < 640 ? 16 : 48;
-    const room = { w: w - pad * 2, h: hh - pad * 2 - 56 };
+    if (!box || !w) { this.setView({ x: 48, y: 48, z: 1 }); return; }
+    const pad = w < 640 ? 16 : 32;
+    const foot = 72;   // the bar and the space round it
+    const room = { w: w - pad * 2, h: hh - pad - foot };
     const z = clamp(Math.min(room.w / box.w, room.h / box.h, 1), Z_MIN, 1);
-    // across, in the middle; down, from the top, as the files sat on the page before
-    const to = { z, x: (w - box.w * z) / 2 - box.x * z, y: pad - box.y * z };
-    if (glide) this.glideTo(to); else this.setView(to, { remember: false });
+    const to = { z, x: pad + (room.w - box.w * z) / 2 - box.x * z, y: pad + (room.h - box.h * z) / 2 - box.y * z };
+    if (glide) this.glideTo(to); else this.setView(to);
   }
 
   glideTo(to) {
@@ -739,20 +1098,22 @@ export class BoardView {
     this.onChange?.([...this.blocks.values()]);
   }
 
-  // Where new things go: where they were dropped, else the middle of the view; several in a row.
-  landing(i = 0) {
-    const at = this.dropAt || this.middle();
-    return { x: at.x - UNIT / 2 + i * (UNIT + GAP) * 0.5, y: at.y - FRAME / 2 + i * GAP };
-  }
-
+  // Where something being added waits: dropped, in rows of four from where it
+  // was let go; else at the foot of the board, which glides into sight for the first.
   addPending(item) {
     if (!this.ready || this.items.has(item.key)) return;
-    const n = [...this.items.keys()].filter(isPending).length;
-    const at = this.landing(n);
-    const it = { id: item.key, pending: item, x: at.x, y: at.y, w: UNIT, h: FRAME, z: ++this.top };
+    const first = ![...this.items.keys()].some(isPending);
+    let at;
+    if (this.dropAt) {
+      const n = this.dropN || 0;
+      this.dropN = n + 1;
+      at = { x: this.dropAt.x - UNIT / 2 + (n % 4) * STEP, y: this.dropAt.y - FRAME / 2 + Math.floor(n / 4) * (FRAME + GAP), auto: false };
+    } else at = { ...this.slot(item.key), auto: true };
+    const it = { id: item.key, pending: item, x: at.x, y: at.y, w: UNIT, h: FRAME, z: ++this.top, auto: at.auto };
     this.items.set(item.key, it);
     this.emptyHint.hidden = true;
     this.build(it);
+    if (first && at.auto && this.size.w) this.reveal(it);
   }
 
   updatePendingItem(item) {
@@ -767,13 +1128,20 @@ export class BoardView {
     if (!block || this.items.has(block.id)) { this.changed(); return; }
     watchPreview(block);
     this.blocks.set(block.id, block);
-    const at = was ? { x: was.x, y: was.y } : this.landing();
-    const it = { id: block.id, block, z: ++this.top, ...this.inFrame(block, at.x, at.y) };
-    this.items.set(block.id, it);
+    let it;
+    if (was && !was.auto) {
+      // where it was dropped, at the size that suits it
+      const p = pieceIn(block, 1);
+      it = { id: block.id, block, z: ++this.top, x: was.x + (UNIT - p.w) / 2, y: was.y, w: p.w, h: p.h };
+      this.items.set(block.id, it);
+    } else {
+      it = this.placeNew(block);
+    }
     this.build(it);
     this.dirty(block.id);
     this.flushSoon();
-    this.dropAt = [...this.items.keys()].some(isPending) ? this.dropAt : null;
+    if (!was && !this.inSight(it)) this.reveal(it);
+    if (![...this.items.keys()].some(isPending)) { this.dropAt = null; this.dropN = 0; }
     this.changed();
   }
 
@@ -781,7 +1149,7 @@ export class BoardView {
     if (this.blocks.has(block.id)) { this.patch(block); return; }
     this.blocks.set(block.id, block);
     if (!this.ready) return;
-    this.layBelow([block]);
+    this.placeNew(block);
     this.dirty(block.id);
     this.flushSoon();
     this.show();
@@ -855,6 +1223,7 @@ export class BoardView {
       over: (e) => { this.dropAt = this.toBoard(e.clientX, e.clientY); return `Drop to add to ${this.drawer.title}`; },
       drop: (files, e) => {
         if (e && Number.isFinite(e.clientX)) this.dropAt = this.toBoard(e.clientX, e.clientY);
+        this.dropN = 0;
         addFiles(files, this.ctx);
       },
     };
@@ -953,7 +1322,13 @@ export class BoardView {
     const target = it.el;
     const front = { icon: 'up', label: 'Bring to front', run: () => { it.z = ++this.top; this.place(it); this.dirty(it.id); this.flushSoon(); } };
     const lines = this.linesOf(it.id);
+    // a file grows and shrinks a column at a time, so it still sits in the board's columns
+    const sizes = this.editable && it.block ? [
+      it.w < SIZE_STEPS.at(-1) - 1 ? { icon: 'plus', label: 'Make it bigger', run: () => this.sizeStep(it, 1) } : null,
+      it.w > SIZE_STEPS[0] + 1 ? { icon: 'minus', label: 'Make it smaller', run: () => this.sizeStep(it, -1) } : null,
+    ] : [];
     const joins = this.editable ? [
+      ...sizes,
       { icon: 'link', label: 'Join with a line', run: () => this.startJoin(it.id) },
       lines.length ? { icon: 'close', label: lines.length === 1 ? 'Take its line away' : 'Take its lines away', run: () => { for (const l of lines) this.part(l, { quiet: true }); toast(lines.length === 1 ? 'Line taken away' : 'Lines taken away', { action: { label: 'Undo', run: () => { for (const l of lines) { this.lines.push(l); this.out.join.push(l); } this.flushSoon(); this.paintLines(); } } }); } } : null,
       front,
@@ -1076,6 +1451,7 @@ export class BoardView {
     const arrows = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     if (arrows[e.key]) {
       e.preventDefault();
+      this.remember('nudge', it.id);
       it.x += arrows[e.key][0];
       it.y += arrows[e.key][1];
       this.moved(it);
@@ -1085,6 +1461,7 @@ export class BoardView {
     const grow = { '-': 1 / 1.1, _: 1 / 1.1, '=': 1.1, '+': 1.1, '[': 1 / 1.1, ']': 1.1 }[e.key];
     if (grow) {
       e.preventDefault();
+      this.remember('nudge', it.id);
       this.resize(it, it.w * grow, it.h ? it.h * grow : null);
       this.dirty(it.id);
       this.flushSoon();
@@ -1095,6 +1472,21 @@ export class BoardView {
   moved(it) {
     this.place(it);
     this.markLines(it.id);
+    this.dirty(it.id);
+    this.flushSoon();
+  }
+
+  // One step bigger or smaller (the menu), from its top left corner, gliding.
+  sizeStep(it, way) {
+    const now = it.w;
+    const to = way > 0 ? SIZE_STEPS.find((w) => w > now + 1) : [...SIZE_STEPS].reverse().find((w) => w < now - 1);
+    if (!to) return;
+    this.remember();
+    const was = this.rects();
+    this.resize(it, to, it.h ? it.h * (to / now) : null);
+    it.z = ++this.top;
+    this.place(it);
+    this.glideFrom(was);
     this.dirty(it.id);
     this.flushSoon();
   }
@@ -1150,6 +1542,22 @@ export class BoardView {
         item.tabIndex = 0;
       }
     });
+    // ⌘Z (Ctrl+Z) puts back the last move, size or arrangement; ⇧1 fits everything in sight, ⇧0 is 100%.
+    // Anywhere on the page, as long as nothing else is being written in or is open on top.
+    this.keys = (e) => {
+      if (!this.el.isConnected || e.defaultPrevented) return;
+      const t = document.activeElement;
+      if (t && t !== document.body && !this.el.contains(t)) return;
+      if (t?.isContentEditable || document.querySelector('.scrim, .pop, .room')) return;
+      const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && k === 'z' && this.editable) { e.preventDefault(); this.undo(); return; }
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && (e.code === 'Digit1' || e.code === 'Digit0')) {
+        e.preventDefault();
+        if (e.code === 'Digit1') this.fit({ glide: true });
+        else { const m = this.middle(); this.glideTo({ z: 1, x: this.size.w / 2 - m.x, y: (this.size.h / 2 - 28) - m.y }); }
+      }
+    };
+    document.addEventListener('keydown', this.keys);
     this.resized = () => { this.measure(); this.showSoon(); };
     addEventListener('resize', this.resized);
     visualViewport?.addEventListener('resize', this.resized);
@@ -1158,7 +1566,7 @@ export class BoardView {
       if (!this.el.isConnected) return;
       const was = this.size.w;
       this.measure();
-      if (!was && this.size.w && this.ready && !this.restoreView()) this.fit();
+      if (!was && this.size.w && this.ready) this.fit();
       this.showSoon();
     }));
     this.watch.observe(el);
@@ -1178,6 +1586,7 @@ export class BoardView {
     const g = { kind: 'press', it, touch, sx: e.clientX, sy: e.clientY, view: { ...this.view }, id: e.pointerId };
     if (!touch) e.preventDefault();
     if (it && this.editable && !isPending(it.id) && e.target.closest('.bd-grip')) {
+      this.remember();
       Object.assign(g, { kind: 'resize', w: it.w, h: this.heightOf(it) });
       this.choose(it);
     } else if (it && this.editable && !isPending(it.id) && touch && !this.joining) {
@@ -1188,6 +1597,7 @@ export class BoardView {
 
   lift(g) {
     const it = g.it;
+    this.remember();
     g.kind = 'carry';
     g.x = it.x;
     g.y = it.y;
@@ -1339,7 +1749,7 @@ export class BoardView {
         return;
       }
       // held and let go without moving: its menu
-      if (!g.moved && g.touch) { this.menu({ clientX: e.clientX, clientY: e.clientY, preventDefault() {} }, it); return; }
+      if (!g.moved && g.touch) { this.history.pop(); this.menu({ clientX: e.clientX, clientY: e.clientY, preventDefault() {} }, it); return; }
       if (g.moved) sound('drop');
       this.moved(it);
     }
@@ -1418,8 +1828,10 @@ export class BoardView {
     this.flush();
     this.off.forEach((off) => off());
     removeEventListener('resize', this.resized);
+    document.removeEventListener('keydown', this.keys);
     visualViewport?.removeEventListener('resize', this.resized);
     this.watch.disconnect();
+    this.arrangePop?.close();
     this.addPop?.close();
     cancelAnimationFrame(this.glideFrame);
     cancelAnimationFrame(this.rollFrame);

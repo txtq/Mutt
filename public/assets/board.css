@@ -182,6 +182,8 @@ body:has(.liv.is-board .bd-bar) .toasts { bottom: calc(var(--space-12) + var(--s
 
 @media (max-width: 720px) {
   .bd-bar { bottom: var(--space-12); }
+  /* on a phone the bar's buttons are their icons alone, so it fits across */
+  .bd-tools .bd-label { display: none; }
   body:has(.liv.is-board .bd-bar) .toasts { bottom: calc(var(--space-12) + var(--space-12) + var(--h-large) + var(--space-8) + var(--space-12)); }
   .bd-add-pop .cell-entry .cell-box { height: 152px; }
 }

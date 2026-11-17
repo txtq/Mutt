@@ -239,6 +239,7 @@ export const MODES = {
     view: (m, page, blocks, from = null) => new m.BoardView({
       drawer: page.drawer, blocks, editable: page.mine, adds: page.mine || !!page.drawer.community,
       targets: page.targets, onChange: page.changed, from,
+      save: (patch) => page.patchMode('board', patch),
     }),
     start: async (m, page) => {
       const blocks = page.filesNow();

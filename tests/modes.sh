@@ -190,4 +190,8 @@ echo "a new board is laid out by subject: $(curl -s "${C[@]}" "$B/api/drawers/$G
 echo "one with no clear subjects, by kind (no groups): $(curl -s "${C[@]}" "$B/api/drawers/$SM/board?arrange=1" | j "d['groups']")"
 echo "one already laid out isn't regrouped: $(curl -s "${C[@]}" "$B/api/drawers/$BD/board?arrange=1" | j "'groups' in d")"
 echo "someone else is never told: $(curl -s -b "$SP/c2.txt" "$B/api/drawers/$GP/board?arrange=1" | j "'groups' in d")"
+echo "Arrange asks for the subjects of one already laid out: $(curl -s "${C[@]}" "$B/api/drawers/$BD/board?groups=1" | j "'groups' in d")"
+echo "someone else never gets them: $(curl -s -b "$SP/c2.txt" "$B/api/drawers/$GP/board?groups=1" | j "'groups' in d")"
+echo "Arrange's choices are kept: $(mode $BD '{"board":{"order":"new","sizes":"even","laid":true}}' "[d['drawer']['modes']['board'][k] for k in ('order', 'sizes', 'laid')]")"
+echo "an order nobody knows: $(mode $BD '{"board":{"order":"colour"}}' "d.get('error')")"
 echo "in the download: $(curl -s "${C[@]}" -o "$SP/all.zip" -w '%{http_code}' $B/api/me/export) $(python3 -c "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); d=json.loads(z.read([n for n in z.namelist() if n.endswith('Your data.json')][0])); print([(len(p['board']['things']), p['board']['lines']) for p in d['planets'] if p['name'] == 'Living room'])" "$SP/all.zip")"

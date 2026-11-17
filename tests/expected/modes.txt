@@ -97,4 +97,8 @@ a new board is laid out by subject: [('Climbing', 4), ('Pottery', 4)]
 one with no clear subjects, by kind (no groups): []
 one already laid out isn't regrouped: False
 someone else is never told: False
+Arrange asks for the subjects of one already laid out: True
+someone else never gets them: False
+Arrange's choices are kept: ['new', 'even', True]
+an order nobody knows: Those board settings could not be saved.
 in the download: 200 [(2, [])]

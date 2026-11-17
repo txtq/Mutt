@@ -215,7 +215,11 @@ PLANET_MODES = [
     Mode('split', read_split, words='split', on=0.25, stay=0.15, least=4, shows=False),
     # Earned by what the owner does (moving files by hand), not by what the
     # planet holds, so its rule is read_board's own and it never steps back.
-    Mode('board', read_board, on=1.0, stay=0.0, least=BOARD_FILES, moons=True, keeps=True),
+    # order and sizes: the Arrange menu's last choices; laid: Mutt has laid the board out (new, or a
+    # long line it put right), so it never lays it out again by itself
+    Mode('board', read_board, on=1.0, stay=0.0, least=BOARD_FILES, moons=True, keeps=True,
+         settings={'order': one_of('groups', 'kind', 'new', 'old', 'name', 'now'), 'sizes': one_of('mixed', 'even'),
+                   'laid': flag}),
 ]
 
 

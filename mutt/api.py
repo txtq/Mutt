@@ -3471,10 +3471,12 @@ def drawer_board(req, drawer_id):
     """Where everything sits on a planet's board, for anyone who can see the planet.
     With ?arrange=1, its owner, on a board where no file has a place yet, also
     gets `groups`: the files gathered by subject ([{name, ids}], two or more, the
-    same reading as Split into moons), so a new board can be laid out in groups."""
+    same reading as Split into moons), so a new board can be laid out in groups.
+    With ?groups=1 the owner always gets them (the board's Arrange menu)."""
     row = visible_drawer(req, drawer_id)
     out = board_of(req.db, drawer_id, board_files(req.db, drawer_id))
-    if req.arg('arrange') and row['user_id'] == req.user['id'] and not any(not i['id'].startswith('w-') for i in out['items']):
+    fresh = not any(not i['id'].startswith('w-') for i in out['items'])
+    if row['user_id'] == req.user['id'] and (req.arg('groups') or (req.arg('arrange') and fresh)):
         found, _ = split_moons.groups(row, modes_registry.Reading(req.db, row).files)
         out['groups'] = [{'name': g['name'], 'ids': g['ids']} for g in found] if len(found) >= 2 else []
     return json_response(out)

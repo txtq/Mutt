@@ -966,6 +966,9 @@ const fill = (el, ...kids) => el.replaceChildren(...kids.filter((k) => k != null
 function renderSide() {
   const { block, connections, drawer } = state;
   const actions = h('div', { class: 'vw-actions' },
+    // Your own file can be beamed to someone straight from here (beams.js, fetched when pressed).
+    block.mine !== false && session.user?.canBeam
+      ? h('button', { type: 'button', class: 'btn', onclick: () => import('./beams.js').then((m) => m.beamTo(state.block)) }, icon('beam'), 'Beam to…') : null,
     canEditPicture(block) ? h('button', { type: 'button', class: 'btn', onclick: () => editPicture(state.block) }, icon('edit'), 'Edit') : null,
     block.file || block.kind === 'text' ? downloadButton(block) : null,
     block.file && block.kind !== 'pdf' ? h('a', { class: 'btn btn-quiet', href: block.file, target: '_blank', rel: 'noopener' }, 'Original', icon('out')) : null,

@@ -11,7 +11,7 @@ curl -s "${R[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"rae","pi
 curl -s "${C[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"cy","pin":"111193"}' > /dev/null
 curl -s "${D[@]}" "${J[@]}" -X POST $B/api/auth/signup -d '{"username":"dee","pin":"975319"}' > /dev/null
 curl -s -o /dev/null "${R[@]}" "${J[@]}" -X PUT $B/api/me/name -d '{"name":"Rae Okafor"}'
-echo "a new account has no beam row: $(curl -s "${C[@]}" $B/api/me | j "d['user']['canBeam']")"
+echo "a new account can beam once anyone else is here: $(curl -s "${C[@]}" $B/api/me | j "d['user']['canBeam']")"
 
 # ---- keeping a planet together
 TRIP=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/drawers -d '{"title":"Japan trip","visibility":"people"}' | j "d['drawer']['id']")
@@ -69,7 +69,7 @@ curl -s -o /dev/null "${D[@]}" "${J[@]}" -X POST $B/api/me/delete -d '{"pin":"97
 echo "dee's account gone, cy keeps the band: $(curl -s "${C[@]}" $B/api/drawers/$BAND | j "d['drawer']['mine'], d['drawer'].get('keptWith'), sorted((b['content'], b['mine']) for b in d['blocks'])")"
 
 # ---- beaming
-echo "once paths have crossed, it has: $(curl -s "${C[@]}" $B/api/me | j "d['user']['canBeam']")"
+echo "and still can: $(curl -s "${C[@]}" $B/api/me | j "d['user']['canBeam']")"
 NOTE=$(curl -s "${S[@]}" "${J[@]}" -X POST $B/api/blocks -d '{"content":"tea bowl, third firing"}' | j "d['block']['id']")
 echo "people to beam to (everyone, met first): $(curl -s "${S[@]}" $B/api/beam/people | j "[(p['username'], p['known']) for p in d['people']]")  found by name: $(curl -s "${S[@]}" "$B/api/beam/people?q=c" | j "[(p['username'], p['known']) for p in d['people']]")"
 RAE_FILES=$(curl -s "${R[@]}" $B/api/galaxy | j "d['stats']['files']")

@@ -402,14 +402,14 @@ export function takeHistoryWish(id) {
 function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, extra = [], history = true, beamAs = null } = {}) {
   return [
     open && { icon: 'open', label: 'Open', run: open },
+    // Beaming one to someone (beams.js, fetched when pressed): second, just under Open (the user, 2026-11-16).
+    block.mine !== false && session.user?.canBeam && { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo(block, { form: beamAs })) },
     ...extra,
     worlds.length ? '-' : null,
     worlds.length ? { heading: worlds.some((w) => w.planet) ? 'Move back to' : 'Move to a moon' } : null,
     ...worlds.map((w) => ({ label: w.title, icon: w.dot, run: w.move })),
     worlds.length ? '-' : null,
     { icon: 'move', label: worlds.length ? 'Other planets…' : 'Add to planets…', run: () => openConnect(anchor, block, { align: 'end' }) },
-    // Beaming one to someone (beams.js, fetched when pressed): once you've crossed paths with anyone.
-    block.mine !== false && session.user?.canBeam && { icon: 'beam', label: 'Beam to…', run: () => import('./beams.js').then((m) => m.beamTo(block, { form: beamAs })) },
     block.sharedAt && { icon: 'lock', label: 'Stop sharing', run: () => toggleShare(block) },
     // any file of yours can be a comet that reminds you (remind.js): from a day in its words, or one you pick
     block.mine !== false && session.user && { icon: 'date', label: 'Make it a comet…', run: () => cometFor(anchor, block) },

@@ -1,4 +1,4 @@
-a new account has no beam row: False
+a new account can beam once anyone else is here: True
 no one to ask yet: [] False
 shared by name, rae can be asked: ['rae']
 ask cy, who doesn't share it (expect 400): 400
@@ -31,7 +31,7 @@ rae's own planet and moons: [('Japan', 2, ['Kyoto', 'Nara'])]
 sam hears she left: [('sharing', 'Rae Okafor'), ('left', 'Rae Okafor')]
 rule holds: after leaving, the leaver could still open a planet made private again -> no
 dee's account gone, cy keeps the band: True None [('a riff', True), ('setlist', True)]
-once paths have crossed, it has: True
+and still can: True
 people to beam to (everyone, met first): [('rae', True), ('cy', False)]  found by name: [('cy', False)]
 beamed twice (expect 400): 400  to yourself: 400
 rule holds: someone beamed a file that isn't theirs -> no

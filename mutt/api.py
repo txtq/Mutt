@@ -144,7 +144,7 @@ def me_json(req, row, short=None):
     if short is None:
         short = bool(row['short_code']) if 'short_code' in row.keys() else False
     return {**user_json(row), 'hasKey': bool(row['recovery_hash']), 'admin': is_admin_name(row['username']),
-            'oldCode': short, 'canBeam': crossed_anyone(req.db, row['id']),
+            'oldCode': short, 'canBeam': anyone_else(req.db, row['id']),
             'beamStops': req.db.execute('SELECT COUNT(*) FROM beam_stops WHERE user_id = ?', (row['id'],)).fetchone()[0]}
 
 
@@ -2015,13 +2015,12 @@ def crossed(conn, a, b):
         (a, b, b, a) * 3).fetchone())
 
 
-def crossed_anyone(conn, user_id):
-    """Has this person crossed paths with anyone yet? Until then a file's menu
-    has no Beam row (nothing extra for a brand new account)."""
-    return bool(conn.execute(
-        'SELECT 1 FROM nearness WHERE user_id = ? OR other_id = ? '
-        'UNION SELECT 1 FROM drawer_keepers k JOIN drawers d ON d.id = k.drawer_id WHERE k.user_id = ? OR d.user_id = ? '
-        'UNION SELECT 1 FROM beams WHERE from_id = ? OR to_id = ? LIMIT 1', (user_id,) * 6).fetchone())
+def anyone_else(conn, user_id):
+    """Is there anyone else in this Mutt to beam a file to? Then "Beam to…" is
+    in every file's menu and file view, so people find it by seeing it, with
+    no tip (the user, 2026-11-16; before, it waited until you'd crossed paths
+    with someone, and new people never knew it was there)."""
+    return bool(conn.execute('SELECT 1 FROM users WHERE id != ? LIMIT 1', (user_id,)).fetchone())
 
 
 @route('GET', r'/api/beam/people')

@@ -1,0 +1,5 @@
+# Commonplace book
+
+Part of the map of how Mutt is built (`CLAUDE.md`, Architecture, lists every file). Keep it current when this feature changes.
+
+- Commonplace book (`drawers.modes.commonplace` {on, dismissed, kept, show: all|who}, the fifth planet mode, moons too): offered when half a planet's files (at least 3) are quotes, staying down to 30% (`read_commonplace` in `mutt/modes.py`). `mutt/quotes.py` splits a quote note into its words, who said it and where from (`parts`: "“…” — Name, Source", "Name (Film, 1999)", "Name: “…”", a link on the last line) and never stores anything; whether a note is a quote at all stays `sorting.form`'s answer (widened to read those credits through `quotes.credited`). On a planet named for quotes (`QUOTE_NAMES` in `lexicon.py`) a short passage with no one named counts too. `GET /api/drawers/<id>/quotes` gives the wall. Front end: `quotes.js` (`QuoteWall`: the cards, By who, the add box, the slideshow room) and `quotes.css`, fetched only when a planet is one; the slide's pace is `--slide-pace`.

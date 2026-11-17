@@ -1,24 +1,50 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git fetch -q origin)",
-      "Bash(git fetch -q)",
-      "Bash(tests/run.sh drift)",
       "Bash(tests/run.sh)",
-      "Bash(tests/run.sh -v together)",
-      "Bash(tests/run.sh -v galaxy)",
-      "Bash(tests/run.sh -v browser)",
-      "Bash(tests/run.sh -v modes)",
-      "Bash(tests/run.sh browser)",
-      "Bash(tests/run.sh galaxy)",
-      "Bash(tests/run.sh smoke)",
-      "Bash(tests/run.sh api)",
+      "Bash(tests/run.sh *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git fetch *)",
+      "Bash(git branch --show-current)",
+      "Bash(git worktree list)",
+      "Bash(wc -c /Users/edan/Mutt-notes/PROGRESS.md)",
+      "Read(//Users/edan/Mutt-notes/**)",
+      "Edit(//Users/edan/Mutt-notes/PROGRESS.md)",
+      "Edit(//Users/edan/Mutt-notes/history/**)",
       "Bash(xcrun simctl list *)",
       "Bash(defaults read *)",
       "mcp__ccd_session_mgmt__list_sessions",
       "mcp__ccd_session_mgmt__list_events",
       "mcp__ccd_session_mgmt__get_session",
       "mcp__computer-use__app_screenshot"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-edit.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/handoff-nudge.sh",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

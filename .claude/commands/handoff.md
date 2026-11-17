@@ -12,7 +12,7 @@ The notes are one shared file, `/Users/edan/Mutt-notes/PROGRESS.md`, in a folder
    - If your work is now live (or was dropped), move its entry out of **Where things stand** to the top of the newest file in `history/`, cut to a few lines (past 150 KB, start a new file and list it in `HISTORY.md`). Do the same for any other entry you can see has gone live (its work is in `main`).
    - Rewrite **Next** as a short ordered list of what's left, including anything unfinished or unverified from this session. Name the branch for work that isn't merged yet.
    - Add any new preferences the user gave this session to **Preferences the user has given**.
-3. If a preference should hold for all future work, also add it to the **User preferences** section of `CLAUDE.md`. Update any other part of `CLAUDE.md` this session made out of date (commands, architecture, branches).
+3. If a preference should hold for all future work, also add it to the **User preferences** section of `CLAUDE.md`. Update any other part of `CLAUDE.md` this session made out of date (commands, branches), and the feature's file in `.claude/skills/mutt-map/` for any feature it changed (a new feature: a new file there and its line in the list under Architecture in `CLAUDE.md`).
 4. Keep both files short. Replace stale lines rather than piling on. Check `wc -c /Users/edan/Mutt-notes/PROGRESS.md`: over 100 KB means finished entries were left behind, so move them to the history.
 5. Commit only if the user has asked for commits in this project, otherwise leave the files uncommitted and say so. `CLAUDE.md` is committed on your branch. The shared notes are outside git, so there's nothing to commit for them.
 

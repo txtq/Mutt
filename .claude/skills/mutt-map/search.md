@@ -1,0 +1,5 @@
+# Search as gravity
+
+Part of the map of how Mutt is built (`CLAUDE.md`, Architecture, lists every file). Keep it current when this feature changes.
+
+- Search as gravity (2026-11-16, DESIGN.md "Search: gravity"): on a galaxy, search's finds lift off their planets and settle round the void instead of a list. `GET /api/search` gives each file `on` (the planets it is on that you may open, a moon as its planet; `planets_on`) and takes `of=<username>` for someone else's galaxy (only files on planets you may open, matched by name, words and pictures, never `meta`). Front end: `gravity.js` (`Gravity`: `show`, `clear`, `list`; fetched by `gravity()` in `views/galaxy.js`, whose page gives `seek`), `search.js` (asks on every letter, gathers after a pause, `heldSearch` brings search back when a file opened from it closes: `viewer:closed` from the router), `statusbar.js` (`openSearch`: from any other page it goes to the galaxy first). A layer's `tabsWith` (`ui.js`) lets Tab reach what search gathered. The browser path is `search_gravity`.

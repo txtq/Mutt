@@ -1,0 +1,5 @@
+# Spelling
+
+Part of the map of how Mutt is built (`CLAUDE.md`, Architecture, lists every file). Keep it current when this feature changes.
+
+- Spelling (front end only): `spell.js` is the checker (SCOWL words in `public/assets/words/en.txt`, most common first, built by `tools/make_words.py`; suggestions ranked by likely slips and how common a word is; a capitalised word mid-sentence counts as a name; "Add to my words" is per device in `mutt:words`). `docspell.js` underlines mistakes in documents with the Highlight API, corrects slips as you type (Backspace straight after puts it back; "Turn off autocorrect" in the editor's ••• menu, per device `mutt:autocorrect`) and right-click offers corrections. `spellfield.js` does underlines + right-click in every `spellcheck="true"` text box, through a see-through copy laid over the box (`.spell-veil`). The spelling menu uses `openContextMenu(..., { keepFocus: true })` so the box keeps focus (notes save and close on blur). Phones and tablets keep their keyboard's own spelling; none of this runs there.

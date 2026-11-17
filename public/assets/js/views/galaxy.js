@@ -189,8 +189,11 @@ function nearestFree(at, s, m, taken, inner, room, p) {
 // its dust out to the edges of the screen. Left to themselves they spread
 // evenly round the closest orbit that holds them all; picked up, they snap
 // onto a free place on one of them (or facing another planet across the
-// void), so the galaxy always looks arranged.
+// void), so the galaxy always looks arranged. Tidying uses five orbits; a
+// planet you carry has nine to land on, one between each two of those
+// (the user asked for more rings, 2026-11-16).
 const ORBITS = [0, 0.25, 0.5, 0.75, 1];
+const SNAP_ORBITS = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
 const ORBIT_P = 2.6; // between an oval (2) and a rounded box: it follows the screen's corners
 const RING_N = 480;
 // A planet's middle, name and all, sits this far below its globe's middle
@@ -397,7 +400,7 @@ function gridLayout(planets, sizes, inner, m, fr) {
 function openSpots(s, w, sh, taken, inner, fr, m, mirrorOf = []) {
   const out = [];
   const free = (rect) => fitsAt(rect, inner, fr) && !taken.some((o) => overlaps(o, rect, m.gap));
-  for (const t of ORBITS) {
+  for (const t of SNAP_ORBITS) {
     const R = ring(t, sh);
     for (let k = 0; k < RING_N; k += 2) {
       const spot = spotOn(R.pts[k], s, w);

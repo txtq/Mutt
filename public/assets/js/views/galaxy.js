@@ -1251,6 +1251,7 @@ class Galaxy {
           ...(this.mine ? [
             { icon: 'planet', label: 'Planet type…', run: there('look') },
             (now.moons || []).length < 8 ? { icon: 'moon', label: 'Add a moon…', run: there('moon') } : null,
+            this.mergeable(now).length ? { icon: 'move', label: 'Merge into…', run: () => this.askMerge(e, el) } : null,
             '-',
             { icon: 'trash', label: 'Delete planet…', danger: true, run: there('remove') },
           ] : []),
@@ -1267,6 +1268,65 @@ class Galaxy {
       ], { duration: DUR.scene, easing: EASE });
     }
     return el;
+  }
+
+  // ------------------------------------------------------------ merging planets
+
+  // The planets one can be merged into: your others, neither of them shared.
+  mergeable(planet) {
+    if (!this.mine || planet.keepers) return [];
+    return [...this.planetEls.values()].map((el) => el.planet)
+      .filter((p) => p.id !== planet.id && !p.keepers && !p.locked && !p.private)
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  // "Merge into…": a second menu where the first one was, of the planets it can go into.
+  askMerge(e, el) {
+    const from = el.planet;
+    openContextMenu(e, this.mergeable(from).map((into) => ({
+      icon: 'planet', label: into.title, hint: into.count ? String(into.count) : null, run: () => this.merge(from, into),
+    })), { title: `Merge ${from.title} into`, target: el });
+  }
+
+  // Its files and moons go onto the other planet; it flies into it and is gone. Undo brings it back.
+  async merge(from, into) {
+    let res;
+    try {
+      res = await api.post(`/api/drawers/${into.id}/merge`, { from: from.id });
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+    const a = this.planetEls.get(from.id);
+    const b = this.planetEls.get(into.id);
+    if (a && b) {
+      this.planetEls.delete(from.id);   // it leaves by flying, not by the usual fade
+      if (!reducedMotion()) {
+        const p = a.center();
+        const q = b.center();
+        const r = a.getBoundingClientRect();
+        a.style.transformOrigin = `${p.x - r.left}px ${p.y - r.top}px`;
+        a.style.pointerEvents = 'none';
+        await a.animate([
+          { translate: '0 0', scale: '1', opacity: 1 },
+          { translate: `${q.x - p.x}px ${q.y - p.y}px`, scale: '0.15', opacity: 0 },
+        ], { duration: DUR.move, easing: EASE_LEAVE, fill: 'forwards' }).finished.catch(() => {});
+      }
+      a.remove();
+      b.gulp?.();
+    }
+    await this.reload();
+    const moved = res.moved ? ` · ${plural(res.moved, 'file')} moved` : '';
+    toast(`Merged ${from.title} into ${into.title}${moved}`, { action: { label: 'Undo', run: () => this.unmerge(into) } });
+  }
+
+  async unmerge(into) {
+    try {
+      await api.post(`/api/drawers/${into.id}/merge/undo`, {});
+      await this.reload();
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   // ------------------------------------------------------------ arranging planets

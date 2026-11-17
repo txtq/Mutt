@@ -3416,6 +3416,135 @@ def delete_drawer(req, drawer_id):
     return json_response({'ok': True, 'deletedBlocks': len(orphans)})
 
 
+# ---------------------------------------------------------------- merging two planets
+#
+# One of your planets folded into another (right-click a planet on your galaxy,
+# "Merge into…"). The planet named in the address is the one that stays; `from`
+# goes. Its files move to the end of the one that stays, in their order and with
+# their ticks; a file already on both just keeps its place there. Its moons
+# become the other's moons (one that followed its planet's sharing follows the
+# new one). Other people's files on a planet that took them stay only if the one
+# that stays takes them too. What it was is kept (`planet_merges`, the last merge
+# into each planet) so Undo can put it back as it was, with the same id.
+
+def merge_room(conn, into_id, from_id):
+    have = conn.execute('SELECT COUNT(*) FROM drawers WHERE parent_id = ?', (into_id,)).fetchone()[0]
+    more = conn.execute('SELECT COUNT(*) FROM drawers WHERE parent_id = ?', (from_id,)).fetchone()[0]
+    return have, more
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/merge')
+def merge_drawer(req, drawer_id):
+    into = own_drawer(req, drawer_id, owner_only=True)
+    gone = own_drawer(req, str(req.json().get('from') or ''), owner_only=True)
+    if into['id'] == gone['id']:
+        raise HttpError(400, 'A planet can’t be merged into itself.')
+    if into['parent_id'] or gone['parent_id']:
+        raise HttpError(400, 'Only planets can be merged, not moons.')
+    if keeper_of(req.db, into) or keeper_of(req.db, gone):
+        raise HttpError(400, 'A shared planet can’t be merged.')
+    have, more = merge_room(req.db, into['id'], gone['id'])
+    if have + more > MAX_MOONS:
+        room = MAX_MOONS - have
+        raise HttpError(400, (f'{into["title"]} already has {MAX_MOONS} moons.' if not room else
+                              f'{into["title"]} has room for {room} more moon{"" if room == 1 else "s"}, '
+                              f'and {gone["title"]} has {more}.'))
+    takes_others = bool(into['community']) and into['visibility'] == 'public'
+    stamp = now()
+    with db.transaction(req.db):
+        files = []
+        high = req.db.execute('SELECT MAX(position) FROM connections WHERE drawer_id = ?', (into['id'],)).fetchone()[0]
+        at = (high + 1) if high is not None else 0
+        for c in req.db.execute(
+                'SELECT c.block_id, c.position, c.connected_at, c.checked, c.placed, b.user_id FROM connections c '
+                'JOIN blocks b ON b.id = c.block_id WHERE c.drawer_id = ? ORDER BY c.position, c.connected_at DESC',
+                (gone['id'],)).fetchall():
+            there = bool(req.db.execute('SELECT 1 FROM connections WHERE drawer_id = ? AND block_id = ?',
+                                        (into['id'], c['block_id'])).fetchone())
+            moves = not there and (c['user_id'] == req.user['id'] or takes_others)
+            if moves:
+                req.db.execute('INSERT INTO connections (block_id, drawer_id, position, connected_at, checked, placed) '
+                               'VALUES (?, ?, ?, ?, ?, ?)',
+                               (c['block_id'], into['id'], at, stamp, c['checked'], c['placed']))
+                at += 1
+            files.append([c['block_id'], c['position'], c['connected_at'], c['checked'], c['placed'], moves])
+        people = [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (into['id'],))]
+        moons = []
+        for m in req.db.execute('SELECT id, visibility, own_sharing FROM drawers WHERE parent_id = ?',
+                                (gone['id'],)).fetchall():
+            access = [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (m['id'],))]
+            moons.append({'id': m['id'], 'visibility': m['visibility'], 'access': access})
+            req.db.execute('UPDATE drawers SET parent_id = ?, updated_at = ? WHERE id = ?', (into['id'], stamp, m['id']))
+            if not m['own_sharing']:
+                req.db.execute('UPDATE drawers SET visibility = ? WHERE id = ?', (into['visibility'], m['id']))
+                req.db.execute('DELETE FROM drawer_access WHERE drawer_id = ?', (m['id'],))
+                for user_id in (people if into['visibility'] == 'people' else []):
+                    req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (m['id'], user_id))
+        record = {
+            'drawer': {k: (v.hex() if isinstance(v, bytes) else v) for k, v in dict(gone).items()},
+            'hashed': isinstance(gone['share_hash'], bytes),
+            'access': [r[0] for r in req.db.execute('SELECT user_id FROM drawer_access WHERE drawer_id = ?', (gone['id'],))],
+            'files': files, 'moons': moons, 'at': stamp,
+        }
+        req.db.execute('DELETE FROM drawers WHERE id = ?', (gone['id'],))
+        req.db.execute('INSERT OR REPLACE INTO planet_merges (drawer_id, record, at) VALUES (?, ?, ?)',
+                       (into['id'], json.dumps(record), stamp))
+        req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, into['id']))
+    row = own_drawer(req, into['id'])
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (into['id'],)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count), 'merged': gone['id'],
+                          'moved': sum(1 for f in files if f[5]), 'moons': len(moons)})
+
+
+@route('POST', r'/api/drawers/(?P<drawer_id>[\w-]+)/merge/undo')
+def unmerge_drawer(req, drawer_id):
+    """Put the last merge into this planet back: the other planet returns with
+    the same id, name, look, sharing and place, its files where they were, its
+    moons its own again. What moved and was taken off since stays off."""
+    into = own_drawer(req, drawer_id, owner_only=True)
+    found = req.db.execute('SELECT record FROM planet_merges WHERE drawer_id = ?', (into['id'],)).fetchone()
+    if not found:
+        raise HttpError(400, 'There’s no merge to undo.')
+    record = json.loads(found['record'])
+    old = dict(record['drawer'])
+    if record.get('hashed') and old.get('share_hash'):
+        old['share_hash'] = bytes.fromhex(old['share_hash'])
+    if req.db.execute('SELECT 1 FROM drawers WHERE id = ?', (old['id'],)).fetchone():
+        raise HttpError(400, 'That planet is already back.')
+    columns = {r[1] for r in req.db.execute('PRAGMA table_info(drawers)')}
+    old = {k: v for k, v in old.items() if k in columns}
+    stamp = now()
+    with db.transaction(req.db):
+        req.db.execute(f'INSERT INTO drawers ({", ".join(old)}) VALUES ({", ".join("?" * len(old))})',
+                       tuple(old.values()))
+        for user_id in record.get('access') or []:
+            req.db.execute('INSERT OR IGNORE INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (old['id'], user_id))
+        for block_id, position, connected_at, checked, placed, moved in record.get('files') or []:
+            if not req.db.execute('SELECT 1 FROM blocks WHERE id = ? AND deleted_at IS NULL', (block_id,)).fetchone():
+                continue  # erased, or set aside since (its way back is Recently deleted)
+            if moved and not req.db.execute('DELETE FROM connections WHERE drawer_id = ? AND block_id = ?',
+                                            (into['id'], block_id)).rowcount:
+                continue  # taken off since, by hand
+            req.db.execute('INSERT OR IGNORE INTO connections (block_id, drawer_id, position, connected_at, checked, placed) '
+                           'VALUES (?, ?, ?, ?, ?, ?)', (block_id, old['id'], position, connected_at, checked, placed))
+        for m in record.get('moons') or []:
+            moon = req.db.execute('SELECT own_sharing FROM drawers WHERE id = ? AND parent_id = ?',
+                                  (m['id'], into['id'])).fetchone()
+            if not moon:
+                continue
+            req.db.execute('UPDATE drawers SET parent_id = ?, updated_at = ? WHERE id = ?', (old['id'], stamp, m['id']))
+            if not moon['own_sharing']:
+                req.db.execute('UPDATE drawers SET visibility = ? WHERE id = ?', (m['visibility'], m['id']))
+                req.db.execute('DELETE FROM drawer_access WHERE drawer_id = ?', (m['id'],))
+                for user_id in m['access']:
+                    req.db.execute('INSERT INTO drawer_access (drawer_id, user_id) VALUES (?, ?)', (m['id'], user_id))
+        req.db.execute('DELETE FROM planet_merges WHERE drawer_id = ?', (into['id'],))
+        req.db.execute('UPDATE drawers SET updated_at = ? WHERE id = ?', (stamp, into['id']))
+    row = own_drawer(req, old['id'])
+    count = req.db.execute('SELECT COUNT(*) FROM connections WHERE drawer_id = ?', (old['id'],)).fetchone()[0]
+    return json_response({'drawer': planet_json(req, row, count), 'back': old['id']})
+
+
 @route('PUT', r'/api/drawers/(?P<drawer_id>[\w-]+)/order')
 def reorder_drawer(req, drawer_id):
     row = own_drawer(req, drawer_id)

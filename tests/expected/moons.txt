@@ -31,3 +31,12 @@ its signs: True ['It’s a moon of “Shopping”, which is a list.']
 turn off: False still offered in menu: True
 pictures moon signs: False
 moon of a plain planet: {}
+merge: Cooking 3 1 1
+merged: ['stew', 'soup', 'bread'] [('Cakes', 'public')] gone 404
+merge undo: Recipes private 2 True
+after undo: ['soup', 'stew'] [] ['bread', 'stew'] [('Cakes', 'private')]
+undo twice: There’s no merge to undo.
+merge into itself: A planet can’t be merged into itself.
+merge a moon: Only planets can be merged, not moons.
+merge someone else's: That planet does not exist.
+no room for moons: Cooking already has 8 moons.

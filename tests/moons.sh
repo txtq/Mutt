@@ -74,3 +74,19 @@ echo "turn off: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$NEW -d '{
 echo "pictures moon signs: $(curl -s "${A[@]}" $B/api/drawers/$PICS/modes | j "d['list']['fits']")"
 PLAIN=$(mk '{"title":"Plain"}'); BODY="{\"title\":\"x\",\"parent\":\"$PLAIN\"}"
 echo "moon of a plain planet: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers -d "$BODY" | j "d['drawer']['modes']")"
+
+# Merging one planet into another (right-click a planet, Merge into…), and its Undo.
+INTO=$(mk '{"title":"Cooking"}'); FROM=$(mk '{"title":"Recipes","visibility":"private"}')
+add soup $INTO > /dev/null; S1=$(add stew $FROM); add bread $FROM > /dev/null
+curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$S1/connections -d "{\"drawer\":\"$INTO\"}" > /dev/null
+FM=$(mk "{\"title\":\"Cakes\",\"parent\":\"$FROM\"}"); add sponge $FM > /dev/null
+echo "merge: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge -d "{\"from\":\"$FROM\"}" | j "d['drawer']['title'], d['drawer']['count'], d['moved'], d['moons']")"
+echo "merged: $(curl -s "${A[@]}" $B/api/drawers/$INTO | j "[b['content'] for b in d['blocks']], [(m['title'], m['visibility']) for m in d['drawer']['moons']]") gone $(code "${A[@]}" $B/api/drawers/$FROM)"
+echo "merge undo: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge/undo -d '{}' | j "d['drawer']['title'], d['drawer']['visibility'], d['drawer']['count'], d['back'] == '$FROM'")"
+echo "after undo: $(curl -s "${A[@]}" $B/api/drawers/$INTO | j "sorted(b['content'] for b in d['blocks']), d['drawer']['moons']") $(curl -s "${A[@]}" $B/api/drawers/$FROM | j "sorted(b['content'] for b in d['blocks']), [(m['title'], m['visibility']) for m in d['drawer']['moons']]")"
+echo "undo twice: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge/undo -d '{}' | j "d['error']")"
+echo "merge into itself: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge -d "{\"from\":\"$INTO\"}" | j "d['error']")"
+echo "merge a moon: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge -d "{\"from\":\"$FM\"}" | j "d['error']")"
+echo "merge someone else's: $(curl -s "${U[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge -d "{\"from\":\"$FROM\"}" | j "d['error']")"
+for n in 1 2 3 4 5 6 7 8; do mk "{\"title\":\"m$n\",\"parent\":\"$INTO\"}" > /dev/null; done
+echo "no room for moons: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/drawers/$INTO/merge -d "{\"from\":\"$FROM\"}" | j "d['error']")"

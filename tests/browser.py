@@ -1697,9 +1697,50 @@ def live_updates(s, seeded):
            'a file deleted on another device stayed on the open planet')
 
 
+def merge_planets(s, seeded):
+    """Right-click a planet, Merge into…, pick another: its files move there and it goes; Undo brings it back."""
+    ids = s.js('''return (async () => {
+        const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const make = async (title, notes) => {
+          const { drawer } = await post('/api/drawers', { title });
+          await fetch(`/api/drawers/${drawer.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+            body: JSON.stringify({ modes: { shareTip: false } }) });
+          for (const content of notes) await post('/api/blocks', { content, drawer: drawer.id });
+          return drawer.id;
+        };
+        return [await make('Sketches', ['a heron, quickly', 'the bridge from below']), await make('Drawings', ['the old mill'])];
+      })()''')
+    sketches, drawings = ids
+    s.go('/')
+    s.wait(f'return !!document.querySelector(`[data-vt="planet-${{arguments[0]}}"]`)', 'the Sketches planet is not in the galaxy', 10, (sketches,))
+    s.settle(1)
+    s.js('''const el = document.querySelector(`[data-vt="planet-${arguments[0]}"]`);
+        const r = el.getBoundingClientRect();
+        el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));''', sketches)
+    row = '.menu button, .menu [role=menuitem]'
+    s.click(s.named(row, 'Merge into…', 'a planet\'s right-click menu has no "Merge into…"'))
+    s.wait('return /Merge Sketches into/.test(document.querySelector(".pop-ctx")?.textContent || "")',
+           '"Merge into…" did not open the list of planets to merge into')
+    s.shot('merge-pick')
+    s.click(s.named(row, 'Drawings', 'the merge list does not offer Drawings'))
+    s.wait('return /Merged Sketches into Drawings/.test(document.querySelector(".toasts")?.textContent || "")',
+           'merging said nothing', 8)
+    s.gone(f'[data-vt="planet-{sketches}"]', 'the merged planet stayed in the galaxy')
+    got = s.fetch(f'/api/drawers/{drawings}') or {}
+    if sorted(b['content'] for b in got.get('blocks', [])) != ['a heron, quickly', 'the bridge from below', 'the old mill']:
+        raise Fail('the merged planet\'s files did not all move to the other')
+    s.shot('merge-done')
+    s.click(s.named('.toast button', 'Undo', 'the merge toast has no Undo'))
+    s.wait(f'return !!document.querySelector(`[data-vt="planet-${{arguments[0]}}"]`)', 'Undo did not bring the merged planet back', 8, (sketches,))
+    back = s.fetch(f'/api/drawers/{sketches}') or {}
+    if len(back.get('blocks', [])) != 2 or len((s.fetch(f'/api/drawers/{drawings}') or {}).get('blocks', [])) != 1:
+        raise Fail('after Undo the files were not back where they were')
+
+
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, planet_type, live_updates, list_mode, offer_while_adding, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
-         split_moons, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge, share_menu]
+         split_moons, merge_planets, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge, share_menu]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

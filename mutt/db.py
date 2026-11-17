@@ -331,6 +331,11 @@ def migrate(conn):
     conn.execute('CREATE TABLE IF NOT EXISTS planet_attention ('
                  'drawer_id TEXT PRIMARY KEY REFERENCES drawers(id) ON DELETE CASCADE, '
                  "weights TEXT NOT NULL DEFAULT '{}', lessons INTEGER NOT NULL DEFAULT 0, updated_at REAL NOT NULL)")
+    # The last merge into each planet (`POST /api/drawers/<id>/merge`): the planet
+    # that went, its files and its moons, as JSON, so Undo can put it back.
+    conn.execute('CREATE TABLE IF NOT EXISTS planet_merges ('
+                 'drawer_id TEXT PRIMARY KEY REFERENCES drawers(id) ON DELETE CASCADE, '
+                 'record TEXT NOT NULL, at REAL NOT NULL)')
     # Constellations: a few of your stars (files on no planet) joined in your
     # sky, with a name. Never connections: the files stay stars until the
     # constellation becomes a planet. A star is in one constellation at most.

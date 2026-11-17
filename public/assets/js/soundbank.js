@@ -415,7 +415,7 @@ export function makeBank(ctx, input, { dur }) {
       wind = { g, parts: [low.s, far.s, lfo] };
     }
     if (!wind) return;
-    wind.g.gain.setTargetAtTime(0.11 * Math.max(0, Math.min(1, level)), t, 0.25);
+    wind.g.gain.setTargetAtTime(0.014 * Math.max(0, Math.min(1, level)), t, 0.25);
     if (level <= 0.01) {
       const w = wind;
       wind = null;

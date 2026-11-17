@@ -821,6 +821,13 @@ export const planetView = {
         onBack: () => { el.moon.count = Math.max(0, (el.moon.count || 1) - 1); },
       }));
     };
+    // Asked for again once the planet's files stop changing; set up here because a mode's view can report a change while the page is still being built.
+    const lookAgain = debounce(() => {
+      try {
+        if (!mine || offer || switching || !el.isConnected) return;
+        looking = (looking || Promise.resolve()).then(() => lookForModes()).catch(() => {});
+      } catch { /* the page is still being built; it reads its modes once it is up */ }
+    }, DUR.scene);
     const changed = (blocks) => {
       drawer.updatedAt = Date.now();
       drawer.count = blocks.length;
@@ -1172,10 +1179,6 @@ export const planetView = {
       } catch { offer = null; }
     }
 
-    const lookAgain = debounce(() => {
-      if (!mine || offer || switching || !el.isConnected) return;
-      looking = (looking || Promise.resolve()).then(() => lookForModes()).catch(() => {});
-    }, DUR.scene);
     const offFiles = mine ? [
       bus.on('upload:done', (item) => { if (item?.ctx?.drawerId === id) lookAgain(); }),
       bus.on('block:connected', (e) => { if (e?.drawerId === id) lookAgain(); }),

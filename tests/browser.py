@@ -1163,9 +1163,9 @@ def comet(s, seeded):
     if not s.js(no_offer):
         raise Fail("typing a day into a list's add box still offers a comet")
     s.press('Enter')
-    s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => /plumber/.test(li.querySelector(".lm-text")?.value))', 'the item was not added', 6)
+    s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => /plumber/.test(li.querySelector(".lm-text")?.value) && !li.dataset.id.startsWith("tmp-"))', 'the item was not added', 6)
     # made one from its menu instead: the box starts from the day it names
-    plumber = s.js('return [...document.querySelectorAll(".lm-item")].find((li) => /plumber/.test(li.querySelector(".lm-text")?.value))')
+    plumber = s.js('return [...document.querySelectorAll(".lm-item")].find((li) => /plumber/.test(li.querySelector(".lm-text")?.value) && !li.dataset.id.startsWith("tmp-"))')
     s.js('const r = arguments[0].getBoundingClientRect(); arguments[0].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 40, clientY: r.top + r.height / 2 }))', plumber)
     s.click(s.named('.menu button, .menu [role=menuitem]', 'Make it a comet…', "an item has no Make it a comet… in its menu"))
     s.click(s.see('.cm-ask .btn-main', 'the comet box did not open'))
@@ -1523,7 +1523,7 @@ def planet_with(s, seeded):
     s.see('.sb-who.is-other', "the neighbour's galaxy did not load")
     s.settle(1)
     s.click('.sb-who')
-    row = s.named('.sheet-person .btn', 'Make a planet with', "their person sheet did not offer a planet made with them")
+    row = s.named('.sheet-person .btn', 'Make a planet', "their person sheet did not offer a planet made with them")
     s.settle(0.5)
     s.shot('planet-with-menu')
     s.click(row)
@@ -1538,7 +1538,7 @@ def planet_with(s, seeded):
     # its Share panel says it waits for them
     s.go(f'/p/{planet["id"]}')
     s.click(s.see('.liv-share-btn', 'the new planet has no Share button'))
-    s.wait('return /Waiting for @neighbour/.test(document.querySelector(".pop .liv-keep")?.textContent || "")',
+    s.wait('return /Waiting for .+ to say yes/.test(document.querySelector(".pop .liv-keep")?.textContent || "")',
            'Share did not say the planet waits for them to say yes')
     s.settle(0.5)
     s.shot('planet-with-share')
@@ -1590,7 +1590,7 @@ def planet_with(s, seeded):
         s.see('.sb-who.is-other', "the neighbour's galaxy did not load at phone width")
         s.settle(1)
         s.click('.sb-who')
-        s.click(s.named('.sheet-person .btn', 'Make a planet with', 'no offer at phone width'))
+        s.click(s.named('.sheet-person .btn', 'Make a planet', 'no offer at phone width'))
         s.see('.dialog .field', 'the box did not open at phone width')
         s.settle(0.5)
         s.no_sideways_scroll('The planet-with box')

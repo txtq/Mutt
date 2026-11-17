@@ -374,8 +374,10 @@ function personBody(close, who) {
     row('Joined', joinedEl),
     withYou,
     // A planet the two of you keep together, started from them.
-    session.user && row('Together', h('button', { type: 'button', class: 'btn', onclick: () => { close(); planetWith(who); } },
-      icon('pair'), `Make a planet with ${shortName(who)}…`)));
+    // On their own sheet the row says who it's with, so the button stays short enough for a phone.
+    session.user && row('Together', h('button', { type: 'button', class: 'btn', title: `Make a planet with ${shortName(who)}`,
+      'aria-label': `Make a planet with ${shortName(who)}`, onclick: () => { close(); planetWith(who); } },
+      icon('pair'), 'Make a planet…')));
   api.get(`/api/users/${encodeURIComponent(who.username)}`).then((p) => {
     // Files on planets you can open; when some of theirs are closed to you, it says so.
     const shut = p.locked + p.private;
@@ -510,7 +512,7 @@ export function createStatusbar() {
       person.close();
     } else {
       who.removeAttribute('aria-disabled');
-      who.setAttribute('aria-haspopup', other() ? 'menu' : 'dialog');
+      who.setAttribute('aria-haspopup', 'dialog');
     }
   }
   paintWhoBar = paintWho;

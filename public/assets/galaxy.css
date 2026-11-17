@@ -1993,8 +1993,6 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   transition: opacity var(--dur-change) var(--ease-leave);
 }
 .gx-comet-tag.is-right { align-items: flex-end; text-align: right; }
-/* where it can't help sitting on the void or a planet (a phone has little open sky), a pane of the bar's glass behind it */
-.gx-comet-tag.is-over { margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-8)); padding: var(--space-4) var(--space-8); border-radius: var(--r-row); background: var(--bar-fill); -webkit-backdrop-filter: var(--glass-frost); backdrop-filter: var(--glass-frost); }
 .gx-comet-tag-name { display: flex; align-items: center; gap: var(--space-4); max-width: 100%; font-size: var(--text-label); font-weight: 500; line-height: 1.3; color: var(--ink); text-shadow: var(--sky-shadow); }
 .gx-comet-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gx-comet-tag-when { display: flex; align-items: center; gap: var(--space-4); white-space: nowrap; font: 400 var(--text-small)/1.2 var(--mono); color: var(--ink-3); text-shadow: var(--sky-shadow); }

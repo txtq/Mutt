@@ -564,7 +564,7 @@ export class Comets {
       for (const [x, y] of tail) if (x > box.x0 && x < box.x1 && y > box.y0 && y < box.y1) score += 1500;
       let onVoid = false;
       for (const [x, y] of [[box.x0, box.y0], [box.x1, box.y0], [box.x0, box.y1], [box.x1, box.y1], [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2]]) if (inVoid(x, y)) { score += 900; onVoid = true; }
-      // the glass behind it only where it truly sits on the void or a planet, not where it only comes near one
+      // whether it truly sits on the void or a planet, not only comes near one
       const over = onVoid || clear.some((b) => b.real && hits(b.real) > 120);
       if (!best || score < best.score) best = { score, left, top, ox, oy, box, over };
     }
@@ -572,7 +572,6 @@ export class Comets {
     // on a phone the void's middle is the add button: a tag that only fits over it waits to be tapped
     if (best.over && this.page.m?.narrow) shown = false;
     el.tag.classList.toggle('is-shown', shown);
-    el.tag.classList.toggle('is-over', best.over);
     if (shown) clear.push(box);
     const right = ox < -0.3;
     el.tag.classList.toggle('is-right', right);

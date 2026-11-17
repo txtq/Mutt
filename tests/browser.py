@@ -1089,6 +1089,28 @@ def constellation(s, seeded):
     s.named('.gx-fig .planet-name', 'Beachcombing', 'the constellation\'s name did not show under it')
     s.settle(1)
     s.shot('constellation-named')
+    # carried by its name to somewhere else: its stars come with it, and it stays there
+    s.js('''const label = document.querySelector('.gx-fig-name'); const r = label.getBoundingClientRect();
+      const p = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      const star = document.querySelector(`.star[data-id="${arguments[0]}"]`).getBoundingClientRect();
+      window.__starWas = { x: star.left, y: star.top };
+      window.__to = { x: p.x + (p.x > innerWidth / 2 ? -160 : 160), y: p.y + (p.y > innerHeight / 2 ? -90 : 90) };
+      const ev = (type, at, el = document) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 8, pointerType: 'mouse', isPrimary: true, button: 0, buttons: 1, clientX: at.x, clientY: at.y }));
+      ev('pointerdown', p, label); ev('pointermove', { x: p.x + 24, y: p.y }); ev('pointermove', window.__to);''', seeded['stars'][0])
+    s.settle(0.6)
+    s.js('document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 8, pointerType: "mouse", isPrimary: true, button: 0, clientX: window.__to.x, clientY: window.__to.y }))')
+    end = time.time() + 6
+    while (s.fetch('/api/galaxy').get('constellations') or [{}])[0].get('x') is None:
+        if time.time() > end:
+            raise Fail('a constellation carried by its name was not kept where it was put')
+        time.sleep(0.2)
+    s.settle(1.2)
+    if s.js('''const r = document.querySelector(`.star[data-id="${arguments[0]}"]`).getBoundingClientRect();
+      return Math.hypot(r.left - window.__starWas.x, r.top - window.__starWas.y) < 40''', seeded['stars'][0]):
+        raise Fail('a constellation was carried, but its stars stayed behind')
+    if s.js('return !!document.querySelector(".pop, .menu")'):
+        raise Fail('carrying a constellation by its name also opened its menu')
+    s.shot('constellation-moved')
 
 
 def comet(s, seeded):

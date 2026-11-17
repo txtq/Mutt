@@ -347,6 +347,11 @@ def migrate(conn):
                  "title TEXT NOT NULL DEFAULT 'Constellation', dismissed INTEGER NOT NULL DEFAULT 0, "
                  'created_at REAL NOT NULL, updated_at REAL NOT NULL)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_constellations_user ON constellations(user_id)')
+    # Where its owner put it in their sky, like a planet's drawers.x/y (empty = placed for them).
+    sky_columns = {row[1] for row in conn.execute('PRAGMA table_info(constellations)')}
+    if 'x' not in sky_columns:
+        conn.execute('ALTER TABLE constellations ADD COLUMN x REAL')
+        conn.execute('ALTER TABLE constellations ADD COLUMN y REAL')
     conn.execute('CREATE TABLE IF NOT EXISTS constellation_stars ('
                  'block_id TEXT PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE, '
                  'constellation_id TEXT NOT NULL REFERENCES constellations(id) ON DELETE CASCADE, '

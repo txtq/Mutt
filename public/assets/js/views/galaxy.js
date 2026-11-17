@@ -1428,6 +1428,110 @@ class Galaxy {
     });
   }
 
+  // ------------------------------------------------------------ arranging constellations
+
+  // A constellation is carried by its name, as a planet is, and its stars come
+  // with it (DESIGN.md "Constellations"). It lands on a free place on the
+  // orbits, or anywhere clear; on a phone's ring it changes places with a planet.
+  makeFigMovable(label, cid) {
+    label.classList.add('is-movable');
+    const key = `sky:${cid}`;
+    const item = () => this.figs?.find((f) => f.id === key);
+    const fig = () => this.sky?.figs.get(cid);
+    const starEls = () => (this.sky?.byId(cid)?.stars || []).map((id) => this.starsEl.querySelector(`.star[data-id="${CSS.escape(id)}"]`)).filter(Boolean);
+    let grab = null;
+    let at = null;
+    let shown = null;
+    let from = null;
+    let open = [];
+    let snap = null;
+    let swap = null;
+    let carried = [];
+    const toScene = (pointer) => {
+      const r = this.scene.getBoundingClientRect();
+      return { x: pointer.x - r.left - this.size.cx, y: pointer.y - r.top - this.size.cy };
+    };
+    // The figure and its stars, moved together by how far it has come.
+    const show = (p) => {
+      const dx = p.x - from.x;
+      const dy = p.y - from.y;
+      fig().root.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      for (const el of carried) if (el.at) el.style.transform = `translate(${(el.at.x + dx).toFixed(1)}px, ${(el.at.y + dy).toFixed(1)}px)`;
+    };
+    const target = (p) => {
+      if (p === swap) return;
+      this.planetEls.get(swap?.id)?.classList.remove('is-target');
+      swap = p;
+      this.planetEls.get(swap?.id)?.classList.add('is-target');
+    };
+    const letGo = () => {
+      this.hideGuide();
+      target(null);
+      fig()?.root.classList.remove('is-moving');
+      for (const el of carried) el.classList.remove('is-carried-along');
+      carried = [];
+    };
+    movable(label, {
+      enabled: () => this.p < 0.02 && !!this.spots?.get(key) && !this.sky?.picking,
+      limits: () => ({ top: 0, bottom: Math.max(0, this.size.height - this.size.viewH) }),
+      onStart: (pointer) => {
+        const spot = this.spots.get(key);
+        const p = toScene(pointer);
+        grab = { x: p.x - spot.x, y: p.y - spot.y };
+        from = { x: spot.x, y: spot.y };
+        at = { ...from };
+        shown = { ...from };
+        snap = null;
+        swap = null;
+        open = this.m.narrow ? [] : this.openFor(item());
+        fig().root.classList.add('is-moving');
+        carried = starEls();
+        for (const el of carried) el.classList.add('is-carried-along');
+        this.sky.light(cid);
+      },
+      onMove: (pointer, dt) => {
+        const p = toScene(pointer);
+        const half = this.size.width / 2;
+        at = { x: clamp(p.x - grab.x, -half, half), y: p.y - grab.y };
+        const k = reducedMotion() ? 1 : 1 - Math.exp(-dt / 47);
+        shown = { x: shown.x + (at.x - shown.x) * k, y: shown.y + (at.y - shown.y) * k };
+        show(shown);
+        // On a phone's ring it only changes places with a planet, which lights.
+        if (this.m.narrow) { target(this.planetOver(item(), at)); return; }
+        if (open.length) {
+          const next = snapTo(open, at);
+          if (next !== snap) this.showGuide((snap = next), this.sizeOf(item()));
+        }
+      },
+      onEnd: (pointer, cancelled) => {
+        const other = swap;
+        letGo();
+        this.sky.light(null);
+        if (cancelled) { this.layout(); return; }
+        if (this.m.narrow) { if (other) this.swapOnRing(item(), other); else this.layout(); return; }
+        if (snap) this.place(item(), snap, null, true);
+        else this.place(item(), at);
+      },
+    });
+    // Shift and an arrow key: the next free place on the orbits that way, as for a planet.
+    label.addEventListener('keydown', (e) => {
+      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      const spot = this.spots?.get(key);
+      if (!e.shiftKey || !step || this.p > 0.02 || !spot || this.m.narrow) return;
+      e.preventDefault();
+      let best = null;
+      let far = Infinity;
+      for (const o of this.openFor(item())) {
+        const dx = o.x - spot.x;
+        const dy = o.y - spot.y;
+        const along = dx * step[0] + dy * step[1];
+        const d = along + Math.abs(dx * step[1] - dy * step[0]) * 2;
+        if (along > 12 && d < far) { far = d; best = o; }
+      }
+      if (best) this.place(item(), best, null, true);
+    });
+  }
+
   // The planet the one being carried is over, if any: its middle is within the other's globe.
   planetOver(planet, at) {
     let best = null;
@@ -1445,7 +1549,7 @@ class Galaxy {
   // across the void from the others, and where it was.
   openFor(planet) {
     const m = this.m;
-    const s = planetSize(planet.count, m.scale);
+    const s = this.sizeOf(planet);
     const others = [...this.spots].filter(([id, spot]) => id !== planet.id && spot).map(([, spot]) => spot);
     const p = pads(m);
     const half = this.size.width / 2 - 28;
@@ -1481,7 +1585,7 @@ class Galaxy {
   // Where a planet dropped at `at` ends up: there, or the nearest free spot.
   freeSpot(planet, at) {
     const m = this.m;
-    const s = planetSize(planet.count, m.scale);
+    const s = this.sizeOf(planet);
     const room = Math.max(0, this.size.width / 2 - (m.narrow ? 8 : 28) - footprint(s, m, planet) / 2);
     const others = [...this.spots].filter(([id, spot]) => id !== planet.id && spot).map(([, spot]) => spot.rect);
     return nearestFree(at, s, m, others, this.inner, room, planet);
@@ -1495,18 +1599,16 @@ class Galaxy {
     const going = new Map([[planet.id, spot]]);
     if (also?.at) going.set(also.planet.id, also.at);
     const unit = (x, y) => ({ x: Math.round((x / (this.m.scale * this.fx)) * 10) / 10, y: Math.round((y / (this.m.scale * this.stretch)) * 10) / 10 });
-    const first = !this.data.planets.some(placed);
+    const all = this.pieces();
+    const first = !all.some(placed);
     const list = first
-      ? this.data.planets.map((p) => {
+      ? all.map((p) => {
         const s = going.get(p.id) || this.spots.get(p.id);
-        return { id: p.id, ...unit(s.x, s.y) };
-      })
+        return s && { id: p.id, ...unit(s.x, s.y) };
+      }).filter(Boolean)
       : [...going].map(([id, s]) => ({ id, ...unit(s.x, s.y) }));
-    const before = new Map(this.data.planets.map((p) => [p.id, { x: p.x, y: p.y }]));
-    for (const s of list) {
-      const p = this.data.planets.find((q) => q.id === s.id);
-      if (p) Object.assign(p, { x: s.x, y: s.y });
-    }
+    const before = all.map((p) => ({ id: p.id, x: p.x, y: p.y }));
+    for (const s of list) this.putAt(s.id, s);
     el?.classList.remove('is-moving');
     // Arranging never resizes the galaxy under you.
     this.held = { z: this.m.z, width: this.size.width, viewH: this.size.viewH };
@@ -1515,9 +1617,26 @@ class Galaxy {
       await api.put('/api/galaxy/layout', { planets: list });
     } catch (err) {
       toast(err.message);
-      for (const p of this.data.planets) Object.assign(p, before.get(p.id));
+      for (const p of before) this.putAt(p.id, p);
       this.layout();
     }
+  }
+
+  // Everything you arrange in your sky, each with its saved place: your planets,
+  // then your constellations (as `sky:<id>`, as the layout knows them).
+  pieces() {
+    return this.sky ? [...this.data.planets, ...this.sky.list.map((c) => ({ id: `sky:${c.id}`, x: c.x, y: c.y }))] : this.data.planets;
+  }
+
+  // Keep one of them's new place on the page (the server is told by whoever calls this).
+  putAt(id, { x, y }) {
+    const it = id.startsWith('sky:') ? this.sky?.byId(id.slice(4)) : this.data.planets.find((p) => p.id === id);
+    if (it) Object.assign(it, { x, y });
+  }
+
+  // How tall a planet, or a constellation's figure, is laid out.
+  sizeOf(p) {
+    return p.shape ? p.shape.h : planetSize(p.count, this.m.scale);
   }
 
   layout() {
@@ -1525,7 +1644,7 @@ class Galaxy {
     const bar = this.barHeight();
     const viewH = innerHeight - bar;
     const held = this.held;
-    const hold = held && held.width === width && held.viewH === viewH && this.data.planets.every(placed) ? held.z : 0;
+    const hold = held && held.width === width && held.viewH === viewH && this.pieces().every(placed) ? held.z : 0;
     if (!hold) this.held = null;
     this.laidRoom = this.mine ? this.notesRoom || 0 : 0;
     const { m, starAt, inner, figs, spots, fx, stretch, shape, ring, starRoom, ...home } = fitted(width, viewH, (m) => {
@@ -1773,19 +1892,19 @@ class Galaxy {
     const ia = all.indexOf(a);
     const ib = all.indexOf(b);
     if (ia < 0 || ib < 0 || !D.spots[ia] || !D.spots[ib]) { this.layout(); return; }
-    const first = !this.data.planets.some(placed);
-    const at = new Map(this.data.planets.map((p, i) => [p.id, unit(D.spots[i])]));
+    const first = !all.some(placed);
+    const at = new Map(all.map((p, i) => [p.id, D.spots[i] && unit(D.spots[i])]));
     at.set(a.id, unit(D.spots[ib]));
     at.set(b.id, unit(D.spots[ia]));
-    const list = (first ? this.data.planets : [a, b]).map((p) => ({ id: p.id, ...at.get(p.id) }));
-    const before = new Map(this.data.planets.map((p) => [p.id, { x: p.x, y: p.y }]));
-    for (const s of list) Object.assign(this.data.planets.find((q) => q.id === s.id), { x: s.x, y: s.y });
+    const list = (first ? all : [a, b]).filter((p) => at.get(p.id)).map((p) => ({ id: p.id, ...at.get(p.id) }));
+    const before = all.map((p) => ({ id: p.id, x: p.x, y: p.y }));
+    for (const s of list) this.putAt(s.id, s);
     this.layout();
     try {
       await api.put('/api/galaxy/layout', { planets: list });
     } catch (err) {
       toast(err.message);
-      for (const p of this.data.planets) Object.assign(p, before.get(p.id));
+      for (const p of before) this.putAt(p.id, p);
       this.layout();
     }
   }

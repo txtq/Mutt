@@ -86,6 +86,8 @@ threads after cy saves as a star, cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}, {'
 constellation made, empty name: [('Constellation', 2, False)]  stars still stars: ['sky four', 'sky one', 'sky three', 'sky two']
 renamed: Sailing  stars added: 3
 a planet's file can't join: 400  one star alone: 400
+moved: 200  kept: [(-120.4, 90.0)]
+rule holds: someone else could move a constellation -> no
 rule holds: someone else could add to a constellation -> no
 rule holds: a visitor's view of a galaxy showed its constellations -> no
 a deleted star leaves: [('Sailing', 2, False)]

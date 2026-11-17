@@ -144,6 +144,9 @@ C=$(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"
 echo "constellation made, empty name: $(cons)  stars still stars: $(curl -s "${A[@]}" $B/api/galaxy | j "sorted(s['content'] for s in d['stars'] if s['content'].startswith('sky'))")"
 echo "renamed: $(curl -s "${A[@]}" "${J[@]}" -X PATCH $B/api/constellations/$C -d '{"title":"Sailing"}' | j "d['constellation']['title']")  stars added: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/constellations/$C/stars -d "{\"block\":\"$S3\"}" | j "len(d['constellation']['stars'])")"
 echo "a planet's file can't join: $(status "${A[@]}" "${J[@]}" -X POST $B/api/constellations/$C/stars -d "{\"block\":\"$NPUB\"}")  one star alone: $(status "${A[@]}" "${J[@]}" -X POST $B/api/constellations -d "{\"stars\":[\"$S4\"]}")"
+MOVE="{\"planets\":[{\"id\":\"sky:$C\",\"x\":-120.44,\"y\":90}]}"
+echo "moved: $(status "${A[@]}" "${J[@]}" -X PUT $B/api/galaxy/layout -d "$MOVE")  kept: $(curl -s "${A[@]}" $B/api/galaxy | j "[(c['x'], c['y']) for c in d['constellations']]")"
+rule "someone else could move a constellation" "$(status "${U[@]}" "${J[@]}" -X PUT $B/api/galaxy/layout -d "$MOVE")" 404
 rule "someone else could add to a constellation" "$(status "${U[@]}" "${J[@]}" -X POST $B/api/constellations/$C/stars -d "{\"block\":\"$S4\"}")" 404
 rule "a visitor's view of a galaxy showed its constellations" "$(curl -s "${U[@]}" $B/api/galaxy/alma | j "'constellations' in d or 'Sailing' in json.dumps(d)")" False
 curl -s -o /dev/null "${A[@]}" "${J[@]}" -X DELETE $B/api/blocks/$S3

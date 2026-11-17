@@ -1513,6 +1513,7 @@ def save_layout(req):
     if body.get('reset'):
         req.db.execute('UPDATE drawers SET x = NULL, y = NULL WHERE user_id = ? AND parent_id IS NULL', (req.user['id'],))
         req.db.execute('UPDATE drawer_keepers SET x = NULL, y = NULL WHERE user_id = ?', (req.user['id'],))
+        req.db.execute('UPDATE constellations SET x = NULL, y = NULL WHERE user_id = ?', (req.user['id'],))
         return json_response({'ok': True})
     spots = body.get('planets')
     if not isinstance(spots, list) or not spots or len(spots) > 2000:
@@ -1530,6 +1531,12 @@ def save_layout(req):
         rows.append((*xy, str(spot.get('id') or ''), req.user['id']))
     with db.transaction(req.db):
         for row in rows:
+            # a constellation's place is saved with the planets' (its id as the page knows it: sky:<id>)
+            if row[2].startswith('sky:'):
+                if not req.db.execute('UPDATE constellations SET x = ?, y = ? WHERE id = ? AND user_id = ?',
+                                      (row[0], row[1], row[2][4:], row[3])).rowcount:
+                    raise HttpError(404, 'One of those constellations is not yours.')
+                continue
             if not (req.db.execute('UPDATE drawers SET x = ?, y = ? WHERE id = ? AND user_id = ? AND parent_id IS NULL', row).rowcount
                     or req.db.execute('UPDATE drawer_keepers SET x = ?, y = ? WHERE drawer_id = ? AND user_id = ?', row).rowcount):
                 raise HttpError(404, 'One of those planets is not yours.')
@@ -1562,7 +1569,7 @@ def constellation_members(conn, constellation_id):
 
 def constellation_json(conn, row):
     return {'id': row['id'], 'title': row['title'], 'stars': constellation_members(conn, row['id']),
-            'dismissed': bool(row['dismissed'])}
+            'dismissed': bool(row['dismissed']), 'x': row['x'], 'y': row['y']}
 
 
 def constellations_of(conn, user_id):

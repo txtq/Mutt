@@ -107,7 +107,9 @@ export class Sky {
         const meta = h('span', { class: 'planet-meta' });
         const label = h('button', { type: 'button', class: 'gx-fig-name', 'aria-haspopup': 'menu' }, name, meta);
         label.addEventListener('click', () => this.menu(this.byId(c.id), label));
-        label.addEventListener('contextmenu', (e) => { e.preventDefault(); this.menu(this.byId(c.id), label); });
+        label.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!document.body.classList.contains('is-carrying')) this.menu(this.byId(c.id), label); });
+        // carried by its name, its stars with it (views/galaxy.js)
+        this.g.makeFigMovable(label, c.id);
         const root = h('div', { class: 'gx-fig is-new', dataset: { id: c.id } }, canvas, label);
         fig = { root, canvas, label, name, meta, key: '' };
         this.figs.set(c.id, fig);
@@ -132,7 +134,7 @@ export class Sky {
     const room = { w: m.narrow ? Math.min(width - 48, 200) : Math.max(m.wide * 3, 420), h: m.narrow ? 100 : 320 };
     return this.list.map((c) => {
       const shape = figureOf(c.id, c.stars.length, m, room);
-      return { id: `sky:${c.id}`, sky: c, shape, count: 0, x: null, y: null };
+      return { id: `sky:${c.id}`, sky: c, shape, count: 0, x: c.x ?? null, y: c.y ?? null };
     });
   }
 

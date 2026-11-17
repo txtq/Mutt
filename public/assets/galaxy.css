@@ -1833,6 +1833,9 @@ body.no-chrome #view { padding: 0; }
 }
 .gx-fig-name .planet-name { max-width: 100%; }
 .gx-fig-name .planet-meta { margin-top: var(--space-2); }
+/* carried by its name, as a planet is; it and its stars follow the pointer with no glide of their own */
+.gx-fig-name.is-movable { cursor: move; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.gx-scene .gx-fig.is-moving, .gx-scene .star.is-carried-along { transition: none; }
 /* what letting go of a carried star here does, in the shared tooltip (the star's own name waits) */
 body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 /* THE DROP RING (DESIGN.md "Drop ring"): round a planet, moon or star you are carrying something

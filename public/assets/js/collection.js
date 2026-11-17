@@ -1,7 +1,7 @@
 // A set of files shown in the grid, kept in sync with uploads, edits made
 // elsewhere, and (in Everything) the chosen sort.
 
-import { blockContextMenu, blockMenu, moveBlock, openConnect, openSave, watchPreview } from './actions.js';
+import { blockContextMenu, blockMenu, lastPlanet, moveBlock, openConnect, openSave, removeFromDrawer, watchPreview } from './actions.js';
 import { api } from './api.js';
 import { entryCell } from './entry.js';
 import { Grid } from './grid.js';
@@ -10,7 +10,9 @@ import { nav } from './nav.js';
 import { sparkle } from './theme.js';
 import { confirmDialog, openContextMenu, openMenu, toast } from './ui.js';
 import { addFiles, contextKey, pendingFor, retry } from './uploads.js';
-import { bus, debounce, personLabel, uid } from './util.js';
+import { icon } from './icons.js';
+import { sound } from './sound.js';
+import { bus, debounce, h, personLabel, uid } from './util.js';
 
 const isUrl = (s) => /^https?:\/\/\S+$/i.test(s.trim());
 
@@ -42,7 +44,8 @@ export class Collection {
       onAction: (act, id, btn) => this.action(act, id, btn),
       onReorder: (ids) => this.saveOrder(ids, { hand: true }),
       onContext: (e, id, cell) => this.context(e, id, cell),
-      targets,
+      // Where a carried file can go: the worlds beside this one, and the way home in the corner (a star).
+      targets: (id) => [...(targets?.() || []), this.skyTarget(id)].filter(Boolean),
       onDropTo: (target, id, how) => this.moveTo(target, id, how),
       empty,
     });
@@ -306,6 +309,7 @@ export class Collection {
   async moveTo(target, id, { thrown = false } = {}) {
     const block = this.blocks.find((b) => b.id === id);
     if (!block || !this.drawer || target.id === this.drawer.id) { this.render('flip'); return false; }
+    if (target.sky) { if (!thrown) target.el.gulp?.(); return this.toSky(block); }
     this.removedAt.set(id, this.blocks.indexOf(block));
     this.drop(id);
     if (!thrown) target.el?.gulp?.();
@@ -322,6 +326,32 @@ export class Collection {
       toast(err.message);
       return false;
     }
+  }
+
+  // The back arrow in the top-left corner takes a carried file of yours home to your galaxy: off
+  // this planet, and a star once it's on no other (DESIGN.md "Drop ring"). While a file is carried
+  // the arrow becomes a star and says what letting go there does.
+  skyTarget(id) {
+    if (!this.drawer || !this.grid?.sortable) return null;
+    const block = this.blocks.find((b) => b.id === id);
+    const el = document.querySelector('.home-back');
+    if (!block || block.mine === false || !el || el.hidden) return null;
+    const words = lastPlanet(block) ? 'Drop to make it a star' : `Drop to take it off ${this.drawer.title}`;
+    return {
+      id: 'sky', sky: true, kind: 'sky', title: 'Your galaxy', el,
+      measure: () => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 + 16 };
+      },
+      carry: (on) => homeCatches(el, on, words),
+    };
+  }
+
+  async toSky(block) {
+    this.removedAt.set(block.id, this.blocks.indexOf(block));
+    this.drop(block.id);
+    await removeFromDrawer(block, this.drawer.id, this.drawer.title);
+    return true;
   }
 
   // hand: the owner moved a file themselves (a drag, Send to top), which a
@@ -351,5 +381,24 @@ export class Collection {
 
   destroy() {
     this.off.forEach((off) => off());
+  }
+}
+
+// The corner's back arrow while a file is carried: a star, with a line beside it saying what
+// letting go there does (the tooltip's glass, as the void's own line). Put back as it was after.
+function homeCatches(el, on, words) {
+  if (on) {
+    el.back ??= el.firstElementChild;
+    el.say ??= h('span', { class: 'tooltip home-say', 'aria-hidden': 'true' });
+    el.gulp ??= () => sound('land');   // as a moon sounds when a file lands in it
+    el.say.textContent = words;
+    if (!el.say.isConnected) el.after(el.say);
+    el.replaceChildren(icon('star', 20));
+    el.classList.add('is-catching');
+    requestAnimationFrame(() => el.say.classList.add('is-on'));
+  } else {
+    el.classList.remove('is-catching', 'is-target');
+    if (el.back) el.replaceChildren(el.back);
+    el.say?.classList.remove('is-on');
   }
 }

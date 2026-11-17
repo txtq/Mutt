@@ -303,11 +303,16 @@ export async function openMove(anchor, block, from, { created = false, onClose }
 
 // ---------------------------------------------------------------- remove / delete
 
+// Is this planet the only one a file of yours is on? Taking it off makes it a star.
+export const lastPlanet = (block) => block.mine !== false && (block.connectionCount ?? 1) <= 1;
+
+// Off a planet, with Undo. Off its last one it is a star in your galaxy, and the toast says so.
 export async function removeFromDrawer(block, drawerId, drawerTitle) {
   try {
     const res = await api.del(`/api/blocks/${block.id}/connections/${drawerId}`);
     bus.emit('block:disconnected', { block: res.block, drawerId, connections: res.connections });
-    toast(`Took it off ${drawerTitle || 'the planet'}`, {
+    const star = Array.isArray(res.connections) && !res.connections.length;
+    toast(star ? 'Now a star in your galaxy' : `Took it off ${drawerTitle || 'the planet'}`, {
       action: {
         label: 'Undo',
         run: async () => {
@@ -414,7 +419,8 @@ function blockItems(anchor, block, { drawer, open, worlds = [], remove, del, ext
     block.kind === 'text' && { icon: 'copy', label: 'Copy text', run: () => navigator.clipboard.writeText(block.content).then(() => { sound('copy'); toast('Text copied'); }) },
     open && history && block.kind === 'text' && block.versions > 0 && { icon: 'history', label: 'History', run: () => { historyWish = block.id; open(); } },
     '-',
-    drawer && { icon: 'takeoff', label: `Take off ${drawer.title}`, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },
+    // Off its last planet a file of yours is a star again, and the row says so (the user, 2026-11-16).
+    drawer && { icon: 'takeoff', label: `Take off ${drawer.title}`, hint: lastPlanet(block) ? 'Becomes a star' : null, run: remove || (() => removeFromDrawer(block, drawer.id, drawer.title)) },
     { icon: 'trash', label: 'Delete', danger: true, run: del || (() => deleteBlock(block)) },
   ];
 }

@@ -399,9 +399,10 @@ export class Grid {
       dx: start.x - rect.left, dy: start.y - rect.top,
       x: ev.clientX, y: ev.clientY,
       initial: this.keys().join(','),
-      list: this.targets?.() || [],
+      list: this.targets?.(cell.dataset.id) || [],
       over: null,
     };
+    this.drag.list.forEach((t) => t.carry?.(true));
     // Lifts on top of wherever it's carried ('add'), so it follows the
     // pointer from the start instead of sitting still until the lift ends.
     ghost.animate([{ transform: `scale(${1 / 1.035})` }, { transform: 'scale(1)' }], { duration: DUR.change, easing: EASE, composite: 'add' });
@@ -499,6 +500,7 @@ export class Grid {
     removeEventListener('touchmove', d.blockTouch);
     removeEventListener('contextmenu', d.blockTouch);
     document.body.classList.remove('is-dragging');
+    d.list.forEach((t) => t.carry?.(false));
     this.suppressClick = true;
     setTimeout(() => { this.suppressClick = false; }, 60);
     if (d.over) {
@@ -545,6 +547,7 @@ export class Grid {
     removeEventListener('touchmove', d.blockTouch);
     removeEventListener('contextmenu', d.blockTouch);
     document.body.classList.remove('is-dragging');
+    d.list.forEach((t) => t.carry?.(false));
     this.suppressClick = true;
     setTimeout(() => { this.suppressClick = false; }, 60);
     d.cell.classList.remove('is-placeholder');

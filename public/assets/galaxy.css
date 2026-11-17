@@ -1266,6 +1266,12 @@ body.no-chrome .sb { display: none; }
 }
 .home-back[hidden] { display: none; }
 .home-back:hover, .home-back:focus-visible { opacity: 0.9; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+/* While one of your files is carried on your planet, the way home takes it there as a star
+   (collection.js skyTarget): the arrow becomes a star, with a line beside it on the tooltip's glass. */
+.home-back.is-catching { opacity: 1; }
+.home-back.is-catching.is-target { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.home-say { left: calc(max(14px, env(safe-area-inset-left)) + 40px + var(--space-8)); top: calc(var(--bar) + 12px + (40px - var(--h-small)) / 2); color: var(--ink-2); }
+.home-back.is-target + .home-say { color: var(--ink); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------------ pages */
@@ -1781,7 +1787,8 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
    stretches, so every ring is dotted alike. It turns slowly while it waits. */
 .has-dust .planet.is-target .planet-body::after, .has-dust .moon.is-target::after,
 .has-dust .star.is-target::after, .has-dust .star.is-picking::after, .has-dust .gx-ghost::before, .has-dust .drop-ring,
-.has-dust .planet-body.is-landing::after, .has-dust .moon.is-landing::after {
+.has-dust .planet-body.is-landing::after, .has-dust .moon.is-landing::after,
+.has-dust .home-back.is-target::after, .has-dust .home-back.is-landing::after {
   content: "";
   position: absolute;
   border-radius: 0;
@@ -1798,6 +1805,9 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 /* a thrown file landing (fling.js landed(); DESIGN.md "Throwing"): the ring spreads once on the world's face and fades */
 .has-dust .planet-body.is-landing::after { inset: -23%; animation: land-ring var(--dur-arrive) var(--ease-settle) forwards; }
 .has-dust .moon.is-landing::after { inset: -43%; animation: land-ring var(--dur-arrive) var(--ease-settle) forwards; }
+/* the corner's way home, while a file of yours is carried onto it to become a star */
+.has-dust .home-back.is-target::after { inset: -32%; }
+.has-dust .home-back.is-landing::after { inset: -32%; animation: land-ring var(--dur-arrive) var(--ease-settle) forwards; }
 @keyframes land-ring { from { scale: 0.62; opacity: 1; } to { scale: 1.12; opacity: 0; } }
 /* round the void while files are carried in from the computer: it grows in with the drop hint */
 .has-dust .drop-ring { inset: -55%; transition: opacity var(--dur-change), scale var(--dur-arrive) var(--ease-settle); }
@@ -2801,6 +2811,7 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
   .sb-clock { padding: 0 6px; }
   /* The way home sits in the bar, where a phone's own back button would be. */
   .home-back { top: calc((var(--bar) - var(--h-large)) / 2); left: max(4px, env(safe-area-inset-left)); width: var(--h-large); height: var(--h-large); z-index: 41; color: var(--ink); opacity: 0.8; }
+  .home-say { left: max(4px, env(safe-area-inset-left)); top: calc(var(--bar) + var(--space-4)); }   /* under the bar, clear of its name */
   body.has-home .sb-left { padding-left: var(--h-large); } /* the logo moves over, and the name stays in the middle */
   .planet-name { font-size: var(--text-caption); }
   .planet-label { width: max(104px, calc(var(--s) + 16px)); top: calc(100% + 8px); }
@@ -4441,12 +4452,10 @@ html[data-motion="off"] .cb-steam { display: none; }
 .bm-said[hidden], .bm-nav[hidden] { display: none; }
 .bm-nav { display: flex; align-items: center; justify-content: center; gap: var(--space-8); }
 .bm-step { min-width: 56px; text-align: center; font: var(--type-fact); color: var(--ink-3); }
-.bm-actions { flex-wrap: wrap; }
+.bm-choose { margin: 0; font: var(--type-caption); color: var(--ink-3); text-align: center; }
+/* the three answers stacked, the main one first, so each reads as a choice of its own */
+.bm-actions { flex-direction: column; align-items: stretch; }
 .bm-foot { display: flex; justify-content: center; }
 .bm-stop { color: var(--ink-3); }
 .bm-stops { display: flex; flex-direction: column; gap: var(--space-4); }
 .bm-stop-row { display: flex; align-items: center; gap: 9px; min-height: var(--h-regular); font: var(--type-label); color: var(--ink-2); }
-@media (max-width: 720px) {
-  .bm-actions { justify-content: stretch; }
-  .bm-actions .btn { flex: 1 1 auto; }
-}

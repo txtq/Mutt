@@ -1288,7 +1288,7 @@ def board_mode(s, seeded):
 
 
 def beam_file(s, seeded):
-    """A file the neighbour beams you rests by the void; its box shows their words; Keep makes it your star."""
+    """A file the neighbour beams you rests by the void; its box shows their words; Save as a star makes it your star."""
     def as_them(method, path, body=None):
         return json.load(seeded['neighbour'].open(urllib.request.Request(
             SITE + path, method=method, headers={'Content-Type': 'application/json', 'X-Mutt': '1'},
@@ -1304,9 +1304,16 @@ def beam_file(s, seeded):
     said = s.see('.bm-dialog .bm-said', 'the box did not show their words')
     if 'for the walk' not in s.js('return arguments[0].textContent', said):
         raise Fail('the box shows the wrong words')
+    s.settle(1)
     s.shot('beam-box')
+    s.size(PHONE)
+    s.settle(0.6)
+    if s.js('return document.documentElement.scrollWidth > innerWidth'):
+        raise Fail('the beam box scrolls sideways at 375 wide')
+    s.shot('beam-box-phone')
+    s.size(DESK)
     s.click('.bm-actions .btn-main')
-    s.gone('.bm-star', 'the beamed file stayed by the void after Keep')
+    s.gone('.bm-star', 'the beamed file stayed by the void after Save as a star')
     s.wait('return [...document.querySelectorAll(".star")].some((e) => /tide times/.test(e.textContent))',
            'the kept file did not become one of your stars')
     # Beam to… lists everyone without typing: someone met first, by the name they go by, then the rest
@@ -1325,6 +1332,53 @@ def beam_file(s, seeded):
     s.settle(0.5)
     s.shot('beam-to')
     s.press('Escape')
+
+
+def drag_to_star(s, seeded):
+    """Carry a file to the back arrow in the top-left corner: it comes off the planet and is a star again."""
+    made = s.js('''return (async () => {
+        const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const { drawer } = await post('/api/drawers', { title: 'Corner' });
+        for (let n = 1; n <= 3; n++) await post('/api/blocks', { content: `Corner note ${n}`, drawer: drawer.id });
+        return drawer.id;
+      })()''')
+    s.go(f'/p/{made}')
+    s.wait('return document.querySelectorAll(".cell[data-id]").length === 3 && !document.querySelector(".home-back").hidden',
+           'the planet (or its back arrow) did not show')
+    s.settle(1)
+    # its right-click menu says taking it off its only planet makes it a star
+    s.js('''const cell = document.querySelectorAll(".cell[data-id]")[0]; const r = cell.getBoundingClientRect();
+        cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 20 }));''')
+    s.wait('return [...document.querySelectorAll(".menu .menu-hint")].some((e) => e.textContent === "Becomes a star")',
+           '"Take off Corner" does not say the file becomes a star')
+    s.js('document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))')
+    s.settle(0.6)
+    gone = s.js('''return (async () => {
+      const cell = document.querySelectorAll(".cell[data-id]")[2];
+      const mid = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+      const from = mid(cell), to = mid(document.querySelector(".home-back"));
+      const ev = (type, at, el = document) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 12,
+        pointerType: 'mouse', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: at.x, clientY: at.y }));
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      ev('pointerdown', from, cell);
+      for (let i = 1; i <= 20; i++) { await sleep(20); ev('pointermove', { x: from.x + (to.x - from.x) * i / 20, y: from.y + (to.y - from.y) * i / 20 }); }
+      await sleep(300);
+      window.__say = document.querySelector('.home-back.is-catching.is-target + .home-say')?.textContent || '';
+      return cell.dataset.id;
+    })()''')
+    say = s.js('return window.__say')
+    if say != 'Drop to make it a star':
+        raise Fail(f'carried over the corner, the back arrow said "{say}", not "Drop to make it a star"')
+    s.shot('drag-to-star')
+    s.js('''const to = document.querySelector(".home-back").getBoundingClientRect();
+        document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 12, pointerType: "mouse", isPrimary: true,
+          button: 0, buttons: 0, clientX: to.left + to.width / 2, clientY: to.top + to.height / 2 }));''')
+    s.wait('return /^Now a star/.test(document.querySelector(".toast")?.textContent || "")', 'letting go on the corner did not say "Now a star…"', 6)
+    s.wait('return !document.querySelector(".home-back.is-catching") && document.querySelectorAll(".cell[data-id]").length === 2',
+           'the file stayed on the planet, or the back arrow stayed a star')
+    if s.fetch(f'/api/blocks/{gone}')['block'].get('connectionCount'):
+        raise Fail('the file dropped on the corner is still on a planet')
 
 
 def throw_star(s, seeded):
@@ -1365,7 +1419,7 @@ def throw_star(s, seeded):
 
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top,
+         documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
          split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
 
 

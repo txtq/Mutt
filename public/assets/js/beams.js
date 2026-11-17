@@ -5,7 +5,7 @@
 //                    `form` is how it was shown where it was beamed from ('recipe', 'document'), and it arrives so
 //   beamPile(page)   on your own galaxy, what waits for you rests by the void, a pile per sender
 //                    (from someone you never crossed paths with: one quiet pile, no ring)
-//   openBeams(id)    the box that shows what came: Keep (a star), Put on a planet, or Let go
+//   openBeams(id)    the box that shows what came: Save as a star, Save to a planet, or Decline
 //   stoppedPeople()  the account sheet's list of people whose beams you stopped
 // A beamed file stays its sender's until you answer, and they are never told which.
 // Fetched only when one of these is wanted (a file menu's row, a galaxy with something waiting).
@@ -113,7 +113,7 @@ export function beamTo(block, { form = null } = {}) {
   });
 
   const body = h('div', { class: 'bm-out' },
-    h('p', { class: 'dialog-text' }, `It waits for them until they keep it or let it go.`),
+    h('p', { class: 'dialog-text' }, `It waits for them until they save it or decline it.`),
     input, list, note, words,
     h('div', { class: 'dialog-actions' }, cancel, send));
   const dialog = openDialog({ title: `Beam “${fileName(block)}” to…`, body, className: 'bm-dialog' });
@@ -330,9 +330,11 @@ export async function openBeams(id, group) {
   const file = h('div', { class: 'bm-file' });
   const said = h('p', { class: 'bm-said' });
   const step = h('span', { class: 'bm-step' });
-  const keep = h('button', { type: 'button', class: 'btn btn-main' }, 'Keep');
-  const onto = h('button', { type: 'button', class: 'btn' }, icon('move'), 'Put on a planet');
-  const letGo = h('button', { type: 'button', class: 'btn btn-quiet' }, 'Let go');
+  // The three answers, said plainly (the user, 2026-11-16): a star, a planet, or no.
+  const keep = h('button', { type: 'button', class: 'btn btn-main' }, icon('star'), 'Save as a star');
+  const onto = h('button', { type: 'button', class: 'btn' }, icon('onto'), 'Save to a planet');
+  const letGo = h('button', { type: 'button', class: 'btn btn-quiet' }, icon('close'), 'Decline');
+  const choose = h('p', { class: 'bm-choose' }, 'It isn’t yours until you save it. If you decline, they aren’t told.');
   const stop = h('button', { type: 'button', class: 'btn btn-quiet btn-small bm-stop' });
   const prev = h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small', 'aria-label': 'Previous', title: 'Previous' }, icon('chevron-left', 12));
   const next = h('button', { type: 'button', class: 'btn btn-quiet btn-round btn-small', 'aria-label': 'Next', title: 'Next' }, icon('chevron-right', 12));
@@ -384,20 +386,20 @@ export async function openBeams(id, group) {
     const res = await answer(keep, { answer: 'keep' });
     if (!res) return;
     bus.emit('drawer:changed', null);
-    toast('Kept as a star in your galaxy', { action: { label: 'Open', run: () => nav.openBlock(res.block.id) } });
+    toast('Saved as a star in your galaxy', { action: { label: 'Open', run: () => nav.openBlock(res.block.id) } });
   });
   onto.addEventListener('click', () => pickPlanet(onto, async (planet) => {
     const res = await answer(onto, { answer: 'keep', drawer: planet.id });
     if (!res) return;
     bus.emit('block:connected', { block: res.block, drawerId: planet.id, connections: res.connections });
     bus.emit('drawer:changed', null);
-    toast(`Put on ${planet.title}`, { action: { label: 'See it', run: () => nav.go(`/p/${planet.id}?b=${res.block.id}`) } });
+    toast(`Saved to ${planet.title}`, { action: { label: 'See it', run: () => nav.go(`/p/${planet.id}?b=${res.block.id}`) } });
   }));
   letGo.addEventListener('click', async () => {
     const b = now();
     const res = await answer(letGo, { answer: 'gone' });
     if (!res) return;
-    toast('Let go', {
+    toast('Declined', {
       action: {
         label: 'Undo',
         run: async () => {
@@ -433,8 +435,8 @@ export async function openBeams(id, group) {
   next.addEventListener('click', () => { at = Math.min(queue.length - 1, at + 1); paint(); });
 
   const body = h('div', { class: 'bm-in' },
-    head, quietNote, file, said, nav2,
-    h('div', { class: 'dialog-actions bm-actions' }, letGo, onto, keep),
+    head, quietNote, file, said, nav2, choose,
+    h('div', { class: 'dialog-actions bm-actions' }, keep, onto, letGo),
     h('div', { class: 'bm-foot' }, stop));
   let unframe = null;
   const dialog = openDialog({ body, className: 'bm-dialog bm-dialog-in', onClose: () => unframe?.() });
@@ -497,7 +499,7 @@ async function pickPlanet(anchor, pick) {
   const input = h('input', { class: 'field cx-input', type: 'text', placeholder: 'Find a planet', 'aria-label': 'Find a planet' });
   const list = h('div', { class: 'cx-list' }, h('div', { class: 'cx-note' }, '…'));
   const pop = openPopover(anchor, h('div', { class: 'cx' },
-    h('div', { class: 'cx-head' }, h('span', null, 'Put it on')), input, list), { width: 300, className: 'pop-cx' });
+    h('div', { class: 'cx-head' }, h('span', null, 'Save it to')), input, list), { width: 300, className: 'pop-cx' });
   requestAnimationFrame(() => input.focus());
   let drawers = [];
   try {

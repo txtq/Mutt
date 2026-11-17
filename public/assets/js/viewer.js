@@ -1037,7 +1037,10 @@ function renderSide() {
     comments(block),
     h('div', { class: 'vw-danger' },
       drawer && connections?.some((d) => d.id === drawer.id)
-        ? h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title) }, `Take off ${drawer.title}`)
+        ? h('button', {
+          type: 'button', class: 'btn btn-quiet btn-small', title: others?.length ? null : `Takes it off ${drawer.title}: it becomes a star in your galaxy`,
+          onclick: () => removeFromDrawer(state.block, drawer.id, drawer.title),
+        }, others?.length ? `Take off ${drawer.title}` : [icon('star'), 'Make it a star'])
         : null,
       h('button', {
         type: 'button', class: 'btn btn-quiet btn-small',

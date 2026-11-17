@@ -1003,16 +1003,26 @@ def constellation(s, seeded):
 
 
 def comet(s, seeded):
-    """Write a day into a note in the void: a line offers to make it a comet (a reminder); pressed, it
-    crosses the sky tagged with what it is for and when, and the comet can be dealt with (Done)."""
+    """A note made a comet (a reminder) crosses the sky tagged with what it is for and when, and can be
+    dealt with (Done). Typing a day into an add box offers nothing (the user: "get rid of the comet nudge
+    while typing"); a comet is made from a file's menu or its view."""
     s.go('/')
     s.wait('return document.querySelectorAll(".planet").length >= 7 && 1', 'the galaxy did not load')
     s.click('.void-core')
     s.see('.vf-input', 'clicking the void did not open the add box')
     s.type('.vf-input', 'Dentist tomorrow 3pm')
-    btn = s.named('.dk-hint-btn', 'Make it a comet', 'a note with a day in it did not offer to become a comet', 6)
-    s.shot('comet-offer')
-    s.js('arguments[0].click()', btn)
+    s.settle(1.5)
+    no_offer = 'return ![...document.querySelectorAll(".dk-hint-btn")].some((b) => b.offsetParent && /comet/i.test(b.textContent))'
+    if not s.js(no_offer):
+        raise Fail('typing a day into the void still offers a comet')
+    s.press('Escape')
+    s.js('''return (async () => {
+        const send = (method, url, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const { block } = await send('POST', '/api/blocks', { content: 'Dentist tomorrow 3pm' });
+        await send('POST', `/api/blocks/${block.id}/comet`, { tz: -new Date().getTimezoneOffset() });
+      })()''')
+    s.go('/')
     s.wait('return document.querySelector(`.gx-comet-hit[aria-label^="Dentist, tomorrow"]`)', 'the note did not come as a comet', 10)
     s.named('.gx-comet-tag.is-shown .gx-comet-tag-name', 'Dentist', 'the comet\'s tag should name what it is for, without its day')
     s.settle(1)
@@ -1027,6 +1037,27 @@ def comet(s, seeded):
     s.press('Escape')
     made = s.fetch('/api/comets')['comets'][0]['id']
     s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', made)
+    # every comet shows, however many and however far off: seven, one made today for a week from now
+    many = s.js('''return (async () => {
+        const send = (method, url, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
+          body: JSON.stringify(body) }).then((r) => r.json());
+        const ids = [];
+        for (let i = 1; i <= 7; i++) {
+          const { block } = await send('POST', '/api/blocks', { content: `Far comet ${i}` });
+          const day = new Date(Date.now() + (i === 7 ? 7 : i) * 86400000).toISOString().slice(0, 10);
+          await send('POST', `/api/blocks/${block.id}/comet`, { day, time: '12:00', tz: 0 });
+          ids.push(block.id);
+        }
+        return ids;
+      })()''')
+    s.go('/')
+    s.wait('return document.querySelectorAll(".gx-comet-hit").length === 7 && 1', 'not every comet showed in the sky', 10)
+    far = s.js('return (() => { const c = [...document.querySelectorAll(".gx-comet")]; return Math.min(...c.map((x) => { const r = x.getBoundingClientRect(); return Math.hypot(r.width, r.height); })); })()')
+    if far < 110:   # its box: the head's glow and the tail; a speck's is about 80 across
+        raise Fail(f'a comet a week off showed as a speck ({far:.0f} wide)')
+    s.shot('comet-many')
+    for made in many:
+        s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', made)
     # a list's items can be comets too: offered under its add box, marked at the item's end, in its menu
     errands = s.js('''return (async () => {
         const send = (method, url, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Mutt': '1' },
@@ -1039,8 +1070,16 @@ def comet(s, seeded):
     s.go(f'/p/{errands}')
     s.see('.lm-input', 'a list planet has no add box')
     s.type('.lm-input', 'Call the plumber tomorrow 9am')
-    btn = s.named('.lm-hint .dk-hint-btn', 'Make it a comet', "a list item with a day in it did not offer to become a comet", 6)
-    s.js('arguments[0].click()', btn)
+    s.settle(1.5)
+    if not s.js(no_offer):
+        raise Fail("typing a day into a list's add box still offers a comet")
+    s.press('Enter')
+    s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => /plumber/.test(li.querySelector(".lm-text")?.value))', 'the item was not added', 6)
+    # made one from its menu instead: the box starts from the day it names
+    plumber = s.js('return [...document.querySelectorAll(".lm-item")].find((li) => /plumber/.test(li.querySelector(".lm-text")?.value))')
+    s.js('const r = arguments[0].getBoundingClientRect(); arguments[0].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 40, clientY: r.top + r.height / 2 }))', plumber)
+    s.click(s.named('.menu button, .menu [role=menuitem]', 'Make it a comet…', "an item has no Make it a comet… in its menu"))
+    s.click(s.see('.cm-ask .btn-main', 'the comet box did not open'))
     s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => /plumber/.test(li.querySelector(".lm-text")?.value) && li.querySelector(".lm-comet"))',
            'the list item did not come back marked as a comet', 10)
     s.shot('comet-list')

@@ -2991,8 +2991,8 @@ a, button, input, textarea, select, label, summary { touch-action: manipulation;
 .lm-plus { display: grid; place-items: center; flex: none; width: var(--h-small); height: var(--h-small); color: var(--ink-3); transition: color var(--dur-change); }
 .lm-new:focus-within .lm-plus { color: var(--pt, var(--blue-ink)); }
 
-/* a comet (DESIGN.md "Comets"): under the add box, the line offering one; at an item's end, its mark,
-   the date icon and its day in the comet's ember, which opens the comet's menu */
+/* a comet (DESIGN.md "Comets"): at an item's end, its mark, the date icon and its day in the
+   comet's ember, which opens the comet's menu */
 .lm-hint { margin: calc(-1 * var(--space-4)) 0 var(--space-8); padding: 0 var(--space-12) 0 18px; }
 .lm-comet { position: relative; flex: none; display: inline-flex; align-items: center; gap: var(--space-4); height: 24px; padding: 0 var(--space-8); border: 0; border-radius: var(--r-row); background: none; color: var(--comet-ember); font: var(--type-small); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-quick); }
 .lm-comet:hover { background: var(--tint); }

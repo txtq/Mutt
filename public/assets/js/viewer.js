@@ -2,7 +2,7 @@
 
 import { commentSection } from './comments.js';
 import { momentLine } from './moments.js';
-import { cometRows, cometWhen, dealWith, makeComet, tell } from './remind.js';
+import { cometRows, cometWhen, dealWith, makeComet } from './remind.js';
 import { deleteBlock, editPicture, openConnect, openSave, removeFromDrawer, takeHistoryWish, watchPreview } from './actions.js';
 import { downloadMenu, formatsOf } from './downloads.js';
 import { api, session } from './api.js';
@@ -390,7 +390,6 @@ function textStage(block) {
     const long = momentLine(area, {
       acts: {
         writing: { label: 'Open it as a document', run: async () => { await finish(true); openDocEditor(block.id); } },
-        comet: { label: 'Make it a comet', run: async () => { tell(); await finish(true); makeComet(block.id, { told: true }); } },
       },
     });
     area.addEventListener('input', () => long.check(area.value));

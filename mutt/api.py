@@ -2496,7 +2496,6 @@ def moment_signs(req):
 COMET_MORNING = '09:00'   # a day with no time goes off then
 COMET_EVENING = '19:00'   # and its heads-up the evening before
 COMET_LEAVING = 2         # days a comet dealt with takes to leave the sky
-COMET_MOST = 12
 COMET_PUSH_EVERY = 30     # seconds between looks for comets coming due
 
 
@@ -2616,10 +2615,10 @@ def live_comets(db_, user_id):
 
 @route('GET', r'/api/comets')
 def comets(req):
-    """Your comets: {comets: [...]}, waiting ones and the nearest first."""
+    """Your comets: {comets: [...]}, every one, waiting ones and the nearest first."""
     out = live_comets(req.db, req.user['id'])
     out.sort(key=lambda c: (c['done'] is not None, c['at']))
-    return json_response({'comets': out[:COMET_MOST]})
+    return json_response({'comets': out})
 
 
 @route('GET', r'/api/drawers/(?P<drawer_id>[\w-]+)/comets')

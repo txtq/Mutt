@@ -22,13 +22,13 @@ import { planetTone } from './planets.js';
 
 const TAU = Math.PI * 2;
 const DAY = 86400000;
-const MOST = 5;          // comets at once on a computer, the nearest days first
-const MOST_PHONE = 3;
+const TAGS = 5;          // tags shown by themselves at once on a computer (every comet is drawn; the user: "all comets should show up")
 const AFTER = 2;         // days it takes to leave after its day
 const PATH = 21;         // how far out along its parabola a journey starts (the path's shape, not days)
 const URGENT = 72;       // hours: within these it heats up however long its journey
 const SOON = 7;          // days: from this close it grows toward its full size, however new
 const NAMED = 3;         // days: this close, its tag shows beside it without pointing at it
+const LEAST = 0.3;       // however far off its day, it is never smaller than this (0 to 1): a comet a week or more away still shows as a shooting star, not a speck
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 // a colour from one of the inks below (never typed by hand), at an opacity
@@ -361,8 +361,7 @@ export class Comets {
     const live = this.list
       .map((c) => ({ c, j: journey(c, now) }))
       .filter(({ j }) => j)
-      .sort((a, b) => (b.j.waiting - a.j.waiting) || (a.j.after > 0) - (b.j.after > 0) || a.j.due - b.j.due)
-      .slice(0, narrow ? MOST_PHONE : MOST);
+      .sort((a, b) => (b.j.waiting - a.j.waiting) || (a.j.after > 0) - (b.j.after > 0) || a.j.due - b.j.due);
     const aspect = clamp(page.inner.rx / Math.max(1, page.inner.ry), 0.8, 2.2);
     const q = Math.min(page.inner.ry * (narrow ? 1.0 : 1.04), (width / 2 - 28) / aspect, viewH / 2 - 28);
     const edge = Math.max(q * 1.8, Math.min(viewH / 2 - 16, (width / 2 - 16) / aspect));
@@ -402,7 +401,7 @@ export class Comets {
       const R = seeded(`comet:${c.id}`);
       const turn = R() < 0.5 ? -1 : 1;
       const base = R() * TAU;
-      const near = j.after >= 0 ? 1 - j.after / AFTER * 0.5 : Math.max(j.p, j.soon);
+      const near = j.after >= 0 ? 1 - j.after / AFTER * 0.5 : Math.max(j.p, j.soon, LEAST);
       const len = 5 + (maxLen - 5) * near ** 1.5;
       // the way in that puts it, head and tail, in the most open sky (the user: "use blank space to
       // place comets instead of putting them in crowded areas"); its own seed only breaks a tie
@@ -451,7 +450,7 @@ export class Comets {
     }
     for (const p of heads) { const r = p.r * 0.25; clear.push({ x0: p.x - r, x1: p.x + r, y0: p.y - r, y1: p.y + r, id: p.id }); }
     // a phone has room for one tag of its own: the nearest day's
-    const named = tagged.filter((t) => (t.j.after < 0 ? (t.j.due - now) / DAY < NAMED : t.j.after < 1)).slice(0, narrow ? 1 : MOST);
+    const named = tagged.filter((t) => (t.j.after < 0 ? (t.j.due - now) / DAY < NAMED : t.j.after < 1)).slice(0, narrow ? 1 : TAGS);
     for (const t of tagged) t.always = named.includes(t);
     for (const t of [...named, ...tagged.filter((t) => !t.always)]) this.tag(t.el, t.cm, t.j, t.title, t.words, now, clear, t.always);
     for (const [id, el] of this.els) {

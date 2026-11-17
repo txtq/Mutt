@@ -24,7 +24,7 @@ import { REACH, voidRadius } from '../voidart.js';
 import { icon } from '../icons.js';
 import { Sky } from '../constellations.js';
 import { holdSound, sound } from '../sound.js';
-import { makeComet, startComets } from '../remind.js';
+import { startComets } from '../remind.js';
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const STAR_CAP = 240;
@@ -2353,8 +2353,6 @@ class Galaxy {
     const request = (async () => {
       const planet = await this.target(dest);
       const res = await api.post('/api/blocks', { content: text, autosort: sort, drawer: planet?.id });
-      // sent with "Make it a comet" under the box: it reminds you too
-      if (dest.comet) makeComet(res.block.id, { told: true });
       return { ...res, planet };
     })();
     await spiralInto(chip, center(chip.getBoundingClientRect()), this.hole.center());

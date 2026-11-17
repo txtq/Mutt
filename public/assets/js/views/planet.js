@@ -7,7 +7,6 @@ import { Collection } from '../collection.js';
 import { drift } from '../drift.js';
 import { MENU_ORDER, MODES, OFFER_ORDER, allowed as modeAllowed, codeOf, loadMode, startMode } from '../modes.js';
 import { momentLine } from '../moments.js';
-import { makeComet, tell } from '../remind.js';
 import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
 import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
@@ -1064,19 +1063,6 @@ export const planetView = {
         drawerId: id,
         onWave: (key) => saveMode(key, { dismissed: true }),
         acts: {
-          // a day or time in it: saved as it is, and made a comet that reminds you then
-          comet: {
-            label: 'Make it a comet',
-            run: async () => {
-              const text = area.value;
-              if (!text.trim() || !collection?.addText) return;
-              tell();
-              area.value = '';
-              area.dispatchEvent(new Event('input'));
-              const block = await collection.addText(text);
-              if (block) makeComet(block.id, { told: true });
-            },
-          },
           writing: {
             label: 'Write it as a document',
             run: async () => {

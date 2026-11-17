@@ -14,8 +14,7 @@ import { addFiles, contextKey } from './uploads.js';
 import { DUR, EASE, EASE_GLIDE, STAGGER, autosize, bus, h, plural, reducedMotion } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
-import { momentLine } from './moments.js';
-import { cometRows, cometWhen, makeComet, tell } from './remind.js';
+import { cometRows, cometWhen } from './remind.js';
 
 export const LIST_TYPES = [
   { value: 'check', label: 'Checklist' },
@@ -134,14 +133,10 @@ export class ListView {
       this.left = h('span', { class: 'lm-left', 'aria-live': 'polite' });
       this.adder = h('div', { class: 'lm-new' }, h('span', { class: 'lm-plus', 'aria-hidden': 'true' }, icon('plus')), this.input, this.left);
       this.wireAdder();
-      // a day in the item: the line under the box offers to make it a comet that reminds you then
-      this.hint = momentLine(this.input, { acts: { comet: { label: 'Make it a comet', run: () => this.addComet() } } });
-      this.hint.classList.add('lm-hint');
-      this.input.addEventListener('input', () => this.hint.check(this.input.value));
     }
     // Your items that are comets ({id: comet}): one ask a visit, again when one changes
     this.comets = {};
-    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.hint || null, this.ol);
+    this.el = h('section', { class: 'lm', 'aria-label': `${drawer.title}, as a list` }, this.head, this.bar, this.adder || null, this.ol);
     if (editable) this.el.dataset.editable = '';
     this.ol.addEventListener('contextmenu', (e) => this.context(e));
     // A right-press anywhere on an item only opens its menu: it doesn't focus
@@ -223,18 +218,6 @@ export class ListView {
     if (el) row.insertBefore(el, row.querySelector('.lm-x'));
   }
 
-  // The add box's offer: the item is added as usual, then made a comet.
-  async addComet() {
-    const content = this.input.value.replace(/\s*\n\s*/g, ' ').slice(0, Math.max(this.opts.limit, 1)).trim();
-    if (!content) return;
-    tell();
-    this.input.value = '';
-    this.input.dispatchEvent(new Event('input'));
-    const temp = { id: tmpId(), kind: 'text', content, mine: true, checked: null, pending: true };
-    this.insertBlock(temp, null);
-    const id = await this.save(temp, content, this.above(temp)).catch(() => null);
-    if (id) makeComet(id, { told: true });
-  }
 
   // ------------------------------------------------------------ options
 

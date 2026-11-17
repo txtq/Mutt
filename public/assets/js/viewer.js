@@ -404,16 +404,13 @@ function textStage(block) {
 }
 
 // The document editor is only fetched when a note is opened as a document.
-// On a planet's page the file view steps aside for it (the planet's own ?doc=),
-// so the planet opens the editor and closing it lands on the planet, not back
-// on the note. Elsewhere (a star, search) it opens over the file view.
+// On a planet's page the planet takes it (`doc:desk`, views/planet.js): it
+// becomes a desk if it isn't one, and the document takes the file view's place,
+// so closing it lands on the desk, not back on the note. Elsewhere (a star,
+// search) it opens over the file view.
 async function openDocEditor(id, drawerId = state?.drawer?.id) {
-  const here = new URL(location.href);
-  if (drawerId && here.pathname === `/p/${drawerId}`) {
-    here.searchParams.delete('b');
-    here.searchParams.set('doc', id);
-    const { go } = await import('./router.js');
-    go(here.pathname + here.search, { replace: true });
+  if (drawerId && location.pathname === `/p/${drawerId}`) {
+    bus.emit('doc:desk', { id });
     return;
   }
   try {

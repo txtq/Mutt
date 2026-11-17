@@ -748,7 +748,8 @@ def document_editor(s, seeded):
 
 
 def note_as_document(s, seeded):
-    """A long note on a plain planet opens as a document in place of the file view; closing it lands on the planet."""
+    """A long note on a plain planet opens as a document in place of the file view, the planet becomes a desk,
+    and closing the document lands on the desk."""
     s.go(f'/p/{seeded["Walks"]}?b={seeded["walk-essay"]}')
     s.see('.viewer', 'the long note did not open in the file view')
     s.settle(1)   # its side is drawn again once the file's details are in
@@ -764,7 +765,10 @@ def note_as_document(s, seeded):
     s.wait('return location.pathname === arguments[0] && !location.search', 'closing the document did not land on the planet',
            8, (f'/p/{seeded["Walks"]}',))
     s.gone('.viewer', 'closing the document went back to the note')
-    s.see('.cell:not(.cell-entry)', 'closing the document did not show the planet\'s files')
+    s.see(f'.dk-doc[data-id="{seeded["walk-essay"]}"], .dk-doc [data-id="{seeded["walk-essay"]}"]',
+          'opening a note as a document did not make the planet a desk with it on')
+    s.settle(1)
+    s.shot('note-as-document-desk')
 
 
 def open_book(s, seeded):

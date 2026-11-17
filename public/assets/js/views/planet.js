@@ -1022,6 +1022,20 @@ export const planetView = {
       });
     }
 
+    // "Open as a document" from a note's file view (viewer.js): the planet becomes a desk,
+    // saying so with an Undo, and the document takes the file view's place in the address
+    // (replaced, so closing it lands on the desk rather than back on the note).
+    const offDesk = bus.on('doc:desk', async ({ id: bid }) => {
+      if (!el.isConnected) return;
+      loadEditor().catch(() => {});
+      if (mine && !modeView('documents') && allowed('documents')) await turnOn('documents', { undo: true });
+      const u = new URL(location.href);
+      u.searchParams.delete('b');
+      u.searchParams.set('doc', bid);
+      docPushed = false;
+      nav.go(u.pathname + u.search, { replace: true });
+    });
+
     // A document made here opens on the desk, turning the planet into one if it isn't yet.
     async function deskWith(block, opts) {
       if (!modeView('documents') && !(await turnOn('documents', { quiet: true }))) return;
@@ -1202,7 +1216,7 @@ export const planetView = {
         if (bid) { if (open?.id !== bid) showDoc(bid); } else if (open) { docPushed = false; open.close(); }
         return true;
       },
-      destroy: () => { removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); if (active) MODES[active.key].leave?.(page); docEditorOpen()?.close(); view().destroy(); },
+      destroy: () => { offDesk(); removeEventListener('resize', placeTip); stopDrift(); sharePop?.close(); if (active) MODES[active.key].leave?.(page); docEditorOpen()?.close(); view().destroy(); },
     };
     return inst;
   },

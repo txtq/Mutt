@@ -40,6 +40,16 @@ PID=$(curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: image/png' --data-binary @
 echo "edit a picture, original kept: $(curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: image/png' --data-binary @"$SP/e.png" "$B/api/blocks/$PID/picture?w=2&h=2" | j "('?e=' in d['block']['file'], d['block']['meta']['original'])")"
 echo "the original shows to its owner only: $(curl -s "${C[@]}" -o /dev/null -w '%{http_code}' $B/api/blocks/$PID/original) $(curl -s -o /dev/null -w '%{http_code}' $B/api/blocks/$PID/original)"
 echo "start over brings the original back: $(curl -s "${C[@]}" -H X-Mutt:1 -X POST $B/api/blocks/$PID/original | j "('?e=' in d['block']['file'], 'original' in d['block']['meta'], d['block']['meta'].get('width'))")"
+# A video's shape, read from its track header (it was read 4 bytes early before 2026-11-16: 16384 x 640).
+python3 -c "
+import struct, sys
+box = lambda t, d: struct.pack('>I', 8 + len(d)) + t + d
+matrix = struct.pack('>9I', 0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000)
+tkhd = box(b'tkhd', b'\\0\\0\\0\\3' + struct.pack('>5I', 0, 0, 1, 0, 600) + bytes(8) + bytes(8) + matrix + struct.pack('>II', 640 << 16, 360 << 16))
+mvhd = box(b'mvhd', bytes(4) + struct.pack('>IIII', 0, 0, 600, 1200) + bytes(80))
+hdlr = box(b'mdia', box(b'hdlr', bytes(8) + b'vide' + bytes(13)))
+open(sys.argv[1] + '/v.mp4', 'wb').write(box(b'ftyp', b'isom' + bytes(4) + b'isom') + box(b'moov', mvhd + box(b'trak', tkhd + hdlr)))" "$SP"
+echo "a video's shape: $(curl -s "${C[@]}" -H X-Mutt:1 -H 'Content-Type: video/mp4' --data-binary @"$SP/v.mp4" "$B/api/upload?drawer=$D&name=v.mp4" | j "(d['block']['meta']['media'].get('w'), d['block']['meta']['media'].get('h'))")"
 echo "no csrf header: $(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" -H Content-Type:application/json -X POST $B/api/drawers -d '{"title":"x"}')"
 echo "spa route: $(curl -s -o /dev/null -w '%{http_code}' $B/d/whatever)"
 X=(-b "$SP/x.txt" -c "$SP/x.txt")

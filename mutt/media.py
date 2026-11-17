@@ -496,7 +496,8 @@ def _bmff(f, size, head):
                     info.setdefault('taken', created - EPOCH_1904)
             elif typ == b'tkhd':
                 version = data[s]
-                o = s + (84 if version == 1 else 72)
+                # width and height follow the times, layer, volume and the 9-number matrix
+                o = s + (88 if version == 1 else 76)
                 if o + 8 <= e:
                     w, h = struct.unpack_from('>II', data, o)
                     if w >> 16 and h >> 16:

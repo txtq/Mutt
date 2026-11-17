@@ -275,20 +275,43 @@ async function engineReady(note) {
 }
 
 function runFfmpeg(input, inName, outName, args, what, block) {
-  let stop;
-  const stopped = new Promise((_, reject) => { stop = () => reject(Object.assign(new Error('Stopped'), { stopped: true })); });
-  const note = progressToast(`Converting to ${what}…`, {
-    onStop: () => { worker?.terminate(); worker = null; stop(); },
+  const note = progressToast(`Converting to ${what}…`, { onStop: () => job.stop() });
+  const job = ffmpegJob(input, inName, outName, args, {
+    waiting: () => note.say('Getting the converter ready…'),
+    started: () => note.say(`Converting “${baseName(block)}” to ${what}…`),
+    progress: (p) => note.set(p, `Converting to ${what} · ${Math.round(p * 100)}%`),
   });
-  const run = (async () => {
-    await engineReady(note);
-    note.say(`Converting “${baseName(block)}” to ${what}…`);
+  return job.done.finally(() => note.close());
+}
+
+// One run of the converter: { done, stop() }. The worker does one job at a
+// time, so jobs wait for the one before (a download and an upload being made
+// smaller can be asked for together).
+let lastJob = Promise.resolve();
+
+export function ffmpegJob(input, inName, outName, args, { waiting, started, progress } = {}) {
+  let stop;
+  let over = false;
+  const stopped = new Promise((_, reject) => {
+    stop = () => {
+      if (over) return;
+      over = true;
+      worker?.terminate();
+      worker = null;
+      reject(Object.assign(new Error('Stopped'), { stopped: true }));
+    };
+  });
+  const run = lastJob.catch(() => {}).then(async () => {
+    if (over) return null;
+    await engineReady({ say: () => waiting?.() });
+    if (over) return null;
+    started?.();
     const data = await input.arrayBuffer();
     worker ||= new Worker(new URL(`./convert-worker.js${new URL(import.meta.url).search}`, import.meta.url));
     const w = worker;
     return new Promise((resolve, reject) => {
       w.onmessage = ({ data: msg }) => {
-        if (msg.type === 'progress') note.set(msg.progress, `Converting to ${what} · ${Math.round(msg.progress * 100)}%`);
+        if (msg.type === 'progress') progress?.(msg.progress);
         else if (msg.type === 'done') resolve(msg.out);
         else if (msg.type === 'error') {
           if (msg.log) console.warn('Converter:', msg.log);
@@ -298,6 +321,8 @@ function runFfmpeg(input, inName, outName, args, what, block) {
       w.onerror = (e) => { e.preventDefault?.(); worker = null; reject(new Error('The converter stopped. The file may be too large for this browser.')); };
       w.postMessage({ base: location.origin, input: data, inName, outName, args: ['-hide_banner', '-i', inName, ...args] }, [data]);
     });
-  })();
-  return Promise.race([run, stopped]).finally(() => note.close());
+  });
+  const done = Promise.race([run, stopped]).finally(() => { over = true; });
+  lastJob = done;
+  return { done, stop };
 }

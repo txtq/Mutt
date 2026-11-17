@@ -21,6 +21,7 @@ download, a constellation: ['Stars/Example Domain.url', 'Stars/Trip/comet.txt', 
 edit a picture, original kept: (True, {'file_name': 'p.png', 'ext': 'png', 'size': 73, 'width': None, 'height': None})
 the original shows to its owner only: 200 401
 start over brings the original back: (False, False, None)
+a video's shape: (640, 360)
 no csrf header: 403
 spa route: 200
 {"error":"That username and code don’t match."}

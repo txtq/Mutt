@@ -280,8 +280,14 @@ export function updatePending(cell, item) {
   cell.classList.toggle('is-failed', item.status === 'failed');
   const cap = cell.querySelector('.cell-title');
   if (item.status === 'failed') {
-    cap.replaceChildren(h('span', { class: 'cell-error' }, item.error || 'Upload failed'), ' · ',
-      h('button', { type: 'button', class: 'btn btn-small', dataset: { act: 'retry' } }, 'Retry'));
+    // A file that couldn't be made small enough has nothing to try again.
+    cap.replaceChildren(h('span', { class: 'cell-error' }, item.error || 'Upload failed'),
+      ...(item.final ? [] : [' · ', h('button', { type: 'button', class: 'btn btn-small', dataset: { act: 'retry' } }, 'Retry')]));
     cell.querySelector('.cell-fact')?.remove();
+    return;
   }
+  // Over the limit: made smaller first, then its new size.
+  const fact = cell.querySelector('.cell-fact');
+  if (fact && item.file?.size) fact.textContent = item.status === 'squeezing' ? 'Shrinking…' : fmtBytes(item.file.size);
+  if (item.squeezed) cap.textContent = item.name;
 }

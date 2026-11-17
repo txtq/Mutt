@@ -2,12 +2,12 @@
 // Views listen for add / progress / done / fail and draw placeholders.
 
 import { api, sendFile } from './api.js';
-import { guessKind } from './kinds.js';
+import { extOf, guessKind } from './kinds.js';
 import { ensureLooks, lookOfBlob } from './look.js';
 import { readPicture, within } from './see.js';
 import { makeThumb } from './thumbs.js';
 import { toast, toastsEl } from './ui.js';
-import { bus, fmtBytes, h, plural, uid } from './util.js';
+import { BEAT, bus, fmtBytes, h, plural, uid } from './util.js';
 
 const CONCURRENCY = 3;
 const queue = [];
@@ -18,15 +18,58 @@ let active = 0;
 // too big is turned away at once instead of after uploading it all.
 export const MAX_UPLOAD_MB = 50;
 const MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024;
+// A picture, a sound or a video over the limit is first made smaller in the
+// browser (shrink.js), aiming a little under so the upload's own bytes fit too.
+const AIM = Math.floor(MAX_UPLOAD * 0.97);
+const STILL = new Set(['jpg', 'jpeg', 'jfif', 'png', 'webp', 'avif', 'bmp', 'heic', 'heif', 'tif', 'tiff']);
+const MEDIA_MOST = 1024 * 1024 * 1024;
 
-// The files that fit; says once which ones didn't.
+function canShrink(file, kind = guessKind(file)) {
+  if (kind === 'image') return STILL.has(extOf(file.name)) || /^image\/(jpeg|png|webp|avif|heic|heif|tiff|bmp)$/.test(file.type);
+  return (kind === 'video' || kind === 'audio') && file.size <= MEDIA_MOST;
+}
+
+// The files that fit (or can be made to); says once which ones can't.
 export function withinLimit(files) {
   const ok = [];
   const big = [];
-  for (const file of files) (file.size > MAX_UPLOAD ? big : ok).push(file);
+  for (const file of files) (file.size > MAX_UPLOAD && !canShrink(file) ? big : ok).push(file);
   if (big.length === 1) toast(`${big[0].name || 'That file'} is ${fmtBytes(big[0].size)}. Files can be up to ${MAX_UPLOAD_MB} MB.`);
   else if (big.length) toast(`${big.length} files are over ${MAX_UPLOAD_MB} MB and weren’t added.`);
   return ok;
+}
+
+// One file is made smaller at a time (the converter does one job at a time,
+// and a big picture takes a lot of memory while it is drawn again).
+let shrinking = Promise.resolve();
+
+async function makeSmaller(item) {
+  item.status = 'squeezing';
+  item.progress = 0;
+  bus.emit('upload:progress', item);
+  tray.update();
+  const turn = shrinking.catch(() => {}).then(async () => {
+    const { shrink } = await import('./shrink.js');
+    return shrink(item.file, AIM, {
+      progress: (p) => {
+        item.progress = p * 0.5;
+        bus.emit('upload:progress', item);
+        tray.update();
+      },
+      stoppable: (stop) => { item.stop = stop; },
+    });
+  });
+  shrinking = turn;
+  try {
+    const smaller = await turn;
+    item.squeezed = { from: item.file.size, to: smaller.size };
+    item.original ||= item.file;
+    item.file = smaller;
+    item.name = smaller.name;
+    item.base = 0.5;
+  } finally {
+    item.stop = null;
+  }
 }
 
 export function contextKey(ctx) {
@@ -64,6 +107,7 @@ export function addFiles(files, ctx = {}) {
 export function retry(key) {
   const item = items.get(key);
   if (!item || item.status !== 'failed') return;
+  if (item.final) return;
   item.status = 'queued';
   item.progress = 0;
   queue.push(item);
@@ -98,7 +142,19 @@ function pump() {
 }
 
 async function run(item) {
+  if (item.file.size > MAX_UPLOAD) {
+    try {
+      await makeSmaller(item);
+    } catch (err) {
+      item.status = 'failed';
+      item.final = !err?.stopped;
+      item.error = err?.stopped ? 'Stopped' : (err?.message || 'Couldn’t be made small enough');
+      bus.emit('upload:fail', item);
+      return;
+    }
+  }
   item.status = 'uploading';
+  const base = item.base || 0;
   const thumbing = makeThumb(item.file, item.kind);
   const params = new URLSearchParams({ name: item.name });
   // Pictures and videos are sorted once we know what they show, so they
@@ -112,7 +168,7 @@ async function run(item) {
     let { block, sortedInto } = await sendFile(`/api/upload?${params}`, item.file, {
       type: item.file.type,
       onProgress: (p) => {
-        item.progress = p;
+        item.progress = base + p * (1 - base);
         bus.emit('upload:progress', item);
         tray.update();
       },
@@ -188,9 +244,10 @@ const tray = {
   },
   update() {
     const all = [...items.values()];
-    const busy = all.filter((i) => i.status === 'queued' || i.status === 'uploading');
+    const busy = all.filter((i) => i.status === 'queued' || i.status === 'uploading' || i.status === 'squeezing');
     const failed = all.filter((i) => i.status === 'failed');
     const done = all.filter((i) => i.status === 'done');
+    const squeezing = all.filter((i) => i.status === 'squeezing');
     if (!this.el) {
       this.void = h('i', { class: 'toast-void', 'aria-hidden': 'true' });
       this.label = h('span');
@@ -204,18 +261,37 @@ const tray = {
     if (busy.length) {
       const total = busy.length + done.length;
       const progress = all.filter((i) => i.status !== 'failed').reduce((s, i) => s + (i.status === 'done' ? 1 : i.progress), 0) / Math.max(1, total);
-      this.label.textContent = total > 1 ? `Uploading ${Math.min(total, done.length + 1)} of ${total}` : 'Uploading 1 file';
+      // A file over the limit is being made smaller first, and can be stopped.
+      const stoppable = squeezing.filter((i) => i.stop);
+      if (squeezing.length) {
+        this.label.textContent = squeezing.length > 1 ? `Making ${squeezing.length} files smaller to fit…` : `Making ${squeezing[0].name} smaller to fit…`;
+      } else this.label.textContent = total > 1 ? `Uploading ${Math.min(total, done.length + 1)} of ${total}` : 'Uploading 1 file';
+      if (stoppable.length) {
+        this.action.hidden = false;
+        this.action.textContent = 'Stop';
+        this.action.onclick = () => stoppable.forEach((i) => i.stop?.());
+      }
       this.void.style.setProperty('--p', progress.toFixed(3));
     } else if (failed.length) {
-      this.label.textContent = `${plural(failed.length, 'upload')} failed`;
+      const again = failed.filter((i) => !i.final);
+      const one = failed.length === 1 && failed[0];
+      this.label.textContent = one?.final ? `${one.name}: ${one.error.toLowerCase()}. Files can be up to ${MAX_UPLOAD_MB} MB.`
+        : one?.error === 'Stopped' ? `${one.name} wasn’t added`
+          : `${plural(failed.length, 'upload')} failed`;
       this.void.style.setProperty('--p', '0');
-      this.action.hidden = false;
-      this.action.textContent = 'Retry';
-      this.action.onclick = () => failed.forEach((i) => retry(i.key));
+      if (again.length) {
+        this.action.hidden = false;
+        this.action.textContent = 'Retry';
+        this.action.onclick = () => again.forEach((i) => retry(i.key));
+      }
     } else {
-      this.label.textContent = `Added ${plural(done.length, 'file')}`;
+      // Says when a file had to be made smaller to fit, and by how much.
+      const squeezed = done.filter((i) => i.squeezed);
+      const one = squeezed.length === 1 && squeezed[0].squeezed;
+      this.label.textContent = `Added ${plural(done.length, 'file')}${one ? ` · made smaller to fit, ${fmtBytes(one.from)} to ${fmtBytes(one.to)}`
+        : squeezed.length ? ` · ${squeezed.length} made smaller to fit` : ''}`;
       this.void.style.setProperty('--p', '1');
-      this.hideTimer = setTimeout(() => this.hide(), 2200);
+      this.hideTimer = setTimeout(() => this.hide(), squeezed.length ? BEAT.slow : 2200);
     }
   },
 };

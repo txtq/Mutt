@@ -19,9 +19,9 @@ export function shade(hex, other, t) {
   return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
 }
 
-// Bigger worlds for fuller drawers, within reason.
+// Bigger worlds for fuller drawers, gently: 120 empty, 200 at 100 files, 220 at most (DESIGN.md "Planets", Size).
 export function planetSize(count, scale = 1) {
-  return Math.round(Math.min(280, 112 + Math.sqrt(count || 0) * 13) * scale);
+  return Math.round(Math.min(220, 120 + Math.sqrt(count || 0) * 8) * scale);
 }
 
 // How a planet is shared: its words and its icon (js/icons.js). A planet anyone can add to shows a plus.

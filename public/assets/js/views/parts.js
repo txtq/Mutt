@@ -10,7 +10,7 @@
 
 import { renderCell } from '../cells.js';
 import { entryCell } from '../entry.js';
-import { confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, sheetPages, slider, stepper, toast } from '../ui.js';
+import { calendar, confirmDialog, openContextMenu, openMenu, openPopover, sectionHead, segmented, sheetPages, slider, stepper, timeWheel, toast } from '../ui.js';
 import { PALETTE, h } from '../util.js';
 import { DRAWING_NAMES, ICON_NAMES, drawing, icon } from '../icons.js';
 import { modeOffer } from '../offers.js';
@@ -120,6 +120,10 @@ function switches() {
         slider({ label: 'Sharpen', value: 0, min: 0, max: 100, format: String }).el,
         held(slider({ label: 'Keyboard', value: 60, min: 0, max: 100, format: String }).input, 'focus').closest('.slider'),
         (() => { const s = slider({ label: 'Switched off', value: 0 }); s.input.disabled = true; return s.el; })())),
+    section('Calendar', 'A day pressed, never typed. Six weeks always, so it never jumps; today has a faint ring, the picked day is the chosen bead, days that have gone are switched off. Arrows, Page Up and Down move by day, week and month.',
+      h('div', { class: 'parts-panel' }, (() => { const d = new Date(); d.setDate(d.getDate() + 4); const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const t = new Date(); return calendar({ value: v, min: `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` }).el; })())),
+    section('Time wheel', 'A time turned to, never typed: a wheel for the hour, the minutes (every five) and AM or PM, in a sunken well; the middle row sits under a faint band. Scroll, press a value, or use the arrows. Faint while there is no time yet.',
+      row(null, timeWheel({ value: '15:00' }).el, (() => { const w = timeWheel({ value: '09:00' }); w.off(true); return w.el; })())),
   ];
 }
 

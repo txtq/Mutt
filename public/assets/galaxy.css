@@ -713,6 +713,57 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
 .slider-input:disabled { cursor: default; }
 .slider:has(.slider-input:disabled) { opacity: 0.42; }
 
+/* ---- calendar: built by calendar() in ui.js (.cal > .cal-head (back, .cal-month, forward) + .cal-names + .cal-days > .cal-day | .cal-gap).
+   A month of round days to press; the picked one is the segmented bar's chosen bead. Always six weeks high, so it never jumps. */
+.cal { display: grid; gap: var(--space-4); min-width: 0; user-select: none; -webkit-user-select: none; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.cal-month { flex: 1; text-align: center; font: var(--type-label); color: var(--ink); }
+.cal-names, .cal-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; }
+.cal-names span { font: var(--type-caption); color: var(--ink-3); }
+.cal-days { row-gap: var(--space-2); }
+.cal-day, .cal-gap { width: var(--h-regular); height: var(--h-regular); }
+.cal-day {
+  position: relative; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-full);
+  font: var(--type-label); font-variant-numeric: tabular-nums; color: var(--ink-2);
+  transition: background var(--dur-quick), color var(--dur-quick), transform var(--dur-change) var(--ease-spring);
+}
+.cal-day:hover:not(:disabled, [aria-selected="true"]) { background: var(--tint-2); color: var(--ink); }
+.cal-day:active:not(:disabled) { transform: scale(0.92); }
+.cal-day[aria-current="date"] { color: var(--ink); border-color: var(--glass-edge); }
+.cal-day[aria-selected="true"] { border-color: transparent; background: var(--gloss-on), var(--accent); color: var(--white); text-shadow: var(--on-gloss); box-shadow: var(--bead-drop); }
+.cal-day:disabled { opacity: 0.42; }
+@media (pointer: coarse) { .cal-day, .cal-gap { width: var(--h-large); height: var(--h-large); max-width: 100%; } }
+
+/* ---- time wheel: built by timeWheel() in ui.js (.wheel > .wheel-col > .wheel-list > .wheel-item, .wheel-colon, .wheel-band).
+   A sunken well, five rows seen, the middle one under a faint band; each wheel scrolls and snaps. */
+.wheel {
+  --row: var(--h-regular);
+  position: relative; display: flex; align-items: stretch; justify-content: center; gap: var(--space-2);
+  height: calc(var(--row) * 5); padding: 0 var(--inset); border-radius: var(--r-box);
+  background: var(--well); box-shadow: var(--well-shadow); isolation: isolate;
+  transition: opacity var(--dur-change);
+}
+.wheel-band { position: absolute; z-index: -1; left: var(--inset); right: var(--inset); top: calc(var(--row) * 2); height: var(--row); border-radius: var(--r-row); background: var(--gloss-clear), var(--tint-2); pointer-events: none; }
+.wheel-col {
+  flex: 1 1 0; min-width: var(--h-large); max-width: 72px; overflow-y: auto; overscroll-behavior: contain;
+  scroll-snap-type: y mandatory; scrollbar-width: none; border-radius: var(--r-row);
+  mask-image: linear-gradient(transparent, var(--white) 34% 66%, transparent);
+  -webkit-mask-image: linear-gradient(transparent, var(--white) 34% 66%, transparent);
+}
+.wheel-col::-webkit-scrollbar { display: none; }
+.wheel-col:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: -2px; mask-image: none; -webkit-mask-image: none; }
+.wheel-list { padding: calc(var(--row) * 2) 0; }
+.wheel-item {
+  height: var(--row); display: grid; place-items: center; scroll-snap-align: center; cursor: pointer;
+  font: var(--type-label); font-size: var(--text-lead); font-variant-numeric: tabular-nums; color: var(--ink-3);
+  transition: color var(--dur-quick);
+}
+.wheel-item.is-at { color: var(--ink); }
+.wheel-colon { align-self: center; font: var(--type-label); font-size: var(--text-lead); color: var(--ink-3); }
+.wheel.is-off { opacity: 0.42; }
+.wheel.is-off .wheel-item.is-at { color: var(--ink-3); }
+@media (pointer: coarse) { .wheel { --row: var(--h-large); } }
+
 /* ---- menu: openMenu() and openContextMenu() in ui.js (.pop > .menu > .menu-item…). .pop is the shell that floats. */
 .pop {
   position: fixed;
@@ -1007,18 +1058,17 @@ body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes {
 .cm-card-when .ic { color: var(--comet-ember); }
 .cm-card-acts { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-4); }
 .cm-card-acts > :last-child { margin-left: auto; }
-.cm-ask-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); margin-top: var(--space-16); }
-.cm-ask-field { display: flex; flex-direction: column; min-width: 0; }
-.cm-ask-note { margin-top: var(--space-8); font: var(--type-caption); color: var(--ink-3); }
+.cm-ask-fields { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-16) var(--space-24); margin-top: var(--space-16); }
+.cm-ask-field { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.cm-ask-day { flex: 1 1 260px; }
+.cm-ask-time { flex: 1 0 168px; }
+.cm-ask-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--h-small); }
+.cm-ask-head .liv-label { margin-bottom: 0; }
+.cm-ask-note { margin-top: var(--space-12); font: var(--type-caption); color: var(--ink-3); }
 .cm-ask-note.is-gone { color: var(--danger); }
 .cm-ask-picks { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-16); }
 .cm-ask-pick { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-ask-pick[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--ink); }
-.cm-ask-time { position: relative; display: flex; align-items: center; gap: var(--space-4); }
-.cm-ask-none { position: absolute; left: var(--space-12); top: 50%; translate: 0 -50%; color: var(--ink-4); pointer-events: none; display: none; }
-.cm-ask-time.is-empty:not(:focus-within) .cm-ask-none { display: block; }
-.cm-ask-time.is-empty:not(:focus-within) .field::-webkit-datetime-edit { opacity: 0; }
-.cm-ask-time .field { flex: 1; min-width: 0; }
 
 /* A comet that has come (or is an hour off), on any page: the same note, over the comment notes until
    it's dealt with. Its mark is the comet's ember; under the words, Done and Later (remind.js). */

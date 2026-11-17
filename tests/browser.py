@@ -1048,7 +1048,8 @@ def comet(s, seeded):
     milk = s.js('return [...document.querySelectorAll(".lm-item")].find((li) => li.querySelector(".lm-text")?.value === "Milk")')
     s.js('const r = arguments[0].getBoundingClientRect(); arguments[0].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 40, clientY: r.top + r.height / 2 }))', milk)
     s.click(s.named('.menu button, .menu [role=menuitem]', 'Make it a comet…', "a file's menu has no Make it a comet…"))
-    s.see('.cm-ask input[type=date]', 'a file with no day did not ask when')
+    s.see('.cm-ask .cal-day[aria-selected="true"]', 'a file with no day did not ask when on a calendar')
+    s.see('.cm-ask .wheel', 'the comet box has no time wheel')
     s.shot('comet-ask')
     s.click('.cm-ask .btn-main')
     s.wait('return [...document.querySelectorAll(".lm-item")].some((li) => li.querySelector(".lm-text")?.value === "Milk" && li.querySelector(".lm-comet"))',

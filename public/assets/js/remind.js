@@ -7,7 +7,7 @@
 
 import { api, session } from './api.js';
 import { nav } from './nav.js';
-import { exit, openDialog, openMenu, openPopover, toast } from './ui.js';
+import { calendar, exit, openDialog, openMenu, openPopover, timeWheel, toast } from './ui.js';
 import { DUR, bus, h } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
@@ -185,44 +185,57 @@ function sayWhen(dayValue, timeValue) {
 export function askWhen(block, { could = null, comet = null } = {}) {
   const choices = picks(comet ? null : could);
   const first = comet ? { day: comet.day, time: comet.time || '' } : choices[0];
-  const day = h('input', { class: 'field', type: 'date', min: iso(new Date()), value: first.day, 'aria-label': 'Day', required: true });
-  const time = h('input', { class: 'field', type: 'time', value: first.time, 'aria-label': 'Time (if any)' });
-  const clear = h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round cm-ask-clear', 'aria-label': 'No time', title: 'No time' }, icon('close'));
-  const none = h('span', { class: 'cm-ask-none', 'aria-hidden': 'true' }, 'No time');
+  // The day on a calendar, the time on a wheel: nothing to type (the user: "make it easier to input
+  // date and time without manually typing every digit"). With no time the wheel waits, faint; turning
+  // it, or "Add a time", gives the comet one.
+  let dayValue = first.day;
+  let timeValue = first.time;
+  const day = calendar({ value: dayValue, min: iso(new Date()), label: 'Day', onPick: (v) => { dayValue = v; update(); } });
+  const time = timeWheel({ value: timeValue || '09:00', onChange: (v) => { timeValue = v; update(); } });
+  const timeSwitch = h('button', { type: 'button', class: 'btn btn-quiet btn-small cm-ask-notime' });
+  // With no time it reminds at 9 in the morning, so the faint wheel rests there too.
+  timeSwitch.addEventListener('click', () => {
+    if (timeValue) { timeValue = ''; time.set('09:00'); } else timeValue = time.value;
+    update();
+  });
   const note = h('p', { class: 'cm-ask-note', 'aria-live': 'polite' });
   const go = h('button', { type: 'submit', class: 'btn btn-main' }, comet ? 'Save' : 'Make it a comet');
   const buttons = choices.map((p) => {
     const b = h('button', { type: 'button', class: 'btn btn-small cm-ask-pick', title: p.title || null }, p.label);
-    b.addEventListener('click', () => { day.value = p.day; time.value = p.time; update(); });
+    b.addEventListener('click', () => {
+      dayValue = p.day;
+      timeValue = p.time;
+      day.set(p.day);
+      if (p.time) time.set(p.time);
+      update();
+    });
     return [p, b];
   });
   const update = () => {
-    for (const [p, b] of buttons) b.setAttribute('aria-pressed', String(p.day === day.value && p.time === time.value));
-    clear.hidden = !time.value;
-    time.parentElement?.classList.toggle('is-empty', !time.value);   // Safari shows a made-up time in an empty box
-    const said = sayWhen(day.value, time.value);
+    for (const [p, b] of buttons) b.setAttribute('aria-pressed', String(p.day === dayValue && p.time === timeValue));
+    time.off(!timeValue);
+    timeSwitch.textContent = timeValue ? 'No time' : 'Add a time';
+    const said = sayWhen(dayValue, timeValue);
     note.textContent = said.words;
     note.classList.toggle('is-gone', said.gone);
     go.disabled = said.gone;
   };
-  clear.addEventListener('click', () => { time.value = ''; update(); time.focus(); });
-  day.addEventListener('input', update);
-  time.addEventListener('input', update);
   const name = (block.title || block.content || block.fileName || '').trim().split('\n')[0].slice(0, 60);
   const form = h('form', { class: 'cm-ask' },
     h('p', { class: 'dialog-text' }, name ? `A comet will remind you of “${name}”. Until then it crosses your sky.` : 'A comet will remind you. Until then it crosses your sky.'),
     comet ? null : h('div', { class: 'cm-ask-picks', role: 'group', 'aria-label': 'Quick choices' }, ...buttons.map(([, b]) => b)),
     h('div', { class: 'cm-ask-fields' },
-      h('label', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Day'), day),
-      h('div', { class: 'cm-ask-field' }, h('span', { class: 'liv-label' }, 'Time'), h('div', { class: 'cm-ask-time' }, time, none, clear))),
+      h('div', { class: 'cm-ask-field cm-ask-day' }, h('div', { class: 'cm-ask-head' }, h('span', { class: 'liv-label' }, 'Day')), day.el),
+      h('div', { class: 'cm-ask-field cm-ask-time' },
+        h('div', { class: 'cm-ask-head' }, h('span', { class: 'liv-label' }, 'Time'), timeSwitch), time.el)),
     note,
     h('div', { class: 'dialog-actions' },
       h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Cancel'), go));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!day.value || go.disabled) return;
+    if (!dayValue || go.disabled) return;
     go.disabled = true;
-    const when = { day: day.value, time: time.value || null };
+    const when = { day: dayValue, time: timeValue || null };
     const c = await makeComet(block.id, { told: true, when, quiet: !!comet });
     if (!c) { go.disabled = false; return; }
     dialog.close();
@@ -232,7 +245,7 @@ export function askWhen(block, { could = null, comet = null } = {}) {
       });
     }
   });
-  const dialog = openDialog({ title: comet ? 'Change when it reminds you' : 'Make it a comet', body: form });
+  const dialog = openDialog({ title: comet ? 'Change when it reminds you' : 'Make it a comet', body: form, className: 'dialog-wide' });
   update();
 }
 

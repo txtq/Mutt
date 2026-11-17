@@ -219,6 +219,229 @@ function signed(v) {
   return v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0';
 }
 
+// ---------------------------------------------------------------- calendar
+
+// A month of days to press (DESIGN.md section 4, "Calendar"): a day is picked, never typed.
+// Values are 'YYYY-MM-DD' in local time. Days before `min` can't be picked. The arrows keep
+// the keyboard: one day or a week at a time, Page Up and Down a month, Home and End the week.
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dayOf = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+
+// The day a week starts on where the person is (0 Sunday … 6 Saturday).
+function weekStart() {
+  try {
+    const loc = new Intl.Locale(navigator.language);
+    const first = (loc.getWeekInfo?.() || loc.weekInfo)?.firstDay;
+    if (first) return first % 7;
+  } catch { /* an old browser: guess from the region */ }
+  return /-(US|CA|MX|BR|JP|KR|TW|HK|PH|IL|IN|ZA|AU)$/i.test(navigator.language) ? 0 : 1;
+}
+
+export function calendar({ value = '', min = '', label = 'Day', onPick } = {}) {
+  const start = weekStart();
+  const title = h('span', { class: 'cal-month', 'aria-live': 'polite' });
+  const back = h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round', 'aria-label': 'Month before', title: 'Month before' }, icon('back'));
+  const next = h('button', { type: 'button', class: 'btn btn-quiet btn-small btn-round', 'aria-label': 'Month after', title: 'Month after' }, icon('forward'));
+  const names = h('div', { class: 'cal-names', 'aria-hidden': 'true' });
+  const sunday = new Date(2026, 10, 15);   // any Sunday, to name the days of the week
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sunday); d.setDate(sunday.getDate() + ((start + i) % 7));
+    names.append(h('span', { title: d.toLocaleDateString(undefined, { weekday: 'long' }) }, d.toLocaleDateString(undefined, { weekday: 'narrow' })));
+  }
+  const days = h('div', { class: 'cal-days', role: 'grid', 'aria-label': label });
+  const el = h('div', { class: 'cal' },
+    h('div', { class: 'cal-head' }, back, title, next), names, days);
+  let current = value;
+  let shown = dayOf(value || isoDay(new Date()));
+  shown.setDate(1);
+  let focusAfter = false;
+
+  const today = isoDay(new Date());
+  const paint = (slide = 0) => {
+    title.textContent = shown.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const first = new Date(shown);
+    first.setDate(1 - ((shown.getDay() - start + 7) % 7));
+    const focusDay = current && dayOf(current).getMonth() === shown.getMonth() ? current
+      : today.slice(0, 7) === isoDay(shown).slice(0, 7) ? today : isoDay(shown);
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(first); d.setDate(first.getDate() + i);
+      const v = isoDay(d);
+      if (d.getMonth() !== shown.getMonth()) { cells.push(h('span', { class: 'cal-gap', role: 'gridcell' })); continue; }
+      const b = h('button', {
+        type: 'button', class: 'cal-day', role: 'gridcell', tabindex: v === focusDay ? '0' : '-1',
+        'aria-selected': String(v === current), 'aria-current': v === today ? 'date' : null,
+        'aria-label': d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+        disabled: min && v < min ? true : null,
+      }, String(d.getDate()));
+      b.dataset.day = v;
+      cells.push(b);
+    }
+    days.replaceChildren(...cells);
+    back.disabled = !!min && isoDay(shown) <= min;
+    if (slide && !reducedMotion()) {
+      days.animate([{ opacity: 0, transform: `translateX(${slide * 8}px)` }, { opacity: 1, transform: 'none' }], { duration: DUR.change, easing: EASE });
+    }
+    if (focusAfter) { focusAfter = false; days.querySelector('[tabindex="0"]')?.focus(); }
+  };
+  const turn = (by) => { shown = new Date(shown.getFullYear(), shown.getMonth() + by, 1); paint(by); };
+  const pick = (v) => {
+    if (min && v < min) return;
+    current = v;
+    focusAfter = true;   // the pressed day is drawn again: keep the keyboard on it
+    paint();
+    sound('select');
+    onPick?.(v);
+  };
+  // The keyboard moves the focus; Enter or Space picks.
+  const focusDay = (v) => {
+    if (min && v < min) return;
+    const d = dayOf(v);
+    if (d.getMonth() !== shown.getMonth() || d.getFullYear() !== shown.getFullYear()) {
+      shown = new Date(d.getFullYear(), d.getMonth(), 1);
+      paint(Math.sign(d - shown) || 1);
+    }
+    for (const b of days.querySelectorAll('.cal-day')) b.tabIndex = b.dataset.day === v ? 0 : -1;
+    days.querySelector(`[data-day="${v}"]`)?.focus();
+  };
+  back.addEventListener('click', () => turn(-1));
+  next.addEventListener('click', () => turn(1));
+  days.addEventListener('click', (e) => { const b = e.target.closest('.cal-day'); if (b && !b.disabled) pick(b.dataset.day); });
+  days.addEventListener('keydown', (e) => {
+    const b = e.target.closest('.cal-day');
+    if (!b) return;
+    const d = dayOf(b.dataset.day);
+    const wd = (d.getDay() - start + 7) % 7;
+    const by = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7, Home: -wd, End: 6 - wd }[e.key];
+    let to = null;
+    if (by !== undefined) { to = new Date(d); to.setDate(d.getDate() + by); }
+    else if (e.key === 'PageUp' || e.key === 'PageDown') { to = new Date(d); to.setMonth(d.getMonth() + (e.key === 'PageUp' ? -1 : 1)); }
+    if (!to) return;
+    e.preventDefault();
+    focusDay(isoDay(to));
+  });
+  paint();
+  return {
+    el,
+    // Set from outside (a quick choice): no sound, no onPick; the month follows the day.
+    set: (v) => {
+      const moved = v && (dayOf(v).getMonth() !== shown.getMonth() || dayOf(v).getFullYear() !== shown.getFullYear());
+      const by = v ? Math.sign(dayOf(v) - shown) : 0;
+      current = v;
+      if (v) shown = new Date(dayOf(v).getFullYear(), dayOf(v).getMonth(), 1);
+      paint(moved ? by : 0);
+    },
+    get value() { return current; },
+  };
+}
+
+// ---------------------------------------------------------------- time wheel
+
+// A time turned to, never typed (DESIGN.md section 4, "Time wheel"): a sunken well with a wheel for
+// the hour, one for the minutes (every five, and the exact one if it was set to another), and AM/PM
+// where the person's clock has it. Each wheel scrolls and snaps, takes a press on a value, and keeps
+// the keyboard (up and down, Home and End). Values are 'HH:MM' (24 hours). `off` shows it faint, for
+// "no time yet": turning it calls onChange like any change.
+const twelveHours = () => {
+  try { return /h1[12]/.test(new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle || 'h12'); } catch { return true; }
+};
+
+function wheelColumn({ label, onTurn }) {
+  const list = h('div', { class: 'wheel-list' });
+  const el = h('div', { class: 'wheel-col', role: 'spinbutton', tabindex: '0', 'aria-label': label }, list);
+  let items = [];      // [{ value, text }]
+  let at = 0;          // the value turned to (what onTurn last heard)
+  let near = 0;        // the one in the band right now, while turning
+  let settle = 0;
+  let laidOut = false;
+  const row = () => list.firstElementChild?.offsetHeight || 32;
+  const show = (i) => {
+    near = i;
+    [...list.children].forEach((c, k) => c.classList.toggle('is-at', k === i));
+    el.setAttribute('aria-valuenow', String(i));
+    el.setAttribute('aria-valuetext', items[i]?.text || '');
+  };
+  const place = (smooth = false) => {
+    if (!el.isConnected || !row()) return;
+    laidOut = true;
+    el.scrollTo({ top: at * row(), behavior: smooth && !reducedMotion() ? 'smooth' : 'instant' });
+  };
+  // Laid out for the first time (a dialog just opened): turn to the value without a sound.
+  new ResizeObserver(() => { if (!laidOut) place(); }).observe(el);
+  el.addEventListener('scroll', () => {
+    if (!laidOut) return;
+    const i = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / row())));
+    if (i !== near) { show(i); sound('slide'); }
+    clearTimeout(settle);
+    settle = setTimeout(() => { if (near !== at) { at = near; onTurn(items[at].value); } }, DUR.change);
+  }, { passive: true });
+  list.addEventListener('click', (e) => {
+    const k = [...list.children].indexOf(e.target.closest('.wheel-item'));
+    if (k < 0) return;
+    at = k;
+    show(k);
+    place(true);
+    onTurn(items[k].value);
+  });
+  el.addEventListener('keydown', (e) => {
+    const by = { ArrowUp: -1, ArrowDown: 1, PageUp: -3, PageDown: 3 }[e.key];
+    let k = by !== undefined ? at + by : e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : null;
+    if (k === null) return;
+    e.preventDefault();
+    k = Math.max(0, Math.min(items.length - 1, k));
+    if (k === at) return;
+    at = k;
+    show(k);
+    sound('slide');
+    place(true);
+    onTurn(items[k].value);
+  });
+  return {
+    el,
+    fill(next, value) {
+      const same = next.length === items.length && next.every((x, k) => x.value === items[k].value);
+      items = next;
+      if (!same) list.replaceChildren(...items.map((x) => h('div', { class: 'wheel-item', 'aria-hidden': 'true' }, x.text)));
+      at = Math.max(0, items.findIndex((x) => x.value === value));
+      show(at);
+      laidOut = false;
+      place();
+    },
+  };
+}
+
+export function timeWheel({ value = '09:00', onChange } = {}) {
+  const twelve = twelveHours();
+  const two = (n) => String(n).padStart(2, '0');
+  let hh = 9; let mm = 0;
+  const changed = () => onChange?.(`${two(hh)}:${two(mm)}`);
+  const hours = wheelColumn({ label: 'Hour', onTurn: (v) => { hh = twelve ? (v % 12) + (hh >= 12 ? 12 : 0) : v; changed(); } });
+  const minutes = wheelColumn({ label: 'Minutes', onTurn: (v) => { mm = v; changed(); } });
+  const half = twelve ? wheelColumn({ label: 'AM or PM', onTurn: (v) => { hh = (hh % 12) + (v ? 12 : 0); changed(); } }) : null;
+  const am = new Date(2026, 0, 1, 9).toLocaleTimeString(undefined, { hour: 'numeric', hour12: true }).replace(/[\d\s]/g, '') || 'AM';
+  const pm = new Date(2026, 0, 1, 21).toLocaleTimeString(undefined, { hour: 'numeric', hour12: true }).replace(/[\d\s]/g, '') || 'PM';
+  const el = h('div', { class: 'wheel', role: 'group', 'aria-label': 'Time' },
+    hours.el, h('span', { class: 'wheel-colon', 'aria-hidden': 'true' }, ':'), minutes.el, half?.el,
+    h('span', { class: 'wheel-band', 'aria-hidden': 'true' }));
+  const set = (v) => {
+    [hh, mm] = (v || '09:00').split(':').map(Number);
+    hours.fill(twelve
+      ? Array.from({ length: 12 }, (_, i) => ({ value: i + 1, text: String(i + 1) }))
+      : Array.from({ length: 24 }, (_, i) => ({ value: i, text: two(i) })), twelve ? (hh % 12 || 12) : hh);
+    const mins = Array.from({ length: 12 }, (_, i) => i * 5);
+    if (!mins.includes(mm)) mins.push(mm), mins.sort((a, b) => a - b);
+    minutes.fill(mins.map((m) => ({ value: m, text: two(m) })), mm);
+    half?.fill([{ value: 0, text: am }, { value: 1, text: pm }], hh >= 12 ? 1 : 0);
+  };
+  set(value);
+  return {
+    el,
+    set,
+    off: (on) => el.classList.toggle('is-off', !!on),
+    get value() { return `${two(hh)}:${two(mm)}`; },
+  };
+}
+
 export function exit(el, className = 'is-leaving', fallback = DUR.change + 60) {
   return new Promise((resolve) => {
     if (reducedMotion()) { el.remove(); resolve(); return; }

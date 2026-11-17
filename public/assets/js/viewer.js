@@ -404,7 +404,18 @@ function textStage(block) {
 }
 
 // The document editor is only fetched when a note is opened as a document.
-async function openDocEditor(id) {
+// On a planet's page the file view steps aside for it (the planet's own ?doc=),
+// so the planet opens the editor and closing it lands on the planet, not back
+// on the note. Elsewhere (a star, search) it opens over the file view.
+async function openDocEditor(id, drawerId = state?.drawer?.id) {
+  const here = new URL(location.href);
+  if (drawerId && here.pathname === `/p/${drawerId}`) {
+    here.searchParams.delete('b');
+    here.searchParams.set('doc', id);
+    const { go } = await import('./router.js');
+    go(here.pathname + here.search, { replace: true });
+    return;
+  }
   try {
     const [editor] = await Promise.all([import('./doceditor.js'), styles('docs.css')]);
     editor.openDocEditor(id);
@@ -720,13 +731,7 @@ async function makeDocument(btn) {
     toast(`Made a document from ${displayTitle(block) || 'the file'} · the file is kept`);
     // On its planet's page the file view steps aside for the document (the planet's own ?doc=),
     // so closing it lands on the planet, the new document beside the file. Elsewhere it opens on top.
-    const here = new URL(location.href);
-    if (res.drawer && here.pathname === `/p/${res.drawer}`) {
-      here.searchParams.delete('b');
-      here.searchParams.set('doc', res.block.id);
-      const { go } = await import('./router.js');
-      go(here.pathname + here.search, { replace: true });
-    } else openDocEditor(res.block.id);
+    await openDocEditor(res.block.id, res.drawer);
   } catch (err) {
     toast(err.message);
   } finally {

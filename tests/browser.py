@@ -360,6 +360,8 @@ def seed(work):
     # so the galaxy has two threads (Postcards–Holiday carries 2 files, Holiday–Walks 1)
     holiday = planet('Holiday', ['ferry times', 'pack sun cream'])
     walks = planet('Walks', ['the coast path'])
+    # a long note on a planet that isn't a desk, for opening one as a document from the file view
+    ids['walk-essay'] = send('POST', '/api/blocks', {'content': LONG, 'drawer': walks})['block']['id']
     on = lambda drawer: {b['content']: b['id'] for b in send('GET', f'/api/drawers/{drawer}')['blocks']}
     for text in ('wish you were here', 'the pier at dusk'):
         send('POST', f'/api/blocks/{on(ids["Postcards"])[text]}/connections', {'drawer': holiday})
@@ -743,6 +745,26 @@ def document_editor(s, seeded):
     s.click('.de-back')
     s.gone('.de', 'the editor did not close')
     s.see('.dk-doc', 'closing the editor did not return to the desk')
+
+
+def note_as_document(s, seeded):
+    """A long note on a plain planet opens as a document in place of the file view; closing it lands on the planet."""
+    s.go(f'/p/{seeded["Walks"]}?b={seeded["walk-essay"]}')
+    s.see('.viewer', 'the long note did not open in the file view')
+    s.settle(1)   # its side is drawn again once the file's details are in
+    s.click(s.named('.vw-actions button', 'Open as a document', 'the long note has no "Open as a document"'))
+    s.see('.de', '"Open as a document" did not open the editor')
+    s.wait('return /[?&]doc=/.test(location.search) && !/[?&]b=/.test(location.search)',
+           'the document did not take the file view\'s place in the address')
+    s.gone('.viewer', 'the file view stayed open under the document')
+    s.settle(1)
+    s.shot('note-as-document')
+    s.click('.de-back')
+    s.gone('.de', 'the editor did not close')
+    s.wait('return location.pathname === arguments[0] && !location.search', 'closing the document did not land on the planet',
+           8, (f'/p/{seeded["Walks"]}',))
+    s.gone('.viewer', 'closing the document went back to the note')
+    s.see('.cell:not(.cell-entry)', 'closing the document did not show the planet\'s files')
 
 
 def open_book(s, seeded):
@@ -1339,7 +1361,7 @@ def throw_star(s, seeded):
 
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, list_mode, reading_mode, cookbook_mode,
-         documents_mode, undo, document_editor, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top,
+         documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top,
          split_moons, board_mode, beam_file, sounds, forgot_code, key_nudge]
 
 

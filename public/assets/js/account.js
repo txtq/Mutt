@@ -327,3 +327,77 @@ export async function newRecoveryKey() {
     toast(err.message);
   }
 }
+
+// ---------------------------------------------------------------- the Share menu
+
+// "Send to Mutt" in the Share menu of an iPhone or a Mac: an Apple shortcut that sends
+// a file to `/api/send` as if it were dropped in the void. Each device gets its own key,
+// which can only add files; the shortcut asks for it when it is added.
+export const SHORTCUT = '/assets/send-to-mutt.shortcut';
+const devices = (n) => (n === 1 ? 'On 1 device' : `On ${n} devices`);
+
+export function shareMenuFact() {
+  return session.user?.sendKeys ? devices(session.user.sendKeys) : 'Not set up';
+}
+
+export async function setUpShareMenu() {
+  let res;
+  try {
+    res = await api.post('/api/me/send-key');
+  } catch (err) {
+    toast(err.message);
+    return null;
+  }
+  session.user = session.user && { ...session.user, sendKeys: res.sendKeys };
+  const key = res.sendKey;
+  const box = h('input', {
+    class: 'field rk-key', type: 'text', readonly: true, value: key, spellcheck: 'false', 'aria-label': 'Your Share menu key',
+    onfocus: (e) => e.target.select(),
+  });
+  const copyKey = async () => {
+    try { await navigator.clipboard.writeText(key); return true; } catch { box.select(); return false; }
+  };
+  const copy = h('button', {
+    type: 'button', class: 'btn btn-small',
+    onclick: async () => {
+      if (await copyKey()) { sound('copy'); toast('Key copied'); } else toast('Press Copy on your keyboard');
+    },
+  }, icon('copy'), 'Copy');
+  // The key is copied on the way, so it's ready to paste when the shortcut asks for it.
+  const get = h('button', {
+    type: 'button', class: 'btn btn-main',
+    onclick: async () => {
+      const copied = await copyKey();
+      h('a', { href: SHORTCUT, download: 'Send to Mutt.shortcut' }).click();
+      toast(copied ? 'Key copied. Paste it when the shortcut asks.' : 'Copy the key, then paste it when the shortcut asks.');
+    },
+  }, icon('download'), 'Get the shortcut');
+  const done = h('button', { type: 'button', class: 'btn btn-quiet', onclick: () => dialog.close() }, 'Done');
+  const dialog = openDialog({
+    title: 'Send to Mutt',
+    dismissable: false,
+    body: h('div', { class: 'rk' },
+      h('p', { class: 'dialog-text' }, 'Get the shortcut, then paste this key when it asks. What you send from the Share menu lands in the void and finds its planet. The key can only add files, and it’s only shown now.'),
+      box,
+      h('div', { class: 'rk-tools' }, copy),
+      h('div', { class: 'dialog-actions' }, done, get)),
+  });
+  requestAnimationFrame(() => get.focus());
+  return dialog;
+}
+
+export async function turnOffShareMenu() {
+  const ok = await confirmDialog({
+    title: 'Turn off Send to Mutt?',
+    message: 'The shortcut stops working on every device. You can set it up again any time.',
+    confirm: 'Turn off',
+  });
+  if (!ok) return;
+  try {
+    await api.del('/api/me/send-key');
+    session.user = session.user && { ...session.user, sendKeys: 0 };
+    toast('Send to Mutt is off');
+  } catch (err) {
+    toast(err.message);
+  }
+}

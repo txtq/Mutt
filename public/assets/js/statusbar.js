@@ -12,7 +12,7 @@ import { closeTopLayer, confirmDialog, openContextMenu, openMenu, segmented, she
 import { BEAT, bus, DUR, EASE_LEAVE, h, plural, shortName } from './util.js';
 import { renderCell } from './cells.js';
 import { restoreBlock } from './actions.js';
-import { askForKey, askForName, changePin, deleteAccount, newRecoveryKey, saveName, signOut } from './account.js';
+import { askForKey, askForName, changePin, deleteAccount, newRecoveryKey, saveName, setUpShareMenu, shareMenuFact, signOut, turnOffShareMenu } from './account.js';
 import { dropHeldSearch, heldSearch, searchBody } from './search.js';
 import { icon } from './icons.js';
 import { askToKeep, planetWith } from './keeping.js';
@@ -318,6 +318,19 @@ function settingsBody(close) {
     ],
   });
   const safe = safePage();
+  // Send to Mutt from the Share menu (account.js): a key per device, made when it is set up there.
+  const sharePage = () => ({
+    title: 'Share menu',
+    fact: 'Send to Mutt from any app',
+    body: [
+      row('Send to Mutt', h('div', { class: 'sheet-fact-row' },
+        h('span', { class: 'sheet-fact' }, shareMenuFact()),
+        h('button', { type: 'button', class: `btn btn-small${session.user.sendKeys ? ' btn-quiet' : ''}`, onclick: now(setUpShareMenu) },
+          session.user.sendKeys ? 'Add a device' : 'Set up'))),
+      session.user.sendKeys ? h('div', { class: 'sheet-actions' },
+        h('button', { type: 'button', class: 'btn btn-quiet btn-small', onclick: now(turnOffShareMenu) }, 'Turn off')) : null,
+    ],
+  });
   const home = h('div', { class: 'sheet-page' },
     h('header', { class: 'sheet-head' },
       h('div', null, whoEl, subEl),
@@ -347,6 +360,7 @@ function settingsBody(close) {
       deletedDoor,
       stopsDoor,
       pages.door('Your files', { fact: 'Download, tidy', page: () => filesPage }),
+      pages.door('Share menu', { fact: session.user.sendKeys ? 'On' : 'Off', page: sharePage }),
       pages.door('Code and recovery key', { fact: session.user.hasKey ? 'Key kept' : 'No key yet', page: () => safe })),
     resets,
     h('div', { class: 'sheet-actions' },

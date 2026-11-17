@@ -68,3 +68,19 @@ echo "link opens for: $(curl -s $B/api/auth/reset/$TOKEN)"
 echo "link sets a new code: $(status "${J[@]}" -X POST $B/api/auth/reset/$TOKEN -d '{"pin":"640271"}')"
 rule "a reset link worked twice" "$(status "${J[@]}" -X POST $B/api/auth/reset/$TOKEN -d '{"pin":"640272"}')" 404
 echo "requests left: $(curl -s -H 'X-Mutt-Admin: test-admin-key' $B/api/admin/resets)"
+# The Share menu key ("Send to Mutt"): it adds files as if dropped in the void, and does nothing else.
+SK=$(curl -s "${O[@]}" "${J[@]}" -X POST $B/api/me/send-key | python3 -c "import json,sys; print(json.load(sys.stdin)['sendKey'])")
+echo "send key made, how many the account has: $(curl -s "${O[@]}" $B/api/me | python3 -c "import json,sys; print(json.load(sys.stdin)['user']['sendKeys'])")"
+send() { curl -s -w ' %{http_code}' -H X-Mutt:1 "$@" $B/api/send | python3 -c "import json,sys; t=sys.stdin.read(); b,c=t.rsplit(' ',1); print(c, json.loads(b)['said'])"; }
+printf 'Ideas for the garden shed\n\nPaint it green, new hinges on the door.\n' > "$SP/shed"
+echo "a note sent with the key: $(send -H "Authorization: Bearer $SK" -H 'X-Mutt-Name: Shed – café' -H 'X-Mutt-Ext: txt' --data-binary @"$SP/shed")"
+python3 -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))" > "$SP/dot.png"
+echo "a note sent in chunks (no length first, as Shortcuts may): $(send -H "Authorization: Bearer $SK" -H 'Transfer-Encoding: chunked' -H 'X-Mutt-Name: chunked.txt' --data-binary @"$SP/shed")"
+echo "a picture sent with the key: $(send -H "Authorization: Bearer $SK" -H 'X-Mutt-Name: IMG_0042' -H 'X-Mutt-Ext: PNG' --data-binary @"$SP/dot.png")"
+echo "the picture waits as a star: $(curl -s "${O[@]}" $B/api/galaxy | python3 -c "import json,sys; s=[b for b in json.load(sys.stdin)['stars'] if b['fileName']=='IMG_0042.png']; print(len(s), s[0]['meta'].get('sortWhenSeen'))")"
+rule "the send route took a file with a cookie and no key" "$(send "${O[@]}" --data-binary @"$SP/shed")" "401 Mutt didn’t know that key. Make a new one in Mutt: your account, Share menu."
+rule "the Share menu key opened something other than sending" "$(status -H "Authorization: Bearer $SK" $B/api/galaxy) $(status -H "Authorization: Bearer $SK" $B/api/me)" "401 401"
+SK2=$(curl -s "${O[@]}" "${J[@]}" -X POST $B/api/me/send-key | python3 -c "import json,sys; print(json.load(sys.stdin)['sendKey'])")
+echo "a second device's key, the first still works: $(send -H "Authorization: Bearer $SK2" -H 'X-Mutt-Name: two.txt' --data-binary @"$SP/shed" | cut -d' ' -f1) $(send -H "Authorization: Bearer $SK" -H 'X-Mutt-Name: one.txt' --data-binary @"$SP/shed" | cut -d' ' -f1)"
+curl -s -o /dev/null "${O[@]}" "${J[@]}" -X DELETE $B/api/me/send-key
+rule "a Share menu key worked after it was turned off" "$(send -H "Authorization: Bearer $SK" -H 'X-Mutt-Name: late.txt' --data-binary @"$SP/shed" | cut -d' ' -f1)" 401

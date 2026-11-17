@@ -1276,6 +1276,38 @@ def key_nudge(s, seeded):
 
 
 
+def share_menu(s, seeded):
+    """The account sheet's Share menu page sets up "Send to Mutt": a key for this device, shown once,
+    that sends a file into Mutt and does nothing else."""
+    s.go('/')
+    s.wait('return !!document.querySelector(".void-core")', 'the galaxy did not load')
+    s.click(s.see('.sb-who', 'the account button is missing'))
+    s.see('.sheet-settings.is-open', 'the account sheet did not open')
+    s.settle(0.6)
+    s.click(s.named('.sheet-door', 'Share menu', 'the account sheet has no Share menu door'))
+    s.settle(0.8)
+    s.shot('share-menu-page')
+    s.click(s.named('.sheet-settings button', 'Set up', 'the Share menu page has no Set up'))
+    s.wait('return /^mutt-[\\w-]{20,}$/.test(document.querySelector(".dialog .rk-key")?.value || "")',
+           'Set up did not give a key')
+    s.settle(0.6)
+    s.shot('share-menu-key')
+    s.size(PHONE)
+    try:
+        s.settle(0.6)
+        s.no_sideways_scroll('The Share menu key')
+        s.shot('phone-share-menu-key')
+    finally:
+        s.size(DESK)
+    said = s.js('''return fetch('/api/send', { method: 'POST', credentials: 'omit', body: 'Sent from the share menu',
+        headers: { 'X-Mutt': '1', 'Authorization': 'Bearer ' + document.querySelector('.dialog .rk-key').value,
+                   'X-Mutt-Name': 'shared note', 'X-Mutt-Ext': 'txt' } }).then((r) => r.json()).then((d) => d.said)''')
+    if 'shared note.txt' not in (said or ''):
+        raise Fail(f'the key did not send a file into Mutt (said: {said})')
+    s.click(s.named('.dialog button', 'Done', 'the key box has no Done'))
+    s.gone('.dialog', 'Done did not close the key box')
+
+
 def split_moons(s, seeded):
     """A planet of two clearly different things offers to split into moons once, in place; Not now
     keeps it in the ••• menu; splitting makes a moon for each and moves the files; Undo puts all back."""
@@ -1667,7 +1699,7 @@ def live_updates(s, seeded):
 
 PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, planet_type, live_updates, list_mode, offer_while_adding, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
-         split_moons, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge]
+         split_moons, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge, share_menu]
 
 
 def run(start_server, stop_server, verbose=False, keep=False, only=()):

@@ -296,6 +296,13 @@ def migrate(conn):
         conn.execute('ALTER TABLE users ADD COLUMN recovery_hash BLOB')
         conn.execute('ALTER TABLE users ADD COLUMN recovery_salt BLOB')
         conn.execute('ALTER TABLE users ADD COLUMN recovery_at REAL')
+    # Share menu keys (2026-11-16): each lets the "Send to Mutt" shortcut on one
+    # device add files, and nothing else. Only their hashes are kept.
+    conn.execute('CREATE TABLE IF NOT EXISTS send_keys ('
+                 'key_hash TEXT PRIMARY KEY, '
+                 'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '
+                 'made_at REAL NOT NULL, used_at REAL)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_send_keys_user ON send_keys(user_id)')
     conn.execute('CREATE TABLE IF NOT EXISTS reset_requests ('
                  'id TEXT PRIMARY KEY, '
                  'user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, '

@@ -208,6 +208,32 @@ def _token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+SEND_PREFIX = 'mutt-'
+
+
+def new_send_key():
+    """The Share menu key: long and random, so it needs no lockout. Only its hash is kept."""
+    return SEND_PREFIX + secrets.token_urlsafe(24)
+
+
+def send_key_hash(key):
+    return _token_hash(key)
+
+
+def send_key_user(conn, key):
+    """Whose Share menu key this is, or None."""
+    key = (key or '').strip()
+    if key.lower().startswith('bearer '):
+        key = key[7:].strip()
+    if not key.startswith(SEND_PREFIX) or len(key) > 100:
+        return None
+    row = conn.execute('SELECT u.* FROM send_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ?',
+                       (_token_hash(key),)).fetchone()
+    if row:
+        conn.execute('UPDATE send_keys SET used_at = ? WHERE key_hash = ?', (time.time(), _token_hash(key)))
+    return row
+
+
 def session_key(token):
     """Stable, non-secret id for a session (what unlocks are tied to)."""
     return _token_hash(token or '')

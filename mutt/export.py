@@ -353,6 +353,9 @@ def everything(conn, user, drawers, folder_of, files, root, skies=(), sky_folder
             'username': user['username'],
             'joined': iso(user['created_at']),
             'settings': loads(user['prefs'], {}),
+            # The Share menu's keys: when each was made and last used (the keys themselves are never kept).
+            'shareMenuKeys': [{'made': iso(r['made_at']), 'lastUsed': iso(r['used_at'])} for r in conn.execute(
+                'SELECT made_at, used_at FROM send_keys WHERE user_id = ? ORDER BY made_at', (user['id'],))],
         },
         'planets': planets,
         'constellations': [{

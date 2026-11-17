@@ -41,3 +41,12 @@ link opens for: {"username":"forgetful"}
 link sets a new code: 200
 rule holds: a reset link worked twice -> no
 requests left: {"requests":[]}
+send key made, how many the account has: 1
+a note sent with the key: 201 Shed – café.txt is on Ideas.
+a note sent in chunks (no length first, as Shortcuts may): 201 chunked.txt is on Ideas.
+a picture sent with the key: 201 IMG_0042.png is in Mutt. It finds its planet next time you open Mutt.
+the picture waits as a star: 1 1
+rule holds: the send route took a file with a cookie and no key -> no
+rule holds: the Share menu key opened something other than sending -> no
+a second device's key, the first still works: 201 201
+rule holds: a Share menu key worked after it was turned off -> no

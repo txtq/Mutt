@@ -7,6 +7,7 @@
 
 import { api } from './api.js';
 import { imageSrc } from './kinds.js';
+import { bus } from './util.js';
 
 export const SEE_VERSION = 1; // matches mutt/sight.py VERSION
 const SIZE = 224;
@@ -146,5 +147,15 @@ export async function catchUp() {
       break; // the reader isn't available right now; try again next visit
     }
     if (seen) await api.patch(`/api/blocks/${block.id}`, { see: seen }).catch(() => {});
+    if (seen && block.meta?.sortWhenSeen) await sortSent(block);
   }
+}
+
+// A picture sent from the Share menu waits as a star until it has been read, then
+// finds its planet the way a picture dropped in the void does.
+async function sortSent(block) {
+  const res = await api.post(`/api/blocks/${block.id}/autosort`, {}).catch(() => null);
+  const planet = res?.sortedInto?.planet;
+  if (!planet) return;
+  bus.emit('block:connected', { block: res.block, drawerId: planet.id, connections: res.connections });
 }

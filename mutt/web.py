@@ -225,9 +225,48 @@ def file_response(req, path, content_type, *, filename=None, disposition='inline
     return Response(status, out, body)
 
 
+def _chunks(stream, limit):
+    """The pieces of a body sent in chunks (no length given first, as Apple's Shortcuts may send)."""
+    total = 0
+    while True:
+        line = stream.readline(100)
+        try:
+            size = int(line.split(b';')[0].strip() or b'x', 16)
+        except ValueError:
+            raise HttpError(400, 'The upload was interrupted.')
+        if size == 0:
+            while stream.readline(1024) not in (b'\r\n', b'\n', b''):
+                pass  # trailing headers
+            return
+        total += size
+        if total > limit:
+            raise HttpError(413, f'Files can be up to {limit // (1024 * 1024)} MB.')
+        while size > 0:
+            piece = stream.read(min(1024 * 1024, size))
+            if not piece:
+                raise HttpError(400, 'The upload was interrupted.')
+            size -= len(piece)
+            yield piece
+        stream.readline(10)  # the line end after each chunk
+
+
 def stream_to_file(req, path, limit):
     """Write the raw request body to `path`; returns the number of bytes written."""
     length = req.content_length
+    if length <= 0 and 'chunked' in (req.header('Transfer-Encoding') or '').lower():
+        tmp, written = path + '.part', 0
+        try:
+            with open(tmp, 'wb') as f:
+                for piece in _chunks(req.body_stream, limit):
+                    f.write(piece)
+                    written += len(piece)
+            if not written:
+                raise HttpError(411, 'The upload was empty.')
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        return written
     if length <= 0:
         raise HttpError(411, 'The upload was empty.')
     if length > limit:

@@ -146,6 +146,7 @@ def me_json(req, row, short=None):
     if short is None:
         short = bool(row['short_code']) if 'short_code' in row.keys() else False
     return {**user_json(row), 'hasKey': bool(row['recovery_hash']), 'admin': is_admin_name(row['username']),
+            'sendKeys': req.db.execute('SELECT COUNT(*) FROM send_keys WHERE user_id = ?', (row['id'],)).fetchone()[0],
             'oldCode': short, 'canBeam': anyone_else(req.db, row['id']),
             'beamStops': req.db.execute('SELECT COUNT(*) FROM beam_stops WHERE user_id = ?', (row['id'],)).fetchone()[0]}
 
@@ -188,6 +189,8 @@ def public_meta(raw, mine):
     photo was taken is only shown to its owner."""
     meta = dict(raw) if isinstance(raw, dict) else json.loads(raw or '{}')
     meta.pop('unplaced', None)
+    if not mine:
+        meta.pop('sortWhenSeen', None)
     see = meta.get('see')
     if isinstance(see, dict):
         if mine:
@@ -872,6 +875,31 @@ def make_recovery_key(req):
     req.db.execute('UPDATE users SET recovery_hash = ?, recovery_salt = ?, recovery_at = ? WHERE id = ?',
                    (key_hash, key_salt, now(), req.user['id']))
     return json_response({'recoveryKey': key})
+
+
+SEND_KEYS_MOST = 10
+
+
+@route('POST', r'/api/me/send-key')
+def make_send_key(req):
+    """A key for the "Send to Mutt" shortcut on one more device, shown once. Each device
+    has its own, so setting up a phone never stops the computer's; past `SEND_KEYS_MOST`
+    the one used longest ago ends."""
+    key = auth.new_send_key()
+    req.db.execute('INSERT INTO send_keys (key_hash, user_id, made_at) VALUES (?, ?, ?)',
+                   (auth.send_key_hash(key), req.user['id'], now()))
+    req.db.execute('DELETE FROM send_keys WHERE user_id = ? AND key_hash NOT IN (SELECT key_hash FROM send_keys '
+                   'WHERE user_id = ? ORDER BY COALESCE(used_at, made_at) DESC LIMIT ?)',
+                   (req.user['id'], req.user['id'], SEND_KEYS_MOST))
+    count = req.db.execute('SELECT COUNT(*) FROM send_keys WHERE user_id = ?', (req.user['id'],)).fetchone()[0]
+    return json_response({'sendKey': key, 'sendKeys': count})
+
+
+@route('DELETE', r'/api/me/send-key')
+def end_send_keys(req):
+    """Turns the Share menu off: every device's key stops working."""
+    req.db.execute('DELETE FROM send_keys WHERE user_id = ?', (req.user['id'],))
+    return json_response({'sendKeys': 0})
 
 
 @route('POST', r'/api/auth/recover', auth=False)
@@ -3725,10 +3753,23 @@ def create_block(req):
 MEDIA_DETAILS = ('image', 'video', 'audio', 'pdf', 'doc')
 
 
+def clean_file_name(value):
+    return re.sub(r'[\\/\x00-\x1f\x7f]', '', value or '').strip()[:180] or 'Untitled'
+
+
 @route('POST', r'/api/upload')
 def upload(req):
     drawer_id = target_drawer(req, req.arg('drawer'))
-    name = re.sub(r'[\\/\x00-\x1f\x7f]', '', req.arg('name') or '').strip()[:180] or 'Untitled'
+    name = clean_file_name(req.arg('name'))
+    sort = req.arg('autosort') == '1' and 'now'
+    block_id, sorted_into = store_upload(req, name, drawer_id, req.arg('share') == '1', sort, icon_arg(req.arg('icon')))
+    return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
+
+
+def store_upload(req, name, drawer_id=None, share=False, sort=None, icon=None):
+    """Keeps the request's body as a new file of `name`: read for sorting and search,
+    its place forgotten, then put on `drawer_id`, or sorted (`sort` 'now'; 'when-seen'
+    leaves a picture a star until the browser has read it, see.js `catchUp`)."""
     ext = kinds.extension(name)
     mime = kinds.clean_mime(req.header('Content-Type'), name)
     kind = kinds.detect(mime, ext)
@@ -3765,7 +3806,9 @@ def upload(req):
     if epub:
         meta['book'] = {'title': epub['title'], 'author': epub['author']}
     title = os.path.splitext(name)[0] if ext else name
-    shared = {'shared_at': now()} if req.arg('share') == '1' else {}
+    shared = {'shared_at': now()} if share else {}
+    if sort == 'when-seen' and not drawer_id and kind == 'image':
+        meta['sortWhenSeen'] = 1
     block_id = insert_block(req, kind=kind, title=title[:200], file_key=key, file_name=name,
                             mime=mime, ext=ext, size=size, meta=meta, **shared)
     if epub and epub['cover']:
@@ -3773,9 +3816,47 @@ def upload(req):
     sorted_into = None
     if drawer_id:
         connect(req.db, block_id, drawer_id)
-    elif req.arg('autosort') == '1':
-        sorted_into = autosort(req, block_id, icon_arg(req.arg('icon')), text)
-    return json_response({'block': reload_block(req, block_id), 'sortedInto': sorted_into}, status=201)
+    elif sort and not meta.get('sortWhenSeen'):
+        sorted_into = autosort(req, block_id, icon, text)
+    return block_id, sorted_into
+
+
+@route('POST', r'/api/send', auth=False)
+def send_to_mutt(req):
+    """The "Send to Mutt" shortcut in the Share menu: the file's bytes as the body, its name
+    in `X-Mutt-Name` (`X-Mutt-Ext` added when the name has none), the key in `Authorization`.
+    The key can add files and nothing else; the cookie is never read here. A file lands as
+    if dropped in the void. Always answers `said`, a line the shortcut shows."""
+    def said(status, line, **more):
+        return json_response({'said': line, **more}, status=status)
+    owner = auth.send_key_user(req.db, req.header('Authorization') or req.header('X-Mutt-Key'))
+    if not owner:
+        return said(401, 'Mutt didn’t know that key. Make a new one in Mutt: your account, Share menu.')
+    req.user = owner
+
+    def header_text(header):
+        value = req.header(header) or ''
+        try:
+            value = value.encode('latin-1').decode('utf-8')  # the Mac and iPhone send names as UTF-8
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+        return urllib.parse.unquote(value) if '%' in value else value
+    name = clean_file_name(header_text('X-Mutt-Name') or req.arg('name'))
+    ext = re.sub(r'[^\w]', '', header_text('X-Mutt-Ext') or req.arg('ext') or '')[:12].lower()
+    if ext and not kinds.extension(name):
+        name = f'{name}.{ext}'[:180]
+    try:
+        block_id, sorted_into = store_upload(req, name, sort='when-seen')
+    except HttpError as err:
+        return said(err.status, err.message)
+    row = own_block(req, block_id)
+    if sorted_into:
+        line = f'{name} is on {sorted_into["planet"]["title"]}.'
+    elif row['kind'] == 'image':
+        line = f'{name} is in Mutt. It finds its planet next time you open Mutt.'
+    else:
+        line = f'{name} is in Mutt.'
+    return said(201, line, block=block_id)
 
 
 def int_arg(value, low, high):
@@ -4146,7 +4227,10 @@ def save_block(req, block_id):
 def sort_block(req, block_id):
     """A loose star dropped back into the void finds itself a planet. Uploads
     that waited for the browser to read the picture are sorted this way too."""
-    own_block(req, block_id)
+    row = own_block(req, block_id)
+    meta = json.loads(row['meta'] or '{}')
+    if meta.pop('sortWhenSeen', None):  # sent from the Share menu, waiting for its picture to be read
+        req.db.execute('UPDATE blocks SET meta = ? WHERE id = ?', (json.dumps(meta, ensure_ascii=False), block_id))
     if req.db.execute('SELECT 1 FROM connections WHERE block_id = ? LIMIT 1', (block_id,)).fetchone():
         return json_response({'block': reload_block(req, block_id), 'sortedInto': None,  # already placed
                               'connections': block_connections(req, block_id)})

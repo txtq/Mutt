@@ -36,8 +36,9 @@ COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 USERNAME_PATH = r'(?P<username>[a-z0-9][a-z0-9_.-]{0,22}[a-z0-9])'
 PALETTE = ['#FF5C39', '#2F6BFF', '#14B86A', '#FFB020', '#A66BFF', '#FF6FB0', '#00B2C6', '#9A6240']
 VISIBILITY = ('private', 'pin', 'people', 'public')
-# The twelve kinds of planet (public/assets/js/planets.js draws them; DESIGN.md "Planets" says how to add one).
-PLANET_LOOKS = ('ocean', 'terran', 'gas', 'pale', 'lava', 'ice', 'desert', 'storm', 'lagoon', 'bloom', 'haze', 'pearl')
+# The kinds of planet (public/assets/js/planets.js draws them, in this order; DESIGN.md "Planets" says how to add one).
+PLANET_LOOKS = ('ocean', 'terran', 'gas', 'pale', 'lava', 'ice', 'desert', 'storm', 'lagoon', 'bloom', 'haze', 'pearl',
+                'dust', 'twilight')
 # A planet with no kind of its own gets one from its id. Planets made before there were twelve keep
 # drawing from the first eight, so none changed; `twelve` tells the page which a planet is.
 TWELVE_SINCE = 1795132800   # 2026-11-20: safely after the day the twelve kinds went live, so no planet made before then changes
@@ -50,7 +51,8 @@ MOON_LOOKS = ('luna', 'io', 'europa', 'titan', 'enceladus', 'triton', 'phobos', 
 FIRST_LOOKS = ('ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'pearl', 'storm')
 # A new planet or moon is given a kind its owner's galaxy doesn't show yet; once every
 # kind is shown, the one shown least. Ties go in this order, so neighbours differ.
-FRESH_PLANETS = ('ocean', 'lava', 'ice', 'gas', 'bloom', 'desert', 'terran', 'storm', 'pearl', 'lagoon', 'haze', 'pale')
+FRESH_PLANETS = ('ocean', 'lava', 'ice', 'dust', 'gas', 'bloom', 'desert', 'twilight', 'terran', 'storm', 'pearl',
+                 'lagoon', 'haze', 'pale')
 FRESH_MOONS = ('luna', 'io', 'europa', 'titan', 'triton', 'callisto', 'enceladus', 'phobos', 'iapetus', 'hyperion')
 
 

@@ -1,11 +1,11 @@
 # Values typed by hand instead of taken from a name in tokens.css (tests/drift.py).
 # The first ten lines are the limits; the rest only help find where a new one crept in.
-styles | colours: 166
+styles | colours: 159
 styles | text sizes: 69
-styles | corners: 77
-styles | shadows: 58
+styles | corners: 74
+styles | shadows: 56
 styles | speeds: 0
-scripts | colours: 211
+scripts | colours: 218
 scripts | text sizes: 0
 scripts | corners: 0
 scripts | shadows: 0
@@ -14,9 +14,9 @@ docs.css | colours: 34
 docs.css | corners: 7
 docs.css | shadows: 2
 docs.css | text sizes: 21
-galaxy.css | colours: 132
-galaxy.css | corners: 69
-galaxy.css | shadows: 56
+galaxy.css | colours: 125
+galaxy.css | corners: 66
+galaxy.css | shadows: 54
 galaxy.css | text sizes: 48
 js/blackhole.js | colours: 3
 js/doceditor.js | colours: 19
@@ -24,7 +24,7 @@ js/docexport.js | colours: 17
 js/docformat.js | colours: 1
 js/fx.js | colours: 2
 js/look.js | colours: 13
-js/planets.js | colours: 102
+js/planets.js | colours: 110
 js/reading.js | colours: 10
 js/see.js | colours: 1
 js/sky.js | colours: 1
@@ -34,7 +34,6 @@ js/util.js | colours: 9
 js/uvweb.js | colours: 1
 js/views/galaxy.js | colours: 2
 js/views/login.js | colours: 3
-js/views/planet.js | colours: 1
 js/voidart.js | colours: 9
 js/voidmake.js | colours: 2
 parts.css | corners: 1

@@ -57,9 +57,9 @@ look set: lava
 look bad: 400
 look auto: None
 layout save: 200
-own layout: [('Diary', None, None, 'ocean'), ('Recipes', 2000.0, -12.0, None), ('Zines', -320.4, 180.0, 'lava'), ('Gifts', None, None, 'gas'), ('Ideas', None, None, 'bloom'), ('Travel', None, None, 'desert')]
+own layout: [('Diary', None, None, 'ocean'), ('Recipes', 2000.0, -12.0, None), ('Zines', -320.4, 180.0, 'lava'), ('Gifts', None, None, 'dust'), ('Ideas', None, None, 'gas'), ('Travel', None, None, 'bloom')]
 bo sees layout: [('', None, None), ('Recipes', 2000.0, -12.0), ('Zines', -320.4, 180.0), ('Gifts', None, None), ('Ideas', None, None), ('Travel', None, None)]
-universe layout: [(None, None, 'ocean'), (2000.0, -12.0, None), (-320.4, 180.0, 'lava'), (None, None, 'gas'), (None, None, 'bloom'), (None, None, 'desert')]
+universe layout: [(None, None, 'ocean'), (2000.0, -12.0, None), (-320.4, 180.0, 'lava'), (None, None, 'dust'), (None, None, 'gas'), (None, None, 'bloom')]
 use, own: [1.0]
 use for a visitor, as locked then told: [[False, True], [False, True], [False, True], [False, True], [False, True], [True, False]]
 bo moves alma's: 404
@@ -77,7 +77,7 @@ rule holds: a thread led to a private planet a visitor can't see -> no
 also on, own: [('zine one', ['Diary', 'Gifts'])]  bo: [('zine one', ['Gifts'])]  cy: []
 galaxies sharing files, as cy sees: [{'a': 'alma', 'b': 'bo', 'n': 1}]
 after bo's planet goes private, cy: []  bo: [{'a': 'alma', 'b': 'bo', 'n': 1}]
-fresh kinds, cy: ['bloom', 'desert', 'gas', 'haze', 'ice', 'lagoon', 'lava', 'lava', 'ocean', 'ocean', 'pale', 'pearl', 'storm', 'terran']
+fresh kinds, cy: ['bloom', 'desert', 'dust', 'gas', 'haze', 'ice', 'lagoon', 'lava', 'ocean', 'pale', 'pearl', 'storm', 'terran', 'twilight']
 story, bo's copy as bo sees it: ('alma', 'bo', 'alma', [('alma', 'Gifts'), ('alma', 'Zines')])  as cy: ('alma', 'bo', 'alma', [('alma', 'Zines')])
 cy saves bo's copy as a star, made by: alma  story: ('alma', 'cy', 'bo', [('alma', 'Zines'), ('bo', 'Kept')])
 story, the first as alma sees it: (None, None, None, [('bo', 'Kept')])  as cy: (None, None, None, [('bo', 'Kept'), ('cy', 'star')])

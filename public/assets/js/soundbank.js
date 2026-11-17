@@ -28,6 +28,7 @@ export const LOUD = { press: 0.24, moving: 0.3, done: 0.41, rare: 0.47 };
 export const PLANET_NOTES = {
   gas: 69, lava: 74, desert: 76, terran: 77, ocean: 79, storm: 81,
   haze: 86, bloom: 88, lagoon: 89, pale: 91, pearl: 93, ice: 98,
+  twilight: 67, dust: 100,
 };
 const HOME = 86;   // D: a star's, and the void's
 

@@ -690,6 +690,50 @@ def open_planet(s, seeded):
     s.wait('return document.querySelector(".liv-share-btn .ic-globe")', 'Share kept the lock after making the planet public again')
 
 
+def planet_type(s, seeded):
+    """The planet's type and colour are one box: a type, then the same type again for its next colour."""
+    s.go('/')
+    s.click(s.named('.planet', 'Shopping', 'the Shopping planet is not in the galaxy'))
+    s.wait('return location.pathname.startsWith("/p/")', 'clicking a planet did not open it')
+    world = '.liv-world .planet'
+    colour = f'return getComputedStyle(document.querySelector("{world}")).getPropertyValue("--c")'
+    s.settle(1)
+    s.click(world)
+    picks = s.wait('return document.querySelectorAll(".look-pick").length', 'pressing the planet did not open its type')
+    if picks != 15:
+        raise Fail(f'the type box should offer Auto and 14 types, got {picks}')
+    s.click(s.named('.look-pick', 'Stardust', 'the type box has no Stardust'))
+    s.wait(f'return document.querySelector("{world}").dataset.look === "dust"', 'pressing Stardust did not make the planet stardust')
+    if not s.js('return document.querySelector(".look-grid")'):
+        raise Fail('pressing a type should leave the box open')
+    before = s.js(colour)
+    s.click(s.named('.look-pick', 'Stardust', 'the type box lost Stardust'))
+    s.wait(f'return getComputedStyle(document.querySelector("{world}")).getPropertyValue("--c") !== arguments[0]',
+           'pressing the chosen type again did not change the colour', args=(before,))
+    s.settle(1.2)
+    s.shot('planet-type-dust')
+    s.click(s.named('.look-pick', 'Twilight', 'the type box has no Twilight'))
+    s.wait(f'return document.querySelector("{world}").dataset.look === "twilight"', 'pressing Twilight did not make the planet twilight')
+    s.settle(1.2)
+    s.shot('planet-type-twilight')
+    # pressing outside the box puts it away
+    if hasattr(s, 'page'):
+        s.page.mouse.click(6, 300)
+    else:
+        s.js('document.querySelector(".scrim").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))')
+    s.gone('.look-grid', 'pressing outside the type box did not close it')
+    pid = s.js('return location.pathname.split("/")[2]')
+    for _ in range(40):
+        if (s.fetch(f'/api/drawers/{pid}') or {}).get('drawer', {}).get('look') == 'twilight':
+            break
+        time.sleep(0.1)
+    else:
+        raise Fail('the type was not saved')
+    s.go(f'/p/{pid}')
+    s.wait(f'const w = document.querySelector("{world}"); return w && w.dataset.look === "twilight"',
+           'after a reload the planet was not twilight')
+
+
 def offer_then(s, seeded, title, yes, view, sorry):
     s.go(f'/p/{seeded[title]}')
     s.see('.lm-offer', f'{title} was not offered {sorry}')
@@ -1612,7 +1656,7 @@ def live_updates(s, seeded):
            'a file deleted on another device stayed on the open planet')
 
 
-PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, live_updates, list_mode, offer_while_adding, reading_mode, cookbook_mode,
+PATHS = [sign_up, sign_in, comment_notes, note_history, add_through_void, open_planet, planet_type, live_updates, list_mode, offer_while_adding, reading_mode, cookbook_mode,
          documents_mode, undo, document_editor, note_as_document, open_book, universe, search_gravity, shared_files, phone, sample_page, keyboard, constellation, throw_star, comet, send_to_top, drag_to_star,
          split_moons, board_mode, beam_file, planet_with, sounds, forgot_code, key_nudge]
 

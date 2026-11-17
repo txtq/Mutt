@@ -9,7 +9,7 @@ import { MENU_ORDER, MODES, OFFER_ORDER, allowed as modeAllowed, codeOf, loadMod
 import { momentLine } from '../moments.js';
 import { nav } from '../nav.js';
 import { modeOffer } from '../offers.js';
-import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone, worldDot } from '../planets.js';
+import { LOOKS, MOON_LOOKS, VISIBILITY, lookOf, moonDot, moonEl, moonLookOf, planetDot, planetEl, planetTone } from '../planets.js';
 import { confirmDialog, openDialog, openMenu, openPopover, pinField, segmented, toast } from '../ui.js';
 import { DUR, EASE, EASE_LEAVE, PALETTE, STAGGER, autosize, bus, debounce, h, nameColor, nameMatch, personLabel, plural, reducedMotion, shortName, styles, timeAgo, wait } from '../util.js';
 import { icon } from '../icons.js';
@@ -396,33 +396,6 @@ export const planetView = {
       for (const [k, v] of Object.entries(inst.tint)) document.body.style.setProperty(k, v);
     }
 
-    async function setColor(c) {
-      if (c.toUpperCase() === drawer.icon?.c) return;
-      try {
-        ({ drawer } = await api.patch(`/api/drawers/${id}`, { icon: { ...drawer.icon, c } }));
-        inst.drawer = drawer;
-        world.update({ ...drawer, previews: world.planet?.previews });
-        retint();
-        bus.emit('drawer:changed', drawer);
-      } catch (err) {
-        toast(err.message);
-      }
-    }
-
-    function pickColor() {
-      const current = drawer.icon?.c || '#2F6BFF';
-      const pick = (c) => { dialog.close(); setColor(c); };
-      const custom = h('input', { type: 'color', class: 'swatch-custom', value: current, title: 'Any colour', 'aria-label': 'Any colour' });
-      custom.addEventListener('change', () => pick(custom.value));
-      const body = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Planet colour' },
-        PALETTE.map((c) => h('button', {
-          type: 'button', class: 'planet-swatch', role: 'radio', style: { '--c': c }, 'aria-label': c,
-          'aria-checked': String(c === current), onclick: () => pick(c),
-        }, drawer.parentId ? null : worldDot(drawer, c, 30))),
-        custom);
-      const dialog = openDialog({ title: 'Planet colour', body });
-    }
-
     // What kind of world it is: picked for it, or one you choose.
     async function setLook(look) {
       try {
@@ -436,23 +409,74 @@ export const planetView = {
       }
     }
 
+    // A planet's type and its colour are one box. Pressing a type shows the
+    // planet as it; pressing the chosen one again gives it the next colour.
+    // Each press shows at once and is saved behind it, one save at a time;
+    // pressing outside the box (or Escape) puts it away.
+    let saving = false;
+    let unsaved = false;
+    async function saveLook() {
+      unsaved = true;
+      if (saving) return;
+      saving = true;
+      while (unsaved) {
+        unsaved = false;
+        try {
+          const { drawer: saved } = await api.patch(`/api/drawers/${id}`, { look: drawer.look || null, ...(drawer.icon ? { icon: drawer.icon } : {}) });
+          if (!unsaved) { drawer = saved; inst.drawer = drawer; }
+        } catch (err) {
+          toast(err.message);
+        }
+      }
+      saving = false;
+      bus.emit('drawer:changed', drawer);
+    }
+
+    function showLook(changes) {
+      drawer = { ...drawer, ...changes };
+      inst.drawer = drawer;
+      world.update({ ...drawer, previews: world.planet?.previews });
+      retint();
+      saveLook();
+    }
+
+    // The next of the planet colours; one picked before there was this box, not among them, starts from the first.
+    function nextColour() {
+      const now = PALETTE.indexOf((drawer.icon?.c || '').toUpperCase());
+      return PALETTE[(now + 1) % PALETTE.length];
+    }
+
     function pickLook() {
       const previews = world.planet?.previews || [];
       const auto = LOOKS.find((l) => l.id === lookOf({ id, twelve: drawer.twelve })).label;
       const choices = [{ id: null, label: 'Auto', note: auto }, ...LOOKS];
+      const chosen = () => drawer.look || null;
       const grid = h('div', { class: 'look-grid', role: 'radiogroup', 'aria-label': 'Kind of planet' });
-      const dialog = openDialog({ title: 'Planet type', className: 'dialog-wide', body: grid });
-      for (const choice of choices) {
+      openDialog({
+        title: 'Planet type',
+        className: 'dialog-wide',
+        body: h('div', null, h('p', { class: 'dialog-text look-hint' }, 'Press the chosen type again for another colour.'), grid),
+      });
+      const picks = choices.map((choice) => {
         const preview = planetEl({ ...drawer, look: choice.id, previews }, { size: 64, href: null, label: false });
         preview.classList.add('planet-mini');
-        grid.append(h('button', {
+        const btn = h('button', {
           type: 'button',
           class: 'look-pick',
           role: 'radio',
-          'aria-checked': String((drawer.look || null) === choice.id),
-          onclick: () => { dialog.close(); if ((drawer.look || null) !== choice.id) setLook(choice.id); },
-        }, preview, h('span', { class: 'look-name' }, choice.label), choice.note ? h('span', { class: 'look-note' }, choice.note) : null));
-      }
+          'aria-checked': String(chosen() === choice.id),
+          onclick: () => {
+            showLook(chosen() === choice.id ? { icon: { ...drawer.icon, c: nextColour() } } : { look: choice.id });
+            // every type is shown in the planet's colour
+            for (const p of picks) {
+              p.btn.setAttribute('aria-checked', String(chosen() === p.choice.id));
+              p.preview.update({ ...drawer, look: p.choice.id, previews });
+            }
+          },
+        }, preview, h('span', { class: 'look-name' }, choice.label), choice.note ? h('span', { class: 'look-note' }, choice.note) : null);
+        return { choice, btn, preview };
+      });
+      grid.append(...picks.map((p) => p.btn));
     }
 
     // What real moon it is: picked for it, or one you choose.
@@ -773,7 +797,6 @@ export const planetView = {
     ].filter(Boolean) : [
       ...modeItems(),
       { icon: 'planet', label: 'Planet type…', run: pickLook },
-      { icon: 'colour', label: 'Planet colour…', run: pickColor },
       (drawer.moons || []).length < 8 ? { icon: 'moon', label: 'Add a moon…', run: addMoon } : null,
       '-',
       drawer.keptWith
@@ -1295,7 +1318,7 @@ export const planetView = {
         setTimeout(() => { looking = lookForModes(asked).then(showShareTip); }, DUR.move);
         // Asked for from the galaxy (a planet's right-click menu there): do it now that the page is here.
         const then = takeThen(id);
-        const act = !isMoon && { look: pickLook, colour: pickColor, moon: addMoon, remove }[then];
+        const act = !isMoon && { look: pickLook, colour: pickLook, moon: addMoon, remove }[then];
         if (act) setTimeout(act, DUR.arrive);
         attachHint();
         const bid = new URL(location.href).searchParams.get('doc');

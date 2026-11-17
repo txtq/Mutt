@@ -1,4 +1,4 @@
-// Planets: every drawer is a small world that turns slowly, one of twelve
+// Planets: every drawer is a small world that turns slowly, one of fourteen
 // kinds, each with its own ground, weather and effects (planetgl.js paints
 // them). Its files ride on it as cards in a belt, each drawn as what it is,
 // so a planet's use reads from the galaxy. How used it is shows too: weather
@@ -112,7 +112,8 @@ export function fileFace(block, { lazy = false } = {}) {
 
 // Every planet is one kind of world. One that hasn't been given a kind gets
 // it from its id, so it never changes by itself.
-// Their order is the painter's (planetgl.js, looks 0 to 11): add at the end.
+// The painter numbers them (planetgl.js): the first twelve are looks 0 to 11,
+// the moons 12 to 21, and kinds added later go on from 22 (`LOOK_INDEX`). Add at the end.
 export const LOOKS = [
   { id: 'ocean', label: 'Deep ocean' },
   { id: 'terran', label: 'Forests and seas' },
@@ -126,11 +127,13 @@ export const LOOKS = [
   { id: 'bloom', label: 'Night bloom' },
   { id: 'haze', label: 'Golden haze' },
   { id: 'pearl', label: 'Pearl mist' },
+  { id: 'dust', label: 'Stardust' },
+  { id: 'twilight', label: 'Twilight' },
 ];
 // A planet with no kind of its own gets one from its id. Those made before
-// there were twelve (the server says which: `twelve`) keep drawing from the
-// first eight, so none of them changed by itself (Moon rock, which is gone,
-// became Pearl mist).
+// there were twelve (the server says which: `twelve`, from 2026-11-20) keep
+// drawing from the first eight, so none of them changed by itself (Moon rock,
+// which is gone, became Pearl mist). Later ones draw from every kind.
 const FIRST_KINDS = ['ocean', 'terran', 'gas', 'lava', 'ice', 'desert', 'pearl', 'storm'];
 const ALL_KINDS = LOOKS.map((l) => l.id);
 
@@ -150,7 +153,7 @@ export const MOON_LOOKS = [
   { id: 'callisto', label: 'Callisto', note: 'Jupiter', period: 40, rate: 0.5, reach: 0.1 },
 ];
 const MOON_BY_ID = Object.fromEntries(MOON_LOOKS.map((m) => [m.id, m]));
-const LOOK_INDEX = Object.fromEntries([...LOOKS, ...MOON_LOOKS].map((l, i) => [l.id, i]));
+const LOOK_INDEX = Object.fromEntries([...LOOKS.slice(0, 12), ...MOON_LOOKS, ...LOOKS.slice(12)].map((l, i) => [l.id, i]));
 
 // Four colours each (what they're for depends on the kind), and how far each
 // one leans toward the planet's own colour.
@@ -169,6 +172,8 @@ const PALETTES = {
   bloom: { colors: ['#0c2f3a', '#b23a8e', '#6a3fb0', '#ffb3de'], tint: [0.2, 0.2, 0.2, 0.05], rich: 1.18 },
   haze: { colors: ['#b98a2e', '#e2c463', '#f3e6a8', '#f6dc8a'], tint: [0.2, 0.2, 0.1, 0.15] },
   pearl: { colors: ['#e9c9cf', '#f6ead9', '#fbf6ee', '#ffe3ee'], tint: [0.14, 0.1, 0.05, 0.08], rich: 1.15 },
+  dust: { colors: ['#14132a', '#8a82bd', '#d8cff0', '#fff0d2'], tint: [0.12, 0.45, 0.3, 0.1], rich: 1.2 },
+  twilight: { colors: ['#22355a', '#c9793c', '#4e9a54', '#e9f1f7'], tint: [0.18, 0.28, 0.22, 0], rich: 1.2 },
 };
 // Moons keep their real colours, whatever their planet's.
 const MOON_PALETTES = {
@@ -1364,26 +1369,6 @@ export function moonDot(moon) {
 // A planet's colour as a small dot, for lists of planets.
 export function planetDot(planet) {
   return h('span', { class: 'planet-dot', style: { '--c': planet.icon?.c || planet.c || '#2F6BFF' }, 'aria-hidden': 'true' });
-}
-
-// A planet's kind of world painted once in another colour, bare and still, for
-// the colour picker. Nothing without the painter (the picker's own dot shows).
-export function worldDot(planet, color, size) {
-  if (!canPaint()) return null;
-  const rand = seeded(planet.id);
-  const tilt = (rand() - 0.5) * 36;
-  rand();
-  const period = 40 + rand() * 35;
-  const offset = rand() * period;
-  const seed = [rand() * 97, rand() * 97, rand() * 97];
-  const look = lookOf(planet);
-  const px = Math.round(size * AIR * sharpness());
-  const canvas = h('canvas', { class: 'world-dot', width: px, height: px, 'aria-hidden': 'true' });
-  const ok = paint(canvas.getContext('2d'), px, {
-    source: blankTexture(), look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: worldColors({ ...planet, icon: { c: color } }, look).colors.map(rgb),
-    turn: offset / period, time: seed[0] * 10, seed, use: 0.5,
-  });
-  return ok ? canvas : null;
 }
 
 // A planet as it looks in its own galaxy, painted once and held still, for

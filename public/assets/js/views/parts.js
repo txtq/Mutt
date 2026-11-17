@@ -133,7 +133,7 @@ function menus() {
     return state ? held(el, state) : el;
   };
   const menu = h('div', { class: 'pop' }, h('div', { class: 'menu' },
-    item('Planet type…'), item('Planet colour… (pointed at)', { state: 'hover' }), item('Add a moon…', { hint: '2 of 8' }), item('Keyboard', { state: 'focus' }),
+    item('Planet type…'), item('Rename… (pointed at)', { state: 'hover' }), item('Add a moon…', { hint: '2 of 8' }), item('Keyboard', { state: 'focus' }),
     h('div', { class: 'menu-sep' }), item('Delete planet…', { danger: true }), item('Delete planet… (pointed at)', { danger: true, state: 'hover' })));
   const grouped = h('div', { class: 'pop' }, h('div', { class: 'menu' },
     h('div', { class: 'menu-head' }, 'Move to'), item('Postcards'), item('Recipes to try'), h('div', { class: 'menu-sep' }), item('Copy link')));

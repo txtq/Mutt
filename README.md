@@ -47,12 +47,13 @@ what's needed, dressed up as a little galaxy in PS Vita blues.
   waits quietly, and anyone's beams can be stopped. A light carries it across
   the universe from your galaxy to theirs, and it arrives as it was sent: a
   recipe card as a card, a document as a document.
-- **Kinds of planet**: every planet is one of eight worlds (ocean, green,
-  gas giant, lava, ice, desert, moon rock, storm), each with its own ground
-  and weather: drifting clouds, sliding bands, slowly glowing lava seams,
-  dust storms, now-and-then lightning. A new planet gets one picked for it;
-  change it with **Planet type…** in the planet's ••• menu. The planet's
-  colour tints whichever kind it is.
+- **Kinds of planet**: every planet is one of fourteen worlds (deep ocean,
+  forests and seas, banded and pale giants, lava, ice, red desert,
+  thunderstorm, coral shallows, night bloom, golden haze, pearl mist,
+  stardust, twilight), each with its own ground and weather. A new planet
+  gets one picked for it; change it by pressing the planet on its page (or
+  **Planet type…** in its ••• menu). Press the chosen type again to change
+  the planet's colour; press outside the box to close it.
 - **Comments**: open any file you can see in someone's galaxy and leave a
   comment at the bottom of its details. The owner can answer, and can remove
   any comment on their files; you can take back your own. A small count

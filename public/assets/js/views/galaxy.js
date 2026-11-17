@@ -1248,7 +1248,6 @@ class Galaxy {
           { icon: 'open', label: 'Open', run: open },
           ...(this.mine ? [
             { icon: 'planet', label: 'Planet type…', run: there('look') },
-            { icon: 'colour', label: 'Planet colour…', run: there('colour') },
             (now.moons || []).length < 8 ? { icon: 'moon', label: 'Add a moon…', run: there('moon') } : null,
             '-',
             { icon: 'trash', label: 'Delete planet…', danger: true, run: there('remove') },

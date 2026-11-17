@@ -2069,10 +2069,15 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
 .has-dust .planet.is-target .planet-body::after { inset: -23%; }   /* the drop ring */
 .planet-lock { display: none; }
 
-/* thin rings, on any kind of planet once it holds ten files: the back half behind, the front in
-   front. They lie round its middle, so they lean as it does (--tilt) and open as far as its lean
-   shows them (0.62 of 2.1); the painter casts their shadow on the world to the same measure. */
+/* rings, on any kind of planet once it holds ten files: the back half behind the globe, the front half
+   in front, the two halves the same so they read as one ring. They lie round its middle, so they lean as
+   it does (--tilt) and open as far as its lean shows them (0.62 of 2.1); the painter casts their shadow on
+   the world to the same measure (gap at 1.63 of the radius = 77.6% here).
+   One colour, the planet's own light colour dusted toward paper (--ring), in many fine ringlets of
+   different strength: a faint inner ring, a bright broad one, a dark gap, a middling outer ring with a
+   thin gap of its own, a faint edge. Lit from the sun's side; the globe's shadow falls across the back half. */
 .planet-ring {
+  --ring: color-mix(in oklab, var(--c-light) 72%, var(--paper));
   display: none;
   position: absolute;
   left: 50%;
@@ -2084,16 +2089,39 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   transform: rotate(var(--tilt));
   pointer-events: none;
   background: radial-gradient(closest-side,
-    transparent 64%,
-    color-mix(in srgb, var(--c-light) 50%, rgba(235, 228, 210, 0.5)) 66%,
-    rgba(235, 228, 210, 0.14) 72%,
-    color-mix(in srgb, var(--c-light) 40%, rgba(235, 228, 210, 0.4)) 77%,
-    transparent 81%,
-    rgba(235, 228, 210, 0.12) 87%,
+    transparent 61%,
+    color-mix(in oklab, var(--ring) 10%, transparent) 63%,
+    color-mix(in oklab, var(--ring) 24%, transparent) 66.5%,
+    color-mix(in oklab, var(--ring) 58%, transparent) 68%,
+    color-mix(in oklab, var(--ring) 82%, transparent) 70.5%,
+    color-mix(in oklab, var(--ring) 64%, transparent) 72%,
+    color-mix(in oklab, var(--ring) 90%, transparent) 74.5%,
+    color-mix(in oklab, var(--ring) 72%, transparent) 76.6%,
+    transparent 77.3%,
+    transparent 78.1%,
+    color-mix(in oklab, var(--ring) 52%, transparent) 79%,
+    color-mix(in oklab, var(--ring) 64%, transparent) 82%,
+    color-mix(in oklab, var(--ring) 42%, transparent) 84.4%,
+    color-mix(in oklab, var(--ring) 20%, transparent) 85.2%,
+    color-mix(in oklab, var(--ring) 40%, transparent) 86%,
+    color-mix(in oklab, var(--ring) 28%, transparent) 88.5%,
     transparent 91%);
+  /* lit from the sun's side, upper left */
+  -webkit-mask: linear-gradient(90deg, black 25%, color-mix(in srgb, black 55%, transparent) 100%);
+  mask: linear-gradient(90deg, black 25%, color-mix(in srgb, black 55%, transparent) 100%);
 }
 .planet.has-rings .planet-ring { display: block; }
-.planet-ring-back { z-index: 1; opacity: 0.75; }
+.planet-ring-back {
+  z-index: 1;
+  clip-path: inset(0 0 50% 0);
+  /* and the globe's shadow, across the back half away from the sun */
+  -webkit-mask: linear-gradient(90deg, black 25%, color-mix(in srgb, black 55%, transparent) 100%),
+    radial-gradient(ellipse 21% 62% at 66% 30%, transparent 78%, black 100%);
+  -webkit-mask-composite: source-in;
+  mask: linear-gradient(90deg, black 25%, color-mix(in srgb, black 55%, transparent) 100%),
+    radial-gradient(ellipse 21% 62% at 66% 30%, transparent 78%, black 100%);
+  mask-composite: intersect;
+}
 .planet-ring-front { z-index: 3; clip-path: inset(50% 0 0 0); }
 
 /* ------------------------------------------------------------------ moons */
@@ -2347,24 +2375,6 @@ body.is-carrying .tooltip:not(.gx-join-tip) { opacity: 0; }
   background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000));
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
 }
-
-/* Planet colour picker: each dot is the planet's own kind of world painted in that colour (planets.js `worldDot`);
-   the shaded dot beneath is what shows without the painter. */
-.swatches { display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: center; padding: var(--space-4) 0 var(--space-2); }
-.planet-swatch {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 45%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000));
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
-  transition: transform var(--dur-change) var(--ease-settle);
-}
-.planet-swatch:hover { transform: scale(1.08); }
-.planet-swatch .world-dot { display: block; width: 112%; height: 112%; margin: -6%; pointer-events: none; }
-.planet-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink); }
-.swatch-custom { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
-.swatch-custom::-webkit-color-swatch-wrapper { padding: 3px; }
-.swatch-custom::-webkit-color-swatch { border: 0; border-radius: 50%; }
 
 .look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; padding: var(--space-4) 0 var(--space-2); }
 .look-pick { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: 12px 6px 10px; border-radius: 14px; color: var(--ink); transition: background var(--dur-change); }

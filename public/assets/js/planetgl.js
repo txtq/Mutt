@@ -12,7 +12,8 @@
 // world, dust on a forgotten one), then one sun from the upper left and the
 // air round its edge. The turn is a smooth fraction, never a whole step, so
 // it glides. The kinds are looks 0 to 11 (planets.js LOOKS), the moons 12 to
-// 21; DESIGN.md "Planets" says how each is made and how to add one.
+// 21, then Stardust 22 and Twilight 23 (added after the moons, so no number
+// moved); DESIGN.md "Planets" says how each is made and how to add one.
 
 const VERT = `#version 300 es
 in vec2 aPos;
@@ -501,6 +502,46 @@ void main() {
     col = mix(col, uC2, smoothstep(0.04, 0.0, ring) * 0.35);
     atmo = 0.0;
     hard = 1.0;
+  } else if (uLook == 22) {
+    // STARDUST: no ground, only loose dust in the stippled print of the void and the wisps, drifting
+    // in slow swirls; thick in the swirls, sparse between; grains catch the sun along its edge
+    vec3 dp = rotY(n, -ang * 0.85) + uSeed;
+    vec3 w = vec3(fbm3(dp * 1.4 + vec3(0.0, 0.0, t * 0.012)), fbm3(dp * 1.4 + vec3(5.2, 1.3, -t * 0.012)), fbm3(dp * 1.4 + vec3(1.7, 9.2, t * 0.009)));
+    float dens = fbm(dp * 1.7 + w * 2.2);
+    float thick = smoothstep(0.36, 0.64, dens);
+    col = mix(uC0, uC1, 0.22 * thick);
+    // the grains keep their size on the screen, as the print's dots do: many where it is thick, few between
+    vec2 g = cells(dp * clamp(uSize / 8.0, 10.0, 36.0) + w * 1.4);
+    float r0 = 0.16 + 0.36 * thick;
+    float grain = smoothstep(r0, r0 * 0.6, g.x) * step(0.94 - 0.94 * thick, g.y);
+    col = mix(col, mix(uC1, uC2, smoothstep(0.2, 0.95, g.y)) * (0.7 + 0.4 * thick), grain);
+    float edge = pow(1.0 - v.z, 2.0) * smoothstep(-0.05, 0.35, ndl);
+    float twinkle = step(0.96, hash3(vec3(floor(g.y * 997.0), floor(t * 0.9 + g.y * 7.0), uSeed.x)));
+    glow = uC3 * grain * (edge * 0.7 + twinkle * (0.25 + 0.35 * busy));
+    nightGlow = uC2 * grain * thick * 0.08;
+    atmo = 0.8;
+    atmoC = mix(uC2, uC3, 0.4);
+  } else if (uLook == 23) {
+    // TWILIGHT: one face always to the sun, scorched and cracked; the back frozen; a green band of life
+    // round the edge between, with a ring of cloud where the warm air meets the cold
+    float h = fbm(sp * 2.0);
+    float rough = fbm3(sp * 6.0);
+    // (the zones sit toward the sun, so all three show on the face we see)
+    float sunward = ndl + (h - 0.5) * 0.24;
+    vec3 scorched = mix(uC1 * 0.8, uC1 * 1.08, smoothstep(0.3, 0.7, rough));
+    scorched = mix(scorched, uC1 * 0.55, smoothstep(0.88, 0.98, ridge(sp * 4.0 + rough)) * 0.5);
+    vec3 frost = mix(mix(uC0, uC3, 0.55), uC3, smoothstep(0.3, 0.75, h) * 0.8);
+    col = mix(frost, scorched, smoothstep(0.3, 0.6, sunward));
+    float band = exp(-pow((sunward - 0.36) / 0.09, 2.0));
+    float land = smoothstep(0.44, 0.5, h);
+    vec3 life = mix(mix(uC0, uC2, 0.45), mix(uC2 * 0.8, uC2 * 1.1, smoothstep(0.4, 0.7, fbm3(sp * 8.0))), land);
+    col = mix(col, life, smoothstep(0.25, 0.6, band));
+    spec = 0.45 * band * (1.0 - land);
+    vec3 cp = rotY(n, -ang * 1.2 - t * 0.012) + uSeed.yzx;
+    cloud = smoothstep(0.48, 0.78, fbm(cp * vec3(2.6, 4.2, 2.6))) * exp(-pow((ndl - 0.26) / 0.1, 2.0)) * 0.85;
+    nightGlow = uC3 * 0.07 * smoothstep(0.1, -0.35, sunward);
+    atmo = 0.6;
+    atmoC = mix(uC2, vec3(0.8, 0.9, 1.0), 0.5);
   }
 
   // ---- how much it is used: a busy world has weather and light, a forgotten one gathers dust.

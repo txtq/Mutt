@@ -1216,6 +1216,8 @@ html.in-app .sb { padding-left: max(16px, env(safe-area-inset-left), var(--app-l
    them and lets the app's show through from underneath, under a page change too. */
 html.app-sky, html.app-sky::view-transition { background: transparent; }
 html.app-sky .gx-field .planet-ring, html.app-sky .gx-field .planet-twin { display: none; }
+/* a launch into search (js/appvoid.js): the app's planets are on the move, so the page's names and threads for them wait out of sight */
+html.app-sky .gx.is-launching :is(.gx-field, .gx-threads, .gx-thread-notes, .gx-comets) { opacity: 0; transition: opacity var(--dur-quick) var(--ease-leave); }
 /* the app draws your void's plus, its word and the place you write (js/appvoid.js); the page keeps only what it says while listening */
 html.app-sky .void:not(.is-still):not(.is-listening) .void-mid, html.app-sky .void .vf { visibility: hidden; }
 /* The app flies the planets itself (a dive, a pull away, the pull back to the universe): the page's own layer only fades

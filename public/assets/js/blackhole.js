@@ -234,7 +234,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     // galaxy makes way as ever, and no box opens here.
     if (desk) {
       el.classList.add('is-open');
-      sound('swoop');
+      sound(how?.sound || 'swoop');
       el.closest('.gx')?.classList.add('is-adding');
       core.setAttribute('aria-expanded', 'true');
       onToggle?.(true);

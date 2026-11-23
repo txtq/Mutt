@@ -8,7 +8,7 @@
 // is true, which it never is outside the app.
 
 import { api } from './api.js';
-import { hear, tell } from './app.js';
+import { app, hear, tell } from './app.js';
 import { nav } from './nav.js';
 import { openMenu } from './ui.js';
 import { DUR, h } from './util.js';
@@ -45,6 +45,12 @@ export function appDesk(g) {
   return {
     opened(how) {
       document.addEventListener('pointerdown', outside, true);
+      // while the launch plays, the app's planets are on the move and the page's own words for them step out of the way
+      if (how.launch) {
+        const gx = g.hole.el.closest('.gx');
+        gx?.classList.add('is-launching');
+        setTimeout(() => gx?.classList.remove('is-launching'), DUR.grand);
+      }
       tell('void.open', { end: how.end || 'keep', text: how.text ?? null, launch: !!how.launch, to: toNow(g) });
     },
     closed(kept) {
@@ -80,12 +86,13 @@ export function appLaunch() {
   addEventListener('wheel', (e) => {
     const g = here;
     if (!g || !g.el?.isConnected || !g.el.contains(e.target) || g.hole.isOpen() || scrollY > 0 || g.p > 0.02 || e.ctrlKey) return;
-    if (document.querySelector('.sheet, .dialog, .pop, .room')) return;
+    if (document.querySelector('.scrim:not(.is-leaving), .pop:not(.is-leaving), .room, .sheet.is-open')) return;   // something is open over the galaxy (ui.js `topLayer`)
     const now = performance.now();
     if (now - pulledAt > 400) pulled = 0;
     pulledAt = now;
     pulled = e.deltaY < 0 ? pulled - e.deltaY : 0;
-    if (pulled > 90) { pulled = 0; g.hole.open({ end: 'find', launch: true }); }
+    // each launch has the sound of the movement it is: a sweep that settles, a dive, a pull away
+    if (pulled > 90) { pulled = 0; g.hole.open({ end: 'find', launch: true, sound: { through: 'dive', rise: 'surface' }[app.choices.launch] || 'search' }); }
   }, { passive: true });
 }
 
@@ -145,7 +152,7 @@ hear('void.field', ({ r }) => { field = r || 0; if (here?.found?.active) here.fo
 hear('void.clear', () => { asked += 1; here?.found?.clear(); });
 // The keys that jump to the void, from anywhere: to keep, or to find. From another page, home first.
 hear('void.jump', ({ end }) => {
-  if (here) { if (!here.hole.isOpen()) { if (here.p > 0.02) here.goHome?.(); here.hole.open({ end }); } return true; }
+  if (here) { if (!here.hole.isOpen()) { if (here.p > 0.02) here.goHome?.(); here.hole.open({ end, sound: end === 'find' ? 'search' : 'swoop' }); } return true; }
   wanted = end;
   nav.go('/');
   return true;

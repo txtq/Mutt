@@ -182,7 +182,8 @@ echo "no comet by itself: $(curl -s "${A[@]}" "$B/api/comets" | j "len(d['comets
 echo "made a comet: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CN/comet -d '{"tz":0}' | j "(lambda c: (c['title'], c['time'], c['said'], c['due'], (c['at'] - c['ahead']) // 60000))(d['comet'])")  could: $(curl -s "${A[@]}" "$B/api/blocks/$CN/comet?tz=0" | j "(d['comet'] is not None, d['could']['said'])")"
 LIST=$(mk '{"title":"Errands"}'); curl -s -o /dev/null "${A[@]}" "${J[@]}" -X PATCH $B/api/drawers/$LIST -d '{"modes":{"list":{"on":true}}}'
 CL=$(add "post the parcel tomorrow" $LIST)
-echo "a day alone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CL/comet -d '{"tz":60}' | j "(lambda c: (c['time'], (c['at'] - c['ahead']) // 3600000))(d['comet'])")"
+# (the same zone as the dentist's: in two zones their "tomorrow" is two different days for an hour of every day, and the order below turned over)
+echo "a day alone: $(curl -s "${A[@]}" "${J[@]}" -X POST $B/api/blocks/$CL/comet -d '{"tz":0}' | j "(lambda c: (c['time'], (c['at'] - c['ahead']) // 3600000))(d['comet'])")"
 echo "comets: $(curl -s "${A[@]}" "$B/api/comets" | j "[(c['title'], c['planet'] == '$LIST') for c in d['comets']]")"
 # a list says which of its items are comets and which name a day and could be (each item's menu offers it)
 add "milk" $LIST >/dev/null; CB=$(add "return the books Friday" $LIST)

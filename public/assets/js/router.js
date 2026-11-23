@@ -4,6 +4,7 @@
 import { session } from './api.js';
 import { nav } from './nav.js';
 import { canTransition, transition, visibleShared } from './transitions.js';
+import { appJourney, appSky, spotOf } from './appsky.js';
 import { closeAllPopovers, toast } from './ui.js';
 import { DUR, EASE_LEAVE, bus, h, reducedMotion } from './util.js';
 import { sound } from './sound.js';
@@ -184,7 +185,9 @@ export async function render({ pop = false, motion = 'page' } = {}) {
     const type = !world || onPlanet(current.path) === onPlanet(url.pathname) ? 'page' : onPlanet(url.pathname) ? 'dive' : 'rise';
     // In a dive or a pull away only the planet travels: a file also shown on the galaxy (in a comment's
     // note under the clock, say) flew on its own and showed as a pale card before the page had come.
-    const pairs = type === 'page' ? shared : [world];
+    // (inside the Mutt browser the app flies the planet itself, on its own clock: nothing is paired here)
+    const flown = appSky && type !== 'page';
+    const pairs = flown ? [] : type === 'page' ? shared : [world];
     const names = new Set(pairs.map(([, n]) => n));
     const aim = (pair) => {
       if (!pair) return;
@@ -193,16 +196,20 @@ export async function render({ pop = false, motion = 'page' } = {}) {
       document.documentElement.style.setProperty('--dive-y', `${(r.top + r.height / 2).toFixed(1)}px`);
     };
     if (type === 'dive') aim(world);
+    const flownId = flown ? world[1].replace(/^planet-/, '') : null;
+    if (flown) appJourney({ type, id: flownId, from: spotOf(world[0]) });
     await transition(swap, {
       type,
-      moving: type === 'page' ? null : () => sound(type === 'dive' ? 'dive' : 'surface'),
+      moving: type === 'page' ? null : () => { sound(type === 'dive' ? 'dive' : 'surface'); if (flown) appJourney({ go: true }); },
       before: () => pairs,
       after: () => {
         const now = visibleShared().filter(([, n]) => names.has(n));
         if (type === 'rise') aim(now.find(isWorld));
+        if (flown && type === 'dive') appJourney({ to: spotOf(document.querySelector(`[data-vt="planet-${flownId}"]`)) });
         return now;
       },
     });
+    if (flown) appJourney({ done: true });
   }
   else swap();
   inst.mounted?.({ moved });

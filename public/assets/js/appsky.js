@@ -237,6 +237,8 @@ export function appScene(g) {
     top: Math.max(bar - scrollY, bar + viewH - height),
     travel: g.travel,
     live: g.scene.classList.contains('is-live'),
+    // laid out before it is on the page (it is about to arrive by a journey): the app keeps it out of sight until then
+    waiting: !g.el.isConnected,
     void: g.void.art.appVoid?.id || null,
     planets: g.data.planets.map((p) => {
       g.planetEls.get(p.id)?.appState?.();
@@ -258,4 +260,28 @@ if (appSky) {
   };
   const start = () => new MutationObserver(look).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   if (document.body) start(); else addEventListener('DOMContentLoaded', start);
+}
+
+// The pull back to the universe (views/galaxy.js `track`): only where the page has been scrolled to is
+// said; the app runs the same spring toward it on its own clock. And the two facts the pull back turns
+// on: how small this galaxy ends up on the map, and the point everything shrinks about.
+let zoomSaid = '';
+export function appZoom(g, goal, jump) {
+  const facts = g.uv ? `${g.uv.k},${g.uv.F.x},${g.uv.F.y}` : '';
+  if (facts && facts !== g.appUv) { g.appUv = facts; tell('sky.universe', { k: g.uv.k, x: g.uv.F.x, y: g.uv.F.y }); }
+  const key = `${goal}|${g.carriedTo != null}|${jump}`;
+  if (key === zoomSaid) return;
+  zoomSaid = key;
+  tell('sky.zoom', { goal, carried: g.carriedTo != null, jump });
+}
+
+// The galaxy arriving (views/galaxy.js `entrance`), and a planet's journey to its page and back
+// (router.js): the page says when it starts and where it ends, and only fades meanwhile.
+export function appArrive() { tell('sky.arrive'); }
+export function appJourney(facts) { tell('sky.journey', facts); }
+// A thing's middle and width on the screen.
+export function spotOf(el) {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2, r.width];
 }

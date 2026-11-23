@@ -21,7 +21,7 @@ import { addFiles, withinLimit } from '../uploads.js';
 import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, covered, debounce, fmtDuration, h, isEditable, nameColor, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
-import { appScene, appSky } from '../appsky.js';
+import { appArrive, appScene, appSky, appZoom } from '../appsky.js';
 import { icon } from '../icons.js';
 import { Sky } from '../constellations.js';
 import { holdSound, sound } from '../sound.js';
@@ -3198,6 +3198,7 @@ class Galaxy {
     const dt = this.tickAt ? Math.min(64, now - this.tickAt) : 16;
     // carried: the page jumped to an end and the picture is gliding there by itself
     if (this.carriedTo != null && Math.abs(goal - this.carriedTo) > 0.02) this.carriedTo = null;
+    if (appSky) appZoom(this, goal, jump || !!this.jump || reducedMotion());   // the Mutt browser pulls its own planets back, on its own clock
     let p = goal;
     let v = 0;
     if (!jump && !this.jump && !reducedMotion()) {
@@ -3438,6 +3439,7 @@ class Galaxy {
 
   entrance() {
     if (reducedMotion()) return;
+    if (appSky) appArrive();
     this.coreEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DUR.scene, delay: DUR.move, fill: 'backwards' });
     this.void.art.animate([{ transform: 'translate(-50%, -50%) scale(0.7)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }],
       { duration: DUR.grand, easing: EASE });

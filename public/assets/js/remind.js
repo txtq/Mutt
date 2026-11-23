@@ -382,7 +382,7 @@ function cometNotes() {
           { label: 'In an hour', icon: 'history', run: () => dealWith(c, 'snooze', 'hour') },
           { label: 'Tomorrow', icon: 'date', run: () => dealWith(c, 'snooze', 'tomorrow') },
         ]),
-        onClose: () => dealWith(c, 'close'),
+        onClose: () => { if (shown.get(c.id) === el) { shown.delete(c.id); exit(el); } dealWith(c, 'close'); },
       });
       el.comet = c;
       shown.set(c.id, el);
@@ -406,7 +406,7 @@ function cometNotes() {
   async function look() {
     if (!session.user) return;
     asking ||= api.get('/api/comets').then(({ comets }) => {
-      sync(comets.filter((c) => c.due));
+      sync(comets.filter((c) => c.due && !c.closed));   // a closed note stays closed (the comet still waits in the sky)
       // look again when the next comet comes (and at least every few hours)
       const next = Math.min(...comets.filter((c) => !c.done).flatMap((c) => [c.ahead, c.at]).filter((t) => t > Date.now()), Date.now() + 6 * HOUR);
       clearTimeout(timer);

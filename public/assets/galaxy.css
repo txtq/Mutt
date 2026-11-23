@@ -1000,7 +1000,7 @@ textarea.field { height: auto; padding: var(--space-8) var(--space-12); line-hei
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  width: min(280px, calc(100vw - 2 * var(--space-16)));
+  width: min(248px, calc(100vw - 2 * var(--space-16)));
   pointer-events: none;
 }
 .cn-note {
@@ -1030,7 +1030,7 @@ body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes {
 }
 .cn-open:hover { background: var(--tint); }
 .cn-x { position: absolute; top: var(--space-4); right: var(--space-4); }
-.cn-lead { flex: none; display: grid; place-items: center; width: 28px; height: 28px; overflow: hidden; border-radius: var(--r-row); background: var(--well); border: 1px solid var(--line); color: var(--who, var(--ink-3)); }
+.cn-lead { flex: none; display: grid; place-items: center; width: 22px; height: 22px; overflow: hidden; border-radius: var(--r-row); background: var(--well); border: 1px solid var(--line); color: var(--who, var(--ink-3)); }
 .cn-lead img { width: 100%; height: 100%; object-fit: cover; }
 .cn-text { display: flex; flex-direction: column; min-width: 0; }
 .cn-line { display: flex; align-items: baseline; gap: var(--space-8); }
@@ -1039,9 +1039,9 @@ body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes {
 .cn-file { font-weight: 500; color: var(--ink); }
 .cn-when { flex: none; font: var(--type-fact); color: var(--ink-3); }
 .cn-said { font: var(--type-caption); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* On a phone: one at a time, one line across the top, a fingertip tall; the galaxy makes room under it (views/galaxy.js pads) */
+/* On a phone: one at a time, one line across the top (not the whole width), a fingertip tall; the galaxy makes room under it (views/galaxy.js pads) */
 @media (max-width: 720px) {
-  .cn-notes { left: var(--space-16); right: var(--space-16); width: auto; }
+  .cn-notes { left: 0; right: 0; margin-inline: auto; width: min(300px, calc(100vw - 2 * var(--space-16))); }
   .cn-open { min-height: var(--h-large); padding-right: var(--h-large); }
   .cn-what { -webkit-line-clamp: 1; }
   .cn-said, .cn-when, .cn-handle { display: none; }
@@ -1079,7 +1079,7 @@ body:has(> .sheet.is-open) .cn-notes, html:is(.in-room, .is-writing) .cn-notes {
 body.has-comet-note .cn-notes:not(.cm-notes) { display: none; }
 .cm-lead { color: var(--comet-ember); }
 .cm-note .cn-said { white-space: normal; }
-.cm-acts { display: flex; gap: var(--space-8); padding: 0 var(--space-8) var(--space-8) calc(6px + 28px + var(--space-8)); }
+.cm-acts { display: flex; gap: var(--space-4); padding: 0 6px 6px calc(6px + 22px + var(--space-8)); }
 @media (max-width: 720px) {
   .cm-note .cn-open { padding-right: var(--space-8); }
   .cm-note .cn-said { display: block; }

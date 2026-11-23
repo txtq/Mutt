@@ -99,16 +99,16 @@ no longer stars: []
 broken up: []
 comet days: Dentist Thursday 3pm = 2026-11-19 15:00; Rae birthday 24 Nov = 2026-11-24 yearly; flight 2 Dec 07:40 = 2026-12-02 07:40; call the vet tomorrow at 4:30pm = 2026-11-17 16:30; today 4pm haircut = 2026-11-16 16:00; Sat 10am parkrun = 2026-11-21 10:00; meeting Mon 23 Nov 9:30 = 2026-11-23 09:30; renew passport by 3/2/2027 = 2027-02-03; in 2 weeks: seedlings = 2026-11-30; Mum b-day 3 Jan = 2027-01-03 yearly; May 3 garden show = 2027-05-03; next Monday notes = 2026-11-23; next Tuesday vet 10am = 2026-11-24 10:00; next Saturday market = 2026-11-28; today I felt calm = -; Pilates every Tuesday 6pm = -; sat on the step in the sun = -; Sun cream = -; 16 Nov: ran 5k = -; 1/2 cup sugar, bake at 180 = -; the light at 6pm on the bridge = 2026-11-16 18:00; Day 1: flour = -; Monday notes from the meeting = -; it may 3 times = -; call Mum at 5 = 2026-11-16 17:00; Friday morning gym = 2026-11-20 09:00; this weekend: clean the car = 2026-11-21; rent by the 20th = 2026-11-20; invoices end of the month = 2026-11-30; in March: taxes = 2027-03-01; call back in 2 hours = 2026-11-16 12:00; pay rent today = 2026-11-16 12:00; good morning = -; gym every day at 7am = -; the 5th time I tried = -;
 no comet by itself: 0  offered: (True, '“tomorrow 3pm”: a comet can remind you')  not for a plain note: False
-made a comet: ('Dentist tomorrow 3pm, ask about the crown', '15:00', 'tomorrow 3pm', False, 60)  could: (True, 'tomorrow 3pm')
-a day alone: (None, 14)
+made a comet: ('Dentist tomorrow 3pm, ask about the crown', '15:00', 'tomorrow 3pm', False, 0)  could: (True, 'tomorrow 3pm')
+a day alone: (None, 0)
 comets: [('post the parcel tomorrow', True), ('Dentist tomorrow 3pm, ask about the crown', False)]
 a list's comets: (True, True)
 rule holds: someone saw which of another's list items are comets -> no
 done ticks it off: (True, False)  still says done: True  undone: (False, True)
-ticked off, its comet gone: ['Dentist tomorrow 3pm, ask about the crown']
+ticked off, its comet gone: [('Dentist tomorrow 3pm, ask about the crown', False, False), ('post the parcel tomorrow', True, False)]
 follows its words: ('16:00', 'in 3 days 4pm')
 snoozed: True  done: True  back: (None, '16:00')
-calendar: 1 2 True
+calendar: 1 1 True
 a day picked by hand: ('18:30', '', 'the light on the bridge')  gone already: 400  not a time: 400
 no day, no comet: 400  a made-up device: 400  a real push service: 200
 rule holds: someone else's comets were shown -> no

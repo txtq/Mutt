@@ -105,6 +105,7 @@ export async function dealWith(c, act, span) {
   try {
     ({ comet: after } = await api.post(`/api/blocks/${c.id}/comet/${act}`, span ? { for: span } : {}));
   } catch (err) { toast(err.message); return; }
+  if (act === 'done') bus.emit('comet:done', c.id);   // the sky burns it up into the void at once (comets.js)
   changed();
   if (act === 'close') return;
   const said = act === 'done' ? `${cometName(c)}: done` : `The comet will come back ${cometWhen(after).split(' · ')[0]}`;
@@ -167,7 +168,7 @@ function picks(could) {
   return out.filter((p, i) => !out.slice(0, i).some((q) => q.day === p.day && q.time === p.time));
 }
 
-// When it will remind you, in words: "Friday 20 November at 5 PM, and an hour before."
+// When it will remind you, in words: "It will remind you Friday 20 November at 5 PM." Once, with no heads-up before.
 function sayWhen(dayValue, timeValue) {
   if (!dayValue) return { gone: true, words: 'Pick a day.' };
   const [y, mo, d] = dayValue.split('-').map(Number);
@@ -176,8 +177,7 @@ function sayWhen(dayValue, timeValue) {
   if (at.getTime() <= Date.now()) return { gone: true, words: 'That time has already gone. Pick a later one.' };
   const gap = Math.round((new Date(y, mo - 1, d) - atDay(0)) / DAY);
   const day = gap === 0 ? 'today' : gap === 1 ? 'tomorrow' : at.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-  const ahead = timeValue ? 'and an hour before' : 'and the evening before at 7 PM';
-  return { gone: false, words: `It will remind you ${day} at ${hm(at)}, ${ahead}.` };
+  return { gone: false, words: `It will remind you ${day} at ${hm(at)}.` };
 }
 
 // The box that asks when (DESIGN.md "Comet: when"): quick choices (what the note says, pressed, first),
@@ -333,7 +333,7 @@ async function refresh() {
 // ------------------------------------------------------------------ the notes under the clock
 
 // A comet that has come (or is an hour off) shows as a note under the clock on any page, over the
-// comment notes, until it's dealt with: Done, or Later (in an hour, tomorrow). A heads-up can be closed.
+// comment notes, until it's dealt with: Done, or Later (in an hour, tomorrow). It can be closed.
 let notes = null;
 
 function cometNote(c, { onDone, onLater, onClose, onOpen }) {
@@ -344,7 +344,7 @@ function cometNote(c, { onDone, onLater, onClose, onOpen }) {
       h('span', { class: 'cn-line' },
         h('span', { class: 'cn-what' }, h('span', { class: 'cn-file' }, cometName(c))),
         h('span', { class: 'cn-when' }, c.due ? fromNow(c.at, now) : fromNow(c.at, now))),
-      h('span', { class: 'cn-said' }, `${c.due ? 'A comet reminding you' : 'A comet’s heads-up'}: ${cometWhen(c).split(' · ')[0]}${c.kind === 'item' && c.list ? `, on ${c.list.title}` : ''}`)));
+      h('span', { class: 'cn-said' }, `A comet reminding you: ${cometWhen(c).split(' · ')[0]}${c.kind === 'item' && c.list ? `, on ${c.list.title}` : ''}`)));
   const acts = h('div', { class: 'cm-acts' },
     c.kind === 'item'
       ? h('button', { type: 'button', class: 'btn btn-small', onclick: onDone }, icon('tick', 12), 'Tick off')
@@ -389,7 +389,7 @@ function cometNotes() {
       host.append(el);
       // told while the page is open but hidden, on a device not subscribed to pushes
       if (c.due && document.hidden && 'Notification' in window && Notification.permission === 'granted' && !navigator.serviceWorker?.controller) {
-        try { new Notification(`Comet: ${cometName(c)}`, { body: `Reminding you: ${cometWhen(c).split(' · ')[0]}`, tag: `comet-${c.id}` }); } catch { /* the note shows */ }
+        try { new Notification('Mutt', { body: `${cometName(c)}\nComet · ${cometWhen(c).split(' · ')[0]}`, icon: '/assets/icon-180.png', tag: `comet-${c.id}` }); } catch { /* the note shows */ }
       }
     }
     if (shown.size && !host.isConnected) document.body.append(host);
@@ -406,8 +406,8 @@ function cometNotes() {
   async function look() {
     if (!session.user) return;
     asking ||= api.get('/api/comets').then(({ comets }) => {
-      sync(comets.filter((c) => c.due || c.soon));
-      // look again when the next heads-up or comet comes (and at least every few hours)
+      sync(comets.filter((c) => c.due));
+      // look again when the next comet comes (and at least every few hours)
       const next = Math.min(...comets.filter((c) => !c.done).flatMap((c) => [c.ahead, c.at]).filter((t) => t > Date.now()), Date.now() + 6 * HOUR);
       clearTimeout(timer);
       timer = setTimeout(look, Math.max(DUR.scene, next - Date.now() + DUR.scene));

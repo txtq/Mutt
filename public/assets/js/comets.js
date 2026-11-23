@@ -1,9 +1,10 @@
 // Comets (DESIGN.md "Comets"): a note of yours with a day still ahead in it
 // crosses your own sky. Its journey runs from the day the note was added to its
 // day: it falls in from the edge of the galaxy toward the void along a comet's
-// own path (a parabola with the void at its focus), swings round the void on
-// the day (closest at the note's time), and leaves on the far side over two
-// days. As the day nears it grows and heats up: cool pale dust, then amber,
+// own path (a parabola with the void at its focus), closest to the void on
+// the day (at the note's time), and waits there, burning, until it is dealt
+// with. Ticked off or done, it catches fire, falls into the void and is gone
+// (burn). As the day nears it grows and heats up: cool pale dust, then amber,
 // then ember red. Its tails always point away from the void.
 //
 // It is print, like the void: every part of it is a soft shape punched through
@@ -16,19 +17,20 @@ import { api } from './api.js';
 import { openContextMenu } from './ui.js';
 import { cometName, cometRows, cometWhen, openComet } from './remind.js';
 import { icon } from './icons.js';
-import { DUR, bus, debounce, h, seeded, sharpness, touchScreen } from './util.js';
+import { DUR, EASE_LEAVE, bus, covered, debounce, h, reducedMotion, seeded, sharpness, touchScreen } from './util.js';
+import { burst } from './fx.js';
 import { evenPoints, DOT } from './voidmake.js';
 import { planetTone } from './planets.js';
 
 const TAU = Math.PI * 2;
 const DAY = 86400000;
 const TAGS = 5;          // tags shown by themselves at once on a computer (every comet is drawn; the user: "all comets should show up")
-const AFTER = 2;         // days it takes to leave after its day
 const PATH = 21;         // how far out along its parabola a journey starts (the path's shape, not days)
 const URGENT = 72;       // hours: within these it heats up however long its journey
 const SOON = 7;          // days: from this close it grows toward its full size, however new
 const NAMED = 3;         // days: this close, its tag shows beside it without pointing at it
 const LEAST = 0.3;       // however far off its day, it is never smaller than this (0 to 1): a comet a week or more away still shows as a shooting star, not a speck
+const burnt = new Set();   // comets already burnt up into the void on this visit, so each burns once
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 // a colour from one of the inks below (never typed by hand), at an opacity
@@ -70,25 +72,18 @@ function orbit(t, { q, edge, phi, aspect, turn }) {
   return { x, y, mx: nx - x, my: ny - y };
 }
 
-// How far along its journey it is now, and how hot.
+// How far along its journey it is now, and how hot (one dealt with is not on a journey: it burns up).
 function journey(c, now) {
   const due = c.at;
-  // dealt with: it swings round the void and leaves on the far side
-  if (c.done) {
-    const after = (now - c.done) / DAY;
-    if (after > AFTER) return null;
-    const k = clamp(after / AFTER);
-    return { due, t: k * PATH * 0.35, p: 1, heat: 1 - k * 0.6, fade: 1 - k * k, after, waiting: false };
-  }
   // its time has come and it hasn't been dealt with: it waits at its closest, burning
-  if (now >= due) return { due, t: 0, p: 1, heat: 1, fade: 1, after: 0, waiting: true };
+  if (now >= due) return { due, t: 0, p: 1, heat: 1, after: 0, waiting: true };
   const from = Math.min(c.from || due - DAY, due - 60000);
   const p = clamp((now - from) / (due - from));
   const urgent = clamp(1 - (due - now) / (URGENT * 3600000));
   // how big it shows: how far along its journey, or how soon its day is, whichever is more
   // (a comet made today for tomorrow is close already, not a speck far out)
   const soon = clamp(1 - (due - now) / (SOON * DAY));
-  return { due, t: -PATH * (1 - p), p, soon, heat: clamp(Math.max(p ** 2, urgent)), fade: 1, after: -1, waiting: false };
+  return { due, t: -PATH * (1 - p), p, soon, heat: clamp(Math.max(p ** 2, urgent)), after: -1, waiting: false };
 }
 
 // ------------------------------------------------------------------ the print
@@ -336,6 +331,11 @@ export class Comets {
     const changed = () => this.refresh();
     this.off = ['block:changed', 'block:deleted', 'block:connected', 'block:disconnected', 'upload:done', 'comet:changed']
       .map((name) => bus.on(name, changed));
+    // Done here (its card's tick box, its menu, its note): it burns up now, not after the next look
+    this.off.push(bus.on('comet:done', (id) => {
+      const c = this.list.find((x) => x.id === id);
+      if (c && !c.done) { c.done = Date.now(); this.place(); }
+    }));
     // Days pass while a page stays open: look again now and then (nothing runs between).
     this.clock = setInterval(() => this.place(), 30 * 60000);
   }
@@ -358,10 +358,15 @@ export class Comets {
     const { cx, cy, width, height, viewH } = page.size;
     const narrow = !!page.m?.narrow;
     const top = height - viewH;
+    // one ticked off or done is drawn once more, where it was, to burn up into the void
+    const had = new Set(this.els.keys());
     const live = this.list
-      .map((c) => ({ c, j: journey(c, now) }))
+      .map((c) => {
+        if (!c.done) { burnt.delete(c.id); return { c, j: journey(c, now) }; }   // back again (Undo): it may burn again
+        return { c, j: burnt.has(c.id) ? null : journey({ ...c, done: null }, now), burn: true };
+      })
       .filter(({ j }) => j)
-      .sort((a, b) => (b.j.waiting - a.j.waiting) || (a.j.after > 0) - (b.j.after > 0) || a.j.due - b.j.due);
+      .sort((a, b) => (b.j.waiting - a.j.waiting) || a.j.due - b.j.due);
     const aspect = clamp(page.inner.rx / Math.max(1, page.inner.ry), 0.8, 2.2);
     const q = Math.min(page.inner.ry * (narrow ? 1.0 : 1.04), (width / 2 - 28) / aspect, viewH / 2 - 28);
     const edge = Math.max(q * 1.8, Math.min(viewH / 2 - 16, (width / 2 - 16) / aspect));
@@ -396,12 +401,13 @@ export class Comets {
       for (const p of heads) d = Math.min(d, Math.hypot(p.x - x, p.y - y) - p.r);
       return Math.min(d, x - 16, width - 16 - x, y - (top + 24), height - 40 - y);
     };
-    for (const { c, j } of live) {
+    const burning = [];
+    for (const { c, j, burn } of live) {
       keep.add(c.id);
       const R = seeded(`comet:${c.id}`);
       const turn = R() < 0.5 ? -1 : 1;
       const base = R() * TAU;
-      const near = j.after >= 0 ? 1 - j.after / AFTER * 0.5 : Math.max(j.p, j.soon, LEAST);
+      const near = j.waiting ? 1 : Math.max(j.p, j.soon, LEAST);
       const len = 5 + (maxLen - 5) * near ** 1.5;
       // the way in that puts it, head and tail, in the most open sky (the user: "use blank space to
       // place comets instead of putting them in crowded areas"); its own seed only breaks a tie
@@ -433,7 +439,9 @@ export class Comets {
         len, coma: 2 + (maxComa - 2) * near,
         col: planet ? hexRgb(planetTone(planet).tone) : inks().dust,
       };
-      tagged.push(this.show(c, cm, j, now));
+      const shown = this.show(c, cm, j, now);
+      if (burn) burning.push(c.id);
+      else tagged.push(shown);
     }
     // tags: the ones always shown first, nearest day first, then those shown only when pointed at;
     // each keeps a little way off planets, names, stars and every comet (heads and tails)
@@ -458,6 +466,54 @@ export class Comets {
       el.paint.remove(); el.hit.remove(); el.tag?.remove();
       this.els.delete(id);
     }
+    // one that wasn't in the sky yet (ticked off on its list a moment ago) shows first, then burns
+    for (const id of burning) this.burn(id, !had.has(id));
+  }
+
+  // Done or ticked off: it catches fire, falls into the void, and the void gulps it (DESIGN.md "Comets").
+  // Behind a room (its note opened over the sky) it waits until the sky can be seen again.
+  async burn(id, fresh) {
+    const el = this.els.get(id);
+    if (!el) return;
+    burnt.add(id);
+    this.els.delete(id);
+    el.hit.remove();
+    el.tag?.classList.remove('is-shown', 'is-lit');
+    setTimeout(() => el.tag?.remove(), DUR.change);
+    let wait = fresh;
+    if (covered()) {
+      wait = true;
+      await new Promise((done) => {
+        const mo = new MutationObserver(() => { if (!covered()) { mo.disconnect(); done(); } });
+        mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+      });
+    }
+    if (wait) await new Promise((done) => setTimeout(done, DUR.scene));
+    if (!this.paintEl.isConnected || reducedMotion() || !this.page.size) { el.paint.remove(); return; }
+    // catching fire: painted again at its full heat, sparks thrown off its head
+    const cm = { ...el.cm, heat: 1 };
+    this.fit(el, paintComet(el.paint, cm));
+    const { x0, y0 } = el.box;
+    const { cx, cy } = this.page.size;
+    const at = this.paintEl.getBoundingClientRect();
+    burst({ x: at.left + cm.x, y: at.top + cm.y }, { color: inked(inks().hot), count: 12, reach: 28 });
+    // then down into the void, quickening and shrinking, brightest as it goes in; its tails still point away
+    const step = (k, opacity, glow) => ({
+      offset: k, opacity, filter: `brightness(${glow})`,
+      transform: `translate(${x0 + (cx - cm.x) * k}px, ${y0 + (cy - cm.y) * k}px) scale(${1 - 0.9 * k})`,
+    });
+    Object.assign(el.paint.style, { transformOrigin: `${cm.x - x0}px ${cm.y - y0}px`, opacity: '' });
+    await el.paint.animate([step(0, 1, 1), step(0.7, 1, 1.5), step(1, 0, 1.8)], { duration: DUR.scene, easing: EASE_LEAVE, fill: 'forwards' })
+      .finished.catch(() => {});
+    el.paint.remove();
+    if (this.paintEl.isConnected) this.page.hole?.gulp?.();
+  }
+
+  // The canvas set where its picture says.
+  fit(el, box) {
+    el.box = box;
+    const { x0, y0, x1, y1 } = box;
+    Object.assign(el.paint.style, { width: `${x1 - x0}px`, height: `${y1 - y0}px`, transform: `translate(${x0}px, ${y0}px)` });
   }
 
   show(c, cm, j, now) {
@@ -493,11 +549,9 @@ export class Comets {
     const key = [cm.x, cm.y, cm.len, cm.coma, cm.heat * 20, cm.ux * 50, cm.uy * 50].map((v) => Math.round(v)).join(',') + sharpness();
     if (key !== el.key) {
       el.key = key;
-      el.box = paintComet(el.paint, cm);
-      const { x0, y0, x1, y1 } = el.box;
-      Object.assign(el.paint.style, { width: `${x1 - x0}px`, height: `${y1 - y0}px`, transform: `translate(${x0}px, ${y0}px)` });
+      this.fit(el, paintComet(el.paint, cm));
     }
-    el.paint.style.opacity = j.fade < 1 ? j.fade.toFixed(2) : '';
+    el.cm = cm;
     // what you point at or tap: the head and the first part of its tail
     const fat = touchScreen() ? 40 : 30;
     const long = Math.max(fat, cm.coma * 2 + cm.len * 0.5);

@@ -3,6 +3,9 @@
 // device's pushes away if one ever comes without a notification, so there is always one.
 // It caches nothing and handles no page requests.
 
+const ICON = '/assets/icon-180.png';   // Mutt's icon, the void (also the Home Screen's)
+const BADGE = '/assets/icon-32.png';
+
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
@@ -28,15 +31,18 @@ self.addEventListener('push', (e) => {
       if (res.ok) list = (await res.json()).comets || [];
     } catch { /* shown plainly below */ }
     if (!list.length) {
-      await self.registration.showNotification('A comet in Mutt', { body: 'Something you asked to be reminded of.', tag: 'comet', data: { url: '/' } });
+      await self.registration.showNotification('Mutt', { body: 'A comet is reminding you of something.', icon: ICON, badge: BADGE, tag: 'comet', data: { url: '/' } });
       return;
     }
     for (const c of list.slice(0, 3)) {
       const url = c.planet ? `/p/${c.planet}?b=${c.id}` : `/?b=${c.id}`;
-      await self.registration.showNotification(`Comet: ${nameOf(c)}`, {
-        body: c.due ? `Reminding you: ${words(c)}` : `Coming up: ${words(c)}`,
-        tag: `comet-${c.id}-${c.due ? 'due' : 'soon'}`,
-        icon: '/assets/icon-180.png',
+      // looks like Mutt's own (the user: "should look professional with the logo and name"): Mutt's
+      // name as the title, then what it is for and when; the void as its picture. One per comet (no heads-up).
+      await self.registration.showNotification('Mutt', {
+        body: `${nameOf(c)}\nComet · ${words(c)}`,
+        tag: `comet-${c.id}`,
+        icon: ICON,
+        badge: BADGE,
         data: { url },
       });
     }

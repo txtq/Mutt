@@ -2585,13 +2585,13 @@ def moment_signs(req):
 # A note of yours with a day or time in it can be made a comet: a reminder that
 # crosses your own sky from the moment you made it to its time, and tells you
 # when it comes (DESIGN.md "Comets"; the days are read by mutt/when.py). Only the
-# owner ever sees one. It goes off at its time (9 am for a day alone) with a
-# heads-up first (an hour before a time, 7 pm the evening before a day), on the
+# owner ever sees one. It reminds you once, at its time (9 am for a day alone; no
+# heads-up before it: the user, 2026-11-23, "less reminders for comets"), on the
 # devices that asked (mutt/webpush.py), under the clock in Mutt, and in the
 # owner's calendar if they added it there. A list item's comet ends when it's ticked.
 COMET_MORNING = '09:00'   # a day with no time goes off then
-COMET_EVENING = '19:00'   # and its heads-up the evening before
-COMET_LEAVING = 2         # days a comet dealt with takes to leave the sky
+COMET_LEAVING = 2         # days after a birthday's comet is dealt with before it comes round for next year
+COMET_BURN = 600          # seconds a comet ticked off or done is still listed, so the galaxy burns it up into the void once
 COMET_PUSH_EVERY = 30     # seconds between looks for comets coming due
 
 
@@ -2612,15 +2612,11 @@ def _utc(local, tz):
 
 
 def comet_times(day, clock, tz):
-    """(at, ahead): when a comet on `day` (at `clock`, or none) goes off, and its heads-up."""
+    """(at, ahead): when a comet on `day` (at `clock`, or none) goes off. There is no heads-up any more,
+    so `ahead` is the same moment (kept so older rows and the page read alike)."""
     h, m = map(int, (clock or COMET_MORNING).split(':'))
-    local = datetime(day.year, day.month, day.day, h, m)
-    if clock:
-        before = local - timedelta(hours=1)
-    else:
-        eh, em = map(int, COMET_EVENING.split(':'))
-        before = datetime(day.year, day.month, day.day, eh, em) - timedelta(days=1)
-    return _utc(local, tz), _utc(before, tz)
+    at = _utc(datetime(day.year, day.month, day.day, h, m), tz)
+    return at, at
 
 
 def first_day(text, tz):
@@ -2677,7 +2673,7 @@ def comet_json(r, planet=None, lst=None, db_=None):
             'planet': planet, 'day': r['day'], 'time': r['time'],
             'said': r['said'] or '', 'yearly': bool(r['yearly']), 'at': ms(r['at']), 'ahead': ms(r['ahead']),
             'from': ms(r['made_at']), 'done': ms(r['done_at']) if r['done_at'] else None,
-            'due': r['at'] <= now() and not r['done_at'], 'soon': r['ahead'] <= now() < r['at'] and r['closed'] != r['at'],
+            'due': r['at'] <= now() and not r['done_at'], 'soon': False,   # no heads-up any more (comet_times)
             'closed': r['closed'] == r['at']}
 
 
@@ -2695,17 +2691,24 @@ def roll_yearly(db_, user_id=None):
 
 
 def live_comets(db_, user_id):
-    """Your comets still in the sky, nearest first, with the planet each is on."""
+    """Your comets still in the sky, nearest first, with the planet each is on. One ticked off or done
+    is gone; for a few minutes it is still listed with `done`, so the galaxy burns it up into the void."""
     roll_yearly(db_, user_id)
+    burning = now() - COMET_BURN
     rows = db_.execute('SELECT r.*, b.content, b.kind, b.title, b.file_name, b.thumb_key FROM reminders r JOIN blocks b ON b.id = r.block_id '
                        'WHERE r.user_id = ? AND b.deleted_at IS NULL AND (r.done_at IS NULL OR r.done_at > ?) '
-                       'ORDER BY r.at', (user_id, now() - COMET_LEAVING * 86400)).fetchall()
+                       'ORDER BY r.at', (user_id, burning)).fetchall()
     out = []
     for r in rows:
         on, planet, lst = comet_on(db_, r['block_id'])
-        if on and all(c['checked'] for c in on) and not r['done_at']:
-            continue  # ticked off on its list: done with
-        out.append(comet_json(r, planet, lst))
+        c = comet_json(r, planet, lst)
+        if on and all(x['checked'] for x in on) and not r['done_at']:
+            # ticked off on its list: done with, burning up if that was just now
+            ticked = max(x['checked'] for x in on)
+            if ticked <= burning:
+                continue
+            c.update(done=ms(ticked), due=False, soon=False)
+        out.append(c)
     return out
 
 
@@ -2736,8 +2739,8 @@ def planet_comets(req, drawer_id):
 
 @route('GET', r'/api/comets/due')
 def comets_due(req):
-    """What to tell you now: comets whose time has come and not been dealt with (`due`), and heads-ups
-    (`soon`), unless their note was closed. Asked by the page and by the device's service worker when a push wakes it.
+    """What to tell you now: comets whose time has come and not been dealt with (`due`), unless their
+    note was closed. Asked by the page and by the device's service worker when a push wakes it.
     A closed note's comet still waits in the sky until it is done."""
     out = [c for c in live_comets(req.db, req.user['id']) if (c['due'] or c['soon']) and not c['closed']]
     return json_response({'comets': out})
@@ -2872,17 +2875,17 @@ def _ics_text(text):
 
 @route('GET', r'/api/blocks/(?P<block_id>[\w-]+)/comet\.ics')
 def comet_calendar(req, block_id):
-    """The comet as a calendar entry with its two alarms, so a phone's own Calendar can remind you too."""
+    """The comet as a calendar entry with its one alarm, so a phone's own Calendar can remind you too."""
     r = _own_comet(req, block_id)
     first = comet_title(r)[:120]
     stamp = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     day = date.fromisoformat(r['day'])
     if r['time']:
         when_lines = [f'DTSTART:{stamp(r["at"])}', f'DTEND:{stamp(r["at"] + 1800)}']
-        alarms = ['-PT1H', 'PT0M']
+        alarms = ['PT0M']
     else:
         when_lines = [f'DTSTART;VALUE=DATE:{day:%Y%m%d}', f'DTEND;VALUE=DATE:{day + timedelta(days=1):%Y%m%d}']
-        alarms = ['-PT5H', 'PT9H']   # 7 pm the evening before, 9 am on the day
+        alarms = ['PT9H']   # 9 am on the day
     lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mutt//Comets//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
              f'UID:comet-{block_id}@mutt', f'DTSTAMP:{stamp(now())}', *when_lines, f'SUMMARY:{_ics_text(first)}',
              f'DESCRIPTION:{_ics_text("A comet in Mutt: " + (r["content"] or "")[:1000])}']
@@ -2923,15 +2926,15 @@ def push_unsubscribe(req):
 
 
 def push_due(conn):
-    """Send what has come due: heads-ups, then comets whose time has come, to every device each owner asked on."""
+    """Send what has come due, once each (no heads-up first), to every device each owner asked on."""
     t = now()
     roll_yearly(conn)
     rows = conn.execute('SELECT r.block_id, r.user_id, r.at, r.ahead, r.sent_ahead, r.sent_at FROM reminders r '
                         'JOIN blocks b ON b.id = r.block_id WHERE r.done_at IS NULL AND b.deleted_at IS NULL '
-                        'AND ((r.sent_ahead = 0 AND r.ahead <= ?) OR (r.sent_at = 0 AND r.at <= ?))', (t, t)).fetchall()
+                        'AND r.sent_at = 0 AND r.at <= ?', (t,)).fetchall()
     wake = set()
     for r in rows:
-        conn.execute('UPDATE reminders SET sent_ahead = 1, sent_at = ? WHERE block_id = ?', (int(r['at'] <= t), r['block_id']))
+        conn.execute('UPDATE reminders SET sent_ahead = 1, sent_at = 1 WHERE block_id = ?', (r['block_id'],))
         if not ticked(conn, r['block_id']):
             wake.add(r['user_id'])
     for uid in wake:

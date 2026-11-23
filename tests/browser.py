@@ -1146,6 +1146,9 @@ def comet(s, seeded):
     s.named('.vw-comet-label', 'Done', 'Done did not say it was done', 6)
     s.shot('comet-done')
     s.press('Escape')
+    # done, it burns up into the void once the sky can be seen again, and is gone (the user: "delete a comet by checking it off")
+    s.wait('return !document.querySelector(`.gx-comet-hit[aria-label^="Dentist"]`) && !document.querySelector(".gx-comet") && 1',
+           'a comet that was done did not burn up and leave the sky', 8)
     made = s.fetch('/api/comets')['comets'][0]['id']
     s.js('return fetch(`/api/blocks/${arguments[0]}`, { method: "DELETE", headers: { "X-Mutt": "1" } }).then((r) => r.ok)', made)
     # every comet shows, however many and however far off: seven, one made today for a week from now

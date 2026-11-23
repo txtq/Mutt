@@ -21,6 +21,7 @@ import { addFiles, withinLimit } from '../uploads.js';
 import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, covered, debounce, fmtDuration, h, isEditable, nameColor, personLabel, plural, reducedMotion, seeded, sharpness, touchScreen, wait } from '../util.js';
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
+import { appScene, appSky } from '../appsky.js';
 import { icon } from '../icons.js';
 import { Sky } from '../constellations.js';
 import { holdSound, sound } from '../sound.js';
@@ -1746,6 +1747,7 @@ class Galaxy {
     this.uvStage.style.height = `${viewH}px`;
     this.placeUniverse(width, viewH, m, home);
     this.track(true);
+    if (appSky) appScene(this);   // the Mutt browser draws the planets and the void itself: where they rest
     // Threads follow the planets as they glide to their new places.
     this.followThreads(this.scene.classList.contains('is-live') ? DUR.scene + DUR.quick : 0);
     // Only glide between spots once the first arrangement has landed.
@@ -3547,6 +3549,7 @@ class Galaxy {
       destroy: () => {
         removeEventListener('resize', this.relayout);
         removeEventListener('scroll', this.onScroll);
+        if (appSky) appScene(null);
         // A glide still under way would carry on after the page has gone,
         // waking its void and dimming the sky over the next page.
         cancelAnimationFrame(this.scrollFrame);

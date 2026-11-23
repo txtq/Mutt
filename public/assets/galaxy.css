@@ -1212,10 +1212,10 @@ body.no-chrome .sb { display: none; }
 /* Inside the Mutt browser (a Mac app; js/app.js) the window has no title bar and its three buttons
    sit in the top left corner of the sky: the bar's own things start clear of them. */
 html.in-app .sb { padding-left: max(16px, env(safe-area-inset-left), var(--app-lead, 0px)); }
-/* A proof from the app's first build chat (js/appsky.js): the app draws the sky, a stand-in void and
-   one stand-in planet under the page, so the page stops painting its own and lets them show through.
-   The mark is the check's: it rides on the planet so a film of the window can find it. */
+/* When the app draws the sky, the void and the planets itself (js/appsky.js), the page paints none of
+   them and lets the app's show through from underneath, under a page change too. */
 html.app-sky, html.app-sky::view-transition { background: transparent; }
+html.app-sky .gx-field .planet-ring, html.app-sky .gx-field .planet-twin { display: none; }
 .sb-left { display: flex; align-items: center; min-width: 0; }
 .sb .logo { font-size: 18px; color: var(--ink); }
 .sb .sb-who { gap: 6px; padding: 0 10px 0 12px; color: var(--ink); }

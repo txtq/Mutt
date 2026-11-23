@@ -12,6 +12,7 @@
 
 import { DUR, covered, h, reducedMotion, seeded, sharpness } from './util.js';
 import { TEX, drawStipple, shellPixels, tileSize } from './voidmake.js';
+import { appSky, remoteVoid } from './appsky.js';
 
 // The print's dots, in points: how far apart they sit, and their smallest and largest radius.
 const TAU = Math.PI * 2;
@@ -161,6 +162,8 @@ for (const ring of RINGS) {
 // open light, and haloReach keeps the light's stippled glow inside the cage
 // (0 lets it spread, as in a galaxy).
 export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) {
+  // Inside the Mutt browser, when the app draws the void itself, nothing is painted here.
+  if (appSky) return remoteVoid({ openMin, openCage, haloReach });
   // The void is a stack of canvases, one on top of the other inside `el`, and the browser lays
   // them over each other itself. Each layer of light is drawn on its own canvas and stippled
   // there; NOTHING IS EVER COPIED FROM ONE CANVAS ONTO ANOTHER. It used to be: six copies a

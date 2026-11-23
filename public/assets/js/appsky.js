@@ -13,6 +13,7 @@ import { h, onMotionChange } from './util.js';
 export { appSky };
 
 const root = document.documentElement;
+if (appSky) tell('sky.fresh');
 
 // A colour as the browser reports it (a hex, rgb() or color()), as [r, g, b] from 0 to 1.
 function channels(text) {
@@ -62,4 +63,199 @@ export function remoteSky() {
     setNight(v) { if (Math.abs(v - night) < 0.002 && v !== 0 && v !== 1) return; night = v; tell('sky.night', { v }); },
     pull(x, y, { strength = 1, radius = 360, duration = 1300 } = {}) { tell('sky.pull', { x, y, strength, radius, duration }); },
   };
+}
+
+// ---------------------------------------------------------------- the void
+
+// Stands in for voidart.js's void: the same doors, each one passed on to the app, which draws it.
+// What the page itself needs to know (how wide the light is, for laying things round it) is still
+// worked out here, with voidart.js's own sums.
+let voids = 0;
+export function remoteVoid({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) {
+  const id = `v${++voids}`;
+  const el = h('div', { class: 'void-art is-in', 'aria-hidden': 'true' });
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeOut = (t) => 1 - (1 - t) ** 3;
+  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+  let R = 80;
+  let wanted = false;
+  const wide = { from: 0, to: 0, start: 0 };
+  const open = { o: 0, from: 0, to: 0, start: -1e9, dur: 900 };
+  const running = () => wanted && !document.hidden && root.dataset.motion !== 'off';
+  const openR = (now) => lerp(wide.from, wide.to, easeOut(clamp((now - wide.start) / 450)));
+  const openness = (now) => {
+    const t = clamp((now - open.start) / open.dur);
+    open.o = lerp(open.from, open.to, open.to > open.from ? easeOut(t) : easeInOut(t));
+  };
+  const say = (op, more = {}) => tell('sky.void', { id, op, ...more });
+  // Where it is on the screen, at rest (never while the galaxy is zooming or a page is changing).
+  // On a galaxy the galaxy's own layout says where it is (`appScene`, below); anywhere else it is measured.
+  let byScene = false;
+  let placed = '';
+  const place = () => {
+    if (byScene || !el.isConnected || root.dataset.vt || document.querySelector('.world.is-zooming')) return;
+    const r = el.getBoundingClientRect();
+    const at = `${r.x + r.width / 2},${r.y + r.height / 2}`;
+    if (at === placed) return;
+    placed = at;
+    say('at', { x: r.x + r.width / 2, y: r.y + r.height / 2 });
+  };
+  const soon = () => { if (!byScene) requestAnimationFrame(place); };
+  addEventListener('scroll', soon, { passive: true });
+  el.appVoid = { id, byScene() { byScene = true; } };
+  return {
+    el,
+    place,
+    copyTo() {},
+    resize(r, w, hgt) {
+      R = r;
+      el.style.width = `${Math.round(w)}px`;
+      el.style.height = `${Math.round(hgt)}px`;
+      say('size', { r, w: Math.round(w), h: Math.round(hgt), openMin, openCage, haloReach });
+      soon();
+    },
+    setOpen(to, r) {
+      const now = performance.now();
+      if (r != null && r !== wide.to) {
+        wide.from = open.o > 0.01 ? openR(now) : r;
+        wide.to = r;
+        wide.start = running() ? now : -1e9;
+      }
+      openness(now);
+      say('open', { to, r: r ?? null });
+      if (to === open.to && open.o === to) return;
+      open.from = open.o;
+      open.to = to;
+      open.start = running() ? now : -1e9;
+      open.dur = Math.max(1, to ? 800 : 500);
+    },
+    ready: () => true,
+    radius() {
+      const now = performance.now();
+      openness(now);
+      return lerp(R * 0.9, Math.max(openR(now), R * openMin), open.o);
+    },
+    hungry(on) { say('hungry', { on }); },
+    gulp() { say('gulp'); },
+    listen(on) { say('listen', { on }); },
+    loudness(x) { say('loud', { x }); },
+    play() { wanted = true; say('play', { on: true }); soon(); },
+    pause() { wanted = false; say('play', { on: false }); },
+    destroy() { wanted = false; removeEventListener('scroll', soon); say('gone'); },
+  };
+}
+
+// ---------------------------------------------------------------- the planets
+
+// A colour the stylesheet understands, as [r, g, b] from 0 to 1.
+let probe = null;
+function colourOf(text) {
+  if (!text) return null;
+  if (text[0] === '#') return channels(text);
+  probe ||= document.body.appendChild(h('i', { style: { display: 'none' } }));
+  probe.style.color = text;
+  return channels(getComputedStyle(probe).color);
+}
+
+// Stands in for a planet's or a moon's painter (planets.js `makeGlobe`): the same doors, and nothing
+// painted here. It draws the same numbers from the planet's id as makeGlobe does, in the same order,
+// so the app shows the face, the turn and the weather the website would.
+export function remoteGlobe(canvas, rand, rate, id) {
+  const period = (40 + rand() * 35) * 1000;
+  const offset = rand() * period;
+  const seed = [rand() * 97, rand() * 97, rand() * 97];
+  const say = (op, more = {}) => tell('sky.world', { id, op, ...more });
+  say('made', { period, offset, seed, rate, origin: performance.timeOrigin });
+  let css = 0;
+  let tex = null;
+  let texVersion = -1;
+  let use = 0.5;
+  let liftEnds = 0;
+  let dressed = '';
+  let stated = '';
+  const globe = {
+    canvas,
+    remote: true,
+    born: performance.now(),
+    setSize(next) { if (next !== css) { css = next; say('size', { s: next }); } },
+    setWorld(next) { if (next.use != null) use = next.use; say('world', next); },
+    setTexture(next) {
+      if (next === tex && next.version === texVersion) return;
+      tex = next;
+      texVersion = next.version;
+      // a map with nothing on it (a moon, an empty planet before its files come) needs no picture sent
+      say('files', { url: next.canvas && next.canvas.width > 8 ? next.canvas.toDataURL('image/png') : null });
+    },
+    // its rings' colour and, for a shared planet, the colour of the one it is shared with
+    dress(light, twin) {
+      const key = `${light}|${twin}`;
+      if (key === dressed) return;
+      dressed = key;
+      say('dress', { light: colourOf(light), twin: colourOf(twin) });
+    },
+    draw() {},
+    setVisible() {},
+    nudge() { say('nudge'); },
+    point(on) { say('point', { on }); },
+    state(flags) { const key = JSON.stringify(flags); if (key !== stated) { stated = key; say('state', flags); } },
+    flare() { say('flare'); },
+    wakeUp(to = 1) {
+      if (liftEnds > performance.now() || use >= to) return;
+      liftEnds = performance.now() + (use < 0.385 ? 2500 : 1500);
+      use = to;
+      say('wake', { to });
+    },
+    lifting: () => liftEnds > performance.now(),
+    // the app follows the hand itself once it is told the globe has been taken hold of
+    grab() { say('grab'); },
+    drag() {},
+    release(t, cancelled = false) { say('release', { cancelled }); },
+    step: () => false,
+    // a moon's way round its planet (planets.js `makeOrbit`), and now and then where the page has it
+    orbit(o, host) { say('orbit', { host, slot: o.slot, radius: o.radius, tilt: o.tilt, speed: o.speed, phase: o.phase, rate: o.rate, t: performance.now() }); },
+    phase(o) { say('phase', { phase: o.phase, rate: o.rate, t: performance.now() }); },
+  };
+  canvas.globe = globe;
+  return globe;
+}
+
+// Where everything on a galaxy rests, said once each time the galaxy lays itself out (views/galaxy.js
+// `layout`). Places are the galaxy's own: points from its top left corner; `top` is where that corner
+// is on the screen.
+export function appScene(g) {
+  if (!g) { tell('sky.scene', { gone: true }); return; }
+  const { width, height, viewH, bar, cx, cy } = g.size;
+  g.void.art.appVoid?.byScene();
+  if (!g.appWatch) {
+    // a search dims every planet that holds nothing found: said by each planet when the scene's own state changes
+    g.appWatch = new MutationObserver(() => { for (const el of g.planetEls.values()) el.appState?.(); });
+    g.appWatch.observe(g.scene, { attributes: true, attributeFilter: ['class'] });
+  }
+  tell('sky.scene', {
+    width, height, viewH, bar, cx, cy,
+    top: Math.max(bar - scrollY, bar + viewH - height),
+    travel: g.travel,
+    live: g.scene.classList.contains('is-live'),
+    void: g.void.art.appVoid?.id || null,
+    planets: g.data.planets.map((p) => {
+      g.planetEls.get(p.id)?.appState?.();
+      const spot = g.spots.get(p.id);
+      const el = g.planetEls.get(p.id);
+      if (!spot || !el) return null;
+      return { id: p.id, x: cx + spot.x, y: cy + spot.y, s: spot.size, moons: (el.moonEls?.() || []).map((m) => m.dataset.id) };
+    }).filter(Boolean),
+  });
+}
+
+// Planets keep their picture out in the universe (planets.js `holdPlanets`), and moons stop while something is carried.
+export function appHeld(on) { tell('sky.held', { on }); }
+if (appSky) {
+  let carrying = false;
+  const look = () => {
+    const now = document.body.classList.contains('is-carrying');
+    if (now !== carrying) { carrying = now; tell('sky.carrying', { on: now }); }
+  };
+  const start = () => new MutationObserver(look).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  if (document.body) start(); else addEventListener('DOMContentLoaded', start);
 }

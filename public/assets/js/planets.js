@@ -6,6 +6,7 @@
 
 import { nav } from './nav.js';
 import { AIR, canPaint, forget, paint, together } from './planetgl.js';
+import { appHeld, appSky, remoteGlobe } from './appsky.js';
 import { BLUE, DUR, covered, fmtDuration, h, named, nameColor, onMotionChange, plural, reducedMotion, seeded, sharpness, shortName } from './util.js';
 import { icon } from './icons.js';
 import { sound } from './sound.js';
@@ -669,7 +670,7 @@ function composeTexture(planet, previews, images, flat) {
 // The texture for a planet as it is now; `onReady` fires again once its
 // pictures have loaded.
 function textureFor(planet, previews, onReady) {
-  const flat = !canPaint();
+  const flat = !(appSky || canPaint());
   const modes = planet.modes || {};
   const key = `${planet.id}|${flat ? `${planet.icon?.c}|${lookOf(planet)}` : ''}|${modes.list?.on ? 'l' : ''}${modes.documents?.on ? 'd' : ''}${modes.reading?.on ? 'r' : ''}|${previews.map((b) => `${b.id}:${b.thumb || ''}:${b.checked ? 1 : 0}:${b.updatedAt || ''}`).join(',')}`;
   const have = textures.get(key);
@@ -790,6 +791,7 @@ const watcher = 'IntersectionObserver' in window ? new IntersectionObserver((ent
 // Planets stop (keeping their picture) while nobody can see them, such as out in the universe.
 export function holdPlanets(on) {
   held = on;
+  if (appSky) appHeld(on);
   wake();
   wakeOrbits();
 }
@@ -806,7 +808,9 @@ const DUSTY = 0.385;     // under this much use a world gathers dust (mutt/api.p
 // Worlds whose dust is lifting are painted every frame until it has.
 const lifting = new Set();
 
-function makeGlobe(canvas, rand, rate = 1) {
+function makeGlobe(canvas, rand, rate = 1, remote = null) {
+  // Inside the Mutt browser the app paints a galaxy's worlds itself (js/appsky.js).
+  if (remote) return remoteGlobe(canvas, rand, rate, remote);
   // about a minute a turn
   const period = (40 + rand() * 35) * 1000;
   const offset = rand() * period;
@@ -1053,7 +1057,9 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const isMoon = !!planet.parentId;
 
   const canvas = h('canvas', { class: 'planet-map', 'aria-hidden': 'true' });
-  const globeApi = makeGlobe(canvas, rand, isMoon ? MOON_BY_ID[moonLookOf(planet)].rate : 1);
+  // (inside the Mutt browser the app paints a galaxy's planets itself: `remote`)
+  const remote = appSky && orbit ? planet.id : null;
+  const globeApi = makeGlobe(canvas, rand, isMoon ? MOON_BY_ID[moonLookOf(planet)].rate : 1, remote);
 
   const ball = h('span', { class: 'planet-ball' },
     canvas,
@@ -1066,7 +1072,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
   const meta = h('span', { class: 'planet-meta' });
   // a shared planet has a faint glow in the colour of the one it is shared with
   const body = h('span', { class: 'planet-body' }, h('span', { class: 'planet-twin', 'aria-hidden': 'true' }), h('span', { class: 'planet-atmo' }), ringBack, ball, ringFront, bubble);
-  const el = h(tag, { class: `planet${canPaint() ? ' is-gl' : ''}${isMoon ? ' is-moon' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
+  const el = h(tag, { class: `planet${remote || canPaint() ? ' is-gl' : ''}${isMoon ? ' is-moon' : ''}`, href: tag === 'a' ? href : null, dataset: { id: planet.id }, draggable: 'false' },
     body,
     label ? h('span', { class: 'planet-label' }, h('span', { class: 'planet-title' }, name), meta) : null);
 
@@ -1085,10 +1091,12 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
       moonSig = sig;
       for (const o of orbits) { o.el.remove(); orbiting.delete(o); }
       orbits = list.map((m, i) => {
-        const me = moonEl(m, { size: moonSize(s, m.count) });
+        const me = moonEl(m, { size: moonSize(s, m.count), remote: remote ? m.id : null });
         me.classList.add('is-orbiting');
         bubble.before(me);
-        return makeOrbit(me, host, i);
+        const o = makeOrbit(me, host, i);
+        if (remote) me.globe.orbit(o, planet.id);
+        return o;
       });
       wakeOrbits();
     }
@@ -1096,11 +1104,23 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     el.classList.toggle('has-moons', orbits.length > 0);
   }
   if (orbit) {
-    const hover = (on) => (e) => { if (e.pointerType !== 'touch') { host.hovered = on; wakeOrbits(); if (on) globeApi.nudge(); } };
+    const hover = (on) => (e) => { if (e.pointerType !== 'touch') { host.hovered = on; wakeOrbits(); if (on) globeApi.nudge(); if (remote) globeApi.point(on); } };
     el.addEventListener('pointerenter', hover(true));
     el.addEventListener('pointerleave', hover(false));
     el.addEventListener('focusin', () => { host.hovered = true; wakeOrbits(); });
     el.addEventListener('focusout', () => { host.hovered = false; wakeOrbits(); });
+  }
+  if (remote) {
+    // how the stylesheet is holding it (about to be landed on, being carried, the keyboard on it), for the app to draw it so
+    const state = () => globeApi.state({
+      target: el.classList.contains('is-target'), moving: el.classList.contains('is-moving'), focus: el.matches(':focus-visible'),
+      empty: el.classList.contains('is-empty') && !el.classList.contains('is-locked'), private: el.classList.contains('is-private'),
+      dim: !el.classList.contains('is-found') && !!el.closest('.gx-scene.is-seeking'),
+    });
+    el.appState = state;
+    new MutationObserver(state).observe(el, { attributes: true, attributeFilter: ['class'] });
+    el.addEventListener('focusin', state);
+    el.addEventListener('focusout', state);
   }
 
   let shownWorld = '';
@@ -1144,6 +1164,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     const pair = other ? `shared with ${shortName(other)}` : '';
     el.classList.toggle('is-pair', !!other);
     if (other) el.style.setProperty('--twin', nameColor(other.username || ''));
+    if (remote) globeApi.dress(colors.light, other ? nameColor(other.username || '') : null);
     const metaKey = next.private ? 'private' : `${next.mine !== false && vis !== 'pin' && vis}|${!!next.locked}|${next.count || 0}|${pair}`;
     const label = next.private ? 'A private planet' : `${next.title}, ${next.locked ? 'locked' : plural(next.count || 0, 'file')}${pair ? `, ${pair}` : ''}`;
     if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
@@ -1181,6 +1202,7 @@ export function planetEl(planet, { size, href = `/p/${planet.id}`, label = true,
     sound('land', { note: lookOf(planet) });   // the planet's own note (DESIGN.md "Sound")
     fresh = 1;
     globeApi.wakeUp();
+    if (remote) globeApi.flare();
     body.classList.remove('is-gulping');
     void body.offsetWidth;
     body.classList.add('is-gulping');
@@ -1225,7 +1247,7 @@ function blankTexture() {
 // A moon as a small painted world, showing just its real-moon look.
 // Clicking opens it. (A span, not a link: on the galaxy it sits inside its
 // planet's link.)
-export function moonEl(moon, { size = 28, link = true } = {}) {
+export function moonEl(moon, { size = 28, link = true, remote = null } = {}) {
   const look = moonLookOf(moon);
   const kind = MOON_BY_ID[look];
   const rand = seeded(moon.id);
@@ -1238,10 +1260,10 @@ export function moonEl(moon, { size = 28, link = true } = {}) {
     ...(link ? { role: 'link', tabindex: '0', 'aria-label': `${moon.title}, moon` } : { 'aria-hidden': 'true' }),
   }, ball, h('span', { class: 'moon-fx', 'aria-hidden': 'true' }), link ? h('span', { class: 'moon-name' }, moon.title) : null);
   el.moon = moon;
-  if (canPaint()) {
+  if (remote || canPaint()) {
     const canvas = h('canvas', { class: 'moon-map', 'aria-hidden': 'true' });
     ball.append(canvas);
-    const globe = makeGlobe(canvas, rand, kind.rate);
+    const globe = makeGlobe(canvas, rand, kind.rate, remote);
     globe.setSize(size);
     globe.setWorld({ look: LOOK_INDEX[look], tilt: (tilt * Math.PI) / 180, colors: MOON_PALETTES[look].map(rgb), use: 0.5 });
     globe.setTexture(blankTexture());
@@ -1282,6 +1304,7 @@ export function moonEl(moon, { size = 28, link = true } = {}) {
 const orbiting = new Set();
 let orbitFrame = 0;
 let orbitLast = 0;
+let orbitBeat = 0;
 
 function makeOrbit(el, host, slot) {
   const look = el.dataset.look;
@@ -1348,6 +1371,8 @@ function orbitTick(now) {
     }
     if (o.rate || want) moving = true;
   }
+  // (inside the Mutt browser the app moves the moons it draws on its own clock; now and then it is told where the page has them)
+  if (appSky && (orbitBeat = (orbitBeat + 1) % 120) === 0) for (const o of orbiting) o.el.globe?.phase?.(o);
   if (moving && !document.hidden && !held) orbitFrame = requestAnimationFrame(orbitTick);
   else orbitLast = 0;
 }

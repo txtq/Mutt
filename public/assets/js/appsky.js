@@ -291,3 +291,40 @@ export function spotOf(el) {
   const r = el.getBoundingClientRect();
   return [r.left + r.width / 2, r.top + r.height / 2, r.width];
 }
+
+// ---------------------------------------------------------------- behind the glass
+
+// Mutt's frosted glass can only frost what the page itself painted, and the sky and planets are the
+// app's now. So the page says where each piece of its glass is, and the app paints the frosted sky
+// there. Looked at again whenever the page changes, and every picture while a piece is on the move.
+const GLASS = '.sb, .sheet, .dialog, .pop, .toast, .cn-note, .tip, .tooltip, .fx-chip, .bar-glass, .scrim';
+function glassWatch() {
+  let said = '';
+  let frame = 0;
+  let quiet = 0;
+  const look = () => {
+    frame = 0;
+    const pieces = [];
+    for (const el of document.querySelectorAll(GLASS)) {
+      const style = getComputedStyle(el);
+      const filter = style.backdropFilter || style.webkitBackdropFilter || '';
+      if (!filter || filter === 'none' || style.visibility === 'hidden' || style.display === 'none') continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.top > innerHeight) continue;
+      let shows = 1;
+      for (let up = el; up && up !== root; up = up.parentElement) shows *= Number(getComputedStyle(up).opacity);
+      const num = (name, none) => { const m = filter.match(new RegExp(`${name}\\(([\\d.]+)(px|%)?\\)`)); return m ? Number(m[1]) / (m[2] === '%' ? 100 : 1) : none; };
+      pieces.push([r.x, r.y, r.width, r.height, parseFloat(style.borderTopLeftRadius) || 0, num('blur', 0), num('saturate', 1), num('brightness', 1), shows].map((v) => Math.round(v * 100) / 100));
+    }
+    const now = JSON.stringify(pieces);
+    if (now !== said) { said = now; quiet = 0; tell('sky.glass', { pieces }); } else quiet += 1;
+    // keep looking while anything is still changing (a menu sliding in, a sheet fading)
+    if (quiet < 20) frame = requestAnimationFrame(look);
+  };
+  const wake = () => { quiet = 0; if (!frame) frame = requestAnimationFrame(look); };
+  new MutationObserver(wake).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'open'] });
+  addEventListener('resize', wake);
+  addEventListener('scroll', wake, { passive: true, capture: true });
+  wake();
+}
+if (appSky) { if (document.body) glassWatch(); else addEventListener('DOMContentLoaded', glassWatch); }

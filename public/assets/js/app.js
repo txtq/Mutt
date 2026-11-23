@@ -8,8 +8,15 @@
 const port = globalThis.webkit?.messageHandlers?.mutt;
 export const inApp = location.protocol === 'mutt:' && !!port;
 
+/** What the app put on the page before its first line ran: its open looks as they stand, and whether a check is running. */
+const start = (inApp && globalThis.__muttStart) || {};
+
 /** What the app has told the page so far: how far the window's buttons reach in from the left, and its open looks. */
-export const app = { lead: 0, choices: {}, check: null };
+export const app = { lead: 0, choices: start.choices || {}, check: start.check || null, still: !!start.still };
+
+/** The app draws the sky, the void and the planets itself, under this page (js/appsky.js is the page's half). */
+export const appSky = inApp && app.choices['sky-by'] === 'app';
+if (appSky) document.documentElement.classList.add('app-sky');
 
 const hearers = new Map();
 
@@ -59,8 +66,6 @@ export async function startApp() {
   lead(hello.lead);
   app.choices = hello.choices || {};
   app.check = hello.check || null;
-  // A proof from the app's first build chat: the app draws the sky itself, under this page.
-  if (app.choices['sky-by'] === 'app') import('./appsky.js').then((m) => m.startAppSky());
 }
 
 // Inside the app a file sent to the server never arrives if it is handed over as a Blob or a File:

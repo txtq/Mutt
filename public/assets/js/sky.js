@@ -13,6 +13,7 @@
 //      them about (the pointer, a scroll, the void).
 
 import { DUR, h, onMotionChange, reducedMotion, sharpness } from './util.js';
+import { appSky, remoteSky } from './appsky.js';
 
 const DUST_FPS = 8;
 const STAR_FPS = 4;
@@ -333,6 +334,8 @@ let instance = null;
 export const theSky = () => instance;
 
 export function createSky() {
+  // Inside the Mutt browser, when the app draws the sky itself, nothing is painted here.
+  if (appSky) { instance = remoteSky(); return instance; }
   const dustCanvas = h('canvas', { class: 'sky-dust' });
   const starCanvas = h('canvas', { class: 'sky-stars' });
   const wash = h('div', { class: 'sky-wash' });

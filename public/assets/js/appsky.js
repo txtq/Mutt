@@ -1,70 +1,65 @@
-// A PROOF, from the first build chat of the Mutt browser (2026-11-23). Fetched only inside the app,
-// and only when the app's hidden choice "Who draws the sky" is set to the app.
+// The page's half of the sky the Mutt browser draws. The Mutt browser is a Mac app that holds these
+// same screens inside it; there, when its choice "Who draws the sky" is the app, the app draws the
+// sky, the void, the planets and the dust between them itself, under this page, and moves them on
+// its own clock. This page still works out what there is and where it rests, and says so here,
+// once, when that changes. It never says where a moving thing is.
 //
-// The app draws the sky, a stand-in void and one stand-in planet itself, under this page. This file
-// is the page's side: it stops the page painting those, and tells the app where they are. Its one
-// purpose was to measure whether the two layers can be kept together; the app's second build chat
-// replaces it with the real thing.
+// Nothing in this file runs in an ordinary browser: every part below is only made when `appSky`
+// (app.js) is true, which it never is outside the app.
 
-import { app, tell } from './app.js';
+import { app, appSky, tell } from './app.js';
+import { h, onMotionChange } from './util.js';
 
-export function startAppSky() {
-  const root = document.documentElement;
-  root.classList.add('app-sky');
-  const checking = app.check === 'sky';
-  let told = '';
-  let travelling = false;
-  let last = null;     // where the planet last was: [centre x, centre y, radius]
+export { appSky };
 
-  const place = (el) => { const r = el.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2, r.width / 2]; };
-  const shown = (el) => el && el.getClientRects().length > 0;
+const root = document.documentElement;
 
-  // The one planet the app draws: the check names it; otherwise the first.
-  function planet() {
-    const id = window.__appSkyPlanet;
-    const body = id ? document.querySelector(`[data-vt="planet-${id}"]`) : document.querySelector('a.planet .planet-body');
-    if (body && !body.classList.contains('app-draws')) {
-      body.classList.add('app-draws');
-      if (checking) body.querySelector('.planet-ball')?.append(Object.assign(document.createElement('i'), { className: 'app-mark' }));
-    }
-    return body;
+// A colour as the browser reports it (a hex, rgb() or color()), as [r, g, b] from 0 to 1.
+function channels(text) {
+  const t = text.trim();
+  if (t[0] === '#') {
+    const n = parseInt(t.length < 6 ? t.slice(1).replace(/./g, '$&$&') : t.slice(1, 7), 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
   }
+  const parts = (t.match(/-?[\d.]+(?:e-?\d+)?/g) || [1, 1, 1]).slice(0, 3).map(Number);
+  return t.startsWith('color(') ? parts : parts.map((v) => v / 255);
+}
 
-  // A page change carries the planet across on the browser's own clock. The page can't see where
-  // it is on the way, so it tells the app where it starts, where it ends, how long and on which
-  // curve, and when it began; the app travels its planet by the same rule.
-  async function journey(body) {
-    travelling = true;
-    const to = place(body);
-    const from = last || to;
-    const group = document.getAnimations().find((a) => a.effect?.pseudoElement?.startsWith('::view-transition-group(planet-'));
-    let ms = 0; let curve = null; let into = 0;
-    if (group) {
-      await group.ready.catch(() => {});
-      const timing = group.effect.getComputedTiming();
-      ms = Number(timing.duration) || 0;
-      into = Number(group.currentTime) || 0;
-      curve = (String(group.effect.getTiming().easing).match(/-?[\d.]+/g) || []).slice(0, 4).map(Number);
-    }
-    if (ms) tell('sky.journey', { from, to, ms, curve: curve?.length === 4 ? curve : null, began: performance.timeOrigin + performance.now() - into, found: !!group });
-    else tell('sky.frame', { hole: null, planet: [...to, 1] });
-    last = to;
-  }
+// ---------------------------------------------------------------- the sky
 
-  function frame() {
-    requestAnimationFrame(frame);
-    const body = planet();
-    if (root.dataset.vt) {
-      if (!travelling && body && document.getAnimations().some((a) => a.effect?.pseudoElement?.startsWith('::view-transition-'))) journey(body);
-      return;
-    }
-    if (travelling) { travelling = false; tell('sky.journey', null); told = ''; }
-    const hole = document.querySelector('.void');
-    const at = shown(hole) ? place(hole) : null;     // the void's strands reach half as far again as its own box
-    const data = { hole: at ? [at[0], at[1], at[2] * 1.5, 1] : null, planet: shown(body) ? [...place(body), 1] : null };
-    if (data.planet) last = data.planet.slice(0, 3);
-    const s = JSON.stringify(data);
-    if (s !== told) { told = s; tell('sky.frame', data); }
-  }
-  requestAnimationFrame(frame);
+// Stands in for sky.js's sky: the same four doors, and nothing painted here.
+export function remoteSky() {
+  const el = h('div', { class: 'sky', 'aria-hidden': 'true' });
+  // The sky's colours as they will be once any change has settled (the app eases to them itself):
+  // read from a plain element, where the stylesheet's own easing of them doesn't reach.
+  const probe = h('i', { style: { display: 'none' } });
+  el.append(probe);
+  let first = true;
+  const say = () => {
+    const style = getComputedStyle(probe.isConnected ? probe : root);
+    tell('sky.is', {
+      motion: app.still ? 'off' : (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : root.dataset.motion || 'fluid'),
+      colours: ['--sky-top', '--sky-deep', '--sky-mid', '--sky-low'].map((name) => channels(style.getPropertyValue(name))),
+      atOnce: first,
+    });
+    first = false;
+  };
+  requestAnimationFrame(say);
+  onMotionChange(say);
+  new MutationObserver(say).observe(root, { attributes: true, attributeFilter: ['data-sky'] });
+  let night = 0;
+  let scrolled = -1;
+  let waiting = false;
+  addEventListener('scroll', () => {
+    if (waiting) return;
+    waiting = true;
+    requestAnimationFrame(() => { waiting = false; if (scrollY !== scrolled) { scrolled = scrollY; tell('sky.scroll', { y: scrollY }); } });
+  }, { passive: true });
+  return {
+    el,
+    // The app knows where its own void is; the page only says whether the sky should bend round it.
+    setLens(fn) { tell('sky.lens', { on: !!fn }); },
+    setNight(v) { if (Math.abs(v - night) < 0.002 && v !== 0 && v !== 1) return; night = v; tell('sky.night', { v }); },
+    pull(x, y, { strength = 1, radius = 360, duration = 1300 } = {}) { tell('sky.pull', { x, y, strength, radius, duration }); },
+  };
 }

@@ -1216,10 +1216,6 @@ html.in-app .sb { padding-left: max(16px, env(safe-area-inset-left), var(--app-l
    one stand-in planet under the page, so the page stops painting its own and lets them show through.
    The mark is the check's: it rides on the planet so a film of the window can find it. */
 html.app-sky, html.app-sky::view-transition { background: transparent; }
-html.app-sky .sky-wash, html.app-sky .sky-dust, html.app-sky .void-art > canvas,
-html.app-sky .app-draws .planet-map, html.app-sky .app-draws .planet-shade { visibility: hidden; }
-html.app-sky .app-draws .planet-ball { background: none; box-shadow: none; }
-html.app-sky .app-mark { position: absolute; left: 50%; top: 50%; z-index: 9; width: 14px; height: 14px; margin: -7px; background: magenta; }
 .sb-left { display: flex; align-items: center; min-width: 0; }
 .sb .logo { font-size: 18px; color: var(--ink); }
 .sb .sb-who { gap: 6px; padding: 0 10px 0 12px; color: var(--ink); }

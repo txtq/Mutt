@@ -71,6 +71,7 @@ export function remoteSky() {
 // What the page itself needs to know (how wide the light is, for laying things round it) is still
 // worked out here, with voidart.js's own sums.
 let voids = 0;
+const sentFiles = new Set();   // the pictures of files on worlds the app already holds (it keeps the last few dozen)
 export function remoteVoid({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) {
   const id = `v${++voids}`;
   const el = h('div', { class: 'void-art is-in', 'aria-hidden': 'true' });
@@ -185,7 +186,12 @@ export function remoteGlobe(canvas, rand, rate, id) {
       tex = next;
       texVersion = next.version;
       // a map with nothing on it (a moon, an empty planet before its files come) needs no picture sent
-      say('files', { url: next.canvas && next.canvas.width > 8 ? next.canvas.toDataURL('image/png') : null });
+      // (and one the app has been sent before, on an earlier visit to this galaxy, is only named)
+      const blank = !next.canvas || next.canvas.width <= 8;
+      const key = blank ? null : `${next.key}#${next.version}`;
+      const known = key && sentFiles.has(key);
+      if (key) { if (sentFiles.size > 48) sentFiles.clear(); sentFiles.add(key); }
+      say('files', { key, url: blank || known ? null : next.canvas.toDataURL('image/png') });
     },
     // its rings' colour and, for a shared planet, the colour of the one it is shared with
     dress(light, twin) {

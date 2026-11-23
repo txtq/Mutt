@@ -1219,6 +1219,7 @@ html.app-sky .gx-field .planet-ring, html.app-sky .gx-field .planet-twin { displ
 /* The app flies the planets itself (a dive, a pull away, the pull back to the universe): the page's own layer only fades
    meanwhile, and a planet's name waits out of sight while its planet is on the move. */
 html.app-sky[data-vt="dive"]::view-transition-old(root) { animation: page-out var(--dur-change) ease both; }
+html.app-sky[data-vt="dive"] .liv-world .planet-body { visibility: hidden; }   /* the app's own planet is still landing there */
 html.app-sky[data-vt="rise"]::view-transition-new(root) { animation: page-in var(--dur-arrive) var(--ease-settle) var(--dur-move) both; }
 html.app-sky .world.is-zooming .gx-field .planet-label, html.app-sky .world.is-zooming :is(.gx-threads, .gx-thread-notes) { opacity: 0; }
 .sb-left { display: flex; align-items: center; min-width: 0; }

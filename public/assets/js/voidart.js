@@ -589,6 +589,9 @@ export function voidArt({ openMin = 2.2, openCage = 1.32, haloReach = 0 } = {}) 
   waiting.add(land);
   document.addEventListener('visibilitychange', sync);
 
+  // How far it has turned, read or set through its own element: one void can then take over from another
+  // exactly as it stands (sign-in's void becomes your galaxy's, views/login.js).
+  el.spin = (to) => { if (to != null) { spin = to; draw(performance.now()); } return spin; };
   return {
     el,
     // A still picture of it as it stands: the square of half-side r (CSS pixels) round its middle,

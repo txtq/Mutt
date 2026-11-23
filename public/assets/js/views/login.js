@@ -18,7 +18,7 @@ import { nav } from '../nav.js';
 import { theSky } from '../sky.js';
 import { setPrefs } from '../theme.js';
 import { pinField } from '../ui.js';
-import { DUR, EASE, EASE_LEAVE, STAGGER, h, reducedMotion, touchScreen, wait } from '../util.js';
+import { DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, h, reducedMotion, touchScreen, wait } from '../util.js';
 import { voidArt } from '../voidart.js';
 import { icon } from '../icons.js';
 import { sound } from '../sound.js';
@@ -537,25 +537,46 @@ export const loginView = {
       pin.focus();
     }
 
-    // The right code: the words go, everything round the void rushes in, and
-    // its light swells until it takes the whole screen.
+    // The right code: the words go, everything round the void rushes in, and the void itself draws
+    // down into the void at the middle of your galaxy, which arrives round it. One void, carried from
+    // the door into the home (the user, 2026-11-23; before, its light swelled until it took the screen).
+    // Gives back how to land it once the galaxy is in place, or null when nothing moves.
     async function fallIn() {
       if (reducedMotion()) { art.hungry(false); await wait(400); return null; }
       const at = eyeAt();
       dust.fall();
       art.gulp();
+      art.hungry(false);
       theSky()?.pull(at.x, at.y, { strength: 1.4, radius: Math.hypot(innerWidth, innerHeight), duration: DUR.grand });
       core.animate([{ opacity: 1, scale: 1 }, { opacity: 0, scale: 0.86 }],
         { duration: DUR.move, easing: EASE_LEAVE, fill: 'forwards' });
-      await wait(DUR.arrive);
-      const from = art.radius();
-      const far = Math.hypot(Math.max(at.x, innerWidth - at.x), Math.max(at.y, innerHeight - at.y)) + 24;
-      const flash = h('div', { class: 'login-flash', 'aria-hidden': 'true' });
-      Object.assign(flash.style, { left: `${at.x - far}px`, top: `${at.y - far}px`, width: `${far * 2}px`, height: `${far * 2}px` });
-      document.body.append(flash);
-      await flash.animate([{ transform: `scale(${(from / far).toFixed(3)})` }, { transform: 'scale(1)' }],
-        { duration: DUR.scene, easing: EASE_LEAVE }).finished.catch(() => {});
-      return flash;
+      // Its light draws in: closed, it is the galaxy's own void, only larger.
+      art.setOpen(0);
+      await wait(DUR.scene);
+      // It leaves this page as it stands, to lie over the next one while that is put together. (Held still
+      // from here: the galaxy being built stops the page for a moment, and a void that stopped turning
+      // half way would show it. It turns too slowly for a second's stillness to be seen.)
+      const size = R;
+      const carry = h('div', { class: 'login-carry', 'aria-hidden': 'true', style: { left: `${at.x}px`, top: `${at.y}px` } });
+      art.pause();
+      carry.append(art.el);
+      document.body.append(carry);
+      return async () => {
+        const hole = document.querySelector('.gx .void .void-hole');
+        const theirs = document.querySelector('.gx .void .void-art');
+        if (!hole || !theirs) {
+          carry.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.change, easing: EASE_LEAVE, fill: 'forwards' }).finished.then(() => carry.remove(), () => carry.remove());
+          return;
+        }
+        // Down to the galaxy's void, in its place and at its size; then it is that void, turned exactly as this one is.
+        const to = hole.getBoundingClientRect();
+        theirs.style.visibility = 'hidden';
+        await carry.animate([{ transform: 'none' }, { transform: `translate(${(to.left + to.width / 2 - at.x).toFixed(1)}px, ${(to.top + to.height / 2 - at.y).toFixed(1)}px) scale(${(to.width / 2 / size).toFixed(4)})` }],
+          { duration: DUR.grand, easing: EASE_GLIDE, fill: 'forwards' }).finished.catch(() => {});
+        theirs.spin?.(art.el.spin?.());
+        theirs.style.visibility = '';
+        carry.remove();
+      };
     }
 
     async function submitPin(digits) {
@@ -590,7 +611,7 @@ export const loginView = {
         sound('hello');
         remember(res.user?.username || nameInput.value);
         clearTimeout(twitch);
-        const flash = await fallIn();
+        const land = await fallIn();
         session.user = res.user;
         session.stats = res.stats;
         setPrefs(res.prefs);
@@ -600,10 +621,7 @@ export const loginView = {
         askForLongerCode();
         // A new account, or a new code without the old one: here is the key that gets you back in next time.
         if (res.recoveryKey) import('../account.js').then((m) => m.showRecoveryKey(res.recoveryKey, res.user?.username));
-        if (flash) {
-          flash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.scene, delay: DUR.quick, easing: 'ease', fill: 'forwards' })
-            .finished.then(() => flash.remove(), () => flash.remove());
-        }
+        land?.();
       } catch (err) {
         busy = false;
         const left = err.data?.attemptsLeft;

@@ -2867,6 +2867,8 @@ body[data-page="planet"] .liv-owner a { color: color-mix(in srgb, var(--pc, var(
 
 /* The void's light, swelling over the whole screen on the way in. */
 .login-flash { position: fixed; z-index: var(--z-curtain); border-radius: 50%; background: #fdfcff; pointer-events: none; }
+/* signing in: the door's void, carried over the next page while it draws down into the galaxy's own (views/login.js `fallIn`) */
+.login-carry { position: fixed; z-index: var(--z-curtain); width: 0; height: 0; transform-origin: 0 0; pointer-events: none; }
 /* signing out: the page sinks into the night sky before the login takes its place (router.js dusk) */
 .dusk { position: fixed; inset: 0; z-index: 950; background: #020307; pointer-events: none; }
 

@@ -573,11 +573,14 @@ export const loginView = {
         }
         // Down to the galaxy's void, in its place and at its size; then it is that void, turned exactly as this one is.
         const to = hole.getBoundingClientRect();
+        const mid = document.querySelector('.gx .void .void-mid');     // its plus and its one word wait too
         theirs.style.visibility = 'hidden';
+        if (mid) mid.style.visibility = 'hidden';
         await carry.animate([{ transform: 'none' }, { transform: `translate(${(to.left + to.width / 2 - at.x).toFixed(1)}px, ${(to.top + to.height / 2 - at.y).toFixed(1)}px) scale(${(to.width / 2 / size).toFixed(4)})` }],
           { duration: DUR.grand, easing: EASE_GLIDE, fill: 'forwards' }).finished.catch(() => {});
         theirs.spin?.(art.el.spin?.());
         theirs.style.visibility = '';
+        if (mid) mid.style.visibility = '';
         carry.remove();
       };
     }

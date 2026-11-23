@@ -37,7 +37,11 @@ export async function startApp() {
   };
   const lead = (px) => { app.lead = px || 0; root.style.setProperty('--app-lead', `${app.lead}px`); };
   hear('lead', lead);
-  hear('choices', (c) => { app.choices = c || {}; });
+  hear('choices', (c) => {
+    const was = app.choices['sky-by'];
+    app.choices = c || {};
+    if (was && was !== app.choices['sky-by']) location.reload();
+  });
 
   // The window has no title bar: the top strip of the page is its handle. Pressing an empty part
   // of it carries the window; pressing twice makes it full size, as a title bar would.
@@ -55,6 +59,8 @@ export async function startApp() {
   lead(hello.lead);
   app.choices = hello.choices || {};
   app.check = hello.check || null;
+  // A proof from the app's first build chat: the app draws the sky itself, under this page.
+  if (app.choices['sky-by'] === 'app') import('./appsky.js').then((m) => m.startAppSky());
 }
 
 // Inside the app a file sent to the server never arrives if it is handed over as a Blob or a File:

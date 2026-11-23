@@ -246,6 +246,8 @@ export function appScene(g) {
     // laid out before it is on the page (it is about to arrive by a journey): the app keeps it out of sight until then
     waiting: !g.el.isConnected,
     void: g.void.art.appVoid?.id || null,
+    // your own galaxy: its void is the one that opens (the app draws its plus and the place you write)
+    mine: !!g.hole,
     planets: g.data.planets.map((p) => {
       g.planetEls.get(p.id)?.appState?.();
       const spot = g.spots.get(p.id);

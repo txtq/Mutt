@@ -62,7 +62,7 @@ export function stillVoid(name) {
 // a shorter one is a tap and opens the add box.
 const HOLD = 450;
 
-export function blackHole({ planets = () => [], onText, onFiles, mode: startMode = 'star', onMode, onToggle, onHold } = {}) {
+export function blackHole({ planets = () => [], onText, onFiles, mode: startMode = 'star', onMode, onToggle, onHold, desk = null } = {}) {
   const v = hole({ tag: 'button', label: 'Add', attrs: { type: 'button', 'aria-label': 'Add something', 'aria-expanded': 'false' } });
   const { core, el, art } = v;
   const label = v.text;
@@ -226,10 +226,21 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     vv[fn]('scroll', lift);
   };
 
-  function show() {
+  function show(how) {
     if (open) return;
     open = true;
     clearTimeout(lowering);
+    // Inside the Mutt browser the opened void is the app's own drawing (`desk`, from appvoid.js): the
+    // galaxy makes way as ever, and no box opens here.
+    if (desk) {
+      el.classList.add('is-open');
+      sound('swoop');
+      el.closest('.gx')?.classList.add('is-adding');
+      core.setAttribute('aria-expanded', 'true');
+      onToggle?.(true);
+      desk.opened(how?.end ? how : {});
+      return;
+    }
     el.classList.add('is-open');
     sound('swoop');
     sheet.inert = false;
@@ -250,6 +261,15 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
   function close() {
     if (!open) return;
     open = false;
+    if (desk) {
+      if (!el.classList.contains('is-swallowing')) sound('unswoop');
+      el.classList.remove('is-open', 'is-hungry');
+      el.closest('.gx')?.classList.remove('is-adding');
+      core.setAttribute('aria-expanded', 'false');
+      desk.closed(el.classList.contains('is-swallowing'));
+      onToggle?.(false);
+      return;
+    }
     hideList();
     if (!el.classList.contains('is-swallowing')) sound('unswoop');
     el.classList.remove('is-open', 'is-hungry');
@@ -418,6 +438,17 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     destroy: () => { close(); art.destroy(); },
     open: show,
     close,
+    // For the Mutt browser's opened void: what was written there is kept exactly as the box's Add keeps it,
+    // and the places it can go are the box's own.
+    keepText(value, from) {
+      const dest = destination();
+      if (!dest || !String(value || '').trim()) return false;
+      swallow();
+      onText?.(value, from, dest);
+      return true;
+    },
+    places: () => ({ mode, planetId: mode === 'planet' && chosen() ? planetId : null, planets: choices() }),
+    setPlace: (next, planet) => setMode(next, { planet }),
     isOpen: () => open,
     mode: () => mode,
     // Where something added without the box goes (a voice note): its mode and planet.
@@ -427,6 +458,7 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
     takeFiles: (files, from) => sendFiles(files, from || field.getBoundingClientRect()),
     // Type straight into it (pasting text anywhere on the galaxy lands here).
     focusText(text) {
+      if (desk) { show({ end: 'keep', text: text ?? null }); return; }
       show();
       if (text != null && !isEditable(document.activeElement)) { input.value = text; sync(); }
     },
@@ -456,12 +488,12 @@ export function blackHole({ planets = () => [], onText, onFiles, mode: startMode
       shockwave(at, { size: this.radius() * 2.2, color: 'rgba(200, 210, 235, 0.3)' });
       theSky()?.pull(at.x, at.y, { strength: 0.8, radius: this.radius() * 4 });
     },
-    setLabel(text) { label.textContent = text; },
+    setLabel(text) { label.textContent = text; desk?.label?.(text); },
     // Listening: the light breathes with how loud you are (voidart.js), the plus steps aside.
     listening(on) {
       el.classList.toggle('is-listening', on);
       art.listen(on);
-      if (!on) label.textContent = 'Add';
+      if (!on) { label.textContent = 'Add'; desk?.label?.('Add'); }
     },
     loudness: (x) => art.loudness(x),
     holding: () => !!press?.held,

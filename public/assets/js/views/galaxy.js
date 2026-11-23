@@ -22,6 +22,7 @@ import { BEAT, DUR, EASE, EASE_GLIDE, EASE_LEAVE, STAGGER, bus, covered, debounc
 import { beads, beadsRun, paintWeb, wisp } from '../uvweb.js';
 import { REACH, voidRadius } from '../voidart.js';
 import { appArrive, appScene, appSky, appZoom } from '../appsky.js';
+import { appDesk, appDeskGone, appLaunch, appRing } from '../appvoid.js';
 import { icon } from '../icons.js';
 import { Sky } from '../constellations.js';
 import { holdSound, sound } from '../sound.js';
@@ -1128,7 +1129,10 @@ class Galaxy {
         onToggle: (open) => this.holdStill(open),
         // Held, it listens (Speak to the Void): only where this browser can record.
         onHold: typeof MediaRecorder !== 'undefined' && navigator.mediaDevices?.getUserMedia ? (kind) => this.holdVoid(kind) : null,
+        // the Mutt browser draws the opened void itself (appvoid.js)
+        desk: appSky ? appDesk(this) : null,
       });
+      if (appSky) appLaunch();
       this.void = this.hole;
     } else {
       this.void = stillVoid(this.ownerName || `@${this.owner}`);
@@ -3463,7 +3467,7 @@ class Galaxy {
         scene: this.scene,
         mine: this.mine,
         center: () => this.void.center(),
-        hole: () => this.void.radius(),
+        hole: () => (appSky && appRing() ? appRing() / 2.1 : this.void.radius()),
         chip: () => this.m.cell,
         narrow: () => this.m.narrow,
         planets: () => this.planetEls,
@@ -3551,7 +3555,7 @@ class Galaxy {
       destroy: () => {
         removeEventListener('resize', this.relayout);
         removeEventListener('scroll', this.onScroll);
-        if (appSky) appScene(null);
+        if (appSky) { appScene(null); appDeskGone(this); }
         // A glide still under way would carry on after the page has gone,
         // waking its void and dimming the sky over the next page.
         cancelAnimationFrame(this.scrollFrame);

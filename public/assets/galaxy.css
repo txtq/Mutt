@@ -1209,6 +1209,9 @@ html[data-vt] :is(#view, .sb, .home-back) { transition: none; }   /* a page chan
   font-size: var(--text-label);
 }
 body.no-chrome .sb { display: none; }
+/* Inside the Mutt browser (a Mac app; js/app.js) the window has no title bar and its three buttons
+   sit in the top left corner of the sky: the bar's own things start clear of them. */
+html.in-app .sb { padding-left: max(16px, env(safe-area-inset-left), var(--app-lead, 0px)); }
 .sb-left { display: flex; align-items: center; min-width: 0; }
 .sb .logo { font-size: 18px; color: var(--ink); }
 .sb .sb-who { gap: 6px; padding: 0 10px 0 12px; color: var(--ink); }

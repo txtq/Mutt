@@ -21,8 +21,10 @@ import { tooltips } from './tooltip.js';
 import { makeDropRing } from './dropring.js';
 import { startComets } from './remind.js';
 import { swipeOutOfPlanets } from './swipeout.js';
+import { startApp } from './app.js';
 
 bootPrefs();
+startApp();   // the Mutt browser (a Mac app); does nothing anywhere else
 startMusic();
 startSound();
 watchSpelling();

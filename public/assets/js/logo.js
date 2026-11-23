@@ -2,7 +2,7 @@
 // and when pointed at, its letters flick through a run of typefaces, decoding
 // left to right, before landing back on the logo.
 
-import { h, reducedMotion, wait } from './util.js';
+import { faceSheet, h, reducedMotion, wait } from './util.js';
 
 // The typefaces the letters flick through. Only the letters of "mutt" are
 // downloaded for these, and only the first time the flicker runs, never up
@@ -12,7 +12,7 @@ const FACES = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;
 let facesAsked;
 function loadFaces() {
   facesAsked ||= new Promise((done) => {
-    const link = h('link', { rel: 'stylesheet', href: FACES });
+    const link = h('link', { rel: 'stylesheet', href: faceSheet(FACES) });
     link.onload = link.onerror = () => done();
     document.head.append(link);
   });

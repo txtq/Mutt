@@ -64,6 +64,10 @@ export function styles(name) {
   return sheets.get(name);
 }
 
+// Where a sheet of typefaces is fetched from. Inside the Mutt app every face is the app's own copy,
+// in one sheet, and nothing is asked of anyone else's servers; in a browser it is the address given.
+export const faceSheet = (theirs) => (location.protocol === 'mutt:' && globalThis.__muttStart ? '/fonts/faces.css' : theirs);
+
 // Paper's own typefaces (Newsreader, and the typewriter face a script is set in), fetched the first
 // time paper is about to show: a desk, a document, a book. Nothing else loads them.
 let facesAsked = false;
@@ -72,7 +76,7 @@ export function paperFaces() {
   facesAsked = true;
   document.head.append(h('link', {
     rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap',
+    href: faceSheet('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap'),
   }));
 }
 

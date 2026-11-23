@@ -12,6 +12,7 @@
 
 import { askForLongerCode } from '../account.js';
 import { api, session } from '../api.js';
+import { appSky, tell } from '../app.js';
 import { shockwave } from '../fx.js';
 import { glitch, logo } from '../logo.js';
 import { nav } from '../nav.js';
@@ -553,6 +554,8 @@ export const loginView = {
       // Its light draws in: closed, it is the galaxy's own void, only larger.
       art.setOpen(0);
       await wait(DUR.scene);
+      // Inside the Mutt browser the app draws both voids: it is told this one is being carried, and draws it down itself.
+      if (appSky) { tell('sky.door', { from: art.el.appVoid?.id || null }); return () => tell('sky.door', { land: true }); }
       // It leaves this page as it stands, to lie over the next one while that is put together. (Held still
       // from here: the galaxy being built stops the page for a moment, and a void that stopped turning
       // half way would show it. It turns too slowly for a second's stillness to be seen.)

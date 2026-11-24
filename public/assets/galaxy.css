@@ -1212,6 +1212,12 @@ body.no-chrome .sb { display: none; }
 /* Inside the Mutt browser (a Mac app; js/app.js) the window has no title bar and its three buttons
    sit in the top left corner of the sky: the bar's own things start clear of them. */
 html.in-app .sb { padding-left: max(16px, env(safe-area-inset-left), var(--app-lead, 0px)); }
+/* A page from the web is on show (the app holds it, as a sheet on the sky; js/apppages.js): the galaxy steps
+   away as it does behind a room, and the bar's middle and its search make way for the page's address and
+   the stars of open pages, which the app draws there. */
+html.app-page-gone :is(#view, .home-back, .sb-who, .sb .sb-btn:not(.sb-clock)) { transition: opacity var(--dur-move) var(--ease-settle); }
+html.app-page :is(#view, .home-back, .sb-who, .sb .sb-btn:not(.sb-clock)) { opacity: 0; pointer-events: none; transition: opacity var(--dur-change) var(--ease-leave); }
+html.app-page .cn-notes { opacity: 0; visibility: hidden; transition: opacity var(--dur-change) ease, visibility 0s var(--dur-change); }
 /* When the app draws the sky, the void and the planets itself (js/appsky.js), the page paints none of
    them and lets the app's show through from underneath, under a page change too. */
 html.app-sky, html.app-sky::view-transition { background: transparent; }

@@ -66,6 +66,8 @@ export async function startApp() {
   lead(hello.lead);
   app.choices = hello.choices || {};
   app.check = hello.check || null;
+  // pages from the web, which only the app has (apppages.js): never fetched in an ordinary browser
+  import('./apppages.js').then((m) => m.startPages()).catch(() => {});
 }
 
 // Inside the app a file sent to the server never arrives if it is handed over as a Blob or a File:

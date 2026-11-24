@@ -120,6 +120,13 @@ def dispatch(req):
     return index(req)
 
 
+# The Mutt browser (a Mac app that holds these same screens) says which version it is with every call
+# (X-Mutt-App). It is answered with the oldest version this server still serves, so an app too old for a
+# newer Mutt can say so and step aside instead of misbehaving. An ordinary browser sends no such header
+# and hears nothing of this. Raise OLDEST_APP only when a change here would break an older app.
+OLDEST_APP = '0.1'
+
+
 def application(environ, start_response):
     req = Request(environ)
     try:
@@ -139,6 +146,8 @@ def application(environ, start_response):
         ('X-Content-Type-Options', 'nosniff'),
         ('Referrer-Policy', 'same-origin'),
     ]
+    if environ.get('HTTP_X_MUTT_APP'):
+        headers.append(('X-Mutt-App-Oldest', OLDEST_APP))
     if not any(name == 'X-Frame-Options' for name, _ in headers):
         headers.append(('X-Frame-Options', 'SAMEORIGIN'))
     start_response(status_line(resp.status), headers)

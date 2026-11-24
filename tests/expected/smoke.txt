@@ -29,3 +29,4 @@ spa route: 200
 {"error":"That username and code don’t match.","<id>":2}
 {"error":"That username and code don’t match.","<id>":1}
 right code while locked: 200
+the app's version is answered with the oldest still served, and a browser hears nothing of it: 1 0

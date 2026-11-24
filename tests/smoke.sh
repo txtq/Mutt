@@ -55,3 +55,4 @@ echo "spa route: $(curl -s -o /dev/null -w '%{http_code}' $B/d/whatever)"
 X=(-b "$SP/x.txt" -c "$SP/x.txt")
 for i in 1 2 3 4; do curl -s "${X[@]}" "${J[@]}" -X POST $B/api/auth/login -d '{"username":"tester","pin":"0000"}'; echo; done
 echo "right code while locked: $(curl -s -o /dev/null -w '%{http_code}' "${X[@]}" "${J[@]}" -X POST $B/api/auth/login -d '{"username":"tester","pin":"482193"}')"
+echo "the app's version is answered with the oldest still served, and a browser hears nothing of it: $(curl -s -D - -o /dev/null -H 'X-Mutt-App: 0.1' $B/api/health | grep -ci '^x-mutt-app-oldest: 0.1') $(curl -s -D - -o /dev/null $B/api/health | grep -ci '^x-mutt-app-oldest')"

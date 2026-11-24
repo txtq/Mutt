@@ -10,6 +10,7 @@
 // Nothing in this file runs in an ordinary browser: app.js loads it only inside the app.
 
 import { hear, tell } from './app.js';
+import { sound } from './sound.js';
 import { addFiles } from './uploads.js';
 import { DUR } from './util.js';
 
@@ -34,6 +35,7 @@ export function startPages() {
   hear('page.on', ({ on }) => {
     const was = root.classList.contains('app-page');
     root.classList.toggle('app-page', !!on);
+    if (was !== !!on) sound(on ? 'open' : 'close');   // a page from the web arrives and goes with a room's own sounds
     if (was && !on) {   // coming back: the galaxy arrives as it does from a room
       root.classList.add('app-page-gone');
       setTimeout(() => root.classList.remove('app-page-gone'), DUR.arrive);
@@ -51,6 +53,10 @@ export function startPages() {
     } catch { return false; }
   });
   hear('bar.where', () => { rests(); return true; });
+  // The app's own bar makes Mutt's own sounds, by Mutt's own rule (only when Mutt Sounds is on): a menu, a star lifted
+  // and set down, stars joined, a page that can't be reached. No new sound: each is one Mutt already has.
+  const SOUNDS = new Set(['pop', 'unpop', 'pick', 'lift', 'drop', 'join', 'no', 'bin']);
+  hear('page.sound', ({ name }) => { if (SOUNDS.has(name)) sound(name); });
   const again = () => requestAnimationFrame(rests);
   addEventListener('resize', again);
   new MutationObserver(again).observe(document.body, { childList: true, subtree: false });
